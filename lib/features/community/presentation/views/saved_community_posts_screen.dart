@@ -10,7 +10,8 @@ class SavedCommunityPostsScreen extends StatefulWidget {
   const SavedCommunityPostsScreen({super.key});
 
   @override
-  State<SavedCommunityPostsScreen> createState() => _SavedCommunityPostsScreenState();
+  State<SavedCommunityPostsScreen> createState() =>
+      _SavedCommunityPostsScreenState();
 }
 
 class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
@@ -69,10 +70,16 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
           if (controller.isSearching.value) {
             return TextField(
               autofocus: true,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+              ),
               decoration: const InputDecoration(
                 hintText: 'Search saved posts...',
-                hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+                hintStyle: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 16,
+                ),
                 border: InputBorder.none,
               ),
               onChanged: controller.setSearchQuery,
@@ -88,13 +95,15 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
           );
         }),
         actions: [
-          Obx(() => IconButton(
-            icon: Icon(
-              controller.isSearching.value ? Icons.close : Icons.search,
-              color: AppColors.textPrimary,
+          Obx(
+            () => IconButton(
+              icon: Icon(
+                controller.isSearching.value ? Icons.close : Icons.search,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: controller.toggleSearching,
             ),
-            onPressed: controller.toggleSearching,
-          )),
+          ),
         ],
       ),
       body: Obx(() {
@@ -109,18 +118,25 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, color: AppColors.error, size: 48),
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.error,
+                  size: 48,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   controller.errorMessage.value,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: controller.refreshPosts,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.black,
                   ),
                   child: const Text('Retry'),
                 ),

@@ -148,9 +148,7 @@ class MainController extends BaseController {
         .snapshots()
         .map((snapshot) {
           try {
-            return snapshot.docs
-                .map(Video.fromDocumentSnapshot)
-                .toList();
+            return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
           } catch (e) {
             if (kDebugMode) {
               debugPrint('Error mapping videos: $e');
@@ -297,13 +295,12 @@ class MainController extends BaseController {
 
   // Deleted former internal implementations to use unified scalable methods
 
-  /// Like a video (Scalable subcollection pattern with reverse index)
-  /// Stores like in: videos/{videoId}/likes/{userId}
-  /// Stores reverse index in: users/{userId}/likedVideos/{videoId}
+  /// Like a video
+  /// Stores index in: users/{userId}/likedVideos/{videoId}
+  /// Increments/decrements scalar `likeCount` on video document
   Future<void> likeVideo(String videoId, String userId) async {
     if (videoId.isEmpty || userId.isEmpty) return;
 
-    // Client-side guard: prevent rapid tapping / race conditions
     final operationKey = 'like:$videoId:$userId';
     if (_pendingLikeOperations.contains(operationKey)) {
       debugPrint('[Like] Operation already in progress, ignoring duplicate');
@@ -313,37 +310,36 @@ class MainController extends BaseController {
 
     try {
       final videoRef = _firestore.collection(_videosCollection).doc(videoId);
-      final likeRef = videoRef.collection('likes').doc(userId);
-      final dislikeRef = videoRef.collection('dislikes').doc(userId);
-      // Reverse index for efficient "get user's liked videos" queries
       final userLikedRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('likedVideos')
           .doc(videoId);
+      final userDislikedRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('dislikedVideos')
+          .doc(videoId);
 
       await _firestore.runTransaction((transaction) async {
-        final likeDoc = await transaction.get(likeRef);
-        final dislikeDoc = await transaction.get(dislikeRef);
+        final likedDoc = await transaction.get(userLikedRef);
+        final dislikedDoc = await transaction.get(userDislikedRef);
 
-        // Idempotency: check if operation already done by another concurrent request
-        // This is handled naturally by Firestore transactions, but we add explicit checks
-        if (likeDoc.exists) {
-          // Unlike - remove from both collections
-          transaction.delete(likeRef);
+        if (likedDoc.exists) {
+          // Unlike
           transaction.delete(userLikedRef);
           transaction.update(videoRef, {'likeCount': FieldValue.increment(-1)});
         } else {
-          // Like - add to both collections
-          transaction.set(likeRef, {'timestamp': FieldValue.serverTimestamp()});
+          // Like
           transaction.set(userLikedRef, {
+            'videoId': videoId,
             'timestamp': FieldValue.serverTimestamp(),
           });
           transaction.update(videoRef, {'likeCount': FieldValue.increment(1)});
 
           // Remove dislike if exists
-          if (dislikeDoc.exists) {
-            transaction.delete(dislikeRef);
+          if (dislikedDoc.exists) {
+            transaction.delete(userDislikedRef);
             transaction.update(videoRef, {
               'dislikeCount': FieldValue.increment(-1),
             });
@@ -363,17 +359,16 @@ class MainController extends BaseController {
         originalException: e,
       );
     } finally {
-      // Always remove guard, even on error (allow retry)
       _pendingLikeOperations.remove(operationKey);
     }
   }
 
-  /// Dislike a video (Scalable subcollection pattern)
-  /// Also removes from user's likedVideos collection if present
+  /// Dislike a video
+  /// Stores index in: users/{userId}/dislikedVideos/{videoId}
+  /// Increments/decrements scalar `dislikeCount` on video document
   Future<void> dislikeVideo(String videoId, String userId) async {
     if (videoId.isEmpty || userId.isEmpty) return;
 
-    // Client-side guard: prevent rapid tapping / race conditions
     final operationKey = 'dislike:$videoId:$userId';
     if (_pendingDislikeOperations.contains(operationKey)) {
       debugPrint('[Dislike] Operation already in progress, ignoring duplicate');
@@ -383,36 +378,39 @@ class MainController extends BaseController {
 
     try {
       final videoRef = _firestore.collection(_videosCollection).doc(videoId);
-      final likeRef = videoRef.collection('likes').doc(userId);
-      final dislikeRef = videoRef.collection('dislikes').doc(userId);
       final userLikedRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('likedVideos')
           .doc(videoId);
+      final userDislikedRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('dislikedVideos')
+          .doc(videoId);
 
       await _firestore.runTransaction((transaction) async {
-        final likeDoc = await transaction.get(likeRef);
-        final dislikeDoc = await transaction.get(dislikeRef);
+        final likedDoc = await transaction.get(userLikedRef);
+        final dislikedDoc = await transaction.get(userDislikedRef);
 
-        if (dislikeDoc.exists) {
+        if (dislikedDoc.exists) {
           // Remove dislike
-          transaction.delete(dislikeRef);
+          transaction.delete(userDislikedRef);
           transaction.update(videoRef, {
             'dislikeCount': FieldValue.increment(-1),
           });
         } else {
           // Add dislike
-          transaction.set(dislikeRef, {
+          transaction.set(userDislikedRef, {
+            'videoId': videoId,
             'timestamp': FieldValue.serverTimestamp(),
           });
           transaction.update(videoRef, {
             'dislikeCount': FieldValue.increment(1),
           });
 
-          // Remove like if exists (from both collections)
-          if (likeDoc.exists) {
-            transaction.delete(likeRef);
+          // Remove like if exists
+          if (likedDoc.exists) {
             transaction.delete(userLikedRef);
             transaction.update(videoRef, {
               'likeCount': FieldValue.increment(-1),
@@ -433,7 +431,6 @@ class MainController extends BaseController {
         originalException: e,
       );
     } finally {
-      // Always remove guard, even on error (allow retry)
       _pendingDislikeOperations.remove(operationKey);
     }
   }
@@ -915,12 +912,17 @@ class MainController extends BaseController {
           .doc();
 
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final hasChannel =
+          authService.hasChannel.value && authService.userChannel != null;
 
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
       final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
-      final finalChannelName = authService.activeDisplayName;
+      final finalChannelName = hasChannel
+          ? (authService.userChannel?.handle.isNotEmpty == true
+                ? authService.userChannel!.handle
+                : authService.userChannel!.name)
+          : authService.activeDisplayName;
       final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final comment = Comment(
@@ -1009,12 +1011,17 @@ class MainController extends BaseController {
           .doc();
 
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final hasChannel =
+          authService.hasChannel.value && authService.userChannel != null;
 
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
       final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
-      final finalChannelName = authService.activeDisplayName;
+      final finalChannelName = hasChannel
+          ? (authService.userChannel?.handle.isNotEmpty == true
+                ? authService.userChannel!.handle
+                : authService.userChannel!.name)
+          : authService.activeDisplayName;
       final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final reply = Reply(
@@ -1162,9 +1169,8 @@ class MainController extends BaseController {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map(Comment.fromDocumentSnapshot)
-              .toList(),
+          (snapshot) =>
+              snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
         );
   }
 
@@ -1179,9 +1185,7 @@ class MainController extends BaseController {
         .orderBy('createdAt', descending: false)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map(Reply.fromDocumentSnapshot)
-              .toList(),
+          (snapshot) => snapshot.docs.map(Reply.fromDocumentSnapshot).toList(),
         );
   }
 
@@ -1213,8 +1217,7 @@ class MainController extends BaseController {
             }
 
             final shares = List<String>.from(
-              snapshot.data()!['shares'] as List? ??
-                  [],
+              snapshot.data()!['shares'] as List? ?? [],
             );
             shares.add(share);
 
@@ -1254,15 +1257,19 @@ class MainController extends BaseController {
           try {
             final viewDoc = await viewRef.get().timeout(_defaultTimeout);
             if (!viewDoc.exists) {
-              await viewRef.set({
-                'timestamp': FieldValue.serverTimestamp(),
-              }).timeout(_defaultTimeout);
+              await viewRef
+                  .set({
+                    'timestamp': FieldValue.serverTimestamp(),
+                  })
+                  .timeout(_defaultTimeout);
 
-              await videoRef.update({
-                'viewCount': FieldValue.increment(1),
-                if (isQualified)
-                  'qualifiedViewCount': FieldValue.increment(1),
-              }).timeout(_defaultTimeout);
+              await videoRef
+                  .update({
+                    'viewCount': FieldValue.increment(1),
+                    if (isQualified)
+                      'qualifiedViewCount': FieldValue.increment(1),
+                  })
+                  .timeout(_defaultTimeout);
             }
           } catch (e) {
             debugPrint('Error updating views on Web: $e');

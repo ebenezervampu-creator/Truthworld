@@ -13,7 +13,6 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 class SendFeedbackController extends GetxController {
   final formKey = GlobalKey<FormState>();
   final feedbackController = TextEditingController();
@@ -259,7 +258,8 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                 icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
                 onPressed: () {
                   if (isDashboard) {
-                    Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+                    Get.find<HomeController>().sideNavSelectedIndex.value =
+                        HomeController.indexSettings;
                   } else {
                     Get.back();
                   }
@@ -290,7 +290,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
               ),
             ),
           );
-        }
+        },
       ),
     );
   }
@@ -658,7 +658,3 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 }
-
-
-
-

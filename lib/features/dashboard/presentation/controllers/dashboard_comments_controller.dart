@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -127,7 +128,9 @@ class DashboardCommentsController extends BaseController {
         if (channelArg is Map) {
           userChannelId.value = (channelArg['id'] as String?) ?? '';
           userChannelName.value =
-              (channelArg['channelName'] as String?) ?? (channelArg['name'] as String?) ?? '';
+              (channelArg['channelName'] as String?) ??
+              (channelArg['name'] as String?) ??
+              '';
           userChannelAvatar.value =
               (channelArg['channelProfilePicUrl'] as String?) ??
               (channelArg['profilePicUrl'] as String?) ??
@@ -136,9 +139,14 @@ class DashboardCommentsController extends BaseController {
           userChannelId.value = channelArg.id;
           final data = channelArg.data() as Map<String, dynamic>?;
           if (data != null) {
-            userChannelName.value = (data['channelName'] as String?) ?? (data['name'] as String?) ?? '';
+            userChannelName.value =
+                (data['channelName'] as String?) ??
+                (data['name'] as String?) ??
+                '';
             userChannelAvatar.value =
-                (data['channelProfilePicUrl'] as String?) ?? (data['profilePicUrl'] as String?) ?? '';
+                (data['channelProfilePicUrl'] as String?) ??
+                (data['profilePicUrl'] as String?) ??
+                '';
           }
         }
       }
@@ -151,10 +159,14 @@ class DashboardCommentsController extends BaseController {
             .get();
         if (userDoc.exists) {
           final data = userDoc.data()!;
-          userChannelId.value = (data['channelId'] as String?) ?? currentUser.uid;
+          userChannelId.value =
+              (data['channelId'] as String?) ?? currentUser.uid;
           userChannelName.value =
-              (data['channelName'] as String?) ?? currentUser.displayName ?? 'Your Channel';
-          userChannelAvatar.value = (data['channelProfilePicUrl'] as String?) ?? '';
+              (data['channelName'] as String?) ??
+              currentUser.displayName ??
+              'Your Channel';
+          userChannelAvatar.value =
+              (data['channelProfilePicUrl'] as String?) ?? '';
         } else {
           userChannelId.value = currentUser.uid;
           userChannelName.value = currentUser.displayName ?? 'Your Channel';
@@ -199,19 +211,26 @@ class DashboardCommentsController extends BaseController {
               .where('channelId', isEqualTo: channelId)
               .get();
         } catch (e) {
-          logger.warning('Primary video query by channelId failed: $e', tag: _tag);
+          logger.warning(
+            'Primary video query by channelId failed: $e',
+            tag: _tag,
+          );
         }
       }
 
       // 2. Secondary Query: Try querying videos by userId
-      if ((videosSnapshot == null || videosSnapshot.docs.isEmpty) && currentUid.isNotEmpty) {
+      if ((videosSnapshot == null || videosSnapshot.docs.isEmpty) &&
+          currentUid.isNotEmpty) {
         try {
           videosSnapshot = await _firestore
               .collection('videos')
               .where('userId', isEqualTo: currentUid)
               .get();
         } catch (e) {
-          logger.warning('Secondary video query by userId failed: $e', tag: _tag);
+          logger.warning(
+            'Secondary video query by userId failed: $e',
+            tag: _tag,
+          );
         }
       }
 
@@ -233,20 +252,32 @@ class DashboardCommentsController extends BaseController {
         final filteredDocs = videosSnapshot.docs.where((doc) {
           final data = doc.data();
           final vChannelId = (data['channelId'] as String?) ?? '';
-          final vUserId = (data['userId'] as String?) ?? (data['uploaderId'] as String?) ?? '';
-          return (channelId.isNotEmpty && (vChannelId == channelId || vUserId == channelId)) ||
-                 (currentUid.isNotEmpty && vUserId == currentUid);
+          final vUserId =
+              (data['userId'] as String?) ??
+              (data['uploaderId'] as String?) ??
+              '';
+          return (channelId.isNotEmpty &&
+                  (vChannelId == channelId || vUserId == channelId)) ||
+              (currentUid.isNotEmpty && vUserId == currentUid);
         }).toList();
 
-        final docsToUse = filteredDocs.isNotEmpty ? filteredDocs : videosSnapshot.docs;
+        final docsToUse = filteredDocs.isNotEmpty
+            ? filteredDocs
+            : videosSnapshot.docs;
 
         for (final videoDoc in docsToUse) {
           final videoData = videoDoc.data();
-          final commentCount = await _commentService.getCommentCount(videoDoc.id);
+          final commentCount = await _commentService.getCommentCount(
+            videoDoc.id,
+          );
           final titleStr = (videoData['title'] as String?) ?? 'Untitled';
-          final thumbStr = (videoData['thumbnailUrl'] as String?) ?? (videoData['thumbnail'] as String?) ?? '';
+          final thumbStr =
+              (videoData['thumbnailUrl'] as String?) ??
+              (videoData['thumbnail'] as String?) ??
+              '';
           final rawDate = videoData['uploadedAt'] ?? videoData['createdAt'];
-          final dateVal = TimestampUtils.parseToDateTime(rawDate) ?? DateTime.now();
+          final dateVal =
+              TimestampUtils.parseToDateTime(rawDate) ?? DateTime.now();
 
           videos.add(
             CreatorVideoWithComments(
@@ -254,7 +285,10 @@ class DashboardCommentsController extends BaseController {
               title: titleStr,
               thumbnail: thumbStr,
               duration: videoData['duration']?.toString() ?? '0:00',
-              viewCount: (videoData['viewCount'] as int?) ?? (videoData['views'] as int?) ?? 0,
+              viewCount:
+                  (videoData['viewCount'] as int?) ??
+                  (videoData['views'] as int?) ??
+                  0,
               commentCount: commentCount,
               createdAt: dateVal,
             ),
@@ -268,7 +302,12 @@ class DashboardCommentsController extends BaseController {
 
       logger.info('Loaded ${videos.length} videos safely', tag: _tag);
     } catch (e, stackTrace) {
-      logger.error('Failed to load creator videos', error: e, stackTrace: stackTrace, tag: _tag);
+      logger.error(
+        'Failed to load creator videos',
+        error: e,
+        stackTrace: stackTrace,
+        tag: _tag,
+      );
     } finally {
       isLoadingVideos.value = false;
       // Always load channel comments!
@@ -290,7 +329,9 @@ class DashboardCommentsController extends BaseController {
     isLoadingComments.value = true;
     commentsError.value = null;
 
-    final targetChannelId = userChannelId.value.isNotEmpty ? userChannelId.value : (_auth.currentUser?.uid ?? '');
+    final targetChannelId = userChannelId.value.isNotEmpty
+        ? userChannelId.value
+        : (_auth.currentUser?.uid ?? '');
 
     if (videosWithComments.isEmpty) {
       _loadCommentsViaCollectionGroup(targetChannelId);
@@ -355,7 +396,9 @@ class DashboardCommentsController extends BaseController {
                   final cChannelId = data['channelId'] ?? data['userId'] ?? '';
                   final currentUid = _auth.currentUser?.uid ?? '';
                   if (cChannelId == channelId || cChannelId == currentUid) {
-                    collectionGroupComments.add(Comment.fromDocumentSnapshot(doc));
+                    collectionGroupComments.add(
+                      Comment.fromDocumentSnapshot(doc),
+                    );
                   }
                 } catch (_) {}
               }
@@ -369,7 +412,9 @@ class DashboardCommentsController extends BaseController {
 
                 for (final c in collectionGroupComments) {
                   if (!existingIds.contains(c.id)) {
-                    final vId = c.videoId.isNotEmpty ? c.videoId : 'channel_all';
+                    final vId = c.videoId.isNotEmpty
+                        ? c.videoId
+                        : 'channel_all';
                     _commentsByVideo.putIfAbsent(vId, () => []).add(c);
                   }
                 }
@@ -378,7 +423,10 @@ class DashboardCommentsController extends BaseController {
               isLoadingComments.value = false;
             },
             onError: (Object e) {
-              logger.warning('CollectionGroup comments query notice: $e', tag: _tag);
+              logger.warning(
+                'CollectionGroup comments query notice: $e',
+                tag: _tag,
+              );
               isLoadingComments.value = false;
             },
           );
@@ -439,9 +487,11 @@ class DashboardCommentsController extends BaseController {
       if (searchQuery.value.isNotEmpty) {
         final query = searchQuery.value.toLowerCase();
         baseList = baseList
-            .where((c) =>
-                c.text.toLowerCase().contains(query) ||
-                c.displayName.toLowerCase().contains(query))
+            .where(
+              (c) =>
+                  c.text.toLowerCase().contains(query) ||
+                  c.displayName.toLowerCase().contains(query),
+            )
             .toList();
       }
 
@@ -604,15 +654,20 @@ class DashboardCommentsController extends BaseController {
         return;
       }
 
+      final activeChannel = AuthService.to.userChannel;
+      final replyChannelName = (activeChannel?.handle.isNotEmpty ?? false)
+          ? activeChannel!.handle
+          : userChannelName.value;
+
       // Add reply
       await _commentService.addReply(
         videoId: videoId,
         commentId: commentId,
         userId: userId,
-        userName: userChannelName.value,
+        userName: replyChannelName,
         userProfilePicUrl: userChannelAvatar.value,
         channelId: userChannelId.value,
-        channelName: userChannelName.value,
+        channelName: replyChannelName,
         channelProfilePicUrl: userChannelAvatar.value,
         text: replyText,
       );
@@ -666,7 +721,6 @@ class DashboardCommentsController extends BaseController {
 
 /// Model for displaying creator videos with comment counts
 class CreatorVideoWithComments {
-
   CreatorVideoWithComments({
     required this.videoId,
     required this.title,
@@ -692,7 +746,3 @@ class CreatorVideoWithComments {
     return '${(viewCount / 1000000).toStringAsFixed(1)}M';
   }
 }
-
-
-
-

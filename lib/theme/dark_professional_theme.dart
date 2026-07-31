@@ -11,27 +11,27 @@ const Color darkSurface = AppColors.bgInput; // Rich dark surface
 const Color darkSurfaceVariant = Color(0xFF1E1E1E); // Elevated surfaces
 const Color darkOnSurface = Color(0xFFE8E8E8); // Crisp white text
 const Color darkOnSurfaceVariant = Color(0xFFB8B8B8); // Muted text
-const Color primaryAccent = Color(0xFF9B30FF); // Brand Electric Purple
-const Color secondaryAccent = Color(0xFFBF00FF); // Accent purple
-const Color tertiaryAccent = Color(0xFFD4B2FF); // Subtle purple
+const Color primaryAccent = Color(0xFFFFFFFF); // Brand Pure White
+const Color secondaryAccent = Color(0xFFE0E0E0); // Accent Light Grey
+const Color tertiaryAccent = Color(0xFFCCCCCC); // Subtle Grey
 
 ThemeData darkProfessionalTheme = ThemeData(
   brightness: Brightness.dark,
-  
+
   primaryColor: primaryAccent,
   colorScheme: ColorScheme.dark(
     primary: primaryAccent,
-    onPrimary: Colors.white,
+    onPrimary: Colors.black,
     primaryContainer: primaryAccent.withValues(alpha: 0.12),
-    onPrimaryContainer: primaryAccent,
+    onPrimaryContainer: Colors.black,
     secondary: secondaryAccent,
-    onSecondary: Colors.white,
+    onSecondary: Colors.black,
     secondaryContainer: secondaryAccent.withValues(alpha: 0.12),
-    onSecondaryContainer: secondaryAccent,
+    onSecondaryContainer: Colors.black,
     tertiary: tertiaryAccent,
-    onTertiary: Colors.white,
+    onTertiary: Colors.black,
     tertiaryContainer: tertiaryAccent.withValues(alpha: 0.12),
-    onTertiaryContainer: tertiaryAccent,
+    onTertiaryContainer: Colors.black,
     onSurface: darkOnSurface,
     surfaceContainerHighest: darkSurfaceVariant,
     onSurfaceVariant: darkOnSurfaceVariant,
@@ -180,7 +180,7 @@ ThemeData darkProfessionalTheme = ThemeData(
   // Enhanced Button Themes
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      foregroundColor: Colors.white,
+      foregroundColor: Colors.black,
       backgroundColor: primaryAccent,
       disabledForegroundColor: Colors.white54,
       disabledBackgroundColor: primaryAccent.withValues(alpha: 0.3),

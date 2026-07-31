@@ -5,7 +5,6 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 
 class DiscoverCategoryData {
-
   const DiscoverCategoryData({required this.name, required this.imageUrl});
   final String name;
   final String imageUrl;
@@ -197,9 +196,7 @@ class DiscoverController extends GetxController {
           .limit(100)
           .get();
 
-      final results = snapshot.docs
-          .map(Channel.fromDocumentSnapshot)
-          .toList();
+      final results = snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
       // Use denormalized subscriberCount from channel doc (YouTube-standard)
       for (final channel in results) {
         if (!ChannelController.globalSubscriberCounts.containsKey(

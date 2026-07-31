@@ -13,7 +13,8 @@ abstract class Result<T> {
   bool get isFailure => this is Failure<T>;
 
   T? get dataOrNull => isSuccess ? (this as Success<T>).data : null;
-  AppException? get exceptionOrNull => isFailure ? (this as Failure<T>).exception : null;
+  AppException? get exceptionOrNull =>
+      isFailure ? (this as Failure<T>).exception : null;
 
   R when<R>({
     required R Function(T data) success,
@@ -45,7 +46,9 @@ class Success<T> extends Result<T> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Success<T> && runtimeType == other.runtimeType && data == other.data;
+      other is Success<T> &&
+          runtimeType == other.runtimeType &&
+          data == other.data;
 
   @override
   int get hashCode => data.hashCode;

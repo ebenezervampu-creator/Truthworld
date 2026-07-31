@@ -11,16 +11,17 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class VideoAnalysisBottomSheet extends StatefulWidget {
-
   const VideoAnalysisBottomSheet({
-    required this.video, super.key,
+    required this.video,
+    super.key,
     this.initialTabIndex = 0,
   });
   final Video video;
   final int initialTabIndex;
 
   @override
-  State<VideoAnalysisBottomSheet> createState() => _VideoAnalysisBottomSheetState();
+  State<VideoAnalysisBottomSheet> createState() =>
+      _VideoAnalysisBottomSheetState();
 }
 
 class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
@@ -130,7 +131,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: AppColors.textSecondary,
+            ),
             onPressed: Get.back,
             style: IconButton.styleFrom(
               backgroundColor: AppColors.bgSurface,
@@ -188,10 +192,16 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       duration: const Duration(seconds: 2),
                     );
                   },
-                  icon: const Icon(Icons.copy_rounded, size: 16, color: Colors.white),
+                  icon: const Icon(
+                    Icons.copy_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                   label: Text(
                     'Copy JSON',
-                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.brand),
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.brand,
+                    ),
                   ),
                 ),
               ],
@@ -273,11 +283,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                 );
               },
               icon: const Icon(Icons.bolt_rounded, size: 18),
-              label: Text('Request AI Verification', style: AppTextStyles.buttonText),
+              label: Text(
+                'Request AI Verification',
+                style: AppTextStyles.buttonText,
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
@@ -295,12 +311,20 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
       children: [
         Text(
           '${score.toInt()}%',
-          style: AppTextStyles.titleLarge.copyWith(fontSize: 18, fontWeight: FontWeight.w900, color: color),
+          style: AppTextStyles.titleLarge.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: AppTextStyles.labelSmall.copyWith(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textTertiary),
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textTertiary,
+          ),
         ),
       ],
     );
@@ -308,15 +332,31 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
 
   Widget _buildConfidenceBar(double confidence) {
     final value = confidence > 1.0 ? confidence / 100 : confidence;
-    final color = value >= 0.8 ? AppColors.success : (value >= 0.5 ? AppColors.warning : AppColors.error);
+    final color = value >= 0.8
+        ? AppColors.success
+        : (value >= 0.5 ? AppColors.warning : AppColors.error);
 
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('ANALYSIS CONFIDENCE', style: AppTextStyles.labelSmall.copyWith(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textTertiary)),
-            Text('${(value * 100).toInt()}%', style: AppTextStyles.bodyMedium.copyWith(fontSize: 11, fontWeight: FontWeight.w900, color: color)),
+            Text(
+              'ANALYSIS CONFIDENCE',
+              style: AppTextStyles.labelSmall.copyWith(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textTertiary,
+              ),
+            ),
+            Text(
+              '${(value * 100).toInt()}%',
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: color,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -325,14 +365,19 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             Container(
               height: 6,
               width: double.infinity,
-              decoration: BoxDecoration(color: AppColors.bgDivider, borderRadius: BorderRadius.circular(3)),
+              decoration: BoxDecoration(
+                color: AppColors.bgDivider,
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
             FractionallySizedBox(
               widthFactor: value.clamp(0.0, 1.0),
               child: Container(
                 height: 6,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [color.withValues(alpha: 0.5), color]),
+                  gradient: LinearGradient(
+                    colors: [color.withValues(alpha: 0.5), color],
+                  ),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
@@ -343,7 +388,12 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -359,8 +409,21 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value, style: AppTextStyles.titleMedium.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                Text(label, style: AppTextStyles.caption.copyWith(fontSize: 9, color: AppColors.textTertiary)),
+                Text(
+                  value,
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 9,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
               ],
             ),
           ],
@@ -371,7 +434,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
 
   Widget _buildClaimCard(Map<dynamic, dynamic> claim, int index) {
     final status = (claim['status'] ?? '').toString().toLowerCase();
-    final isVerified = status == 'correct' || status == 'mostly_correct' || claim['isVerified'] == true;
+    final isVerified =
+        status == 'correct' ||
+        status == 'mostly_correct' ||
+        claim['isVerified'] == true;
     final color = isVerified ? AppColors.success : AppColors.error;
 
     return Container(
@@ -490,7 +556,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
       if (domain != null) citationParts.add(domain);
     }
     if (yearPublished != null) citationParts.add(yearPublished.toString());
-    
+
     final citationText = '$prefix${citationParts.join(', ')}';
 
     var trustColor = AppColors.textTertiary;
@@ -526,13 +592,20 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                 children: [
                   Text(
                     author ?? title ?? 'Source',
-                    style: AppTextStyles.bodyMedium.copyWith(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   if (citationText.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       citationText,
-                      style: AppTextStyles.caption.copyWith(fontSize: 9, color: AppColors.textSecondary),
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 9,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                   if (snippet != null && snippet.isNotEmpty) ...[
@@ -541,7 +614,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       '"$snippet"',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption.copyWith(fontSize: 9, fontStyle: FontStyle.italic, color: AppColors.textTertiary),
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 9,
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -551,12 +628,19 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: BoxDecoration(color: trustColor, shape: BoxShape.circle),
+                          decoration: BoxDecoration(
+                            color: trustColor,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           trustLevel.toUpperCase(),
-                          style: AppTextStyles.labelSmall.copyWith(fontSize: 8, color: trustColor, fontWeight: FontWeight.bold),
+                          style: AppTextStyles.labelSmall.copyWith(
+                            fontSize: 8,
+                            color: trustColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(width: 8),
                       ],
@@ -566,7 +650,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                             domain,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.caption.copyWith(fontSize: 9, color: AppColors.textTertiary),
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 9,
+                              color: AppColors.textTertiary,
+                            ),
                           ),
                         ),
                     ],
@@ -575,7 +662,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textTertiary,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -593,7 +684,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
       ),
       child: Text(
         text,
-        style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 12, fontStyle: FontStyle.italic),
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.textTertiary,
+          fontSize: 12,
+          fontStyle: FontStyle.italic,
+        ),
         textAlign: TextAlign.center,
       ),
     );

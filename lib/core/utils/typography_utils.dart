@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Represents the result of a typography measurement
 class TypographyMeasurement {
-
   TypographyMeasurement({
     required this.width,
     required this.height,
@@ -13,13 +12,14 @@ class TypographyMeasurement {
   final int lineCount;
 
   @override
-  String toString() => 'TypographyMeasurement(width: $width, height: $height, lineCount: $lineCount)';
+  String toString() =>
+      'TypographyMeasurement(width: $width, height: $height, lineCount: $lineCount)';
 }
 
 /// Utility class for measuring text dimensions without rendering
 class TypographyUtils {
   /// Measures the dimensions of a text block given a specific style and constraints.
-  /// 
+  ///
   /// Useful for:
   /// * Dynamic card sizing
   /// * Adaptive typography

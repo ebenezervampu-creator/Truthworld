@@ -11,8 +11,10 @@ class UserNotificationService {
       FirebaseFunctions.instanceFor(region: 'asia-south1');
 
   /// Stream live real-time notifications for the given user
-  Stream<List<UserNotification>> getNotificationsStream(String userId,
-      {int limit = 50}) {
+  Stream<List<UserNotification>> getNotificationsStream(
+    String userId, {
+    int limit = 50,
+  }) {
     if (userId.isEmpty || userId == 'guest_user') {
       return Stream.value([]);
     }
@@ -23,14 +25,16 @@ class UserNotificationService {
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(UserNotification.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(UserNotification.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Manually trigger fetch via Callable Cloud Function (fallback/sync support)
-  Future<List<UserNotification>> fetchNotificationsViaCallable(
-      {int limit = 50}) async {
+  Future<List<UserNotification>> fetchNotificationsViaCallable({
+    int limit = 50,
+  }) async {
     try {
       final callable = _functions.httpsCallable('getNotifications');
       final result = await callable.call({'limit': limit});
@@ -42,8 +46,10 @@ class UserNotificationService {
         return UserNotification.fromJson(map['id'] as String? ?? '', map);
       }).toList();
     } catch (e) {
-      logger.error('Failed to fetch notifications via callable: $e',
-          tag: 'NOTIFICATIONS');
+      logger.error(
+        'Failed to fetch notifications via callable: $e',
+        tag: 'NOTIFICATIONS',
+      );
       return [];
     }
   }
@@ -55,13 +61,15 @@ class UserNotificationService {
       await callable.call({'notificationId': notificationId});
       return true;
     } catch (e) {
-      logger.error('Failed to mark notification read: $e', tag: 'NOTIFICATIONS');
+      logger.error(
+        'Failed to mark notification read: $e',
+        tag: 'NOTIFICATIONS',
+      );
       // For immediate client resilience, update the document directly as fallback
       try {
-        await _firestore
-            .collection(_collectionPath)
-            .doc(notificationId)
-            .update({'read': true});
+        await _firestore.collection(_collectionPath).doc(notificationId).update(
+          {'read': true},
+        );
         return true;
       } catch (_) {
         return false;
@@ -115,7 +123,3 @@ class UserNotificationService {
     }
   }
 }
-
-
-
-

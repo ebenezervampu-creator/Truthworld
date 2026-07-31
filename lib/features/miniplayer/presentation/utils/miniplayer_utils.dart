@@ -12,7 +12,7 @@ import 'package:truthworld/theme/app_theme.dart';
 ///
 /// These are convenience wrappers around `MiniplayerController.to`
 /// for use from places that don't hold a direct controller reference.
-/// 
+///
 /// Implements YouTube-style miniplayer with professional exception handling.
 class MiniplayerNavigationHelper {
   MiniplayerNavigationHelper._();
@@ -165,14 +165,14 @@ class MiniplayerNavigationHelper {
   }
 
   /// Navigate away from video screen while showing miniplayer with smooth transition.
-  /// 
+  ///
   /// This is the recommended way to navigate from video screen to other screens.
-  /// 
+  ///
   /// [video] - The video to show in miniplayer
   /// [currentPosition] - Current playback position to resume from
   /// [targetRoute] - Where to navigate (e.g., '/home', '/channel')
   /// [arguments] - Arguments to pass to the target route
-  /// 
+  ///
   /// Example usage:
   /// ```dart
   /// await MiniplayerNavigationHelper.navigateAwayWithMiniplayer(
@@ -183,7 +183,8 @@ class MiniplayerNavigationHelper {
   /// ```
   static Future<void> navigateAwayWithMiniplayer({
     required Video video,
-    required String targetRoute, Duration? currentPosition,
+    required String targetRoute,
+    Duration? currentPosition,
     String? overrideUrl,
     Map<String, dynamic>? arguments,
   }) async {
@@ -223,7 +224,11 @@ class MiniplayerNavigationHelper {
       try {
         await Get.toNamed(targetRoute, arguments: arguments);
       } catch (navError) {
-        logger.error('Navigation failed: $navError', error: navError, tag: _tag);
+        logger.error(
+          'Navigation failed: $navError',
+          error: navError,
+          tag: _tag,
+        );
       }
     }
   }
@@ -311,9 +316,3 @@ class MiniplayerPerformanceUtils {
   static int getUpdateFrequencyMs({int targetFps = 60}) =>
       (1000 / targetFps).toInt();
 }
-
-
-
-
-
-

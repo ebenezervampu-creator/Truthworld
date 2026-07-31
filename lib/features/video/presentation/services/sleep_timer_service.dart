@@ -50,8 +50,13 @@ class SleepTimerService extends GetxService {
     _expirationTime = DateTime.now().add(duration);
     _updateRemainingSeconds();
 
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
-    debugPrint('[SleepTimer] Started: ${duration.inMinutes}m (Expires at $_expirationTime)');
+    _countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tick(),
+    );
+    debugPrint(
+      '[SleepTimer] Started: ${duration.inMinutes}m (Expires at $_expirationTime)',
+    );
   }
 
   /// Extend active sleep timer (e.g. +5 minutes)

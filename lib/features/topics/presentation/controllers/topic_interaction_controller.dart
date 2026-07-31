@@ -24,8 +24,7 @@ class TopicInteractionController extends GetxController {
   final RxBool isLoadingComments = false.obs;
 
   // Track reply list for each comment ID
-  final RxMap<String, List<Reply>> repliesMap =
-      <String, List<Reply>>{}.obs;
+  final RxMap<String, List<Reply>> repliesMap = <String, List<Reply>>{}.obs;
 
   // Track user comment and reply interactions (isLiked, isDisliked)
   final RxMap<String, Map<String, bool>> userCommentInteractions =
@@ -143,6 +142,20 @@ class TopicInteractionController extends GetxController {
         };
       }
       userReplyInteractions.refresh();
+
+      if (comments.isNotEmpty) {
+        comments.value = comments.map((c) {
+          final interaction = userCommentInteractions[c.id];
+          if (interaction != null) {
+            return c.copyWith(
+              isLikedByCurrentUser: interaction['isLiked'] ?? false,
+              isDislikedByCurrentUser: interaction['isDisliked'] ?? false,
+            );
+          }
+          return c;
+        }).toList();
+        comments.refresh();
+      }
     } catch (e) {
       debugPrint('Error fetching user topic comment/reply interactions: $e');
     }
@@ -186,22 +199,8 @@ class TopicInteractionController extends GetxController {
           'timestamp': FieldValue.serverTimestamp(),
         });
 
-        // ALSO follow/save the topic automatically
-        final userSavedRef = _firestore
-            .collection('users')
-            .doc(currentUserId)
-            .collection('savedTopics')
-            .doc(topicId);
-
-        batch.set(userSavedRef, {
-          'topicId': topicId,
-          'savedAt': FieldValue.serverTimestamp(),
-        });
-
-        // Consolidate updates to topic document into a single operation
         batch.update(topicRef, {
           'likeCount': FieldValue.increment(1),
-          'followerCount': FieldValue.increment(1),
         });
       } else {
         // Nested subcollections only
@@ -253,7 +252,15 @@ class TopicInteractionController extends GetxController {
           .get();
 
       comments.value = snap.docs.map((doc) {
-        return Comment.fromDocumentSnapshot(doc);
+        final comment = Comment.fromDocumentSnapshot(doc);
+        final interaction = userCommentInteractions[comment.id];
+        if (interaction != null) {
+          return comment.copyWith(
+            isLikedByCurrentUser: interaction['isLiked'] ?? false,
+            isDislikedByCurrentUser: interaction['isDisliked'] ?? false,
+          );
+        }
+        return comment;
       }).toList();
 
       // CRITICAL FIX: Removed eager N+1 fetchReplies loop.
@@ -293,7 +300,7 @@ class TopicInteractionController extends GetxController {
           AuthService.to.userChannel != null) {
         final channel = AuthService.to.userChannel!;
         channelId = channel.id;
-        channelName = channel.name;
+        channelName = channel.handle.isNotEmpty ? channel.handle : channel.name;
         channelProfilePicUrl = channel.avatarUrl;
       }
 
@@ -383,7 +390,7 @@ class TopicInteractionController extends GetxController {
           AuthService.to.userChannel != null) {
         final channel = AuthService.to.userChannel!;
         channelId = channel.id;
-        channelName = channel.name;
+        channelName = channel.handle.isNotEmpty ? channel.handle : channel.name;
         channelProfilePicUrl = channel.avatarUrl;
       }
 
@@ -521,15 +528,14 @@ class TopicInteractionController extends GetxController {
           'isDisliked': false,
           'timestamp': FieldValue.serverTimestamp(),
         });
-        batch.update(commentRef, {
+        final updates = <String, dynamic>{
           'likeCount': FieldValue.increment(1),
-        });
+        };
         if (dislikeDoc.exists) {
           batch.delete(dislikeRef);
-          batch.update(commentRef, {
-            'dislikeCount': FieldValue.increment(-1),
-          });
+          updates['dislikeCount'] = FieldValue.increment(-1);
         }
+        batch.update(commentRef, updates);
       }
 
       await batch.commit();
@@ -634,15 +640,14 @@ class TopicInteractionController extends GetxController {
           'isDisliked': true,
           'timestamp': FieldValue.serverTimestamp(),
         });
-        batch.update(commentRef, {
+        final updates = <String, dynamic>{
           'dislikeCount': FieldValue.increment(1),
-        });
+        };
         if (likeDoc.exists) {
           batch.delete(likeRef);
-          batch.update(commentRef, {
-            'likeCount': FieldValue.increment(-1),
-          });
+          updates['likeCount'] = FieldValue.increment(-1);
         }
+        batch.update(commentRef, updates);
       }
 
       await batch.commit();
@@ -753,15 +758,14 @@ class TopicInteractionController extends GetxController {
           'isDisliked': false,
           'timestamp': FieldValue.serverTimestamp(),
         });
-        batch.update(replyRef, {
+        final updates = <String, dynamic>{
           'likeCount': FieldValue.increment(1),
-        });
+        };
         if (dislikeDoc.exists) {
           batch.delete(dislikeRef);
-          batch.update(replyRef, {
-            'dislikeCount': FieldValue.increment(-1),
-          });
+          updates['dislikeCount'] = FieldValue.increment(-1);
         }
+        batch.update(replyRef, updates);
       }
 
       await batch.commit();
@@ -870,15 +874,14 @@ class TopicInteractionController extends GetxController {
           'isDisliked': true,
           'timestamp': FieldValue.serverTimestamp(),
         });
-        batch.update(replyRef, {
+        final updates = <String, dynamic>{
           'dislikeCount': FieldValue.increment(1),
-        });
+        };
         if (likeDoc.exists) {
           batch.delete(likeRef);
-          batch.update(replyRef, {
-            'likeCount': FieldValue.increment(-1),
-          });
+          updates['likeCount'] = FieldValue.increment(-1);
         }
+        batch.update(replyRef, updates);
       }
 
       await batch.commit();
@@ -926,7 +929,11 @@ class TopicInteractionController extends GetxController {
     }
   }
 
-  Future<void> deleteReply(String topicId, String commentId, String replyId) async {
+  Future<void> deleteReply(
+    String topicId,
+    String commentId,
+    String replyId,
+  ) async {
     try {
       await _firestore
           .collection('topics')

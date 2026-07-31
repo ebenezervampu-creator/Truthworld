@@ -39,7 +39,11 @@ export function truncateTranscriptToSentence(transcript?: string, maxChars: numb
 
 export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   const robotsDirective = options.robots || "index, follow";
-  const image = options.image || `${DOMAIN}/icons/og-image.png`;
+  let rawImage = options.image || `${DOMAIN}/icons/og-image.png`;
+  if (rawImage.startsWith("/")) {
+    rawImage = `${DOMAIN}${rawImage}`;
+  }
+  const image = rawImage;
   const canonicalUrl = options.url || DOMAIN;
 
   // Build JSON-LD blocks

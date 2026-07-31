@@ -10,10 +10,10 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Modern, responsive, and adaptive CommentInput with enhanced UI/UX
 /// Preserves all original backend functionality while providing premium user experience
 class ModernCommentInput extends StatefulWidget {
-
   const ModernCommentInput({
     required this.videoId,
-    required this.enableComments, super.key,
+    required this.enableComments,
+    super.key,
   });
   final String videoId;
   final bool enableComments;
@@ -221,7 +221,11 @@ class _ModernCommentInputState extends State<ModernCommentInput>
       SnackBar(
         content: const Row(
           children: [
-            Icon(Icons.check_circle_outline, color: AppColors.textPrimary, size: 20),
+            Icon(
+              Icons.check_circle_outline,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
             SizedBox(width: 12),
             Text(
               'Comment posted successfully',
@@ -352,7 +356,13 @@ class _ModernCommentInputState extends State<ModernCommentInput>
           final isHovering = _isHovering.value;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scaleByDouble(isHovering ? 1.02 : 1.0, isHovering ? 1.02 : 1.0, 1, 1),
+            transform: Matrix4.identity()
+              ..scaleByDouble(
+                isHovering ? 1.02 : 1.0,
+                isHovering ? 1.02 : 1.0,
+                1,
+                1,
+              ),
             child: Card(
               elevation: isHovering ? 8 : 2,
               margin: EdgeInsets.zero,
@@ -362,7 +372,9 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                   color: theme.colorScheme.outline.withValues(alpha: 0.2),
                 ),
               ),
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.3,
+              ),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
@@ -370,8 +382,12 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                      theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                      theme.colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.4,
+                      ),
+                      theme.colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.2,
+                      ),
                     ],
                   ),
                 ),
@@ -390,7 +406,9 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                           ],
                         ),
                         border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.3,
+                          ),
                         ),
                       ),
                       child: Icon(
@@ -438,7 +456,9 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                         borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
                         boxShadow: [
                           BoxShadow(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.3,
+                            ),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -586,23 +606,34 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                 end: Alignment.bottomRight,
                 colors: isFocused
                     ? [
-                        theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-                        theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                        theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.8,
+                        ),
+                        theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.6,
+                        ),
                       ]
                     : [
-                        theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                        theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                        theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.4,
+                        ),
+                        theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.2,
+                        ),
                       ],
               ),
               border: Border.all(
-                color: _borderColorAnimation?.value ??
+                color:
+                    _borderColorAnimation?.value ??
                     theme.colorScheme.outline.withValues(alpha: 0.2),
                 width: isFocused ? 2 : 1,
               ),
               boxShadow: isFocused
                   ? [
                       BoxShadow(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.15,
+                        ),
                         blurRadius: _elevationAnimation.value,
                         offset: const Offset(0, 2),
                       ),
@@ -695,9 +726,9 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                               color: characterCount > 450
                                   ? AppColors.warning
                                   : characterCount > 480
-                                      ? AppColors.error
-                                      : theme.colorScheme.onSurfaceVariant
-                                          .withValues(alpha: 0.6),
+                                  ? AppColors.error
+                                  : theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.6),
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
@@ -736,14 +767,20 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       )
                     : LinearGradient(
                         colors: [
-                          theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
-                          theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                          theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.6,
+                          ),
+                          theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.4,
+                          ),
                         ],
                       ),
                 boxShadow: hasText
                     ? [
                         BoxShadow(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.3,
+                          ),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -753,12 +790,16 @@ class _ModernCommentInputState extends State<ModernCommentInput>
               child: IconButton(
                 icon: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return ScaleTransition(
-                      scale: animation,
-                      child: RotationTransition(turns: animation, child: child),
-                    );
-                  },
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        return ScaleTransition(
+                          scale: animation,
+                          child: RotationTransition(
+                            turns: animation,
+                            child: child,
+                          ),
+                        );
+                      },
                   child: hasText
                       ? Icon(
                           Icons.send_rounded,
@@ -766,12 +807,12 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                           color: AppColors.textPrimary,
                           size: iconSize,
                         )
-                          : Icon(
-                              Icons.emoji_emotions_outlined,
-                              key: const ValueKey('emoji'),
-                              color: theme.colorScheme.primary,
-                              size: iconSize,
-                            ),
+                      : Icon(
+                          Icons.emoji_emotions_outlined,
+                          key: const ValueKey('emoji'),
+                          color: theme.colorScheme.primary,
+                          size: iconSize,
+                        ),
                 ),
                 onPressed: hasText && !isSubmitting
                     ? _submitComment
@@ -785,9 +826,3 @@ class _ModernCommentInputState extends State<ModernCommentInput>
     );
   }
 }
-
-
-
-
-
-

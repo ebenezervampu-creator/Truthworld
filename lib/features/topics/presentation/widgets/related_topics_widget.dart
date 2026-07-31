@@ -11,9 +11,11 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Cards for detailed view
 /// - Navigation to topic page on tap
 class RelatedTopicsWidget extends StatelessWidget {
-
   const RelatedTopicsWidget({
-    required this.topics, required this.isDesktop, required this.isTablet, super.key,
+    required this.topics,
+    required this.isDesktop,
+    required this.isTablet,
+    super.key,
   });
   final List<Topic> topics;
   final bool isDesktop;
@@ -167,8 +169,7 @@ class RelatedTopicsWidget extends StatelessWidget {
   }
 
   Widget _buildBackground(Topic topic) {
-    final bgUrl =
-        (topic.coverImage != null && topic.coverImage!.isNotEmpty)
+    final bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
         ? topic.coverImage
         : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
         ? topic.thumbnailUrl
@@ -219,9 +220,10 @@ class RelatedTopicsWidget extends StatelessWidget {
 
 /// Compact chip-style related topics (alternative design)
 class RelatedTopicsChips extends StatelessWidget {
-
   const RelatedTopicsChips({
-    required this.topics, required this.isDesktop, super.key,
+    required this.topics,
+    required this.isDesktop,
+    super.key,
   });
   final List<Topic> topics;
   final bool isDesktop;
@@ -269,8 +271,3 @@ class RelatedTopicsChips extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

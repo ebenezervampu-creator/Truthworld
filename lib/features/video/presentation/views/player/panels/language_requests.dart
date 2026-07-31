@@ -7,7 +7,9 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class RequestLanguageButton extends StatelessWidget {
   const RequestLanguageButton({
-    required this.type, required this.onTap, super.key,
+    required this.type,
+    required this.onTap,
+    super.key,
   });
   final String type;
   final VoidCallback onTap;

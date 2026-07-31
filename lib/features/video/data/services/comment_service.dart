@@ -5,13 +5,10 @@ import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/comment_report.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 
-
 class CommentService {
-
   factory CommentService() {
     return _instance;
   }
-
 
   CommentService._internal();
   static final CommentService _instance = CommentService._internal();
@@ -37,8 +34,13 @@ class CommentService {
     required String userName,
     required String userProfilePicUrl,
     required String channelId,
-    required String text, String? channelName,
+    required String text,
+    String? channelName,
     String? channelProfilePicUrl,
+    double donationAmount = 0.0,
+    String donationCurrency = '\$',
+    bool isDonatedComment = false,
+    String? donationColorHex,
   }) async {
     // Input validation
     if (text.trim().isEmpty) {
@@ -64,12 +66,19 @@ class CommentService {
         'channelName': channelName,
         'channelProfilePicUrl': channelProfilePicUrl,
         'text': text,
+        'donationAmount': donationAmount,
+        'donationCurrency': donationCurrency,
+        'isDonatedComment': isDonatedComment,
+        'donationColorHex': donationColorHex,
       });
 
       final data = result.data as Map<String, dynamic>;
       return data['commentId'] as String;
     } catch (e) {
-      logger.warning('Failed to add comment via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to add comment via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final docRef = _firestore
             .collection(_videosPath)
@@ -91,12 +100,19 @@ class CommentService {
           dislikeCount: 0,
           reportCount: 0,
           createdAt: Timestamp.now(),
+          donationAmount: donationAmount,
+          donationCurrency: donationCurrency,
+          isDonatedComment: isDonatedComment,
+          donationColorHex: donationColorHex,
         );
 
         await docRef.set(newComment.toMap());
         return docRef.id;
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for addComment: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for addComment: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to add comment: $firestoreError');
       }
     }
@@ -114,9 +130,10 @@ class CommentService {
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Comment.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Get single comment
@@ -164,7 +181,10 @@ class CommentService {
         'commentId': commentId,
       });
     } catch (e) {
-      logger.warning('Failed to delete comment via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to delete comment via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final repliesSnapshot = await _firestore
             .collection(_videosPath)
@@ -188,7 +208,10 @@ class CommentService {
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for deleteComment: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for deleteComment: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to delete comment: $firestoreError');
       }
     }
@@ -206,7 +229,8 @@ class CommentService {
     required String userName,
     required String userProfilePicUrl,
     required String channelId,
-    required String text, String? channelName,
+    required String text,
+    String? channelName,
     String? channelProfilePicUrl,
   }) async {
     try {
@@ -225,7 +249,10 @@ class CommentService {
       final data = result.data as Map<String, dynamic>;
       return data['replyId'] as String;
     } catch (e) {
-      logger.warning('Failed to add reply via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to add reply via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final docRef = _firestore
             .collection(_videosPath)
@@ -255,7 +282,10 @@ class CommentService {
         await docRef.set(newReply.toMap());
         return docRef.id;
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for addReply: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for addReply: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to add reply: $firestoreError');
       }
     }
@@ -274,14 +304,17 @@ class CommentService {
         .collection(_repliesPath)
         .orderBy('createdAt', descending: false)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Reply.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs.map(Reply.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Delete reply securely via backend Callable Cloud Function
   Future<void> deleteReply(
-      String videoId, String commentId, String replyId) async {
+    String videoId,
+    String commentId,
+    String replyId,
+  ) async {
     try {
       final callable = _functions.httpsCallable('deleteReplyNested');
       await callable.call({
@@ -290,7 +323,10 @@ class CommentService {
         'replyId': replyId,
       });
     } catch (e) {
-      logger.warning('Failed to delete reply via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to delete reply via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         await _firestore
             .collection(_videosPath)
@@ -301,7 +337,10 @@ class CommentService {
             .doc(replyId)
             .delete();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for deleteReply: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for deleteReply: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to delete reply: $firestoreError');
       }
     }
@@ -329,7 +368,10 @@ class CommentService {
         'asChannel': asChannel,
       });
     } catch (e) {
-      logger.warning('Failed to like comment via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to like comment via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final commentRef = _firestore
             .collection(_videosPath)
@@ -339,7 +381,7 @@ class CommentService {
 
         final likeRef = commentRef.collection('likes').doc(userId);
         final dislikeRef = commentRef.collection('dislikes').doc(userId);
-        
+
         final likeDoc = await likeRef.get();
         final dislikeDoc = await dislikeRef.get();
 
@@ -352,27 +394,35 @@ class CommentService {
             if (isVideoCreator) ...{
               'isHeartedByCreator': false,
               'creatorHeartName': FieldValue.delete(),
-            }
+            },
           });
         } else {
-          batch.set(likeRef, {'userId': userId, 'likedAt': FieldValue.serverTimestamp()});
+          batch.set(likeRef, {
+            'userId': userId,
+            'likedAt': FieldValue.serverTimestamp(),
+          });
           batch.update(commentRef, {
             'likeCount': FieldValue.increment(1),
             if (isVideoCreator) ...{
               'isHeartedByCreator': true,
               'creatorHeartName': creatorName,
-            }
+            },
           });
-          
+
           if (dislikeDoc.exists) {
             batch.delete(dislikeRef);
-            batch.update(commentRef, {'dislikeCount': FieldValue.increment(-1)});
+            batch.update(commentRef, {
+              'dislikeCount': FieldValue.increment(-1),
+            });
           }
         }
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for likeComment: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for likeComment: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to like comment: $firestoreError');
       }
     }
@@ -395,7 +445,10 @@ class CommentService {
         'asChannel': asChannel,
       });
     } catch (e) {
-      logger.warning('Failed to dislike comment via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to dislike comment via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final commentRef = _firestore
             .collection(_videosPath)
@@ -405,7 +458,7 @@ class CommentService {
 
         final likeRef = commentRef.collection('likes').doc(userId);
         final dislikeRef = commentRef.collection('dislikes').doc(userId);
-        
+
         final likeDoc = await likeRef.get();
         final dislikeDoc = await dislikeRef.get();
 
@@ -415,15 +468,18 @@ class CommentService {
           batch.delete(dislikeRef);
           batch.update(commentRef, {'dislikeCount': FieldValue.increment(-1)});
         } else {
-          batch.set(dislikeRef, {'userId': userId, 'dislikedAt': FieldValue.serverTimestamp()});
+          batch.set(dislikeRef, {
+            'userId': userId,
+            'dislikedAt': FieldValue.serverTimestamp(),
+          });
           batch.update(commentRef, {
             'dislikeCount': FieldValue.increment(1),
             if (isVideoCreator) ...{
               'isHeartedByCreator': false,
               'creatorHeartName': FieldValue.delete(),
-            }
+            },
           });
-          
+
           if (likeDoc.exists) {
             batch.delete(likeRef);
             batch.update(commentRef, {
@@ -431,14 +487,17 @@ class CommentService {
               if (isVideoCreator) ...{
                 'isHeartedByCreator': false,
                 'creatorHeartName': FieldValue.delete(),
-              }
+              },
             });
           }
         }
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for dislikeComment: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for dislikeComment: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to dislike comment: $firestoreError');
       }
     }
@@ -460,7 +519,10 @@ class CommentService {
         'asChannel': false,
       });
     } catch (e) {
-      logger.warning('Failed to remove comment interaction via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to remove comment interaction via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final commentRef = _firestore
             .collection(_videosPath)
@@ -470,7 +532,7 @@ class CommentService {
 
         final likeRef = commentRef.collection('likes').doc(userId);
         final dislikeRef = commentRef.collection('dislikes').doc(userId);
-        
+
         final likeDoc = await likeRef.get();
         final dislikeDoc = await dislikeRef.get();
 
@@ -483,7 +545,7 @@ class CommentService {
             if (isVideoCreator) ...{
               'isHeartedByCreator': false,
               'creatorHeartName': FieldValue.delete(),
-            }
+            },
           });
         }
         if (dislikeDoc.exists) {
@@ -493,7 +555,10 @@ class CommentService {
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for removeCommentInteraction: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for removeCommentInteraction: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to remove interaction: $firestoreError');
       }
     }
@@ -513,9 +578,9 @@ class CommentService {
           .collection(_commentsPath)
           .doc(commentId)
           .update({
-        'isHeartedByCreator': isHearted,
-        'creatorHeartName': isHearted ? creatorName : null,
-      });
+            'isHeartedByCreator': isHearted,
+            'creatorHeartName': isHearted ? creatorName : null,
+          });
     } catch (e) {
       logger.error('Failed to heart comment: $e', tag: 'COMMENTS');
       throw Exception('Failed to heart comment: $e');
@@ -540,7 +605,10 @@ class CommentService {
         'asChannel': asChannel,
       });
     } catch (e) {
-      logger.warning('Failed to like reply via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to like reply via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final replyRef = _firestore
             .collection(_videosPath)
@@ -552,7 +620,7 @@ class CommentService {
 
         final likeRef = replyRef.collection('likes').doc(userId);
         final dislikeRef = replyRef.collection('dislikes').doc(userId);
-        
+
         final likeDoc = await likeRef.get();
         final dislikeDoc = await dislikeRef.get();
 
@@ -562,9 +630,12 @@ class CommentService {
           batch.delete(likeRef);
           batch.update(replyRef, {'likeCount': FieldValue.increment(-1)});
         } else {
-          batch.set(likeRef, {'userId': userId, 'likedAt': FieldValue.serverTimestamp()});
+          batch.set(likeRef, {
+            'userId': userId,
+            'likedAt': FieldValue.serverTimestamp(),
+          });
           batch.update(replyRef, {'likeCount': FieldValue.increment(1)});
-          
+
           if (dislikeDoc.exists) {
             batch.delete(dislikeRef);
             batch.update(replyRef, {'dislikeCount': FieldValue.increment(-1)});
@@ -573,7 +644,10 @@ class CommentService {
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for likeReply: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for likeReply: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to like reply: $firestoreError');
       }
     }
@@ -596,7 +670,10 @@ class CommentService {
         'asChannel': asChannel,
       });
     } catch (e) {
-      logger.warning('Failed to dislike reply via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to dislike reply via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final replyRef = _firestore
             .collection(_videosPath)
@@ -608,7 +685,7 @@ class CommentService {
 
         final likeRef = replyRef.collection('likes').doc(userId);
         final dislikeRef = replyRef.collection('dislikes').doc(userId);
-        
+
         final likeDoc = await likeRef.get();
         final dislikeDoc = await dislikeRef.get();
 
@@ -618,9 +695,12 @@ class CommentService {
           batch.delete(dislikeRef);
           batch.update(replyRef, {'dislikeCount': FieldValue.increment(-1)});
         } else {
-          batch.set(dislikeRef, {'userId': userId, 'dislikedAt': FieldValue.serverTimestamp()});
+          batch.set(dislikeRef, {
+            'userId': userId,
+            'dislikedAt': FieldValue.serverTimestamp(),
+          });
           batch.update(replyRef, {'dislikeCount': FieldValue.increment(1)});
-          
+
           if (likeDoc.exists) {
             batch.delete(likeRef);
             batch.update(replyRef, {'likeCount': FieldValue.increment(-1)});
@@ -629,7 +709,10 @@ class CommentService {
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for dislikeReply: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for dislikeReply: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to dislike reply: $firestoreError');
       }
     }
@@ -652,7 +735,10 @@ class CommentService {
         'asChannel': false,
       });
     } catch (e) {
-      logger.warning('Failed to remove reply interaction via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to remove reply interaction via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         final replyRef = _firestore
             .collection(_videosPath)
@@ -664,7 +750,7 @@ class CommentService {
 
         final likeRef = replyRef.collection('likes').doc(userId);
         final dislikeRef = replyRef.collection('dislikes').doc(userId);
-        
+
         final likeDoc = await likeRef.get();
         final dislikeDoc = await dislikeRef.get();
 
@@ -681,7 +767,10 @@ class CommentService {
 
         await batch.commit();
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for removeReplyInteraction: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for removeReplyInteraction: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to remove reply interaction: $firestoreError');
       }
     }
@@ -714,7 +803,10 @@ class CommentService {
 
       return commentId;
     } catch (e) {
-      logger.warning('Failed to report comment via cloud function, falling back to direct Firestore: $e', tag: 'COMMENTS');
+      logger.warning(
+        'Failed to report comment via cloud function, falling back to direct Firestore: $e',
+        tag: 'COMMENTS',
+      );
       try {
         await _firestore.collection(_reportsPath).add({
           'commentId': commentId,
@@ -743,7 +835,10 @@ class CommentService {
 
         return commentId;
       } catch (firestoreError) {
-        logger.error('Direct Firestore fallback failed for reportComment: $firestoreError', tag: 'COMMENTS');
+        logger.error(
+          'Direct Firestore fallback failed for reportComment: $firestoreError',
+          tag: 'COMMENTS',
+        );
         throw Exception('Failed to report comment: $firestoreError');
       }
     }
@@ -757,9 +852,10 @@ class CommentService {
         .where('isResolved', isEqualTo: false)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(CommentReport.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(CommentReport.fromDocumentSnapshot).toList(),
+        );
   }
 
   // ============================================================================
@@ -768,35 +864,36 @@ class CommentService {
 
   /// Get all videos with comment counts (for studio)
   Stream<List<Map<String, dynamic>>> getCreatorVideosWithCommentCounts(
-      String channelId) {
+    String channelId,
+  ) {
     return _firestore
         .collection('videos')
         .where('channelId', isEqualTo: channelId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .asyncMap((videoSnapshot) async {
-      final videos = <Map<String, dynamic>>[];
+          final videos = <Map<String, dynamic>>[];
 
-      for (final videoDoc in videoSnapshot.docs) {
-        final videoData = videoDoc.data();
-        
-        final commentsSnapshot = await videoDoc.reference
-            .collection(_commentsPath)
-            .count()
-            .get();
+          for (final videoDoc in videoSnapshot.docs) {
+            final videoData = videoDoc.data();
 
-        videos.add({
-          'videoId': videoDoc.id,
-          'title': videoData['title'] ?? '',
-          'thumbnail': videoData['thumbnail'] ?? '',
-          'duration': videoData['duration'] ?? 0,
-          'commentCount': commentsSnapshot.count,
-          'createdAt': videoData['createdAt'],
+            final commentsSnapshot = await videoDoc.reference
+                .collection(_commentsPath)
+                .count()
+                .get();
+
+            videos.add({
+              'videoId': videoDoc.id,
+              'title': videoData['title'] ?? '',
+              'thumbnail': videoData['thumbnail'] ?? '',
+              'duration': videoData['duration'] ?? 0,
+              'commentCount': commentsSnapshot.count,
+              'createdAt': videoData['createdAt'],
+            });
+          }
+
+          return videos;
         });
-      }
-
-      return videos;
-    });
   }
 
   /// Get all comments for a video (studio view)
@@ -807,9 +904,10 @@ class CommentService {
         .collection(_commentsPath)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Comment.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Get comment count for a video
@@ -837,9 +935,10 @@ class CommentService {
         .where('hasCreatorReply', isEqualTo: true)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Comment.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Get unanswered comments (no creator replies)
@@ -851,9 +950,10 @@ class CommentService {
         .where('hasCreatorReply', isEqualTo: false)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Comment.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Get comments with sorting by likes
@@ -865,9 +965,10 @@ class CommentService {
         .orderBy('likeCount', descending: true)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Comment.fromDocumentSnapshot)
-            .toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map(Comment.fromDocumentSnapshot).toList(),
+        );
   }
 
   /// Mark comment as having creator reply
@@ -887,7 +988,8 @@ class CommentService {
 
   /// Get all video comment counts for creator dashboard
   Future<Map<String, int>> getMultipleVideoCommentCounts(
-      List<String> videoIds) async {
+    List<String> videoIds,
+  ) async {
     try {
       final counts = <String, int>{};
       await Future.wait(
@@ -903,7 +1005,3 @@ class CommentService {
     }
   }
 }
-
-
-
-

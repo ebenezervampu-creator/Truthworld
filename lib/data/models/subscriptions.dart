@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class Subscription {
-
   Subscription({
     required this.userId,
     required this.channelId,
@@ -16,7 +15,9 @@ class Subscription {
     return Subscription(
       userId: data['userId'] ?? '',
       channelId: data['channelId'] ?? '',
-      timestamp: rawTimestamp != null ? TimestampUtils.parse(rawTimestamp) : null,
+      timestamp: rawTimestamp != null
+          ? TimestampUtils.parse(rawTimestamp)
+          : null,
       notificationsEnabled: data['notificationsEnabled'] ?? true,
     );
   }
@@ -35,8 +36,3 @@ class Subscription {
     };
   }
 }
-
-
-
-
-

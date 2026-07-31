@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as search_ctrl;
+import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
+    as search_ctrl;
 import 'package:truthworld/features/settings/data/models/accessibility_settings.dart';
 import 'package:truthworld/features/settings/data/models/digital_wellbeing_settings.dart';
 import 'package:truthworld/features/settings/data/models/download_settings.dart';
@@ -77,16 +78,18 @@ class UserSettingsController extends GetxController {
   }
 
   void setBedtimeSchedule(String start, String end, String days) {
-    updateWellbeing(wellbeing.value.copyWith(
-      bedtimeStartTime: start,
-      bedtimeEndTime: end,
-      bedtimeDaysSchedule: days,
-    ));
+    updateWellbeing(
+      wellbeing.value.copyWith(
+        bedtimeStartTime: start,
+        bedtimeEndTime: end,
+        bedtimeDaysSchedule: days,
+      ),
+    );
   }
 
   bool verifyParentalPin(String inputPin) {
     final current = wellbeing.value;
-    
+
     // Check if locked out
     if (current.lockoutUntil != null) {
       final lockoutTime = DateTime.parse(current.lockoutUntil!);
@@ -103,30 +106,38 @@ class UserSettingsController extends GetxController {
       final attempts = current.failedPinAttempts + 1;
       String? newLockout;
       if (attempts >= 5) {
-        newLockout = DateTime.now().add(const Duration(minutes: 15)).toIso8601String();
+        newLockout = DateTime.now()
+            .add(const Duration(minutes: 15))
+            .toIso8601String();
       }
-      updateWellbeing(current.copyWith(
-        failedPinAttempts: attempts,
-        lockoutUntil: newLockout,
-      ));
+      updateWellbeing(
+        current.copyWith(
+          failedPinAttempts: attempts,
+          lockoutUntil: newLockout,
+        ),
+      );
       return false;
     }
   }
 
   void setParentalPin(String rawPin) {
     final hashed = DigitalWellbeingSettings.hashPin(rawPin);
-    updateWellbeing(wellbeing.value.copyWith(
-      parentalPinEnabled: true,
-      hashedPin: hashed,
-      failedPinAttempts: 0,
-    ));
+    updateWellbeing(
+      wellbeing.value.copyWith(
+        parentalPinEnabled: true,
+        hashedPin: hashed,
+        failedPinAttempts: 0,
+      ),
+    );
   }
 
   void disableParentalPin() {
-    updateWellbeing(wellbeing.value.copyWith(
-      parentalPinEnabled: false,
-      failedPinAttempts: 0,
-    ));
+    updateWellbeing(
+      wellbeing.value.copyWith(
+        parentalPinEnabled: false,
+        failedPinAttempts: 0,
+      ),
+    );
   }
 
   // ================= PLAYBACK & MEDIA =================
@@ -213,7 +224,10 @@ class UserSettingsController extends GetxController {
       final tempDir = await getTemporaryDirectory();
       if (await tempDir.exists()) {
         var totalBytes = 0;
-        await for (final entity in tempDir.list(recursive: true, followLinks: false)) {
+        await for (final entity in tempDir.list(
+          recursive: true,
+          followLinks: false,
+        )) {
           if (entity is File) {
             totalBytes += await entity.length();
           }
@@ -232,11 +246,18 @@ class UserSettingsController extends GetxController {
     _repository.updateAccessibility(updated);
   }
 
-  void toggleReduceMotion(bool val) => updateAccessibility(accessibility.value.copyWith(reduceMotion: val));
-  void toggleHighContrastSubtitles(bool val) => updateAccessibility(accessibility.value.copyWith(highContrastSubtitles: val));
-  void toggleHapticFeedback(bool val) => updateAccessibility(accessibility.value.copyWith(hapticFeedback: val));
-  void setCaptionSize(String size) => updateAccessibility(accessibility.value.copyWith(captionSize: size));
-  void setColorBlindSupport(String mode) => updateAccessibility(accessibility.value.copyWith(colorBlindSupport: mode));
+  void toggleReduceMotion(bool val) =>
+      updateAccessibility(accessibility.value.copyWith(reduceMotion: val));
+  void toggleHighContrastSubtitles(bool val) => updateAccessibility(
+    accessibility.value.copyWith(highContrastSubtitles: val),
+  );
+  void toggleHapticFeedback(bool val) =>
+      updateAccessibility(accessibility.value.copyWith(hapticFeedback: val));
+  void setCaptionSize(String size) =>
+      updateAccessibility(accessibility.value.copyWith(captionSize: size));
+  void setColorBlindSupport(String mode) => updateAccessibility(
+    accessibility.value.copyWith(colorBlindSupport: mode),
+  );
 
   // ================= NOTIFICATIONS & PRIVACY =================
 

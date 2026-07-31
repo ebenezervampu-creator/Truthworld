@@ -6,7 +6,8 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
-import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as app_search;
+import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
+    as app_search;
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 
 /// Home feature binding (Session lifecycle: fenix = true)
@@ -32,7 +33,10 @@ class VideoBinding extends Bindings {
   @override
   void dependencies() {
     MiniplayerBinding().dependencies();
-    final videoId = Get.arguments?['video']?.id ?? Get.parameters['v'] ?? Get.parameters['videoId'];
+    final videoId =
+        Get.arguments?['video']?.id ??
+        Get.parameters['v'] ??
+        Get.parameters['videoId'];
     Get.lazyPut<VideoController>(VideoController.new, tag: videoId);
     Get.lazyPut<ChannelController>(ChannelController.new, tag: videoId);
   }

@@ -405,9 +405,8 @@ class FirestoreService extends GetxService {
   /// instead of writing directly to avoid write conflicts.
   Future<void> incrementVideoViews(String videoId) async {
     try {
-      // This would call a Cloud Function to batch increments
       await _firestore.collection('videos').doc(videoId).update({
-        'stats.views': FieldValue.increment(1),
+        'viewCount': FieldValue.increment(1),
       });
     } catch (e) {
       debugPrint('Error incrementing views: $e');
@@ -449,20 +448,30 @@ class FirestoreService extends GetxService {
     }
   }
 
-  /// Add like to video
+  /// Like / toggle like for a video
+  /// Updates scalar `likeCount` on video document and manages `users/{userId}/likedVideos/{videoId}`
   Future<void> likeVideo(String userId, String videoId) async {
     try {
-      await _firestore.collection('videos').doc(videoId).update({
-        'stats.likes': FieldValue.increment(1),
-      });
-
-      // Add to user's liked videos
-      await _firestore
-          .collection('userCache')
+      final videoRef = _firestore.collection('videos').doc(videoId);
+      final userLikedRef = _firestore
+          .collection('users')
           .doc(userId)
           .collection('likedVideos')
-          .doc(videoId)
-          .set({'videoId': videoId, 'likedAt': FieldValue.serverTimestamp()});
+          .doc(videoId);
+
+      await _firestore.runTransaction((transaction) async {
+        final userLikedDoc = await transaction.get(userLikedRef);
+        if (userLikedDoc.exists) {
+          transaction.delete(userLikedRef);
+          transaction.update(videoRef, {'likeCount': FieldValue.increment(-1)});
+        } else {
+          transaction.set(userLikedRef, {
+            'videoId': videoId,
+            'likedAt': FieldValue.serverTimestamp(),
+          });
+          transaction.update(videoRef, {'likeCount': FieldValue.increment(1)});
+        }
+      });
     } catch (e) {
       debugPrint('Error liking video: $e');
     }
@@ -590,8 +599,3 @@ class FirestoreService extends GetxService {
     }
   }
 }
-
-
-
-
-

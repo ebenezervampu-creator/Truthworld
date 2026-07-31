@@ -1,5 +1,4 @@
 class DownloadSettings {
-
   const DownloadSettings({
     this.wifiOnly = true,
     this.chargingRequired = false,
@@ -17,7 +16,8 @@ class DownloadSettings {
       wifiOnly: json['wifiOnly'] as bool? ?? true,
       chargingRequired: json['chargingRequired'] as bool? ?? false,
       deviceIdleRequired: json['deviceIdleRequired'] as bool? ?? false,
-      minBatteryThresholdPercent: json['minBatteryThresholdPercent'] as int? ?? 20,
+      minBatteryThresholdPercent:
+          json['minBatteryThresholdPercent'] as int? ?? 20,
       downloadQuality: json['downloadQuality'] as String? ?? 'Medium (720p)',
       smartDownloadsEnabled: json['smartDownloadsEnabled'] as bool? ?? false,
       maxStorageLimit: json['maxStorageLimit'] as String? ?? '5GB',
@@ -33,7 +33,8 @@ class DownloadSettings {
 
   // Smart Downloads
   final bool smartDownloadsEnabled;
-  final String maxStorageLimit; // '500MB', '1GB', '2GB', '5GB', '10GB', '20GB', 'Unlimited'
+  final String
+  maxStorageLimit; // '500MB', '1GB', '2GB', '5GB', '10GB', '20GB', 'Unlimited'
   final String downloadLocation; // 'Automatic', 'Internal Storage', 'SD Card'
   final int maxConcurrentDownloads;
 
@@ -52,12 +53,15 @@ class DownloadSettings {
       wifiOnly: wifiOnly ?? this.wifiOnly,
       chargingRequired: chargingRequired ?? this.chargingRequired,
       deviceIdleRequired: deviceIdleRequired ?? this.deviceIdleRequired,
-      minBatteryThresholdPercent: minBatteryThresholdPercent ?? this.minBatteryThresholdPercent,
+      minBatteryThresholdPercent:
+          minBatteryThresholdPercent ?? this.minBatteryThresholdPercent,
       downloadQuality: downloadQuality ?? this.downloadQuality,
-      smartDownloadsEnabled: smartDownloadsEnabled ?? this.smartDownloadsEnabled,
+      smartDownloadsEnabled:
+          smartDownloadsEnabled ?? this.smartDownloadsEnabled,
       maxStorageLimit: maxStorageLimit ?? this.maxStorageLimit,
       downloadLocation: downloadLocation ?? this.downloadLocation,
-      maxConcurrentDownloads: maxConcurrentDownloads ?? this.maxConcurrentDownloads,
+      maxConcurrentDownloads:
+          maxConcurrentDownloads ?? this.maxConcurrentDownloads,
     );
   }
 

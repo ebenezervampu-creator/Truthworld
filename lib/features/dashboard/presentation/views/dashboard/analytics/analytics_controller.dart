@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class AnalyticsController extends GetxController {
-
   AnalyticsController({required this.channelId});
   final String channelId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -59,8 +58,3 @@ class AnalyticsController extends GetxController {
     }
   }
 }
-
-
-
-
-

@@ -116,9 +116,7 @@ class WatchHistoryController extends GetxController
           .orderBy('watchedAt', descending: true)
           .get();
 
-      final videoList = snapshot.docs
-          .map(Video.fromDocumentSnapshot)
-          .toList();
+      final videoList = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
       videos.assignAll(videoList);
       _applyFiltersAndSort();
     } catch (e) {
@@ -205,8 +203,3 @@ class WatchHistoryController extends GetxController
     Get.snackbar('Navigate', 'To Auth Screen');
   }
 }
-
-
-
-
-

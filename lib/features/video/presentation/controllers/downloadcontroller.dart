@@ -187,7 +187,3 @@ class DownloadsController extends GetxController {
     return months[month - 1];
   }
 }
-
-
-
-

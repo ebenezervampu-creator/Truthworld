@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/category/presentation/views/category/tandc_for_channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/availability_indicator_widget.dart';
@@ -27,7 +28,9 @@ class ChannelScreen extends StatelessWidget {
 
     // Show draft dialog after frame builds (only once)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (controller.hasDraft.value && !draftDialogShown.value && !AuthService.to.hasChannel.value) {
+      if (controller.hasDraft.value &&
+          !draftDialogShown.value &&
+          !AuthService.to.hasChannel.value) {
         draftDialogShown.value = true;
         _showDraftAvailableDialog(isDarkMode);
       }
@@ -109,7 +112,9 @@ class ChannelScreen extends StatelessWidget {
               IconButton(
                 icon: Icon(
                   Icons.close,
-                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF718096),
                 ),
                 onPressed: () => _handleClose(isDarkMode),
               ),
@@ -131,7 +136,9 @@ class ChannelScreen extends StatelessWidget {
               PopupMenuButton<String>(
                 icon: Icon(
                   Icons.more_vert,
-                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF718096),
                 ),
                 onSelected: (value) async {
                   if (value == 'save_draft') {
@@ -259,9 +266,7 @@ class ChannelScreen extends StatelessWidget {
         Expanded(
           flex: 4,
           child: Container(
-            color: isDarkMode
-                ? AppColors.bgInput
-                : const Color(0xFFF7FAFC),
+            color: isDarkMode ? AppColors.bgInput : const Color(0xFFF7FAFC),
             padding: const EdgeInsets.all(32),
             child: _buildLivePreviewCard(isDarkMode),
           ),
@@ -304,6 +309,8 @@ class ChannelScreen extends StatelessWidget {
           stepWidget = Column(
             children: [
               _buildStepBasics(isDarkMode),
+              const SizedBox(height: 32),
+              _buildChannelTypeSelectionSection(isDarkMode),
               const SizedBox(height: 32),
               _buildStepBranding(isDarkMode),
               const SizedBox(height: 48),
@@ -409,7 +416,8 @@ class ChannelScreen extends StatelessWidget {
           ),
         ),
         Obx(() {
-          if (controller.handleSuggestions.isEmpty) return const SizedBox.shrink();
+          if (controller.handleSuggestions.isEmpty)
+            return const SizedBox.shrink();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -419,7 +427,9 @@ class ChannelScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF718096),
                 ),
               ),
               const SizedBox(height: 8),
@@ -439,7 +449,9 @@ class ChannelScreen extends StatelessWidget {
                             color: Color(0xFF6B46C1),
                           ),
                         ),
-                        backgroundColor: const Color(0xFF6B46C1).withValues(alpha: 0.1),
+                        backgroundColor: const Color(
+                          0xFF6B46C1,
+                        ).withValues(alpha: 0.1),
                         side: BorderSide(
                           color: const Color(0xFF6B46C1).withValues(alpha: 0.3),
                         ),
@@ -486,6 +498,309 @@ class ChannelScreen extends StatelessWidget {
   }
 
   // ========================================================================
+  // CHANNEL TYPE SELECTION
+  // ========================================================================
+  Widget _buildChannelTypeSelectionSection(bool isDarkMode) {
+    return Obx(() {
+      final selectedType = controller.selectedChannelType.value;
+      final isStandard = selectedType == ChannelType.standard;
+      final isCustom = selectedType == ChannelType.custom;
+
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDarkMode
+                ? const Color(0xFF334155)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.tune_rounded, color: Colors.white, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Channel Type & Plan',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Choose your monetization & infrastructure tier before creating your channel.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDarkMode
+                              ? AppColors.textSecondary
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildChannelTypeCardOption(
+                    type: ChannelType.standard,
+                    title: 'Standard Channel',
+                    subtitle:
+                        '55% Net Revenue • Zero hosting fees • Up to 5 Videos limit',
+                    icon: Icons.play_circle_filled,
+                    primaryColor: const Color(0xFF3B82F6),
+                    isSelected: isStandard,
+                    isDarkMode: isDarkMode,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildChannelTypeCardOption(
+                    type: ChannelType.custom,
+                    title: 'Custom Channel',
+                    subtitle:
+                        '100% Gross - Infra • Unlimited Videos • Instant Cashout',
+                    icon: Icons.rocket_launch,
+                    primaryColor: const Color(0xFF8B5CF6),
+                    isSelected: isCustom,
+                    isDarkMode: isDarkMode,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Detailed Benefits & How It Works breakdown for selected option
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color:
+                    (isStandard
+                            ? const Color(0xFF3B82F6)
+                            : const Color(0xFF8B5CF6))
+                        .withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color:
+                      (isStandard
+                              ? const Color(0xFF3B82F6)
+                              : const Color(0xFF8B5CF6))
+                          .withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.stars_rounded, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        isStandard
+                            ? 'Standard Channel Plan Highlights:'
+                            : 'Custom Channel Plan Highlights:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isStandard
+                              ? const Color(0xFF3B82F6)
+                              : const Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (isStandard) ...[
+                    _buildWizardBullet(
+                      '55% Net Creator Revenue Share (\$0 Upfront Fees)',
+                    ),
+                    _buildWizardBullet(
+                      'Up to 5 Videos Upload limit (Min 2 min per video, 10 min total duration)',
+                    ),
+                    _buildWizardBullet(
+                      '10 Hours watch-time cash-out threshold per video',
+                    ),
+                    _buildWizardBullet(
+                      '100% Free platform hosting and video transcoding',
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'How It Works: Standard channels are zero-maintenance. The platform hosts your content and handles streaming. Earnings start from Day 1 and become withdrawable per video after 10 hours watch time.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode
+                            ? AppColors.textSecondary
+                            : const Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                    ),
+                  ] else ...[
+                    _buildWizardBullet(
+                      '100% Gross Creator Revenue Share (minus raw infrastructure usage)',
+                    ),
+                    _buildWizardBullet(
+                      'Unlimited Video Uploads (up to 24 Hours video length)',
+                    ),
+                    _buildWizardBullet(
+                      'Instant Cash Withdrawals without watch-time gates',
+                    ),
+                    _buildWizardBullet(
+                      'Full control over media storage and streaming bandwidth',
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'How It Works: Custom channels provide 100% gross earnings retention. You pay only for raw cloud bandwidth & storage consumed, with instant cash out availability.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode
+                            ? AppColors.textSecondary
+                            : const Color(0xFF475569),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildChannelTypeCardOption({
+    required ChannelType type,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color primaryColor,
+    required bool isSelected,
+    required bool isDarkMode,
+  }) {
+    return GestureDetector(
+      onTap: () => controller.selectedChannelType.value = type,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDarkMode
+              ? (isSelected ? const Color(0xFF1E293B) : AppColors.bgPage)
+              : (isSelected
+                    ? const Color(0xFFF1F5F9)
+                    : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor
+                : (isDarkMode
+                      ? const Color(0xFF334155)
+                      : const Color(0xFFE2E8F0)),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? primaryColor : Colors.transparent,
+                    border: Border.all(
+                      color: isSelected
+                          ? primaryColor
+                          : (isDarkMode
+                                ? AppColors.textTertiary
+                                : Colors.black26),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, size: 14, color: Colors.white)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: isDarkMode
+                    ? AppColors.textPrimary
+                    : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: isDarkMode
+                    ? AppColors.textSecondary
+                    : const Color(0xFF64748B),
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWizardBullet(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '• ',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ========================================================================
   // STEP 2: BRANDING
   // ========================================================================
   Widget _buildStepBranding(bool isDarkMode) {
@@ -521,7 +836,9 @@ class ChannelScreen extends StatelessWidget {
                     height: 14,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF3B82F6),
+                      ),
                     ),
                   ),
                   SizedBox(width: 8),
@@ -541,7 +858,11 @@ class ChannelScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.error_rounded, color: Color(0xFFEF4444), size: 16),
+                  const Icon(
+                    Icons.error_rounded,
+                    color: Color(0xFFEF4444),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -561,7 +882,11 @@ class ChannelScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_rounded, color: Color(0xFFF59E0B), size: 16),
+                  const Icon(
+                    Icons.warning_rounded,
+                    color: Color(0xFFF59E0B),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -602,7 +927,9 @@ class ChannelScreen extends StatelessWidget {
                     height: 14,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF3B82F6),
+                      ),
                     ),
                   ),
                   SizedBox(width: 8),
@@ -622,7 +949,11 @@ class ChannelScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.error_rounded, color: Color(0xFFEF4444), size: 16),
+                  const Icon(
+                    Icons.error_rounded,
+                    color: Color(0xFFEF4444),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -642,7 +973,11 @@ class ChannelScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_rounded, color: Color(0xFFF59E0B), size: 16),
+                  const Icon(
+                    Icons.warning_rounded,
+                    color: Color(0xFFF59E0B),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -871,7 +1206,9 @@ class ChannelScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : const Color(0xFF2D3748),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1001,7 +1338,9 @@ class ChannelScreen extends StatelessWidget {
                       child: Icon(
                         Icons.image_outlined,
                         size: 48,
-                        color: isDarkMode ? AppColors.textDisabled : Colors.black26,
+                        color: isDarkMode
+                            ? AppColors.textDisabled
+                            : Colors.black26,
                       ),
                     ),
             ),
@@ -1029,7 +1368,9 @@ class ChannelScreen extends StatelessWidget {
                             width: 4,
                           ),
                         ),
-                        child: hasAvatar && controller.avatarImageData.value != null
+                        child:
+                            hasAvatar &&
+                                controller.avatarImageData.value != null
                             ? ClipOval(
                                 child: Image.memory(
                                   controller.avatarImageData.value!.bytes,
@@ -1207,7 +1548,9 @@ class ChannelScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.arrow_back, color: isDarkMode
+                      Icon(
+                        Icons.arrow_back,
+                        color: isDarkMode
                             ? AppColors.textPrimary
                             : const Color(0xFF2D3748),
                       ),
@@ -1440,15 +1783,15 @@ class ChannelScreen extends StatelessWidget {
                     color: isAll
                         ? const Color(0xFF6B46C1).withValues(alpha: 0.15)
                         : (isDarkMode
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : const Color(0xFFEDF2F7)),
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : const Color(0xFFEDF2F7)),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isAll
                           ? const Color(0xFF6B46C1)
                           : (isDarkMode
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : const Color(0xFFCBD5E0)),
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : const Color(0xFFCBD5E0)),
                     ),
                   ),
                   child: Row(
@@ -1462,8 +1805,8 @@ class ChannelScreen extends StatelessWidget {
                         color: isAll
                             ? const Color(0xFF6B46C1)
                             : (isDarkMode
-                                ? AppColors.textSecondary
-                                : const Color(0xFF4A5568)),
+                                  ? AppColors.textSecondary
+                                  : const Color(0xFF4A5568)),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -1474,8 +1817,8 @@ class ChannelScreen extends StatelessWidget {
                           color: isAll
                               ? const Color(0xFF6B46C1)
                               : (isDarkMode
-                                  ? AppColors.textSecondary
-                                  : const Color(0xFF4A5568)),
+                                    ? AppColors.textSecondary
+                                    : const Color(0xFF4A5568)),
                         ),
                       ),
                     ],
@@ -1504,7 +1847,10 @@ class ChannelScreen extends StatelessWidget {
             children: [
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: count > 0
                       ? const Color(0xFF6B46C1).withValues(alpha: 0.1)
@@ -1515,8 +1861,8 @@ class ChannelScreen extends StatelessWidget {
                   count == total
                       ? 'All Categories Selected ($total/$total)'
                       : (count > 0
-                          ? '$count of $total Categories Selected'
-                          : 'No category selected - please pick at least one'),
+                            ? '$count of $total Categories Selected'
+                            : 'No category selected - please pick at least one'),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -1538,8 +1884,8 @@ class ChannelScreen extends StatelessWidget {
                       color: isSelected
                           ? Colors.white
                           : (isDarkMode
-                              ? AppColors.textSecondary
-                              : const Color(0xFF4A5568)),
+                                ? AppColors.textSecondary
+                                : const Color(0xFF4A5568)),
                     ),
                     label: Text(category),
                     selected: isSelected,
@@ -1551,13 +1897,14 @@ class ChannelScreen extends StatelessWidget {
                     checkmarkColor: Colors.white,
                     labelStyle: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       color: isSelected
                           ? Colors.white
                           : (isDarkMode
-                              ? AppColors.textPrimary
-                              : const Color(0xFF2D3748)),
+                                ? AppColors.textPrimary
+                                : const Color(0xFF2D3748)),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1565,8 +1912,8 @@ class ChannelScreen extends StatelessWidget {
                         color: isSelected
                             ? const Color(0xFF6B46C1)
                             : (isDarkMode
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : const Color(0xFFE2E8F0)),
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : const Color(0xFFE2E8F0)),
                       ),
                     ),
                     elevation: isSelected ? 2 : 0,
@@ -1621,7 +1968,10 @@ class ChannelScreen extends StatelessWidget {
         colorText: AppColors.textPrimary,
         borderRadius: 12,
         margin: const EdgeInsets.all(16),
-        icon: const Icon(Icons.warning_amber_rounded, color: AppColors.textPrimary),
+        icon: const Icon(
+          Icons.warning_amber_rounded,
+          color: AppColors.textPrimary,
+        ),
       );
       return;
     }
@@ -1639,7 +1989,8 @@ class ChannelScreen extends StatelessWidget {
 
       final canProceed =
           controller.channelName.text.trim().length >= 3 &&
-          controller.customUrl.text.trim().length >= ChannelController.minCustomUrlLength &&
+          controller.customUrl.text.trim().length >=
+              ChannelController.minCustomUrlLength &&
           controller.description.text.trim().isNotEmpty;
 
       if (!canProceed) return const SizedBox.shrink();
@@ -1660,7 +2011,9 @@ class ChannelScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isDarkMode ? AppColors.textSecondary : const Color(0xFF4A5568),
+                color: isDarkMode
+                    ? AppColors.textSecondary
+                    : const Color(0xFF4A5568),
               ),
             ),
             const SizedBox(height: 12),
@@ -1906,7 +2259,9 @@ class ChannelScreen extends StatelessWidget {
               height: small ? 10 : 12,
               child: const CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.textPrimary,
+                ),
               ),
             )
           else
@@ -1965,7 +2320,8 @@ class ChannelScreen extends StatelessWidget {
   Widget _buildPickerPlaceholder({
     required IconData icon,
     required String title,
-    required bool isDarkMode, String? subtitle,
+    required bool isDarkMode,
+    String? subtitle,
     double iconSize = 48,
   }) {
     return Column(
@@ -1994,7 +2350,9 @@ class ChannelScreen extends StatelessWidget {
             subtitle,
             style: TextStyle(
               fontSize: 12,
-              color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+              color: isDarkMode
+                  ? AppColors.textSecondary
+                  : const Color(0xFF718096),
             ),
           ),
         ],
@@ -2060,7 +2418,8 @@ class ChannelScreen extends StatelessWidget {
     required String labelText,
     required String hintText,
     required IconData icon,
-    required bool isDarkMode, int maxLines = 1,
+    required bool isDarkMode,
+    int maxLines = 1,
     bool isRequired = false,
     String? Function(String?)? validator,
   }) {
@@ -2099,14 +2458,20 @@ class ChannelScreen extends StatelessWidget {
             child: Icon(icon, color: const Color(0xFF6B46C1), size: 20),
           ),
           labelStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : const Color(0xFF718096),
             fontWeight: FontWeight.w500,
           ),
           hintStyle: TextStyle(
-            color: isDarkMode ? AppColors.textTertiary : const Color(0xFFA0AEC0),
+            color: isDarkMode
+                ? AppColors.textTertiary
+                : const Color(0xFFA0AEC0),
           ),
           filled: true,
-          fillColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+          fillColor: isDarkMode
+              ? const Color(0xFF1E1E1E)
+              : AppColors.textPrimary,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
@@ -2252,11 +2617,15 @@ class ChannelScreen extends StatelessWidget {
               ),
             ),
             labelStyle: TextStyle(
-              color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+              color: isDarkMode
+                  ? AppColors.textSecondary
+                  : const Color(0xFF718096),
               fontWeight: FontWeight.w500,
             ),
             filled: true,
-            fillColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+            fillColor: isDarkMode
+                ? const Color(0xFF1E1E1E)
+                : AppColors.textPrimary,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
@@ -2270,7 +2639,9 @@ class ChannelScreen extends StatelessWidget {
               vertical: 20,
             ),
           ),
-          dropdownColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+          dropdownColor: isDarkMode
+              ? const Color(0xFF1E1E1E)
+              : AppColors.textPrimary,
           style: TextStyle(
             color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
             fontSize: 16,
@@ -2305,7 +2676,9 @@ class ChannelScreen extends StatelessWidget {
                 margin: const EdgeInsets.all(32),
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+                  color: isDarkMode
+                      ? const Color(0xFF1E1E1E)
+                      : AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -2373,7 +2746,9 @@ class ChannelScreen extends StatelessWidget {
         controller.selectedCategories.isNotEmpty) {
       Get.dialog(
         AlertDialog(
-          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+          backgroundColor: isDarkMode
+              ? const Color(0xFF1E1E1E)
+              : AppColors.textPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -2381,13 +2756,17 @@ class ChannelScreen extends StatelessWidget {
             'Save your progress?',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
+              color: isDarkMode
+                  ? AppColors.textPrimary
+                  : const Color(0xFF2D3748),
             ),
           ),
           content: Text(
             'You have unsaved changes. Would you like to save as draft before leaving?',
             style: TextStyle(
-              color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+              color: isDarkMode
+                  ? AppColors.textSecondary
+                  : const Color(0xFF718096),
             ),
           ),
           actions: [
@@ -2432,7 +2811,9 @@ class ChannelScreen extends StatelessWidget {
   void _showDeleteDraftDialog(bool isDarkMode) {
     Get.dialog(
       AlertDialog(
-        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+        backgroundColor: isDarkMode
+            ? const Color(0xFF1E1E1E)
+            : AppColors.textPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Draft?',
@@ -2444,7 +2825,9 @@ class ChannelScreen extends StatelessWidget {
         content: Text(
           'This will permanently delete your draft and any uploaded images. This action cannot be undone.',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : const Color(0xFF718096),
           ),
         ),
         actions: [
@@ -2453,7 +2836,9 @@ class ChannelScreen extends StatelessWidget {
             child: Text(
               'Cancel',
               style: TextStyle(
-                color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+                color: isDarkMode
+                    ? AppColors.textSecondary
+                    : const Color(0xFF718096),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -2495,7 +2880,9 @@ class ChannelScreen extends StatelessWidget {
       PopScope(
         canPop: false,
         child: AlertDialog(
-          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+          backgroundColor: isDarkMode
+              ? const Color(0xFF1E1E1E)
+              : AppColors.textPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -2520,7 +2907,9 @@ class ChannelScreen extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
-                    color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : const Color(0xFF2D3748),
                   ),
                 ),
               ),
@@ -2534,7 +2923,9 @@ class ChannelScreen extends StatelessWidget {
                 'You have an unfinished channel creation draft.',
                 style: TextStyle(
                   fontSize: 15,
-                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF718096),
                   height: 1.5,
                 ),
               ),
@@ -2648,10 +3039,3 @@ class ChannelScreen extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

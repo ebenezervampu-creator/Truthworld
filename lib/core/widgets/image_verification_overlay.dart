@@ -23,9 +23,10 @@ String? getVerificationDocId(String url) {
 
 /// A premium, non-blocking overlay that overlays image verification status on any widget.
 class ImageVerificationOverlay extends StatelessWidget {
-
   const ImageVerificationOverlay({
-    required this.imageUrl, required this.child, super.key,
+    required this.imageUrl,
+    required this.child,
+    super.key,
     this.borderRadius = 8.0,
   });
   final String imageUrl;
@@ -125,7 +126,9 @@ class ImageVerificationOverlay extends StatelessWidget {
                     height: 12,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.textPrimary,
+                      ),
                     ),
                   )
                 else
@@ -135,7 +138,6 @@ class ImageVerificationOverlay extends StatelessWidget {
                   child: Text(
                     label,
                     style: const TextStyle(
-                      
                       color: AppColors.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

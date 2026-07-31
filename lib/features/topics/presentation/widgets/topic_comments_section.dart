@@ -14,7 +14,6 @@ import 'package:truthworld/features/video/presentation/views/comments/premium_co
 import 'package:truthworld/theme/app_theme.dart';
 
 class TopicCommentsSection extends StatefulWidget {
-
   const TopicCommentsSection({required this.topic, super.key});
   final Topic topic;
 
@@ -23,7 +22,8 @@ class TopicCommentsSection extends StatefulWidget {
 }
 
 class _TopicCommentsSectionState extends State<TopicCommentsSection> {
-  final Rxn<TopicInteractionController> _controller = Rxn<TopicInteractionController>();
+  final Rxn<TopicInteractionController> _controller =
+      Rxn<TopicInteractionController>();
   final RxBool isSortNewest = true.obs;
 
   @override
@@ -43,9 +43,14 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
   void _initializeController() {
     final TopicInteractionController currentController;
     if (Get.isRegistered<TopicInteractionController>(tag: widget.topic.id)) {
-      currentController = Get.find<TopicInteractionController>(tag: widget.topic.id);
+      currentController = Get.find<TopicInteractionController>(
+        tag: widget.topic.id,
+      );
     } else {
-      currentController = Get.put(TopicInteractionController(), tag: widget.topic.id);
+      currentController = Get.put(
+        TopicInteractionController(),
+        tag: widget.topic.id,
+      );
     }
     currentController.initializeTopic(widget.topic);
     _controller.value = currentController;
@@ -79,7 +84,10 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
       }
       if (doc.exists) {
         final channel = Channel.fromDocumentSnapshot(doc);
-        Get.offAndToNamed(channel.channelRoute, arguments: {'channel': channel});
+        Get.offAndToNamed(
+          channel.channelRoute,
+          arguments: {'channel': channel},
+        );
       } else {
         Get.snackbar('Error', 'Channel not found');
       }
@@ -144,9 +152,11 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                         return Row(
                           children: [
                             Icon(
-                              Icons.check, 
-                              size: 18, 
-                              color: isSelected ? AppColors.textPrimary : Colors.transparent,
+                              Icons.check,
+                              size: 18,
+                              color: isSelected
+                                  ? AppColors.textPrimary
+                                  : Colors.transparent,
                             ),
                             const SizedBox(width: 8),
                             const Text('Top comments'),
@@ -161,9 +171,11 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                         return Row(
                           children: [
                             Icon(
-                              Icons.check, 
-                              size: 18, 
-                              color: isSelected ? AppColors.textPrimary : Colors.transparent,
+                              Icons.check,
+                              size: 18,
+                              color: isSelected
+                                  ? AppColors.textPrimary
+                                  : Colors.transparent,
                             ),
                             const SizedBox(width: 8),
                             const Text('Newest first'),
@@ -213,7 +225,9 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: CircularProgressIndicator(color: theme.colorScheme.primary),
+                  child: CircularProgressIndicator(
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
               )
             else if (sortedComments.isEmpty)
@@ -222,7 +236,10 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                 child: Center(
                   child: Text(
                     'No comments yet. Start the conversation!',
-                    style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 14),
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               )
@@ -253,9 +270,16 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
 }
 
 class TopicCommentItemWidget extends StatefulWidget {
-
   const TopicCommentItemWidget({
-    required this.comment, required this.topicId, required this.controller, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, required this.onNavigateToChannel, super.key,
+    required this.comment,
+    required this.topicId,
+    required this.controller,
+    required this.theme,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    required this.onNavigateToChannel,
+    super.key,
   });
   final Comment comment;
   final String topicId;
@@ -317,7 +341,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
   Future<void> _toggleSaveTopicComment(Comment comment) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to save comments.',
+      );
       return;
     }
     final docRef = FirebaseFirestore.instance
@@ -352,7 +379,13 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
           borderRadius: 12,
           mainButton: TextButton(
             onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'VIEW',
+              style: TextStyle(
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         );
       }
@@ -377,7 +410,11 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     );
   }
 
-  void _showCommentOptions(BuildContext context, Comment comment, TopicInteractionController controller) {
+  void _showCommentOptions(
+    BuildContext context,
+    Comment comment,
+    TopicInteractionController controller,
+  ) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == comment.userId;
 
@@ -393,16 +430,28 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.content_copy_rounded, color: AppColors.textPrimary),
-                title: const Text('Copy text', style: TextStyle(color: AppColors.textPrimary)),
+                leading: const Icon(
+                  Icons.content_copy_rounded,
+                  color: AppColors.textPrimary,
+                ),
+                title: const Text(
+                  'Copy text',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _copyCommentText(comment.text);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary),
-                title: const Text('Save comment', style: TextStyle(color: AppColors.textPrimary)),
+                leading: const Icon(
+                  Icons.bookmark_outline_rounded,
+                  color: AppColors.textPrimary,
+                ),
+                title: const Text(
+                  'Save comment',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _toggleSaveTopicComment(comment);
@@ -411,7 +460,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: AppColors.error),
-                  title: const Text('Delete', style: TextStyle(color: AppColors.error)),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: AppColors.error),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     controller.deleteComment(widget.topicId, comment.id);
@@ -419,8 +471,14 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                 )
               else
                 ListTile(
-                  leading: const Icon(Icons.flag_outlined, color: AppColors.textPrimary),
-                  title: const Text('Report', style: TextStyle(color: AppColors.textPrimary)),
+                  leading: const Icon(
+                    Icons.flag_outlined,
+                    color: AppColors.textPrimary,
+                  ),
+                  title: const Text(
+                    'Report',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     Get.snackbar('Reported', 'Thank you for your report.');
@@ -436,8 +494,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
-    final userName = comment.displayName;
-    final formattedUserName = userName.startsWith('@') ? userName : '@$userName';
+    final formattedUserName = comment.displayName;
     final text = comment.text;
     final createdAt = comment.createdAt;
     final userProfilePicUrl = comment.avatarUrl;
@@ -445,8 +502,14 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     final commentId = comment.id;
 
     return Obx(() {
-      final isLiked = comment.isLikedByCurrentUser;
-      final isDisliked = comment.isDislikedByCurrentUser;
+      final interaction =
+          widget.controller.userCommentInteractions[comment.id] ??
+          {
+            'isLiked': comment.isLikedByCurrentUser,
+            'isDisliked': comment.isDislikedByCurrentUser,
+          };
+      final isLiked = interaction['isLiked'] ?? false;
+      final isDisliked = interaction['isDisliked'] ?? false;
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -462,7 +525,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                     cursor: SystemMouseCursors.click,
                     child: UserAvatar(
                       photoUrl: userProfilePicUrl,
-                      displayName: userName,
+                      displayName: formattedUserName,
                       backgroundColor: AppColors.info,
                       textColor: AppColors.textPrimary,
                     ),
@@ -477,7 +540,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                         children: [
                           Flexible(
                             child: GestureDetector(
-                              onTap: () => widget.onNavigateToChannel(comment.channelId),
+                              onTap: () =>
+                                  widget.onNavigateToChannel(comment.channelId),
                               child: MouseRegion(
                                 cursor: SystemMouseCursors.click,
                                 child: Text(
@@ -518,14 +582,21 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           InkWell(
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              widget.controller.toggleCommentLike(widget.topicId, comment.id);
+                              widget.controller.toggleCommentLike(
+                                widget.topicId,
+                                comment.id,
+                              );
                             },
                             child: Row(
                               children: [
                                 Icon(
-                                  isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                  isLiked
+                                      ? Icons.thumb_up
+                                      : Icons.thumb_up_outlined,
                                   size: 16,
-                                  color: isLiked ? AppColors.textPrimary : AppColors.textSecondary,
+                                  color: isLiked
+                                      ? AppColors.textPrimary
+                                      : AppColors.textSecondary,
                                 ),
                                 const SizedBox(width: 6),
                                 if (likeCount > 0)
@@ -533,7 +604,9 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                                     '$likeCount',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isLiked ? AppColors.textPrimary : AppColors.textSecondary,
+                                      color: isLiked
+                                          ? AppColors.textPrimary
+                                          : AppColors.textSecondary,
                                     ),
                                   ),
                               ],
@@ -543,18 +616,26 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           InkWell(
                             onTap: () {
                               HapticFeedback.lightImpact();
-                              widget.controller.toggleCommentDislike(widget.topicId, comment.id);
+                              widget.controller.toggleCommentDislike(
+                                widget.topicId,
+                                comment.id,
+                              );
                             },
                             child: Icon(
-                              isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                              isDisliked
+                                  ? Icons.thumb_down
+                                  : Icons.thumb_down_outlined,
                               size: 16,
-                              color: isDisliked ? AppColors.textPrimary : AppColors.textSecondary,
+                              color: isDisliked
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
                             ),
                           ),
                           if (comment.isHeartedByCreator) ...[
                             const SizedBox(width: 8),
                             Tooltip(
-                              message: 'Hearted by ${comment.creatorHeartName ?? 'Creator'}',
+                              message:
+                                  'Hearted by ${comment.creatorHeartName ?? 'Creator'}',
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -588,9 +669,14 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                             onTap: () {
                               isReplying.value = !isReplying.value;
                               if (isReplying.value) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  if (mounted && replyFocusNode.canRequestFocus) {
-                                    FocusScope.of(context).requestFocus(replyFocusNode);
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (mounted &&
+                                      replyFocusNode.canRequestFocus) {
+                                    FocusScope.of(
+                                      context,
+                                    ).requestFocus(replyFocusNode);
                                   }
                                 });
                               }
@@ -610,8 +696,13 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 18),
-                  onPressed: () => _showCommentOptions(context, comment, widget.controller),
+                  icon: const Icon(
+                    Icons.more_vert,
+                    color: AppColors.textSecondary,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      _showCommentOptions(context, comment, widget.controller),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -651,7 +742,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           ),
                           contentPadding: EdgeInsets.symmetric(vertical: 8),
                         ),
-                        style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _submitReply(),
                       ),
@@ -670,11 +764,15 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                     ),
                     IconButton(
                       onPressed: _submitReply,
-                      icon: Obx(() => Icon(
-                            Icons.send,
-                            size: 20,
-                            color: replyText.value.isNotEmpty ? AppColors.info : AppColors.textSecondary,
-                          )),
+                      icon: Obx(
+                        () => Icon(
+                          Icons.send,
+                          size: 20,
+                          color: replyText.value.isNotEmpty
+                              ? AppColors.info
+                              : AppColors.textSecondary,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -698,9 +796,16 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
 }
 
 class TopicRepliesSection extends StatefulWidget {
-
   const TopicRepliesSection({
-    required this.commentId, required this.topicId, required this.controller, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, required this.onNavigateToChannel, super.key,
+    required this.commentId,
+    required this.topicId,
+    required this.controller,
+    required this.theme,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    required this.onNavigateToChannel,
+    super.key,
   });
   final String commentId;
   final String topicId;
@@ -763,7 +868,9 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    replies.length == 1 ? '• 1 reply' : '• ${replies.length} replies',
+                    replies.length == 1
+                        ? '• 1 reply'
+                        : '• ${replies.length} replies',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.info,
@@ -855,9 +962,17 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
 }
 
 class TopicReplyItemWidget extends StatelessWidget {
-
   const TopicReplyItemWidget({
-    required this.reply, required this.commentId, required this.topicId, required this.controller, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, required this.onNavigateToChannel, super.key,
+    required this.reply,
+    required this.commentId,
+    required this.topicId,
+    required this.controller,
+    required this.theme,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    required this.onNavigateToChannel,
+    super.key,
   });
   final Reply reply;
   final String commentId;
@@ -872,7 +987,10 @@ class TopicReplyItemWidget extends StatelessWidget {
   Future<void> _toggleSaveReply(Reply reply) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to save comments.',
+      );
       return;
     }
     final docRef = FirebaseFirestore.instance
@@ -907,7 +1025,13 @@ class TopicReplyItemWidget extends StatelessWidget {
           borderRadius: 12,
           mainButton: TextButton(
             onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'VIEW',
+              style: TextStyle(
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         );
       }
@@ -916,7 +1040,11 @@ class TopicReplyItemWidget extends StatelessWidget {
     }
   }
 
-  void _showReplyOptions(BuildContext context, Reply reply, TopicInteractionController controller) {
+  void _showReplyOptions(
+    BuildContext context,
+    Reply reply,
+    TopicInteractionController controller,
+  ) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == reply.userId;
 
@@ -932,8 +1060,14 @@ class TopicReplyItemWidget extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.content_copy_rounded, color: AppColors.textPrimary),
-                title: const Text('Copy text', style: TextStyle(color: AppColors.textPrimary)),
+                leading: const Icon(
+                  Icons.content_copy_rounded,
+                  color: AppColors.textPrimary,
+                ),
+                title: const Text(
+                  'Copy text',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   Clipboard.setData(ClipboardData(text: reply.text));
@@ -947,13 +1081,22 @@ class TopicReplyItemWidget extends StatelessWidget {
                     margin: const EdgeInsets.all(16),
                     borderRadius: 12,
                     duration: const Duration(seconds: 2),
-                    icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
+                    icon: const Icon(
+                      Icons.content_copy_rounded,
+                      color: Colors.white,
+                    ),
                   );
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary),
-                title: const Text('Save comment', style: TextStyle(color: AppColors.textPrimary)),
+                leading: const Icon(
+                  Icons.bookmark_outline_rounded,
+                  color: AppColors.textPrimary,
+                ),
+                title: const Text(
+                  'Save comment',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _toggleSaveReply(reply);
@@ -962,7 +1105,10 @@ class TopicReplyItemWidget extends StatelessWidget {
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: AppColors.error),
-                  title: const Text('Delete', style: TextStyle(color: AppColors.error)),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: AppColors.error),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     controller.deleteReply(topicId, commentId, reply.id);
@@ -970,8 +1116,14 @@ class TopicReplyItemWidget extends StatelessWidget {
                 )
               else
                 ListTile(
-                  leading: const Icon(Icons.flag_outlined, color: AppColors.textPrimary),
-                  title: const Text('Report', style: TextStyle(color: AppColors.textPrimary)),
+                  leading: const Icon(
+                    Icons.flag_outlined,
+                    color: AppColors.textPrimary,
+                  ),
+                  title: const Text(
+                    'Report',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     Get.snackbar('Reported', 'Thank you for your report.');
@@ -988,10 +1140,12 @@ class TopicReplyItemWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     const avatarRadius = 12.0;
 
-    final formattedUserName = reply.displayName.startsWith('@') ? reply.displayName : '@${reply.displayName}';
+    final formattedUserName = reply.displayName;
 
     return Obx(() {
-      final interaction = controller.userReplyInteractions[reply.id] ?? {'isLiked': false, 'isDisliked': false};
+      final interaction =
+          controller.userReplyInteractions[reply.id] ??
+          {'isLiked': false, 'isDisliked': false};
       final isLiked = interaction['isLiked'] ?? false;
       final isDisliked = interaction['isDisliked'] ?? false;
 
@@ -1068,15 +1222,24 @@ class TopicReplyItemWidget extends StatelessWidget {
                         icon: Icon(
                           isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
                           size: 14,
-                          color: isLiked ? AppColors.textPrimary : AppColors.textSecondary,
+                          color: isLiked
+                              ? AppColors.textPrimary
+                              : AppColors.textSecondary,
                         ),
                         onPressed: () {
                           if (FirebaseAuth.instance.currentUser == null) {
-                            Get.snackbar('Authentication Required', 'Please sign in to react.');
+                            Get.snackbar(
+                              'Authentication Required',
+                              'Please sign in to react.',
+                            );
                             return;
                           }
                           HapticFeedback.lightImpact();
-                          controller.toggleReplyLike(topicId, commentId, reply.id);
+                          controller.toggleReplyLike(
+                            topicId,
+                            commentId,
+                            reply.id,
+                          );
                         },
                         constraints: const BoxConstraints(),
                         padding: EdgeInsets.zero,
@@ -1096,17 +1259,28 @@ class TopicReplyItemWidget extends StatelessWidget {
                       // Dislike
                       IconButton(
                         icon: Icon(
-                          isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                          isDisliked
+                              ? Icons.thumb_down
+                              : Icons.thumb_down_outlined,
                           size: 14,
-                          color: isDisliked ? AppColors.textPrimary : AppColors.textSecondary,
+                          color: isDisliked
+                              ? AppColors.textPrimary
+                              : AppColors.textSecondary,
                         ),
                         onPressed: () {
                           if (FirebaseAuth.instance.currentUser == null) {
-                            Get.snackbar('Authentication Required', 'Please sign in to react.');
+                            Get.snackbar(
+                              'Authentication Required',
+                              'Please sign in to react.',
+                            );
                             return;
                           }
                           HapticFeedback.lightImpact();
-                          controller.toggleReplyDislike(topicId, commentId, reply.id);
+                          controller.toggleReplyDislike(
+                            topicId,
+                            commentId,
+                            reply.id,
+                          );
                         },
                         constraints: const BoxConstraints(),
                         padding: EdgeInsets.zero,
@@ -1127,7 +1301,11 @@ class TopicReplyItemWidget extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 16),
+              icon: const Icon(
+                Icons.more_vert,
+                color: AppColors.textSecondary,
+                size: 16,
+              ),
               onPressed: () => _showReplyOptions(context, reply, controller),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -1140,7 +1318,6 @@ class TopicReplyItemWidget extends StatelessWidget {
 }
 
 class ReplyThreadLinePainter extends CustomPainter {
-
   ReplyThreadLinePainter({
     required this.color,
     required this.isLast,

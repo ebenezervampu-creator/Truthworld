@@ -168,7 +168,6 @@ class ImpressionTrackingService extends GetxService {
 // =============================================================================
 
 class _ImpressionEvent {
-
   _ImpressionEvent({
     required this.videoId,
     required this.channelId,
@@ -198,11 +197,13 @@ class _ImpressionEvent {
 /// Attach to a video card to track when the thumbnail becomes visible.
 /// Implements the "50% visible for 1 second" rule.
 class ImpressionTracker {
-
   ImpressionTracker({
     required this.videoId,
     required this.channelId,
-    required this.service, required this.minVisibleDurationMs, required this.minVisibleFraction, this.source,
+    required this.service,
+    required this.minVisibleDurationMs,
+    required this.minVisibleFraction,
+    this.source,
   });
   final String videoId;
   final String channelId;
@@ -247,8 +248,3 @@ class ImpressionTracker {
     _visibilityTimer = null;
   }
 }
-
-
-
-
-

@@ -11,7 +11,8 @@ class ConnectivityService extends GetxService {
 
   ConnectivityResult get connectionStatus => _connectionStatus.value;
   bool get isConnected => _connectionStatus.value != ConnectivityResult.none;
-  Stream<List<ConnectivityResult>> get onConnectivityChanged => _connectivity.onConnectivityChanged;
+  Stream<List<ConnectivityResult>> get onConnectivityChanged =>
+      _connectivity.onConnectivityChanged;
 
   late StreamSubscription<List<ConnectivityResult>> _subscription;
 
@@ -23,7 +24,9 @@ class ConnectivityService extends GetxService {
     // If we start offline, we want to know so the next 'online' event shows the snackbar
     _isInitial = initialResult != ConnectivityResult.none;
 
-    _subscription = _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
+    _subscription = _connectivity.onConnectivityChanged.listen((
+      List<ConnectivityResult> results,
+    ) {
       final result = _getFirstResult(results);
       final previousStatus = _connectionStatus.value;
       _connectionStatus.value = result;
@@ -39,7 +42,10 @@ class ConnectivityService extends GetxService {
     return results.first;
   }
 
-  void _handleStatusChange(ConnectivityResult result, ConnectivityResult previousStatus) {
+  void _handleStatusChange(
+    ConnectivityResult result,
+    ConnectivityResult previousStatus,
+  ) {
     if (result == ConnectivityResult.none) {
       Get.snackbar(
         'Offline',
@@ -71,8 +77,3 @@ class ConnectivityService extends GetxService {
     super.onClose();
   }
 }
-
-
-
-
-

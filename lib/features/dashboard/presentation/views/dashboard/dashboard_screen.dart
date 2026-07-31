@@ -17,7 +17,6 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/video_rating_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
@@ -35,12 +34,13 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_rating_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists_management_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/category_insights_screen.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class AnalyticsData {
-
   AnalyticsData(this.date, this.views);
   final DateTime date;
   final int views;
@@ -51,7 +51,6 @@ class AnalyticsData {
 // ==========================================================================
 
 class DashboardController extends GetxController {
-
   DashboardController({required this.channelId});
   final String channelId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -75,8 +74,10 @@ class DashboardController extends GetxController {
   double get watchMinutes => totalWatchTimeSeconds.value / 60.0;
   double get watchHours => totalWatchTimeSeconds.value / 3600.0;
 
-  String get formattedWatchTime => WatchTimeFormatter.format(totalWatchTimeSeconds.value);
-  String get formattedWatchTimeCompact => WatchTimeFormatter.format(totalWatchTimeSeconds.value, compact: true);
+  String get formattedWatchTime =>
+      WatchTimeFormatter.format(totalWatchTimeSeconds.value);
+  String get formattedWatchTimeCompact =>
+      WatchTimeFormatter.format(totalWatchTimeSeconds.value, compact: true);
 
   /// Returns watch hours for a specific video
   double getVideoWatchHours(Video video) {
@@ -154,9 +155,12 @@ class DashboardController extends GetxController {
         final data = snapshot.data();
         if (data != null) {
           if (data.containsKey('totalWatchTimeSeconds')) {
-            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num).toInt();
+            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num)
+                .toInt();
           } else if (data.containsKey('totalWatchTimeMinutes')) {
-            totalWatchTimeSeconds.value = (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60).toInt();
+            totalWatchTimeSeconds.value =
+                (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60)
+                    .toInt();
           }
         }
 
@@ -198,7 +202,8 @@ class DashboardController extends GetxController {
         if (snapshot.exists) {
           final data = snapshot.data()!;
           if (data.containsKey('totalWatchTimeSeconds')) {
-            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num).toInt();
+            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num)
+                .toInt();
           }
           channelStats.value = {
             ...channelStats,
@@ -230,10 +235,14 @@ class DashboardController extends GetxController {
         recentVideos.value = snapshot.docs
             .map(Video.fromDocumentSnapshot)
             .toList();
-            
+
         // Fallback view count from recent videos if still zero
-        if ((channelStats['views'] == '0' || channelStats['views'] == null) && recentVideos.isNotEmpty) {
-          final totalViews = recentVideos.fold(0, (acc, v) => acc + v.viewCount);
+        if ((channelStats['views'] == '0' || channelStats['views'] == null) &&
+            recentVideos.isNotEmpty) {
+          final totalViews = recentVideos.fold(
+            0,
+            (acc, v) => acc + v.viewCount,
+          );
           if (totalViews > 0) {
             channelStats.value = {
               ...channelStats,
@@ -298,8 +307,8 @@ class DashboardController extends GetxController {
         .where('channelId', isEqualTo: channelId)
         .snapshots()
         .listen((snapshot) {
-      copyrightClaimsCount.value = snapshot.docs.length;
-    });
+          copyrightClaimsCount.value = snapshot.docs.length;
+        });
   }
 
   String _formatNumber(int number) {
@@ -310,8 +319,6 @@ class DashboardController extends GetxController {
     }
     return number.toString();
   }
-
-
 
   void setSelectedIndex(int index) => selectedIndex.value = index;
   void toggleDrawer() => isDrawerExpanded.value = !isDrawerExpanded.value;
@@ -338,7 +345,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (args is Map && args['channel'] != null) {
       return args['channel'];
     }
-    if (Get.isRegistered<DashboardController>() && controller.currentChannel.value != null) {
+    if (Get.isRegistered<DashboardController>() &&
+        controller.currentChannel.value != null) {
       return controller.currentChannel.value;
     }
     if (AuthService.to.userChannel != null) {
@@ -371,12 +379,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (ch is Channel) return ch.name.isNotEmpty ? ch.name : 'Unknown Channel';
     if (ch is Map) {
       final val = ch['channelName'] ?? ch['name'];
-      return (val != null && val.toString().isNotEmpty) ? val.toString() : 'Unknown Channel';
+      return (val != null && val.toString().isNotEmpty)
+          ? val.toString()
+          : 'Unknown Channel';
     }
     if (ch is DocumentSnapshot) {
       final data = ch.data() as Map<String, dynamic>?;
       final val = data?['channelName'] ?? data?['name'];
-      return (val != null && val.toString().isNotEmpty) ? val.toString() : 'Unknown Channel';
+      return (val != null && val.toString().isNotEmpty)
+          ? val.toString()
+          : 'Unknown Channel';
     }
     return 'Unknown Channel';
   }
@@ -512,8 +524,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _staggeredAnimationController,
             curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
@@ -645,7 +657,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           : IconButton(
               icon: Icon(
                 Icons.menu_rounded,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                color: isDarkMode
+                    ? AppColors.textPrimary
+                    : AppColors.textPrimary,
               ),
               onPressed: () => scaffoldKey.currentState?.openDrawer(),
               tooltip: 'Menu',
@@ -653,8 +667,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       title: Row(
         children: [
           IconButton(
-            icon: Icon(Icons.arrow_back, size: 20,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            icon: Icon(
+              Icons.arrow_back,
+              size: 20,
+              color: isDarkMode
+                  ? AppColors.textSecondary
+                  : AppColors.textSecondary,
             ),
             onPressed: () => Get.offAllNamed('/home'),
             tooltip: 'Back to Home',
@@ -694,7 +712,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(
                 fontSize: isMobile ? 18 : 20,
                 fontWeight: FontWeight.w700,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                color: isDarkMode
+                    ? AppColors.textPrimary
+                    : AppColors.textPrimary,
                 letterSpacing: -0.5,
               ),
             ),
@@ -774,28 +794,39 @@ class _DashboardScreenState extends State<DashboardScreen>
         decoration: InputDecoration(
           hintText: 'Search your content...',
           hintStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : AppColors.textSecondary,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : AppColors.textSecondary,
             size: 20,
           ),
-          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-              ? IconButton(
-                  icon: Icon(
-                    Icons.clear_rounded,
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
-                    size: 18,
-                  ),
-                  onPressed: () {
-                    _searchController.clear();
-                    controller.setSearchQuery('');
-                  },
-                )
-              : const SizedBox.shrink()),
+          suffixIcon: Obx(
+            () => controller.searchQuery.value.isNotEmpty
+                ? IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : AppColors.textSecondary,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      controller.setSearchQuery('');
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
+          ),
         ),
       ),
     );
@@ -804,7 +835,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   // Action Button Widget
   Widget _buildActionButton({
     required IconData icon,
-    required VoidCallback onPressed, required bool isDarkMode, String label = '',
+    required VoidCallback onPressed,
+    required bool isDarkMode,
+    String label = '',
     bool isPrimary = false,
     String? tooltip,
   }) {
@@ -881,7 +914,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-
 
   // Google Account Selector Widget
   Widget _buildGoogleAccountSelector(bool isDarkMode) {
@@ -965,7 +997,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     backgroundColor: const Color(0xFF6366F1),
                     child: AuthService.to.activePhotoUrl.isEmpty
                         ? Text(
-                            (AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.email ?? 'U'))[0]
+                            (AuthService.to.activeDisplayName.isNotEmpty
+                                    ? AuthService.to.activeDisplayName
+                                    : (user.email ?? 'U'))[0]
                                 .toUpperCase(),
                             style: const TextStyle(
                               color: AppColors.textPrimary,
@@ -981,7 +1015,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'User',
+                          AuthService.to.activeDisplayName.isNotEmpty
+                              ? AuthService.to.activeDisplayName
+                              : 'User',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: isDarkMode
@@ -1024,9 +1060,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           color: isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(50),
           border: Border.all(
-            color: isDarkMode
-                ? const Color(0xFF374151)
-                : AppColors.bgDivider,
+            color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
             width: 2,
           ),
         ),
@@ -1038,7 +1072,10 @@ class _DashboardScreenState extends State<DashboardScreen>
           backgroundColor: const Color(0xFF6366F1),
           child: AuthService.to.activePhotoUrl.isEmpty
               ? Text(
-                  (AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.email ?? 'U'))[0].toUpperCase(),
+                  (AuthService.to.activeDisplayName.isNotEmpty
+                          ? AuthService.to.activeDisplayName
+                          : (user.email ?? 'U'))[0]
+                      .toUpperCase(),
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -1073,7 +1110,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     } catch (e) {
       isSelectingDefault.value = false;
-      if (e is GoogleSignInUserCancelledException || (e is AuthException && e.code == 'user-cancelled')) {
+      if (e is GoogleSignInUserCancelledException ||
+          (e is AuthException && e.code == 'user-cancelled')) {
         return;
       }
       var message = 'Failed to sign in';
@@ -1131,7 +1169,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             color: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
             border: Border(
               right: BorderSide(
-                color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+                color: isDarkMode
+                    ? const Color(0xFF374151)
+                    : AppColors.bgDivider,
               ),
             ),
           ),
@@ -1156,7 +1196,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   IconButton(
                     icon: Icon(
                       Icons.chevron_left_rounded,
-                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : AppColors.textSecondary,
                     ),
                     onPressed: () {
                       controller.toggleDrawer();
@@ -1169,7 +1211,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: IconButton(
                   icon: Icon(
                     Icons.chevron_right_rounded,
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary,
                   ),
                   onPressed: () {
                     controller.toggleDrawer();
@@ -1215,6 +1259,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'target': 3,
       },
       {
+        'icon': Icons.category_rounded,
+        'label': 'Category Insights',
+        'color': const Color(0xFF6366F1),
+        'action': 'select',
+        'target': 19,
+      },
+      {
         'icon': Icons.forum_rounded,
         'label': 'Comments',
         'color': const Color(0xFF8B5CF6),
@@ -1238,13 +1289,28 @@ class _DashboardScreenState extends State<DashboardScreen>
         'target': 5,
       },
       {
+        'icon': Icons.stars_rounded,
+        'label': 'Memberships',
+        'color': const Color(0xFFF59E0B),
+        'action': 'select',
+        'target': 18,
+      },
+      {
         'icon': Icons.copyright_rounded,
-        'label': 'Copyright',
+        'label': 'Copyright & Matches',
         'color': const Color(0xFFDC2626),
+        'action': 'select',
         'target': 9,
       },
 
       // Creative Tools
+      {
+        'icon': Icons.playlist_play_rounded,
+        'label': 'Playlists',
+        'color': const Color(0xFF3B82F6),
+        'action': 'select',
+        'target': 17,
+      },
       {
         'icon': Icons.spatial_audio_rounded,
         'label': 'Audio Tracks & Dubs',
@@ -1265,13 +1331,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         'color': const Color(0xFF7C3AED),
         'action': 'select',
         'target': 10,
-      },
-      {
-        'icon': Icons.star_rounded,
-        'label': 'Video Ratings',
-        'color': const Color(0xFFFF9800),
-        'action': 'select',
-        'target': 13,
       },
       {
         'icon': Icons.topic_rounded,
@@ -1298,7 +1357,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Divider(
-              color: isDarkMode ? const Color(0xFF374151) : const Color(0xFFE5E7EB),
+              color: isDarkMode
+                  ? const Color(0xFF374151)
+                  : const Color(0xFFE5E7EB),
               thickness: 1,
               height: 1,
             ),
@@ -1431,7 +1492,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         icon,
                         color: isSelected
                             ? color
-                            : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondary),
+                            : (isDarkMode
+                                  ? AppColors.textSecondary
+                                  : AppColors.textSecondary),
                         size: 20,
                       ),
                     ),
@@ -1547,11 +1610,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   channelId: channelId,
                   isDarkMode: isDarkMode,
                 );
-              case 13:
-                if (!Get.isRegistered<VideoRatingController>()) {
-                  Get.put(VideoRatingController(channelId: channelId));
-                }
-                return const VideoRatingPage();
               case 14:
                 return TopicManagementScreen(
                   channelId: channelId,
@@ -1568,6 +1626,21 @@ class _DashboardScreenState extends State<DashboardScreen>
                 return CreatorIntelligencePage(
                   channelId: channelId,
                   creatorId: ownerId,
+                );
+              case 17:
+                return PlaylistsManagementScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
+              case 18:
+                return MembershipsScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
+              case 19:
+                return CategoryInsightsScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
                 );
               default:
                 return _buildDashboardContent(isDarkMode);
@@ -1698,28 +1771,47 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
           title: 'Avatar Verification Pending',
-          subtitle: 'Google Vision AI is currently validating your channel avatar image. This will complete in a few moments.',
+          subtitle:
+              'Google Vision AI is currently validating your channel avatar image. This will complete in a few moments.',
           color: const Color(0xFF3B82F6),
           icon: Icons.sync_rounded,
           isPending: true,
           onBypassPressed: () async {
             try {
-              await FirebaseFirestore.instance.collection('channels').doc(channel.id).update({
-                'avatarStatus': 'APPROVED',
-                'avatarStatusReason': 'Bypassed in local/debug environment.',
-                'updatedAt': DateTime.now().millisecondsSinceEpoch,
-              });
-              if (channel.avatarFileId != null && channel.avatarFileId!.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('image_verification').doc(channel.avatarFileId).set({
-                  'status': 'APPROVED',
-                  'reason': 'Bypassed in local/debug environment.',
-                  'category': 'avatar',
-                  'processedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
+              await FirebaseFirestore.instance
+                  .collection('channels')
+                  .doc(channel.id)
+                  .update({
+                    'avatarStatus': 'APPROVED',
+                    'avatarStatusReason':
+                        'Bypassed in local/debug environment.',
+                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                  });
+              if (channel.avatarFileId != null &&
+                  channel.avatarFileId!.isNotEmpty) {
+                await FirebaseFirestore.instance
+                    .collection('image_verification')
+                    .doc(channel.avatarFileId)
+                    .set({
+                      'status': 'APPROVED',
+                      'reason': 'Bypassed in local/debug environment.',
+                      'category': 'avatar',
+                      'processedAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true));
               }
-              Get.snackbar('Bypassed', 'Avatar approved successfully.', backgroundColor: AppColors.success, colorText: AppColors.textPrimary);
+              Get.snackbar(
+                'Bypassed',
+                'Avatar approved successfully.',
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
+              );
             } catch (e) {
-              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+              Get.snackbar(
+                'Error',
+                e.toString(),
+                backgroundColor: AppColors.error,
+                colorText: AppColors.textPrimary,
+              );
             }
           },
         ),
@@ -1729,7 +1821,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
           title: 'Avatar Image Rejected',
-          subtitle: 'Your uploaded avatar image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
+          subtitle:
+              'Your uploaded avatar image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
           color: const Color(0xFFEF4444),
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
@@ -1740,7 +1833,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
           title: 'Avatar Review Needed',
-          subtitle: 'Your avatar image was flagged for potential guidelines violations. It is currently queued for manual review.',
+          subtitle:
+              'Your avatar image was flagged for potential guidelines violations. It is currently queued for manual review.',
           color: const Color(0xFFF59E0B),
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
@@ -1754,28 +1848,47 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
           title: 'Banner Verification Pending',
-          subtitle: 'Google Vision AI is currently validating your channel banner image. This will complete in a few moments.',
+          subtitle:
+              'Google Vision AI is currently validating your channel banner image. This will complete in a few moments.',
           color: const Color(0xFF3B82F6),
           icon: Icons.sync_rounded,
           isPending: true,
           onBypassPressed: () async {
             try {
-              await FirebaseFirestore.instance.collection('channels').doc(channel.id).update({
-                'bannerStatus': 'APPROVED',
-                'bannerStatusReason': 'Bypassed in local/debug environment.',
-                'updatedAt': DateTime.now().millisecondsSinceEpoch,
-              });
-              if (channel.bannerFileId != null && channel.bannerFileId!.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('image_verification').doc(channel.bannerFileId).set({
-                  'status': 'APPROVED',
-                  'reason': 'Bypassed in local/debug environment.',
-                  'category': 'banner',
-                  'processedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
+              await FirebaseFirestore.instance
+                  .collection('channels')
+                  .doc(channel.id)
+                  .update({
+                    'bannerStatus': 'APPROVED',
+                    'bannerStatusReason':
+                        'Bypassed in local/debug environment.',
+                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                  });
+              if (channel.bannerFileId != null &&
+                  channel.bannerFileId!.isNotEmpty) {
+                await FirebaseFirestore.instance
+                    .collection('image_verification')
+                    .doc(channel.bannerFileId)
+                    .set({
+                      'status': 'APPROVED',
+                      'reason': 'Bypassed in local/debug environment.',
+                      'category': 'banner',
+                      'processedAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true));
               }
-              Get.snackbar('Bypassed', 'Banner approved successfully.', backgroundColor: AppColors.success, colorText: AppColors.textPrimary);
+              Get.snackbar(
+                'Bypassed',
+                'Banner approved successfully.',
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
+              );
             } catch (e) {
-              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+              Get.snackbar(
+                'Error',
+                e.toString(),
+                backgroundColor: AppColors.error,
+                colorText: AppColors.textPrimary,
+              );
             }
           },
         ),
@@ -1785,7 +1898,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
           title: 'Banner Image Rejected',
-          subtitle: 'Your uploaded banner image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
+          subtitle:
+              'Your uploaded banner image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
           color: const Color(0xFFEF4444),
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
@@ -1796,7 +1910,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
           title: 'Banner Review Needed',
-          subtitle: 'Your banner image was flagged for potential guidelines violations. It is currently queued for manual review.',
+          subtitle:
+              'Your banner image was flagged for potential guidelines violations. It is currently queued for manual review.',
           color: const Color(0xFFF59E0B),
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
@@ -1867,7 +1982,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -1876,7 +1993,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () {
-                      controller.selectedIndex.value = 6; // Channel Customization tab
+                      controller.selectedIndex.value =
+                          6; // Channel Customization tab
                     },
                     icon: const Icon(Icons.color_lens_outlined, size: 16),
                     label: const Text('Go to Customization'),
@@ -1887,7 +2005,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ],
@@ -1895,7 +2016,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: onBypassPressed,
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                    icon: const Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 16,
+                    ),
                     label: const Text('Bypass Verification (Local Dev/Test)'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
@@ -1904,7 +2028,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ],
@@ -1915,7 +2042,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-
 
   Widget _buildChannelViolationsCard(bool isDarkMode) {
     return Container(
@@ -1940,14 +2066,20 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.error,
+                size: 24,
+              ),
               const SizedBox(width: 12),
               Text(
                 'Channel violations',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                  color: isDarkMode
+                      ? AppColors.textPrimary
+                      : AppColors.textPrimary,
                 ),
               ),
             ],
@@ -1966,13 +2098,16 @@ class _DashboardScreenState extends State<DashboardScreen>
             'Your channel has ${controller.copyrightClaimsCount.value} active copyright claims. This may affect your visibility or monetization.',
             style: TextStyle(
               fontSize: 14,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+              color: isDarkMode
+                  ? AppColors.textSecondary
+                  : AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 16),
           InkWell(
             onTap: () {
-              controller.selectedIndex.value = 9; // Navigate to Copyright Screen
+              controller.selectedIndex.value =
+                  9; // Navigate to Copyright Screen
             },
             child: const Text(
               'VIEW DETAILS',
@@ -2004,7 +2139,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     style: TextStyle(
                       fontSize: isMobile ? 24 : 32,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                      color: isDarkMode
+                          ? AppColors.textPrimary
+                          : AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2012,7 +2149,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     'Last 28 days',
                     style: TextStyle(
                       fontSize: 14,
-                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -2020,7 +2159,10 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             if (channel != null)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
@@ -2030,7 +2172,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 16),
+                    const Icon(
+                      Icons.verified_rounded,
+                      color: AppColors.textPrimary,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       _getChannelName(channel),
@@ -2068,12 +2214,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       bannerColor = const Color(0xFF3B82F6); // Blue
       icon = Icons.sync_rounded;
       title = 'Branding Under Gemini AI Moderation';
-      subtitle = 'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
+      subtitle =
+          'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
     } else if (channel.status == ChannelStatus.verificationRejected) {
       bannerColor = const Color(0xFFEF4444); // Red
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected by Gemini AI';
-      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ${channel.moderationReason != null && channel.moderationReason!.isNotEmpty ? '\n\nGemini Response: ${channel.moderationReason}' : ''}';
+      subtitle =
+          'We created channel according to community guidelines, then channel selected for manual verification. ${channel.moderationReason != null && channel.moderationReason!.isNotEmpty ? '\n\nGemini Response: ${channel.moderationReason}' : ''}';
       showButton = true;
     } else {
       return const SizedBox.shrink();
@@ -2123,7 +2271,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -2132,10 +2282,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () {
-                      Get.toNamed('/community-guidelines', arguments: {
-                        'fromRejectedChannelId': channel.id,
-                        'ownerId': channel.ownerId,
-                      });
+                      Get.toNamed(
+                        '/community-guidelines',
+                        arguments: {
+                          'fromRejectedChannelId': channel.id,
+                          'ownerId': channel.ownerId,
+                        },
+                      );
                     },
                     icon: const Icon(Icons.description_outlined, size: 16),
                     label: const Text('Review Community Guidelines'),
@@ -2146,7 +2299,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                 ],
@@ -2175,7 +2331,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle_outline_rounded, color: bannerColor, size: 28),
+          const Icon(
+            Icons.check_circle_outline_rounded,
+            color: bannerColor,
+            size: 28,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -2194,7 +2354,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Text(
                   'Congratulations! Your channel details are approved. You can now customize your channel and upload videos.',
                   style: TextStyle(
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -2239,28 +2401,39 @@ class _DashboardScreenState extends State<DashboardScreen>
         decoration: InputDecoration(
           hintText: 'Search your content...',
           hintStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : AppColors.textSecondary,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : AppColors.textSecondary,
             size: 20,
           ),
-          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-              ? IconButton(
-                  icon: Icon(
-                    Icons.clear_rounded,
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
-                    size: 18,
-                  ),
-                  onPressed: () {
-                    _searchController.clear();
-                    controller.setSearchQuery('');
-                  },
-                )
-              : const SizedBox.shrink()),
+          suffixIcon: Obx(
+            () => controller.searchQuery.value.isNotEmpty
+                ? IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : AppColors.textSecondary,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      controller.setSearchQuery('');
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
       ),
     );
@@ -2295,12 +2468,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                         if (channelData != null) {
                           final channelId = _getChannelId(channelData);
                           final channelName = _getChannelName(channelData);
-                          
-                          Get.to(() => const ViewsPage(), arguments: {
-                            'channelId': channelId,
-                            'channelName': channelName,
-                            'viewsChange': controller.channelStats['viewsChange'] ?? '+0%',
-                          });
+
+                          Get.to(
+                            () => const ViewsPage(),
+                            arguments: {
+                              'channelId': channelId,
+                              'channelName': channelName,
+                              'viewsChange':
+                                  controller.channelStats['viewsChange'] ??
+                                  '+0%',
+                            },
+                          );
                         }
                       },
                     ),
@@ -2317,12 +2495,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                         if (channelData != null) {
                           final channelId = _getChannelId(channelData);
                           final channelName = _getChannelName(channelData);
-                          
-                          Get.to(() => const WatchTimePage(), arguments: {
-                            'channelId': channelId,
-                            'channelName': channelName,
-                            'watchTimeChange': controller.channelStats['watchTimeChange'] ?? '+0%',
-                          });
+
+                          Get.to(
+                            () => const WatchTimePage(),
+                            arguments: {
+                              'channelId': channelId,
+                              'channelName': channelName,
+                              'watchTimeChange':
+                                  controller.channelStats['watchTimeChange'] ??
+                                  '+0%',
+                            },
+                          );
                         }
                       },
                     ),
@@ -2339,12 +2522,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                         if (channelData != null) {
                           final channelId = _getChannelId(channelData);
                           final channelName = _getChannelName(channelData);
-                          
-                          Get.to(() => const SubscribersPage(), arguments: {
-                            'channelId': channelId,
-                            'channelName': channelName,
-                            'subscribersChange': controller.channelStats['subscribersChange'] ?? '+0',
-                          });
+
+                          Get.to(
+                            () => const SubscribersPage(),
+                            arguments: {
+                              'channelId': channelId,
+                              'channelName': channelName,
+                              'subscribersChange':
+                                  controller
+                                      .channelStats['subscribersChange'] ??
+                                  '+0',
+                            },
+                          );
                         }
                       },
                     ),
@@ -2381,12 +2570,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                       if (channelData != null) {
                         final channelId = _getChannelId(channelData);
                         final channelName = _getChannelName(channelData);
-                        
-                        Get.to(() => const ViewsPage(), arguments: {
-                          'channelId': channelId,
-                          'channelName': channelName,
-                          'viewsChange': controller.channelStats['viewsChange'] ?? '+0%',
-                        });
+
+                        Get.to(
+                          () => const ViewsPage(),
+                          arguments: {
+                            'channelId': channelId,
+                            'channelName': channelName,
+                            'viewsChange':
+                                controller.channelStats['viewsChange'] ?? '+0%',
+                          },
+                        );
                       }
                     },
                   ),
@@ -2402,12 +2595,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                       if (channelData != null) {
                         final channelId = _getChannelId(channelData);
                         final channelName = _getChannelName(channelData);
-                        
-                        Get.to(() => const WatchTimePage(), arguments: {
-                          'channelId': channelId,
-                          'channelName': channelName,
-                          'watchTimeChange': controller.channelStats['watchTimeChange'] ?? '+0%',
-                        });
+
+                        Get.to(
+                          () => const WatchTimePage(),
+                          arguments: {
+                            'channelId': channelId,
+                            'channelName': channelName,
+                            'watchTimeChange':
+                                controller.channelStats['watchTimeChange'] ??
+                                '+0%',
+                          },
+                        );
                       }
                     },
                   ),
@@ -2423,12 +2621,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                       if (channelData != null) {
                         final channelId = _getChannelId(channelData);
                         final channelName = _getChannelName(channelData);
-                        
-                        Get.to(() => const SubscribersPage(), arguments: {
-                          'channelId': channelId,
-                          'channelName': channelName,
-                          'subscribersChange': controller.channelStats['subscribersChange'] ?? '+0',
-                        });
+
+                        Get.to(
+                          () => const SubscribersPage(),
+                          arguments: {
+                            'channelId': channelId,
+                            'channelName': channelName,
+                            'subscribersChange':
+                                controller.channelStats['subscribersChange'] ??
+                                '+0',
+                          },
+                        );
                       }
                     },
                   ),
@@ -2483,7 +2686,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       child: Shimmer.fromColors(
         baseColor: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
-        highlightColor: isDarkMode ? const Color(0xFF4B5563) : const Color(0xFFF1F5F9),
+        highlightColor: isDarkMode
+            ? const Color(0xFF4B5563)
+            : const Color(0xFFF1F5F9),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -2554,10 +2759,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           scale: 0.8 + (0.2 * animationValue),
           child: Container(
             decoration: BoxDecoration(
-              color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
+              color: isDarkMode
+                  ? AppTheme.colors.surface
+                  : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+                color: isDarkMode
+                    ? const Color(0xFF374151)
+                    : AppColors.bgDivider,
               ),
               boxShadow: [
                 BoxShadow(
@@ -2610,7 +2819,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         style: TextStyle(
                           fontSize: isMobile ? 20 : 24,
                           fontWeight: FontWeight.bold,
-                          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2623,8 +2834,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                             decoration: BoxDecoration(
                               color: isPositive
-                                  ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                                  : const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                  ? const Color(
+                                      0xFF10B981,
+                                    ).withValues(alpha: 0.1)
+                                  : const Color(
+                                      0xFFEF4444,
+                                    ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
@@ -2685,7 +2900,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
-                        color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                        color: isDarkMode
+                            ? AppColors.textPrimary
+                            : AppColors.textPrimary,
                       ),
                     ),
                     Container(
@@ -2731,10 +2948,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                   height: 300,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
+                    color: isDarkMode
+                        ? AppTheme.colors.surface
+                        : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+                      color: isDarkMode
+                          ? const Color(0xFF374151)
+                          : AppColors.bgDivider,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -2773,7 +2994,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         primaryXAxis: DateTimeAxis(
           majorGridLines: const MajorGridLines(width: 0),
           labelStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : AppColors.textSecondary,
           ),
           axisLine: AxisLine(
             color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
@@ -2781,7 +3004,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         primaryYAxis: NumericAxis(
           labelStyle: TextStyle(
-            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : AppColors.textSecondary,
           ),
           axisLine: const AxisLine(width: 0),
           majorTickLines: const MajorTickLines(width: 0),
@@ -2932,7 +3157,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // 4. Engagement check — low average views
     if (videos.length >= 3) {
-      final avgViews = videos.fold(0, (acc, v) => acc + v.viewCount) / videos.length;
+      final avgViews =
+          videos.fold(0, (acc, v) => acc + v.viewCount) / videos.length;
       if (avgViews < 10) {
         recs.add({
           'title': 'Boost Video Visibility',
@@ -2948,7 +3174,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // 5. Tags/Topics check — videos with no tags
     if (videos.isNotEmpty) {
-      final untaggedCount = videos.where((v) => v.tags.isEmpty && v.topics.isEmpty).length;
+      final untaggedCount = videos
+          .where((v) => v.tags.isEmpty && v.topics.isEmpty)
+          .length;
       if (untaggedCount > 0) {
         recs.add({
           'title': 'Add Tags & Topics',
@@ -2992,7 +3220,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     // 8. Social links check
-    if (ch != null && (ch.socialLinks == null || (ch.socialLinks?.isEmpty ?? true))) {
+    if (ch != null &&
+        (ch.socialLinks == null || (ch.socialLinks?.isEmpty ?? true))) {
       recs.add({
         'title': 'Add Social Links',
         'description':
@@ -3065,7 +3294,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -3073,7 +3304,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   child: Text(
                     recommendation['description'] as String,
                     style: TextStyle(
-                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : AppColors.textSecondary,
                       fontSize: 14,
                       height: 1.4,
                     ),
@@ -3128,7 +3361,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(
                 fontSize: isMobile ? 20 : 24,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                color: isDarkMode
+                    ? AppColors.textPrimary
+                    : AppColors.textPrimary,
               ),
             ),
             TextButton.icon(
@@ -3160,7 +3395,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Icon(
                       Icons.search_off_rounded,
                       size: 48,
-                      color: isDarkMode ? AppColors.textTertiary : const Color(0xFFCBD5E1),
+                      color: isDarkMode
+                          ? AppColors.textTertiary
+                          : const Color(0xFFCBD5E1),
                     ),
                     const SizedBox(height: 16),
                     Text(
@@ -3168,7 +3405,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ? 'No content yet'
                           : 'No matching content found',
                       style: TextStyle(
-                        color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                        color: isDarkMode
+                            ? AppColors.textSecondary
+                            : AppColors.textSecondary,
                         fontSize: 16,
                       ),
                     ),
@@ -3235,7 +3474,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   height: isMobile ? 68 : 90,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: isDarkMode ? const Color(0xFF374151) : const Color(0xFFF1F5F9),
+                    color: isDarkMode
+                        ? const Color(0xFF374151)
+                        : const Color(0xFFF1F5F9),
                   ),
                   child: Stack(
                     children: [
@@ -3307,7 +3548,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : AppColors.textPrimary,
                           height: 1.3,
                         ),
                         maxLines: 2,
@@ -3360,7 +3603,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 Icon(
                   Icons.more_vert_rounded,
-                  color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : AppColors.textSecondary,
                   size: 20,
                 ),
               ],
@@ -3530,7 +3775,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                      color: isDarkMode
+                          ? AppColors.textPrimary
+                          : AppColors.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
@@ -3589,7 +3836,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6366F1),
                   foregroundColor: AppColors.textPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -3602,8 +3852,3 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 }
-
-
-
-
-

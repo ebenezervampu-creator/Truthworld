@@ -19,7 +19,6 @@ enum VideoStatus {
 }
 
 class VideoResolutionV2 {
-
   VideoResolutionV2({
     required this.label,
     required this.url,
@@ -52,11 +51,17 @@ class VideoResolutionV2 {
 }
 
 class Video {
-
   Video({
     required this.id,
     required this.title,
-    required this.description, required this.thumbnailUrl, required this.ownerId, required this.channelId, required this.channelName, required this.category, required this.tags, String? vTitleLowercase,
+    required this.description,
+    required this.thumbnailUrl,
+    required this.ownerId,
+    required this.channelId,
+    required this.channelName,
+    required this.category,
+    required this.tags,
+    String? vTitleLowercase,
     String? originalUrl,
     String? videoUrl,
     this.hlsUrl = '',
@@ -87,8 +92,14 @@ class Video {
     this.enableComments = true,
     this.isMonetized = false,
     this.allowRatings = false,
+    this.showLikeCount = true,
+    this.showDislikeCount = true,
     this.trustScore = 0.0,
+    this.truthScore = 0.0,
     this.videoRating = 0.0,
+    this.sourceLinks = const [],
+    this.isFactChecked = false,
+    this.isVerified = false,
     List<String>? likedBy,
     // Ignored/deprecated heavy fields for backward compatibility
     Map<String, String>? mediaSubtitles,
@@ -116,6 +127,8 @@ class Video {
     this.trustLabel,
     this.channelStatus,
     this.scheduledPublishAt,
+    this.coinBattlePairVideoId,
+    this.coinBattleStance,
   }) : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
            ? title.toLowerCase()
            : vTitleLowercase,
@@ -135,15 +148,17 @@ class Video {
                : (int.tryParse(likes?.toString() ?? '0') ?? 0)),
        durationValue =
            (vDurationValue != null && vDurationValue != Duration.zero)
-               ? vDurationValue
-               : parseDuration(duration),
+           ? vDurationValue
+           : parseDuration(duration),
        createdAt = TimestampUtils.parse(createdAt ?? uploadedAt),
        updatedAt = TimestampUtils.parse(updatedAt ?? createdAt ?? uploadedAt),
        status = status is VideoStatus ? status : VideoStatus.processing,
        visibility = visibility?.toString() ?? 'public',
        likedBy = likedBy ?? [] {
     // Populate the VideoMediaService static caches for instant synchronous retrieval
-    if (mediaSubtitles != null || dubbedVideos != null || audioTracks != null) {
+    if ((mediaSubtitles != null && mediaSubtitles.isNotEmpty) ||
+        (dubbedVideos != null && dubbedVideos.isNotEmpty) ||
+        (audioTracks != null && audioTracks.isNotEmpty)) {
       VideoMediaService.localizationCache[id] = VideoMediaLocalization(
         subtitles: mediaSubtitles ?? const {},
         dubbedVideos: dubbedVideos ?? const {},
@@ -210,7 +225,13 @@ class Video {
       channelId: data['channelId'] ?? '',
       channelName: data['channelName'] ?? '',
       channelAvatarUrl: data['channelAvatarUrl'] ?? '',
-      viewCount: data['viewCount'] ?? 0,
+      viewCount:
+          (data['viewCount'] as num?)?.toInt() ??
+          (data['views'] as num?)?.toInt() ??
+          (data['stats'] is Map
+              ? (data['stats']['views'] as num?)?.toInt()
+              : null) ??
+          0,
       likeCount: data['likeCount'] ?? 0,
       dislikeCount: data['dislikeCount'] ?? 0,
       commentCount: data['commentCount'] ?? 0,
@@ -258,8 +279,22 @@ class Video {
           ? (data['media']['transcriptionUrl'] as String? ?? '')
           : (data['transcriptionUrl'] as String? ?? ''),
       allowRatings: data['allowRatings'] ?? false,
+      showLikeCount:
+          data['showLikeCount'] ??
+          data['showLikesCount'] ??
+          data['showLikes'] ??
+          true,
+      showDislikeCount:
+          data['showDislikeCount'] ??
+          data['showDislikesCount'] ??
+          data['showDislikes'] ??
+          true,
       trustScore: (data['trustScore'] ?? 0).toDouble(),
+      truthScore: (data['truthScore'] ?? data['trustScore'] ?? 0).toDouble(),
       videoRating: (data['videoRating'] ?? 0).toDouble(),
+      sourceLinks: List<String>.from(data['sourceLinks'] ?? []),
+      isFactChecked: data['isFactChecked'] ?? false,
+      isVerified: data['isVerified'] ?? false,
       chapters: (data['chapters'] as List? ?? [])
           .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
@@ -313,6 +348,8 @@ class Video {
       uiReport: data['uiReport'] != null
           ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
           : null,
+      coinBattlePairVideoId: data['coinBattlePairVideoId'] as String?,
+      coinBattleStance: data['coinBattleStance'] as String?,
     );
   }
 
@@ -399,11 +436,19 @@ class Video {
   final bool enableComments;
   final bool isMonetized;
   final bool allowRatings;
+  final bool showLikeCount;
+  final bool showDislikeCount;
   final double trustScore;
+  final double truthScore;
   final double videoRating;
+  final List<String>? sourceLinks;
+  final bool isFactChecked;
+  final bool isVerified;
   bool isSeen = false;
   final String? channelStatus;
   final DateTime? scheduledPublishAt;
+  final String? coinBattlePairVideoId;
+  final String? coinBattleStance;
 
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
@@ -558,15 +603,135 @@ class Video {
       'enableComments': enableComments,
       'isMonetized': isMonetized,
       'allowRatings': allowRatings,
+      'showLikeCount': showLikeCount,
+      'showDislikeCount': showDislikeCount,
       'trustScore': trustScore,
+      'truthScore': truthScore,
       'videoRating': videoRating,
+      'sourceLinks': sourceLinks,
+      'isFactChecked': isFactChecked,
+      'isVerified': isVerified,
       'qualifiedViewCount': viewCount,
       'totalWatchTimeSeconds': totalWatchTimeSeconds,
       'likedBy': likedBy,
       'trustLabel': trustLabel,
       'channelStatus': channelStatus,
       'scheduledPublishAt': scheduledPublishAt?.millisecondsSinceEpoch,
+      'coinBattlePairVideoId': coinBattlePairVideoId,
+      'coinBattleStance': coinBattleStance,
     };
+  }
+
+  Video copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? thumbnailUrl,
+    String? ownerId,
+    String? channelId,
+    String? channelName,
+    String? category,
+    List<String>? tags,
+    String? vTitleLowercase,
+    String? originalUrl,
+    String? videoUrl,
+    String? hlsUrl,
+    String? dashUrl,
+    List<VideoResolutionV2>? adaptiveResolutions,
+    List<String>? thumbnailVariants,
+    String? animatedPreviewUrl,
+    String? channelAvatarUrl,
+    int? viewCount,
+    int? likeCount,
+    int? dislikeCount,
+    int? commentCount,
+    int? shareCount,
+    Duration? vDurationValue,
+    dynamic createdAt,
+    dynamic uploadedAt,
+    dynamic updatedAt,
+    VideoStatus? status,
+    String? visibility,
+    List<String>? topics,
+    String? language,
+    bool? isShort,
+    bool? isKidFriendly,
+    bool? enableComments,
+    bool? isMonetized,
+    bool? allowRatings,
+    bool? showLikeCount,
+    bool? showDislikeCount,
+    double? trustScore,
+    double? truthScore,
+    double? videoRating,
+    List<String>? sourceLinks,
+    bool? isFactChecked,
+    bool? isVerified,
+    List<String>? likedBy,
+    bool? isSeen,
+    int? totalWatchTimeSeconds,
+    String? trustLabel,
+    String? channelStatus,
+    DateTime? scheduledPublishAt,
+    String? coinBattlePairVideoId,
+    String? coinBattleStance,
+  }) {
+    return Video(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      ownerId: ownerId ?? this.ownerId,
+      channelId: channelId ?? this.channelId,
+      channelName: channelName ?? this.channelName,
+      category: category ?? this.category,
+      tags: tags ?? this.tags,
+      vTitleLowercase: vTitleLowercase ?? titleLowercase,
+      originalUrl: originalUrl ?? this.originalUrl,
+      videoUrl: videoUrl,
+      hlsUrl: hlsUrl ?? this.hlsUrl,
+      dashUrl: dashUrl ?? this.dashUrl,
+      adaptiveResolutions: adaptiveResolutions ?? this.adaptiveResolutions,
+      thumbnailVariants: thumbnailVariants ?? this.thumbnailVariants,
+      animatedPreviewUrl: animatedPreviewUrl ?? this.animatedPreviewUrl,
+      channelAvatarUrl: channelAvatarUrl ?? this.channelAvatarUrl,
+      viewCount: viewCount ?? this.viewCount,
+      likeCount: likeCount ?? this.likeCount,
+      dislikeCount: dislikeCount ?? this.dislikeCount,
+      commentCount: commentCount ?? this.commentCount,
+      shareCount: shareCount ?? this.shareCount,
+      vDurationValue: vDurationValue ?? durationValue,
+      createdAt: createdAt ?? this.createdAt,
+      uploadedAt: uploadedAt ?? this.uploadedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      status: status ?? this.status,
+      visibility: visibility ?? this.visibility,
+      topics: topics ?? this.topics,
+      language: language ?? this.language,
+      isShort: isShort ?? this.isShort,
+      isKidFriendly: isKidFriendly ?? this.isKidFriendly,
+      enableComments: enableComments ?? this.enableComments,
+      isMonetized: isMonetized ?? this.isMonetized,
+      allowRatings: allowRatings ?? this.allowRatings,
+      showLikeCount: showLikeCount ?? this.showLikeCount,
+      showDislikeCount: showDislikeCount ?? this.showDislikeCount,
+      trustScore: trustScore ?? this.trustScore,
+      truthScore: truthScore ?? this.truthScore,
+      videoRating: videoRating ?? this.videoRating,
+      sourceLinks: sourceLinks ?? this.sourceLinks,
+      isFactChecked: isFactChecked ?? this.isFactChecked,
+      isVerified: isVerified ?? this.isVerified,
+      likedBy: likedBy ?? this.likedBy,
+      isSeen: isSeen ?? this.isSeen,
+      totalWatchTimeSeconds:
+          totalWatchTimeSeconds ?? this.totalWatchTimeSeconds,
+      trustLabel: trustLabel ?? this.trustLabel,
+      channelStatus: channelStatus ?? this.channelStatus,
+      scheduledPublishAt: scheduledPublishAt ?? this.scheduledPublishAt,
+      coinBattlePairVideoId:
+          coinBattlePairVideoId ?? this.coinBattlePairVideoId,
+      coinBattleStance: coinBattleStance ?? this.coinBattleStance,
+    );
   }
 }
 

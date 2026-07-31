@@ -30,10 +30,14 @@ final class GoogleSignInExceptionHandler {
   static GoogleSignInException from(
     dynamic exception,
   ) {
-    final str = exception.toString();
-    if (str.contains('canceled') || str.contains('Account reauth failed')) {
+    final str = exception.toString().toLowerCase();
+    if (str.contains('canceled') ||
+        str.contains('cancelled') ||
+        str.contains('popup_closed_by_user') ||
+        str.contains('popup has been closed') ||
+        str.contains('account reauth failed')) {
       return const GoogleSignInException(
-        message: 'Sign-in was cancelled or required re-authentication.',
+        message: 'Sign-in was cancelled.',
         code: 'user-cancelled',
         isRetryable: true,
       );
@@ -45,11 +49,11 @@ final class GoogleSignInExceptionHandler {
       final GoogleSignInUserCancelledException e => _fromUserCancelled(e),
       final GoogleSignInFailedException e => _fromGoogleSignInFailed(e),
       _ => GoogleSignInException(
-          message: 'An unexpected error occurred: $exception',
-          code: 'unknown',
-          isRetryable: true,
-          originalException: exception,
-        ),
+        message: 'An unexpected error occurred: $exception',
+        code: 'unknown',
+        isRetryable: true,
+        originalException: exception,
+      ),
     };
   }
 
@@ -69,55 +73,63 @@ final class GoogleSignInExceptionHandler {
 
   static GoogleSignInException _fromFirebaseAuth(FirebaseAuthException e) {
     return switch (e.code) {
+      'popup-closed-by-user' ||
+      'cancelled-popup-request' => const GoogleSignInException(
+        message: 'Sign-in was cancelled.',
+        code: 'user-cancelled',
+        isRetryable: true,
+      ),
       'account-exists-with-different-credential' => GoogleSignInException(
-          message: 'This email is already associated with another sign-in method.',
-          code: e.code,
-          originalException: e,
-        ),
+        message:
+            'This email is already associated with another sign-in method.',
+        code: e.code,
+        originalException: e,
+      ),
       'internal-error' => GoogleSignInException(
-          message: 'Internal Firebase error. Please verify that Google Sign-In is enabled in your Firebase Console and your SHA-1/SHA-256 fingerprints are correctly configured.',
-          code: e.code,
-          isRetryable: true,
-          originalException: e,
-        ),
+        message:
+            'Internal Firebase error. Please verify that Google Sign-In is enabled in your Firebase Console and your SHA-1/SHA-256 fingerprints are correctly configured.',
+        code: e.code,
+        isRetryable: true,
+        originalException: e,
+      ),
       'invalid-credential' => GoogleSignInException(
-          message: 'The Google credential is no longer valid.',
-          code: e.code,
-          isRetryable: true,
-          originalException: e,
-        ),
+        message: 'The Google credential is no longer valid.',
+        code: e.code,
+        isRetryable: true,
+        originalException: e,
+      ),
       'operation-not-allowed' => GoogleSignInException(
-          message: 'Google Sign-In is not enabled for this project.',
-          code: e.code,
-          originalException: e,
-        ),
+        message: 'Google Sign-In is not enabled for this project.',
+        code: e.code,
+        originalException: e,
+      ),
       'user-disabled' => GoogleSignInException(
-          message: 'This user account has been disabled.',
-          code: e.code,
-          originalException: e,
-        ),
+        message: 'This user account has been disabled.',
+        code: e.code,
+        originalException: e,
+      ),
       'invalid-email' => GoogleSignInException(
-          message: 'The email address is invalid.',
-          code: e.code,
-          originalException: e,
-        ),
+        message: 'The email address is invalid.',
+        code: e.code,
+        originalException: e,
+      ),
       'too-many-requests' => GoogleSignInException(
-          message: 'Too many requests. Please try again later.',
-          code: e.code,
-          originalException: e,
-        ),
+        message: 'Too many requests. Please try again later.',
+        code: e.code,
+        originalException: e,
+      ),
       'network-request-failed' => GoogleSignInException(
-          message: 'Network error. Please check your connection.',
-          code: e.code,
-          isRetryable: true,
-          originalException: e,
-        ),
+        message: 'Network error. Please check your connection.',
+        code: e.code,
+        isRetryable: true,
+        originalException: e,
+      ),
       _ => GoogleSignInException(
-          message: e.message ?? 'Authentication failed [${e.code}]',
-          code: e.code,
-          isRetryable: true,
-          originalException: e,
-        ),
+        message: e.message ?? 'Authentication failed [${e.code}]',
+        code: e.code,
+        isRetryable: true,
+        originalException: e,
+      ),
     };
   }
 
@@ -136,7 +148,7 @@ final class GoogleSignInExceptionHandler {
     GoogleSignInFailedException e,
   ) {
     final message = e.message?.toLowerCase() ?? '';
-    
+
     if (message.contains('network')) {
       return GoogleSignInException(
         message: 'Network error during Google Sign-In.',
@@ -172,7 +184,7 @@ final class GoogleSignInExceptionHandler {
         originalException: e,
       );
     }
-    
+
     if (e.code == 'NETWORK_ERROR') {
       return GoogleSignInException(
         message: 'Network error during sign-in. Please check your connection.',
@@ -190,7 +202,3 @@ final class GoogleSignInExceptionHandler {
     );
   }
 }
-
-
-
-

@@ -12,7 +12,6 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class AdItem {
-
   const AdItem({
     required this.id,
     required this.userId,
@@ -46,7 +45,7 @@ class AdItem {
     final colors = map['gradientColors'] as List<dynamic>?;
     final parsedColors = colors != null
         ? colors.map((val) => Color(val as int)).toList()
-        : [const Color(0xFFFEF08A), const Color(0xFFFDE047)];
+        : [AppColors.brand, AppColors.brandVariant];
 
     final isSkippable = map['isSkippableAd'] ?? false;
     final fallbackType = isSkippable ? 'skippable' : 'homepage';
@@ -259,9 +258,7 @@ class AdService extends GetxService {
 
   void _syncToLocalCache() {
     try {
-      final rawList = customCampaigns
-          .map((ad) => ad.toMap())
-          .toList();
+      final rawList = customCampaigns.map((ad) => ad.toMap()).toList();
       _storage.write('local_ad_campaigns', rawList);
     } catch (e) {
       debugPrint('Failed to save ad campaigns to cache: $e');
@@ -614,7 +611,9 @@ class AdService extends GetxService {
             decoration: BoxDecoration(
               color: const Color(0xFF161616).withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.bgPage.withValues(alpha: 0.5),
@@ -644,7 +643,6 @@ class AdService extends GetxService {
                       child: const Text(
                         'SPONSORED',
                         style: TextStyle(
-                          
                           color: AppColors.warning,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -687,7 +685,9 @@ class AdService extends GetxService {
                           child: Icon(
                             ad.fallbackIcon ?? Icons.ads_click_rounded,
                             size: 72,
-                            color: AppColors.textPrimary.withValues(alpha: 0.15),
+                            color: AppColors.textPrimary.withValues(
+                              alpha: 0.15,
+                            ),
                           ),
                         ),
                         Positioned(
@@ -697,13 +697,14 @@ class AdService extends GetxService {
                           child: Text(
                             ad.advertiser,
                             style: TextStyle(
-                              
                               color: AppColors.textPrimary,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               shadows: [
                                 Shadow(
-                                  color: AppColors.bgPage.withValues(alpha: 0.6),
+                                  color: AppColors.bgPage.withValues(
+                                    alpha: 0.6,
+                                  ),
                                   offset: const Offset(0, 2),
                                   blurRadius: 4,
                                 ),
@@ -722,7 +723,6 @@ class AdService extends GetxService {
                   ad.title,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    
                     color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -733,7 +733,6 @@ class AdService extends GetxService {
                   ad.description,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    
                     color: AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
@@ -760,7 +759,6 @@ class AdService extends GetxService {
                         const Text(
                           'Opening sponsored page securely...',
                           style: TextStyle(
-                            
                             color: AppColors.textSecondary,
                             fontSize: 12,
                             fontStyle: FontStyle.italic,
@@ -804,7 +802,6 @@ class AdService extends GetxService {
                         child: Text(
                           ad.ctaText,
                           style: const TextStyle(
-                            
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -824,7 +821,6 @@ class AdService extends GetxService {
                         child: const Text(
                           'Remove Ads (Get Premium)',
                           style: TextStyle(
-                            
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -925,7 +921,9 @@ class AdService extends GetxService {
       return;
     }
 
-    final userName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'Anonymous';
+    final userName = AuthService.to.activeDisplayName.isNotEmpty
+        ? AuthService.to.activeDisplayName
+        : 'Anonymous';
     final userProfilePicUrl = AuthService.to.activePhotoUrl;
 
     final ref = FirebaseFirestore.instance.collection('ad_comments').doc();
@@ -1009,7 +1007,6 @@ class AdService extends GetxService {
                   child: Text(
                     'Comments for ${ad.advertiser}',
                     style: const TextStyle(
-                      
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -1031,7 +1028,9 @@ class AdService extends GetxService {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(color: AppColors.warning),
+                      child: CircularProgressIndicator(
+                        color: AppColors.warning,
+                      ),
                     );
                   }
                   final comments = snapshot.data ?? [];
@@ -1049,7 +1048,6 @@ class AdService extends GetxService {
                           Text(
                             'No comments yet',
                             style: TextStyle(
-                              
                               color: AppColors.textSecondary,
                             ),
                           ),
@@ -1057,7 +1055,6 @@ class AdService extends GetxService {
                           Text(
                             'Be the first to share your thoughts!',
                             style: TextStyle(
-                              
                               color: AppColors.textTertiary,
                               fontSize: 12,
                             ),
@@ -1097,7 +1094,6 @@ class AdService extends GetxService {
                                 Text(
                                   comment.userName,
                                   style: const TextStyle(
-                                    
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.textSecondary,
                                     fontSize: 12,
@@ -1107,7 +1103,6 @@ class AdService extends GetxService {
                                 Text(
                                   '${comment.createdAt.hour}:${comment.createdAt.minute.toString().padLeft(2, '0')}',
                                   style: const TextStyle(
-                                    
                                     color: AppColors.textTertiary,
                                     fontSize: 11,
                                   ),
@@ -1119,7 +1114,6 @@ class AdService extends GetxService {
                               child: Text(
                                 comment.text,
                                 style: const TextStyle(
-                                  
                                   color: AppColors.textPrimary,
                                   fontSize: 13,
                                 ),
@@ -1130,10 +1124,14 @@ class AdService extends GetxService {
                                 margin: const EdgeInsets.only(left: 36, top: 8),
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: AppColors.warning.withValues(alpha: 0.05),
+                                  color: AppColors.warning.withValues(
+                                    alpha: 0.05,
+                                  ),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: AppColors.warning.withValues(alpha: 0.15),
+                                    color: AppColors.warning.withValues(
+                                      alpha: 0.15,
+                                    ),
                                   ),
                                 ),
                                 child: Column(
@@ -1150,7 +1148,6 @@ class AdService extends GetxService {
                                         Text(
                                           '${comment.repliedBy ?? 'Advertiser'} (Sponsor)',
                                           style: const TextStyle(
-                                            
                                             color: AppColors.warning,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 11,
@@ -1162,7 +1159,6 @@ class AdService extends GetxService {
                                     Text(
                                       comment.replyText!,
                                       style: const TextStyle(
-                                        
                                         color: AppColors.textPrimary,
                                         fontSize: 12,
                                       ),
@@ -1194,7 +1190,10 @@ class AdService extends GetxService {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send_rounded, color: AppColors.warning),
+                  icon: const Icon(
+                    Icons.send_rounded,
+                    color: AppColors.warning,
+                  ),
                   onPressed: () {
                     final text = textController.text.trim();
                     if (text.isNotEmpty) {
@@ -1214,7 +1213,6 @@ class AdService extends GetxService {
 }
 
 class AdComment {
-
   AdComment({
     required this.id,
     required this.adId,

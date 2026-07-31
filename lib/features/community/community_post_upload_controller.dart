@@ -73,6 +73,7 @@ class CommunityPostUploadController extends GetxController
 
   // Post Interactive Settings
   final isLikeEnabled = true.obs;
+  final showLikeCount = true.obs;
   final isDislikeEnabled = true.obs;
   final showDislikeCount = true.obs;
   final isCommentsEnabled = true.obs;
@@ -134,32 +135,38 @@ class CommunityPostUploadController extends GetxController
           )
           .get(const GetOptions())
           .then((snapshot) {
-        channels.value = snapshot.docs.map((doc) => doc.data()).toList();
-        isChannelsLoading.value = false;
-        channelsError.value = '';
+            channels.value = snapshot.docs.map((doc) => doc.data()).toList();
+            isChannelsLoading.value = false;
+            channelsError.value = '';
 
-        debugPrint('✅ Community channels loaded: ${channels.length}');
+            debugPrint('✅ Community channels loaded: ${channels.length}');
 
-        if (channels.isNotEmpty && selectedChannel.value == null) {
-          selectedChannel.value = channels.first;
-          debugPrint('✅ Auto-selected community channel: ${selectedChannel.value!.channelName}');
-        }
-      }).catchError((error) {
-        isChannelsLoading.value = false;
-        channelsError.value = 'Failed to load channels: $error';
-        debugPrint('❌ Error fetching community channels: $error');
-        AppSnackbar.show(
-          'Error',
-          'Failed to load channels',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFFEF4444),
-          colorText: AppColors.textPrimary,
-          mainButton: TextButton(
-            onPressed: _fetchChannelsForCommunity,
-            child: const Text('Retry', style: TextStyle(color: AppColors.textPrimary)),
-          ),
-        );
-      });
+            if (channels.isNotEmpty && selectedChannel.value == null) {
+              selectedChannel.value = channels.first;
+              debugPrint(
+                '✅ Auto-selected community channel: ${selectedChannel.value!.channelName}',
+              );
+            }
+          })
+          .catchError((error) {
+            isChannelsLoading.value = false;
+            channelsError.value = 'Failed to load channels: $error';
+            debugPrint('❌ Error fetching community channels: $error');
+            AppSnackbar.show(
+              'Error',
+              'Failed to load channels',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: const Color(0xFFEF4444),
+              colorText: AppColors.textPrimary,
+              mainButton: TextButton(
+                onPressed: _fetchChannelsForCommunity,
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+              ),
+            );
+          });
     } catch (e) {
       isChannelsLoading.value = false;
       channelsError.value = 'Error: $e';
@@ -191,6 +198,7 @@ class CommunityPostUploadController extends GetxController
     selectedCategory.value = 'General';
     selectedVisibility.value = 'Public';
     isLikeEnabled.value = true;
+    showLikeCount.value = true;
     isDislikeEnabled.value = true;
     showDislikeCount.value = true;
     isCommentsEnabled.value = true;
@@ -423,13 +431,19 @@ class CommunityPostUploadController extends GetxController
     if (selectedChannel.value!.status != ChannelStatus.active) {
       var message = 'Your channel is not active.';
       if (selectedChannel.value!.status == ChannelStatus.underReview) {
-        message = 'Your channel details are currently under review by Gemini AI. You can publish posts once approved.';
-      } else if (selectedChannel.value!.status == ChannelStatus.verificationRejected) {
-        message = selectedChannel.value!.moderationReason != null && selectedChannel.value!.moderationReason!.isNotEmpty
+        message =
+            'Your channel details are currently under review by Gemini AI. You can publish posts once approved.';
+      } else if (selectedChannel.value!.status ==
+          ChannelStatus.verificationRejected) {
+        message =
+            selectedChannel.value!.moderationReason != null &&
+                selectedChannel.value!.moderationReason!.isNotEmpty
             ? 'Branding Rejected: ${selectedChannel.value!.moderationReason!}'
             : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
-      } else if (selectedChannel.value!.status == ChannelStatus.verificationPending) {
-        message = 'Your channel is currently verification pending. You can publish posts once your branding is verified.';
+      } else if (selectedChannel.value!.status ==
+          ChannelStatus.verificationPending) {
+        message =
+            'Your channel is currently verification pending. You can publish posts once your branding is verified.';
       } else if (selectedChannel.value!.status == ChannelStatus.suspended) {
         message = 'Your channel is suspended. Publishing is disabled.';
       }
@@ -493,6 +507,7 @@ class CommunityPostUploadController extends GetxController
             : selectedVisibility.value,
         'isKidFriendly': isKidFriendly.value,
         'isLikeEnabled': isLikeEnabled.value,
+        'showLikeCount': showLikeCount.value,
         'isDislikeEnabled': isDislikeEnabled.value,
         'showDislikeCount': showDislikeCount.value,
         'isCommentsEnabled': isCommentsEnabled.value,

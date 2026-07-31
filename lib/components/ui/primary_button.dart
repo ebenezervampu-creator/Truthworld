@@ -17,9 +17,9 @@ enum ButtonSize { small, medium, large }
 /// - Token-based styling
 @immutable
 class PrimaryButton extends StatelessWidget {
-
   const PrimaryButton({
-    required this.label, super.key,
+    required this.label,
+    super.key,
     this.onPressed,
     this.variant = ButtonVariant.primary,
     this.size = ButtonSize.medium,
@@ -147,7 +147,7 @@ class PrimaryButton extends StatelessWidget {
     };
 
     final foregroundColor = switch (variant) {
-      ButtonVariant.primary => AppTheme.colors.textPrimary,
+      ButtonVariant.primary => Colors.black,
       ButtonVariant.secondary => AppTheme.colors.primary,
       ButtonVariant.danger => AppTheme.colors.textPrimary,
       ButtonVariant.ghost => AppTheme.colors.textSecondary,
@@ -164,7 +164,10 @@ class PrimaryButton extends StatelessWidget {
         ElevatedButton.styleFrom(
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
-          padding: EdgeInsets.symmetric(horizontal: padding * 1.5, vertical: padding),
+          padding: EdgeInsets.symmetric(
+            horizontal: padding * 1.5,
+            vertical: padding,
+          ),
           minimumSize: Size(0, height),
           fixedSize: isFullWidth ? Size.fromHeight(height) : null,
           shape: RoundedRectangleBorder(
@@ -220,14 +223,9 @@ class PrimaryButton extends StatelessWidget {
 
   Color _getLoadingIndicatorColor() {
     return switch (variant) {
-      ButtonVariant.primary ||
+      ButtonVariant.primary => Colors.black,
       ButtonVariant.danger => AppTheme.colors.textPrimary,
       _ => AppTheme.colors.primary,
     };
   }
 }
-
-
-
-
-

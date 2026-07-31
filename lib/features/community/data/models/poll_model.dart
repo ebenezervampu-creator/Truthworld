@@ -3,7 +3,6 @@ enum PollType { yesNo, multiChoice }
 
 /// A single option inside a poll.
 class PollOption {
-
   const PollOption({
     required this.id,
     required this.text,
@@ -47,7 +46,6 @@ class PollOption {
 /// - [PollType.yesNo]: 2 options ("Yes", "No")
 /// - [PollType.multiChoice]: 3–5 custom options
 class PollModel {
-
   const PollModel({
     required this.question,
     required this.type,

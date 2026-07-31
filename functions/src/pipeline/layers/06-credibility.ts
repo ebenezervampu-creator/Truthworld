@@ -364,15 +364,53 @@ export class CredibilityEngine {
              return 5;  // standard Flash
            })();
 
+          const jobData = jobDoc.data() || {};
+          const rawProvidedSources: string[] = Array.isArray(jobData.providedSources)
+            ? jobData.providedSources
+            : (Array.isArray(jobData.features?.providedSources) ? jobData.features.providedSources : []);
+          let disputeSources: string[] = [];
+          
+          try {
+            const videoSnap = await db().collection("videos").doc(jobId).get();
+            if (videoSnap.exists) {
+              const vData = videoSnap.data() || {};
+              if (Array.isArray(vData.providedSources)) {
+                rawProvidedSources.push(...vData.providedSources);
+              }
+              if (vData.factCheckDispute && Array.isArray(vData.factCheckDispute.additionalSources)) {
+                disputeSources = vData.factCheckDispute.additionalSources;
+              }
+            }
+          } catch (e) {
+            logger.warn("[Credibility] Could not fetch extra video providedSources", { jobId, error: (e as any)?.message });
+          }
+
+          let communitySources: string[] = [];
+          try {
+            const claimSourcesSnap = await db().collection("videos").doc(jobId).collection("claim_sources").get();
+            if (!claimSourcesSnap.empty) {
+              claimSourcesSnap.docs.forEach(doc => {
+                const data = doc.data();
+                if (data?.url && typeof data.url === 'string') {
+                  const targetLabel = data.target ? ` [Target: ${data.target}]` : '';
+                  communitySources.push(`${data.url}${targetLabel}`);
+                }
+              });
+            }
+          } catch (e) {
+            logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, error: (e as any)?.message });
+          }
+
+          const channelProvidedSources = Array.from(new Set([...rawProvidedSources, ...disputeSources, ...communitySources])).filter(s => typeof s === 'string' && s.trim().length > 0);
+
           const deepResearchOptions = {
             jobId: jobId,
             groundingMode: deepResearchActive ? DEEP_RESEARCH_CONFIG.GROUNDING_MODE : (effectiveGroundingMode as any),
-            // v14.0: CRITICAL FIX — was `||` which forced Pro on EVERY video.
-            // Only force Pro when Deep Research is explicitly active.
             forcePro: deepResearchActive && DEEP_RESEARCH_CONFIG.FORCE_PRO_MODEL,
             minSourcesRequired: DEEP_RESEARCH_CONFIG.MIN_SOURCES_PER_CLAIM,
             sourceDiversityRequired: DEEP_RESEARCH_CONFIG.SOURCE_DIVERSITY_REQUIRED,
-            isDiscoverySensitive: isDiscoverySensitive || isSensitiveTopic
+            isDiscoverySensitive: isDiscoverySensitive || isSensitiveTopic,
+            providedSources: channelProvidedSources,
           };
 
           // v10.5 Audit #8: Pre-verification cost logging

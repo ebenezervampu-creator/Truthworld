@@ -16,10 +16,14 @@ import 'package:video_player/video_player.dart';
 /// - Loop-playback muted, perfectly fitted (cover fit) within the thumbnail area.
 /// - YouTube-style muted volume indicator overlay.
 /// - Seamless zero-latency warm-handover on tap.
-class HoverVideoPlayer extends StatefulWidget { // Previews start muted by default
+class HoverVideoPlayer extends StatefulWidget {
+  // Previews start muted by default
 
   const HoverVideoPlayer({
-    required this.video, required this.thumbnail, required this.borderRadius, super.key,
+    required this.video,
+    required this.thumbnail,
+    required this.borderRadius,
+    super.key,
   });
   final Video video;
   final Widget thumbnail;
@@ -254,7 +258,9 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0B1428), // Premium dark blue
+                              color: const Color(
+                                0xFF0B1428,
+                              ), // Premium dark blue
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: AppColors.textDisabled,
@@ -289,7 +295,9 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: AppColors.bgPage.withValues(alpha: 0.75),
+                                    color: AppColors.bgPage.withValues(
+                                      alpha: 0.75,
+                                    ),
                                     borderRadius: BorderRadius.circular(6),
                                     border: Border.all(
                                       color: AppColors.bgDivider,
@@ -307,9 +315,14 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                               ),
                               const SizedBox(height: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.bgPage.withValues(alpha: 0.75),
+                                  color: AppColors.bgPage.withValues(
+                                    alpha: 0.75,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
                                     color: AppColors.bgDivider,
@@ -335,7 +348,10 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                           bottom: 16,
                           left: 12,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.bgPage54,
                               borderRadius: BorderRadius.circular(4),
@@ -395,8 +411,10 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
           return GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapDown: (details) => seekToPosition(details.localPosition),
-            onHorizontalDragStart: (details) => seekToPosition(details.localPosition),
-            onHorizontalDragUpdate: (details) => seekToPosition(details.localPosition),
+            onHorizontalDragStart: (details) =>
+                seekToPosition(details.localPosition),
+            onHorizontalDragUpdate: (details) =>
+                seekToPosition(details.localPosition),
             child: SizedBox(
               height: 24,
               width: double.infinity,

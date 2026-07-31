@@ -17,7 +17,10 @@ class VideoQueryBuilder {
     Query query = firestore
         .collection(collectionName)
         .where('status', isEqualTo: VideoVisibilityPolicy.publicStatus.name)
-        .where('visibility', isEqualTo: VideoVisibilityPolicy.publicVisibilityString)
+        .where(
+          'visibility',
+          isEqualTo: VideoVisibilityPolicy.publicVisibilityString,
+        )
         .orderBy('uploadedAt', descending: true);
 
     if (category != null && category != 'All' && category.isNotEmpty) {

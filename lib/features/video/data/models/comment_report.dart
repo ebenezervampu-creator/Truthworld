@@ -13,12 +13,18 @@ enum ReportReason {
   const ReportReason(this.label);
 }
 
-class CommentReport { // Notes on resolution
+class CommentReport {
+  // Notes on resolution
 
   CommentReport({
     required this.id,
     required this.commentId,
-    required this.videoId, required this.reporterId, required this.reporterName, required this.reason, required this.createdAt, this.replyId,
+    required this.videoId,
+    required this.reporterId,
+    required this.reporterName,
+    required this.reason,
+    required this.createdAt,
+    this.replyId,
     this.description,
     this.isResolved = false,
     this.resolvedBy,
@@ -105,8 +111,3 @@ class CommentReport { // Notes on resolution
     );
   }
 }
-
-
-
-
-

@@ -1,5 +1,4 @@
 class VideoResolution {
-
   VideoResolution({
     required this.quality,
     required this.width,
@@ -37,8 +36,3 @@ class VideoResolution {
     };
   }
 }
-
-
-
-
-

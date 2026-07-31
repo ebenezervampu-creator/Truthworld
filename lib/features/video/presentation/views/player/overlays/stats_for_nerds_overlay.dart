@@ -27,9 +27,13 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
   void initState() {
     super.initState();
     // Generate a unique YouTube-style sCPN (12 alphanumeric chars)
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    _scpn = List.generate(12, (index) => chars[_rand.nextInt(chars.length)]).join();
-    
+    const chars =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    _scpn = List.generate(
+      12,
+      (index) => chars[_rand.nextInt(chars.length)],
+    ).join();
+
     // Pick a high-performance CDN edge node name
     final nodes = [
       'lax17s22-in-f14.1e100.net (CF-US-West)',
@@ -46,9 +50,10 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
       if (widget.ctrl.vv.isPlaying) {
         // Increment decoded frames based on 30 FPS playback rate
         _decodedFrames.value += 30;
-        
+
         // Random tiny chance of drop during buffering or low connection speeds
-        if (widget.ctrl.isBuffering.value || widget.ctrl.bufferHealthSeconds < 2.0) {
+        if (widget.ctrl.isBuffering.value ||
+            widget.ctrl.bufferHealthSeconds < 2.0) {
           if (_rand.nextDouble() < 0.15) {
             _droppedFrames.value += _rand.nextInt(3) + 1;
           }
@@ -77,10 +82,10 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
       if (!widget.ctrl.showStatsForNerds.value) return const SizedBox.shrink();
 
       final size = widget.ctrl.videoPlayerController.value.size;
-      final videoRes = size.width > 0 
-          ? '${size.width.toInt()}x${size.height.toInt()}@30' 
+      final videoRes = size.width > 0
+          ? '${size.width.toInt()}x${size.height.toInt()}@30'
           : '1920x1080@30';
-          
+
       // Viewport dimensions of current video frame widget
       final viewW = MediaQuery.of(context).size.width;
       final viewH = MediaQuery.of(context).size.height;
@@ -99,8 +104,8 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
       }
 
       // Buffer activity description
-      final bufferState = widget.ctrl.isBuffering.value 
-          ? 'Active (${(_rand.nextDouble() * 250).toInt()} KB/s)' 
+      final bufferState = widget.ctrl.isBuffering.value
+          ? 'Active (${(_rand.nextDouble() * 250).toInt()} KB/s)'
           : 'Idle (0 KB/s)';
 
       return Container(
@@ -137,12 +142,24 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
             ),
             const SizedBox(height: 8),
             _row('Video ID / sCPN:', '${widget.ctrl.tag} / $_scpn'),
-            _row('Viewport / Frames:', '$viewportRes / ${_droppedFrames.value} dropped of ${_decodedFrames.value}'),
-            _row('Current / Optimal:', '$videoRes / ${widget.ctrl.currentQualityLabel}'),
+            _row(
+              'Viewport / Frames:',
+              '$viewportRes / ${_droppedFrames.value} dropped of ${_decodedFrames.value}',
+            ),
+            _row(
+              'Current / Optimal:',
+              '$videoRes / ${widget.ctrl.currentQualityLabel}',
+            ),
             _row('Codecs:', 'vp09.01.09.08.01.01.01.01.00 (248) / opus (251)'),
             _row('Color / Bitrate:', 'BT.709 / $bitrate'),
-            _row('Connection Speed:', _fmtBw(widget.ctrl.abr.measuredBandwidthKbps.value)),
-            _row('Buffer Health:', '${widget.ctrl.bufferHealthSeconds.toStringAsFixed(1)} s'),
+            _row(
+              'Connection Speed:',
+              _fmtBw(widget.ctrl.abr.measuredBandwidthKbps.value),
+            ),
+            _row(
+              'Buffer Health:',
+              '${widget.ctrl.bufferHealthSeconds.toStringAsFixed(1)} s',
+            ),
             _row('Network Activity:', bufferState),
             _row('CDN Node Region:', _cdnNode),
             _row('Playback Speed:', '${widget.ctrl.playbackSpeed.value}x'),
@@ -162,7 +179,10 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
             width: 125,
             child: Text(
               label,
-              style: TS.mono.copyWith(color: AppColors.textSecondary, fontSize: 10),
+              style: TS.mono.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 10,
+              ),
             ),
           ),
           Expanded(

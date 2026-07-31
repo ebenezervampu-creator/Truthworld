@@ -46,7 +46,7 @@ class GoogleCloudVisionService {
   late final BadWordFilter _multiLangFilter;
 
   /// Verifies an image's byte content against safety guidelines.
-  /// 
+  ///
   /// Conducts instant local byte safety heuristics (file format, size, header validation)
   /// as well as string/text analysis for embedded profanity.
   Future<VisionVerificationResult> verifyImageBytes(
@@ -54,7 +54,10 @@ class GoogleCloudVisionService {
     String fileName,
   ) async {
     try {
-      logger.info('Analyzing image bytes with Cloud Vision AI: $fileName', tag: 'VISION_AI');
+      logger.info(
+        'Analyzing image bytes with Cloud Vision AI: $fileName',
+        tag: 'VISION_AI',
+      );
 
       // 1. File size check (max 5MB for topic thumbnail)
       if (bytes.length > 5 * 1024 * 1024) {
@@ -85,10 +88,18 @@ class GoogleCloudVisionService {
       // Processing delay for Vision AI deep scanning feedback
       await Future<void>.delayed(const Duration(milliseconds: 600));
 
-      logger.info('Image $fileName approved by Vision AI safety engine.', tag: 'VISION_AI');
+      logger.info(
+        'Image $fileName approved by Vision AI safety engine.',
+        tag: 'VISION_AI',
+      );
       return VisionVerificationResult.approved();
     } catch (e, stack) {
-      logger.error('Vision AI analysis error: $e', error: e, stackTrace: stack, tag: 'VISION_AI');
+      logger.error(
+        'Vision AI analysis error: $e',
+        error: e,
+        stackTrace: stack,
+        tag: 'VISION_AI',
+      );
       return VisionVerificationResult.approved();
     }
   }
@@ -96,15 +107,23 @@ class GoogleCloudVisionService {
   /// Validates magic numbers of image headers.
   bool _isValidImageHeader(Uint8List bytes) {
     if (bytes.length < 8) return false;
-    
+
     // JPEG: 0xFF, 0xD8, 0xFF
     if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
-    
+
     // PNG: 0x89, 'P', 'N', 'G' (0x89, 0x50, 0x4E, 0x47)
-    if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return true;
-    
+    if (bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47)
+      return true;
+
     // WEBP: 'R', 'I', 'F', 'F' ... 'W', 'E', 'B', 'P'
-    if (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) return true;
+    if (bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46)
+      return true;
 
     // GIF: 'G', 'I', 'F'
     if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return true;

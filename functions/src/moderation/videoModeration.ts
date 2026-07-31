@@ -123,7 +123,9 @@ export const onVideoUploadedForModeration = onObjectFinalized(
         "moderation.checkedAt": Date.now(),
         "moderation.model": "gemini-2.5-flash",
         "moderation.version": "v3.0-intent-aware",
-        category: result.category || "Other",
+        category: (result.category && result.category !== "Other")
+          ? result.category
+          : (videoData?.category || result.category || "Other"),
       };
 
       await db.collection("videos").doc(videoId).update(moderationData);

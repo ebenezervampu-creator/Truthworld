@@ -30,7 +30,9 @@ abstract class BaseRepository {
         return Result.success(data);
       } on AppException catch (e) {
         if (attempts <= maxRetries && _isRetryable(e)) {
-          debugPrint('🟡 [Repository Retry] Attempt $attempts/$maxRetries for ${e.runtimeType}');
+          debugPrint(
+            '🟡 [Repository Retry] Attempt $attempts/$maxRetries for ${e.runtimeType}',
+          );
           await Future.delayed(retryDelay * attempts);
           continue;
         }

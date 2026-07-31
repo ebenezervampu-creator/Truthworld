@@ -22,6 +22,20 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true))
       );
     }
+
+    // Helper function to check if user owns a video (or channel owning the video)
+    function isVideoOwner(videoId) {
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/videos/$(videoId)) &&
+         (get(/databases/$(database)/documents/videos/$(videoId)).data.ownerId == request.auth.uid ||
+          get(/databases/$(database)/documents/videos/$(videoId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/videos/$(videoId)).data.uploaderId == request.auth.uid ||
+          (get(/databases/$(database)/documents/videos/$(videoId)).data.channelId != null &&
+           exists(/databases/$(database)/documents/channels/$(get(/databases/$(database)/documents/videos/$(videoId)).data.channelId)) &&
+           get(/databases/$(database)/documents/channels/$(get(/databases/$(database)/documents/videos/$(videoId)).data.channelId)).data.ownerId == request.auth.uid))) ||
+        isAdmin()
+      );
+    }
     
     // Channel Drafts Collection
     match /channel_drafts/{draftId} {
@@ -130,22 +144,23 @@ service cloud.firestore {
                         request.resource.data.userId == request.auth.uid ||
                         request.resource.data.ownerId == request.auth.uid);
       
-      // Allow owners to update their videos (check multiple possible fields)
-      allow update: if isAuthenticated() && 
-                       (resource.data.uploaderId == request.auth.uid ||
-                        resource.data.userId == request.auth.uid ||
-                        resource.data.ownerId == request.auth.uid);
+      // Allow owners to update their videos
+      allow update: if isVideoOwner(videoId);
       
       // Allow owners to delete their videos
-      allow delete: if isAuthenticated() && 
-                       (resource.data.uploaderId == request.auth.uid ||
-                        resource.data.userId == request.auth.uid ||
-                        resource.data.ownerId == request.auth.uid);
+      allow delete: if isVideoOwner(videoId);
 
       // Media subcollection (localization, credibility, streaming)
       match /media/{docId} {
         allow read: if true;
-        allow write: if false; // System / Cloud Functions only
+        allow write: if isVideoOwner(videoId);
+      }
+
+      // Language requests subcollection (viewers request dubbed audio/subtitles)
+      match /language_requests/{requestId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated();
+        allow delete: if isVideoOwner(videoId);
       }
 
       // View tracking subcollection (one doc per user per video)
@@ -223,17 +238,39 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated() && 
-                                 (resource.data.userId == request.auth.uid || 
-                                  resource.data.channelId == request.auth.uid);
+        allow update: if isAuthenticated();
+        allow delete: if isAuthenticated() && 
+                         (resource.data.userId == request.auth.uid || 
+                          resource.data.channelId == request.auth.uid);
+
+        match /likes/{userId} {
+          allow read: if true;
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
+
+        match /dislikes/{userId} {
+          allow read: if true;
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
 
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
           allow create: if isAuthenticated();
-          allow update, delete: if isAuthenticated() && 
-                                   (resource.data.userId == request.auth.uid || 
-                                    resource.data.channelId == request.auth.uid);
+          allow update: if isAuthenticated();
+          allow delete: if isAuthenticated() && 
+                           (resource.data.userId == request.auth.uid || 
+                            resource.data.channelId == request.auth.uid);
+
+          match /likes/{userId} {
+            allow read: if true;
+            allow write: if isAuthenticated() && request.auth.uid == userId;
+          }
+
+          match /dislikes/{userId} {
+            allow read: if true;
+            allow write: if isAuthenticated() && request.auth.uid == userId;
+          }
         }
       }
     }
@@ -754,6 +791,20 @@ service cloud.firestore {
     match /pipeline_errors/{errorId} {
       allow read: if isAdmin();
       allow write: if false; // System only
+    }
+
+    // Search and Trending Collections
+    match /trending_searches/{docId} {
+      allow read: if true;
+      allow write: if false; // System / Cloud Functions only
+    }
+    match /search_analytics/{docId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+    match /system_meta/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
     }
 
     // Default: Deny all other access

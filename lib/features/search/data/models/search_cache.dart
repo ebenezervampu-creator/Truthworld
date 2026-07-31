@@ -64,8 +64,3 @@ class SearchCache {
     return _cache.containsKey(query.toLowerCase().trim());
   }
 }
-
-
-
-
-

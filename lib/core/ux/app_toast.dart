@@ -104,7 +104,8 @@ class AppToast {
     // Determine if the title is redundant (e.g. standard semantic labels)
     final titleLower = title.toLowerCase().trim();
     final typeName = type.name.toLowerCase();
-    final isTitleRedundant = title.isEmpty ||
+    final isTitleRedundant =
+        title.isEmpty ||
         titleLower == 'success' ||
         titleLower == 'error' ||
         titleLower == 'info' ||
@@ -154,7 +155,6 @@ class AppToast {
             child: Text.rich(
               inlineText,
               style: const TextStyle(
-                
                 fontSize: 13.5,
                 height: 1.3,
               ),
@@ -187,7 +187,6 @@ class AppToast {
               child: Text(
                 actionLabel,
                 style: const TextStyle(
-                  
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -250,7 +249,6 @@ class AppToast {
 enum _ToastType { success, error, info, warning }
 
 class _ToastConfig {
-
   const _ToastConfig({
     required this.color,
     required this.icon,

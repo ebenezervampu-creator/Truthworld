@@ -1,10 +1,12 @@
 /// Pure domain entity for playlists — no framework dependencies.
 class PlaylistEntity {
-
   const PlaylistEntity({
     required this.id,
     required this.title,
-    required this.ownerId, required this.createdAt, required this.updatedAt, this.description = '',
+    required this.ownerId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.description = '',
     this.thumbnailUrl = '',
     this.videoCount = 0,
     this.visibility = 'public',

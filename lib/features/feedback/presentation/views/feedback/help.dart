@@ -57,7 +57,8 @@ class HelpPage extends StatelessWidget {
           icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () {
             if (isDashboard) {
-              Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+              Get.find<HomeController>().sideNavSelectedIndex.value =
+                  HomeController.indexSettings;
             } else {
               Get.back();
             }
@@ -126,14 +127,12 @@ class HelpPage extends StatelessWidget {
 }
 
 class ModernFAQItem {
-
   ModernFAQItem({required this.question, required this.answer});
   final String question;
   final String answer;
 }
 
 class ModernFAQTile extends StatefulWidget {
-
   const ModernFAQTile({required this.item, super.key});
   final ModernFAQItem item;
 
@@ -230,8 +229,3 @@ class _ModernFAQTileState extends State<ModernFAQTile>
     );
   }
 }
-
-
-
-
-

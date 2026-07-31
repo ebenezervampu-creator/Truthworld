@@ -45,7 +45,11 @@ class MiniplayerService extends GetxService {
         throw MiniplayerException('Invalid video: empty URL');
       }
 
-      await _ctrl.showWithVideo(video, resumeFromPosition: resumeFromPosition, overrideUrl: overrideUrl);
+      await _ctrl.showWithVideo(
+        video,
+        resumeFromPosition: resumeFromPosition,
+        overrideUrl: overrideUrl,
+      );
       _logEvent('miniplayer_shown', {
         'video_id': video.id,
         'resume_position': resumeFromPosition?.inSeconds ?? 0,
@@ -134,11 +138,18 @@ class MiniplayerService extends GetxService {
   }) async {
     try {
       if (!shouldShow) {
-        logger.info('Navigation away from video - not showing miniplayer', tag: _tag);
+        logger.info(
+          'Navigation away from video - not showing miniplayer',
+          tag: _tag,
+        );
         return;
       }
 
-      await showWithVideo(video, resumeFromPosition: currentPosition, overrideUrl: overrideUrl);
+      await showWithVideo(
+        video,
+        resumeFromPosition: currentPosition,
+        overrideUrl: overrideUrl,
+      );
       logger.info(
         'Miniplayer shown on navigation from video',
         tag: _tag,
@@ -177,7 +188,10 @@ class MiniplayerService extends GetxService {
   Future<void> recover() async {
     try {
       if (!_ctrl.isHealthy) {
-        logger.warning('Miniplayer not healthy, attempting recovery', tag: _tag);
+        logger.warning(
+          'Miniplayer not healthy, attempting recovery',
+          tag: _tag,
+        );
         await _ctrl.attemptRecovery();
         logger.info('Miniplayer recovery attempted', tag: _tag);
       }
@@ -220,7 +234,6 @@ class MiniplayerService extends GetxService {
 
 /// Custom exception for miniplayer errors.
 class MiniplayerException implements Exception {
-
   MiniplayerException(
     this.message, {
     this.originalError,
@@ -233,9 +246,3 @@ class MiniplayerException implements Exception {
   @override
   String toString() => 'MiniplayerException: $message';
 }
-
-
-
-
-
-

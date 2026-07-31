@@ -5,7 +5,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 // A simple class to hold our parsed policy sections
 class PolicySection {
-
   PolicySection({
     required this.title,
     required this.content,
@@ -98,27 +97,29 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
       width: 280, // Fixed width for the nav menu
       // Use theme's scaffoldBackgroundColor or surface color for the menu
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: Obx(() => ListView(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
-        children: [
-          ..._sections.map((section) {
-            return ListTile(
-              title: Text(
-                section.title,
-                style: const TextStyle(fontSize: 14),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              dense: true,
-              onTap: () {
-                _scrollToSection(section.key);
-                if (isDrawer) {
-                  Navigator.pop(context); // Close the drawer if it's a drawer
-                }
-              },
-            );
-          }),
-        ],
-      )),
+      child: Obx(
+        () => ListView(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+          children: [
+            ..._sections.map((section) {
+              return ListTile(
+                title: Text(
+                  section.title,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                dense: true,
+                onTap: () {
+                  _scrollToSection(section.key);
+                  if (isDrawer) {
+                    Navigator.pop(context); // Close the drawer if it's a drawer
+                  }
+                },
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -138,30 +139,32 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
     return SingleChildScrollView(
       controller: _scrollController,
       padding: const EdgeInsets.all(24),
-      child: Obx(() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Render the introductory text first
-          SelectableText(_introContent.value, style: bodyTextStyle),
-          const SizedBox(height: 24),
-          // Then render all the numbered sections
-          ..._sections.map((section) {
-            // Each section is wrapped in a KeyedSubtree so we can scroll to it
-            return Padding(
-              key: section.key, // This key is crucial for scrolling
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SelectableText(section.title, style: headingTextStyle),
-                  const SizedBox(height: 12),
-                  SelectableText(section.content, style: bodyTextStyle),
-                ],
-              ),
-            );
-          }),
-        ],
-      )),
+      child: Obx(
+        () => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Render the introductory text first
+            SelectableText(_introContent.value, style: bodyTextStyle),
+            const SizedBox(height: 24),
+            // Then render all the numbered sections
+            ..._sections.map((section) {
+              // Each section is wrapped in a KeyedSubtree so we can scroll to it
+              return Padding(
+                key: section.key, // This key is crucial for scrolling
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(section.title, style: headingTextStyle),
+                    const SizedBox(height: 12),
+                    SelectableText(section.content, style: bodyTextStyle),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -181,10 +184,14 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
             leading: (widget.isDashboard || isDesktop)
                 ? IconButton(
-                    icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
+                    icon: Icon(
+                      Icons.arrow_back,
+                      color: Theme.of(context).iconTheme.color,
+                    ),
                     onPressed: () {
                       if (widget.isDashboard) {
-                        Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+                        Get.find<HomeController>().sideNavSelectedIndex.value =
+                            HomeController.indexSettings;
                       } else {
                         Get.back();
                       }
@@ -821,8 +828,3 @@ BY USING Truthworld, YOU ACKNOWLEDGE THAT YOU HAVE READ, UNDERSTOOD, AND AGREE T
 Thank you for being part of the Truthworld community!
 """;
 }
-
-
-
-
-

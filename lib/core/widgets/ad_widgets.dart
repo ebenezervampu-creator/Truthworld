@@ -6,7 +6,6 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
 class AdMediaWidget extends StatefulWidget {
-
   const AdMediaWidget({required this.ad, super.key, this.fit = BoxFit.cover});
   final AdItem ad;
   final BoxFit fit;
@@ -131,10 +130,15 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
                   decoration: BoxDecoration(
                     color: AppColors.bgPage.withValues(alpha: 0.7),
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.textDisabled, width: 0.5),
+                    border: Border.all(
+                      color: AppColors.textDisabled,
+                      width: 0.5,
+                    ),
                   ),
                   child: Icon(
-                    _isMuted.value ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                    _isMuted.value
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
                     color: AppColors.textPrimary,
                     size: 14,
                   ),
@@ -165,7 +169,8 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
               ),
             );
           },
-          errorBuilder: (context, error, stackTrace) => _buildFallbackGradient(),
+          errorBuilder: (context, error, stackTrace) =>
+              _buildFallbackGradient(),
         );
       }
 
@@ -202,7 +207,6 @@ class AdCardController extends GetxController {
 }
 
 class HomepageAdCard extends StatelessWidget {
-
   const HomepageAdCard({required this.ad, super.key});
   final AdItem ad;
 
@@ -292,7 +296,9 @@ class HomepageAdCard extends StatelessWidget {
                                   : AppColors.textPrimary;
                               final iconColor = isLightBg
                                   ? AppColors.bgPage.withValues(alpha: 0.1)
-                                  : AppColors.textPrimary.withValues(alpha: 0.12);
+                                  : AppColors.textPrimary.withValues(
+                                      alpha: 0.12,
+                                    );
 
                               return Stack(
                                 fit: StackFit.expand,
@@ -333,7 +339,6 @@ class HomepageAdCard extends StatelessWidget {
                                             Text(
                                               ad.advertiser.toUpperCase(),
                                               style: TextStyle(
-                                                
                                                 color: textColor,
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold,
@@ -347,7 +352,6 @@ class HomepageAdCard extends StatelessWidget {
                                           ad.title,
                                           maxLines: 2,
                                           style: TextStyle(
-                                            
                                             color: titleColor,
                                             fontSize: 16,
                                             fontWeight: FontWeight.w600,
@@ -368,15 +372,15 @@ class HomepageAdCard extends StatelessWidget {
                                               4,
                                             ),
                                             border: Border.all(
-                                              color: AppColors.textPrimary.withValues(
-                                                alpha: 0.15,
-                                              ),
+                                              color: AppColors.textPrimary
+                                                  .withValues(
+                                                    alpha: 0.15,
+                                                  ),
                                             ),
                                           ),
                                           child: Text(
                                             ad.ctaText.toUpperCase(),
                                             style: const TextStyle(
-                                              
                                               color: AppColors.textPrimary,
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
@@ -510,7 +514,6 @@ class HomepageAdCard extends StatelessWidget {
 }
 
 class ScrollAdCard extends StatelessWidget {
-
   const ScrollAdCard({required this.ad, super.key});
   final AdItem ad;
 
@@ -589,7 +592,6 @@ class ScrollAdCard extends StatelessWidget {
                                   child: const Text(
                                     'Ad',
                                     style: TextStyle(
-                                      
                                       color: AppColors.bgPage,
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
@@ -704,7 +706,9 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
                 label: Text(
                   '$count',
                   style: TextStyle(
-                    color: isLiked ? AppColors.warning : AppColors.textSecondary,
+                    color: isLiked
+                        ? AppColors.warning
+                        : AppColors.textSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -736,7 +740,10 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
               ),
               label: Text(
                 '$count',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
               ),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

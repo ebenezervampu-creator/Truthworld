@@ -1,6 +1,9 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
+import { getVertexAI } from "../pipeline/utils/ai-client";
+import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
+
 const db = () => admin.firestore();
 
 /**
@@ -66,28 +69,13 @@ export const onAdCampaignWritten = onDocumentWritten(
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const { VertexAI } = require("@google-cloud/vertexai");
-        const genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+        const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
           model: "gemini-2.5-flash",
-          systemInstruction: `You are a strict advertisement moderation system for Truthworld. Review the advertisement details (brand name, headline, description, CTA text, CTA target, and media URLs) for violations of the Community Guidelines and Advertising Standards.
-
-COMMUNITY GUIDELINES & ADVERTISING STANDARDS:
-1. No hate speech, harassment, cyberbullying, or discrimination of any kind.
-2. No sexually explicit content, nudity, pornography, or sexually suggestive material.
-3. No extreme violence, gore, self-harm, suicide encouragement, or dangerous/illegal activities.
-4. No deceptive practices, spam, financial scams, phishing, or impersonation of known figures or brands. The destination URL must look legitimate.
-5. No promotion of terrorism, hate groups, or violence.
-6. No offensive language or profanity in the ad copy.
-7. Advertisements must not be misleading or make false claims.
-
-You must respond with a JSON object matching this schema:
-{
-  "approved": boolean,
-  "reason": "Explain the decision clearly. If rejected, specify exactly which guidelines were violated and why."
-}`,
+          systemInstruction: `You are a strict advertisement moderation system for Truthworld. Review the advertisement details (brand name, headline, description, CTA text, CTA target, and media URLs) for violations of the Community Guidelines and Advertising Standards.\n\n${COMMUNITY_GUIDELINES_TEXT}`,
           generationConfig: {
             responseMimeType: "application/json",
+            responseSchema: MODERATION_RESPONSE_SCHEMA,
           },
         });
 

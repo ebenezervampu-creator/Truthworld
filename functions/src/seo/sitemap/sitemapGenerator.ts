@@ -19,22 +19,27 @@ export async function generateSitemapIndex(): Promise<string> {
   <sitemap>
     <loc>${DOMAIN}/sitemap-playlists.xml</loc>
   </sitemap>
+  <sitemap>
+    <loc>${DOMAIN}/sitemap-community-001.xml</loc>
+  </sitemap>
 </sitemapindex>`;
 }
 
 export async function generateStaticSitemap(): Promise<string> {
   const pages = [
-    "",
-    "/home",
-    "/about",
-    "/privacy",
-    "/terms",
-    "/help",
-    "/feedback",
-    "/settings",
-    "/premium",
-    "/studio",
-    "/advertiser"
+    { path: "", priority: "1.0" },
+    { path: "/home", priority: "1.0" },
+    { path: "/studio", priority: "0.9" },
+    { path: "/advertiser", priority: "0.9" },
+    { path: "/advertisements", priority: "0.9" },
+    { path: "/browse", priority: "0.8" },
+    { path: "/trending", priority: "0.8" },
+    { path: "/about", priority: "0.6" },
+    { path: "/privacy", priority: "0.5" },
+    { path: "/terms", priority: "0.5" },
+    { path: "/help", priority: "0.6" },
+    { path: "/feedback", priority: "0.6" },
+    { path: "/premium", priority: "0.6" }
   ];
   const dateStr = new Date().toISOString().split("T")[0];
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -43,10 +48,10 @@ export async function generateStaticSitemap(): Promise<string> {
   for (const page of pages) {
     xml += `
   <url>
-    <loc>${DOMAIN}${page}</loc>
+    <loc>${DOMAIN}${page.path}</loc>
     <lastmod>${dateStr}</lastmod>
     <changefreq>daily</changefreq>
-    <priority>${page === "" || page === "/home" ? "1.0" : "0.6"}</priority>
+    <priority>${page.priority}</priority>
   </url>`;
   }
   xml += `\n</urlset>`;
@@ -204,6 +209,37 @@ export async function generatePlaylistsSitemap(db: admin.firestore.Firestore): P
     });
   } catch (err) {
     console.error("Error generating playlists sitemap", err);
+  }
+
+  xml += `\n</urlset>`;
+  return xml;
+}
+
+export async function generateCommunityPostsSitemapShard(db: admin.firestore.Firestore, shardIndex: number = 1): Promise<string> {
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
+
+  try {
+    const snap = await db
+      .collection("community_posts")
+      .where("visibility", "==", "Public")
+      .orderBy("uploadedAt", "desc")
+      .limit(2000)
+      .get();
+
+    snap.forEach((doc) => {
+      const data = doc.data();
+      const lastmod = formatDate(data.uploadedAt || data.createdAt).split("T")[0];
+      xml += `
+  <url>
+    <loc>${DOMAIN}/post/${doc.id}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>`;
+    });
+  } catch (err) {
+    console.error("Error generating community posts sitemap shard", err);
   }
 
   xml += `\n</urlset>`;

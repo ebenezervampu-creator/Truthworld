@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 typedef LibraryLoader = Future<void> Function();
 typedef WidgetBuilder = Widget Function();
 
 class DeferredWidget extends StatelessWidget {
-
   DeferredWidget({
-    required this.loader, required this.builder, super.key,
+    required this.loader,
+    required this.builder,
+    super.key,
     this.placeholder,
   }) {
     _load();
@@ -33,14 +35,15 @@ class DeferredWidget extends StatelessWidget {
       if (_loaded.value) {
         return builder();
       }
-      return placeholder ?? const Scaffold(
-        backgroundColor: Color(0xFF0D0014),
-        body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF9B30FF),
-          ),
-        ),
-      );
+      return placeholder ??
+          const Scaffold(
+            backgroundColor: Color(0xFF0D0014),
+            body: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.brand,
+              ),
+            ),
+          );
     });
   }
 }

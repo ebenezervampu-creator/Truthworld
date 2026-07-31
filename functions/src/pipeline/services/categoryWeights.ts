@@ -136,19 +136,19 @@ function getRiskRank(cat: VideoCategory): number {
 // ─── Category Mapping (upload UI → internal key) ────────────────────────────
 
 const CATEGORY_MAP: Record<string, VideoCategory> = {
-  'science': 'science', 'technology': 'science', 'tech': 'science',
-  'health': 'health', 'medicine': 'health', 'medical': 'health',
-  'financial': 'financial', 'finance': 'financial', 'investing': 'financial', 'stocks': 'financial', 'crypto': 'financial', 'money': 'financial', 'economic': 'financial',
+  'science': 'science', 'technology': 'science', 'tech': 'science', 'nature & wildlife': 'science', 'automotive': 'science',
+  'health': 'health', 'health & fitness': 'health', 'medicine': 'health', 'medical': 'health',
+  'financial': 'financial', 'finance': 'financial', 'business & finance': 'financial', 'investing': 'financial', 'stocks': 'financial', 'crypto': 'financial', 'money': 'financial', 'economic': 'financial',
   'legal': 'legal', 'law': 'legal', 'court': 'legal', 'lawyer': 'legal', 'judiciary': 'legal', 'rights': 'legal',
   'news': 'news', 'breaking news': 'news',
   'politics': 'politics', 'political': 'politics',
-  'history': 'history', 'historical': 'history', 'geography': 'history',
+  'history': 'history', 'historical': 'history', 'geography': 'history', 'documentary': 'history',
   'religion': 'religion', 'religious': 'religion', 'spirituality': 'religion',
-  'culture': 'culture', 'cultural': 'culture', 'society': 'culture',
-  'education': 'education', 'educational': 'education', 'tutorial': 'education', 'how-to': 'education',
-  'opinion': 'opinion', 'editorial': 'opinion', 'commentary': 'opinion',
+  'culture': 'culture', 'cultural': 'culture', 'society': 'culture', 'art & design': 'culture',
+  'education': 'education', 'educational': 'education', 'tutorial': 'education', 'how-to': 'education', 'diy & how-to': 'education',
+  'opinion': 'opinion', 'editorial': 'opinion', 'commentary': 'opinion', 'motivation': 'opinion',
   'podcast': 'podcast', 'interview': 'podcast',
-  'entertainment': 'entertainment', 'comedy': 'entertainment', 'lifestyle': 'entertainment', 'satire': 'entertainment',
+  'entertainment': 'entertainment', 'comedy': 'entertainment', 'lifestyle': 'entertainment', 'satire': 'entertainment', 'gaming': 'entertainment', 'sports': 'entertainment', 'movies': 'entertainment', 'tv shows': 'entertainment', 'vlogs': 'entertainment', 'music': 'entertainment', 'animation': 'entertainment', 'short films': 'entertainment', 'kids & family': 'entertainment', 'fashion & beauty': 'entertainment', 'food & cooking': 'entertainment', 'animals & pets': 'entertainment',
 };
 
 export function mapUploadCategory(raw: string | undefined | null): VideoCategory {

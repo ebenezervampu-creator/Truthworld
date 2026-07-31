@@ -32,12 +32,13 @@ abstract class PlaybackSource {
 
 /// Video playback authority wrapping [VideoPlayerController].
 class VideoPlaybackSource implements PlaybackSource {
-
   VideoPlaybackSource(this._controller) {
     _controller.addListener(_onControllerChanged);
   }
   final VideoPlayerController _controller;
-  final ValueNotifier<Duration> _positionNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<Duration> _positionNotifier = ValueNotifier(
+    Duration.zero,
+  );
 
   void _onControllerChanged() {
     if (_controller.value.isInitialized) {
@@ -78,24 +79,25 @@ class VideoPlaybackSource implements PlaybackSource {
 
 /// Audio playback authority wrapping [AudioOnlyService].
 class AudioPlaybackSource implements PlaybackSource {
-
   AudioPlaybackSource(this._service) {
     _service.position.listen((sec) {
       _positionNotifier.value = Duration(milliseconds: (sec * 1000).round());
     });
   }
   final AudioOnlyService _service;
-  final ValueNotifier<Duration> _positionNotifier = ValueNotifier(Duration.zero);
+  final ValueNotifier<Duration> _positionNotifier = ValueNotifier(
+    Duration.zero,
+  );
 
   @override
   Duration get position => Duration(
-        milliseconds: (_service.position.value * 1000).round(),
-      );
+    milliseconds: (_service.position.value * 1000).round(),
+  );
 
   @override
   Duration get duration => Duration(
-        milliseconds: (_service.duration.value * 1000).round(),
-      );
+    milliseconds: (_service.duration.value * 1000).round(),
+  );
 
   @override
   bool get isPlaying => _service.isPlaying.value;

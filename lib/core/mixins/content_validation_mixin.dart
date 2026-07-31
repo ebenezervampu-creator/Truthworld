@@ -1,10 +1,10 @@
 import 'package:get/get.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:profanity_filter/profanity_filter.dart';
+import 'package:truthworld/data/models/channel.dart';
 
 /// Result of a content validation check.
 class ContentValidationResult {
-
   const ContentValidationResult({required this.isValid, required this.message});
   final bool isValid;
   final String message;
@@ -36,6 +36,52 @@ mixin ContentValidationMixin on GetxController {
   }
 
   // ── Validation API ───────────────────────────────────────────────────────
+
+  /// Validates video count limit (max 5 videos for Standard Channel),
+  /// video duration constraint (must be between 2 mins and 10 mins per video),
+  /// and total accumulated duration (max 10 mins / 600s total across all videos for Standard Channel).
+  ContentValidationResult validateChannelVideoUpload(
+    Channel channel, {
+    required int currentVideoCount,
+    required int durationSeconds,
+    int currentTotalDurationSeconds = 0,
+  }) {
+    if (channel.channelType == ChannelType.standard) {
+      if (currentVideoCount >= 5) {
+        return const ContentValidationResult(
+          isValid: false,
+          message:
+              'Standard channels can upload a maximum of 5 videos. Upgrade to a Custom Channel to upload unlimited videos!',
+        );
+      }
+
+      if (durationSeconds < 120) {
+        return const ContentValidationResult(
+          isValid: false,
+          message:
+              'Standard channel video duration cannot be less than 2 minutes (120 seconds).',
+        );
+      }
+
+      if (durationSeconds > 600) {
+        return const ContentValidationResult(
+          isValid: false,
+          message:
+              'Standard channel video duration cannot exceed 10 minutes (600 seconds).',
+        );
+      }
+
+      if (currentTotalDurationSeconds + durationSeconds > 600) {
+        return const ContentValidationResult(
+          isValid: false,
+          message:
+              'Standard channel total cumulative video duration cannot exceed 10 minutes (600 seconds) across all videos.',
+        );
+      }
+    }
+
+    return const ContentValidationResult(isValid: true, message: 'Valid');
+  }
 
   /// Comprehensive multi-layer content validation.
   Future<ContentValidationResult> validateContent(
@@ -234,8 +280,3 @@ mixin ContentValidationMixin on GetxController {
     return false;
   }
 }
-
-
-
-
-

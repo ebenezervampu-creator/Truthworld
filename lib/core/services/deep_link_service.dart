@@ -183,30 +183,33 @@ class DeepLinkService {
   /// Checks public first, then user's private playlists.
   Future<PlaylistModel?> loadPlaylist(String playlistId) async {
     return _withRetry<PlaylistModel?>(() async {
-      // 1) Check public playlists (1 read)
-      final publicDoc = await _firestore
-          .collection('public_playlists')
-          .doc(playlistId)
-          .get()
-          .timeout(_loadTimeout);
-
-      if (publicDoc.exists) {
-        return PlaylistModel.fromDocumentSnapshot(publicDoc);
-      }
-
-      // 2) Check user's private playlists (1 read)
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId != null) {
-        final privateDoc = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('playlists')
+
+      final futures = <Future<DocumentSnapshot>>[
+        _firestore
+            .collection('public_playlists')
             .doc(playlistId)
             .get()
-            .timeout(_loadTimeout);
+            .timeout(_loadTimeout),
+      ];
 
-        if (privateDoc.exists) {
-          return PlaylistModel.fromDocumentSnapshot(privateDoc);
+      if (userId != null) {
+        futures.add(
+          _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('playlists')
+              .doc(playlistId)
+              .get()
+              .timeout(_loadTimeout),
+        );
+      }
+
+      final docs = await Future.wait(futures);
+
+      for (final doc in docs) {
+        if (doc.exists) {
+          return PlaylistModel.fromDocumentSnapshot(doc);
         }
       }
 
@@ -241,8 +244,3 @@ class DeepLinkService {
     return null;
   }
 }
-
-
-
-
-

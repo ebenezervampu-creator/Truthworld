@@ -10,7 +10,6 @@ enum LoadingSize { small, medium, large }
 /// - Custom color support
 /// - Semantic accessibility labels
 class LoadingState extends StatelessWidget {
-
   const LoadingState({
     super.key,
     this.size = LoadingSize.medium,
@@ -56,9 +55,10 @@ class LoadingState extends StatelessWidget {
 
 /// SkeletonLoader: Animated placeholder for content loading
 class SkeletonLoader extends StatefulWidget {
-
   const SkeletonLoader({
-    required this.width, required this.height, super.key,
+    required this.width,
+    required this.height,
+    super.key,
     this.borderRadius,
   });
   final double width;
@@ -118,8 +118,3 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
     );
   }
 }
-
-
-
-
-

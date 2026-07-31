@@ -147,8 +147,3 @@ class ThumbnailCacheManager {
     }
   }
 }
-
-
-
-
-

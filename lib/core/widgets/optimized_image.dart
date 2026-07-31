@@ -121,9 +121,9 @@ class ImageOptimizer {
 /// - Responsive sizing
 /// - Automatic caching
 class OptimizedThumbnail extends StatefulWidget {
-
   const OptimizedThumbnail({
-    required this.imageUrl, super.key,
+    required this.imageUrl,
+    super.key,
     this.blurHash,
     this.width = double.infinity,
     this.height = double.infinity,
@@ -227,9 +227,14 @@ class _OptimizedThumbnailState extends State<OptimizedThumbnail> {
 ///
 /// Commonly used in video feeds with optimized loading
 class VideoThumbnailCard extends StatelessWidget {
-
   const VideoThumbnailCard({
-    required this.imageUrl, required this.duration, required this.title, required this.channelName, required this.views, required this.uploadedTime, super.key,
+    required this.imageUrl,
+    required this.duration,
+    required this.title,
+    required this.channelName,
+    required this.views,
+    required this.uploadedTime,
+    super.key,
     this.blurHash,
     this.onTap,
   });
@@ -333,9 +338,10 @@ class VideoThumbnailCard extends StatelessWidget {
 ///
 /// Used while images are loading
 class ImageSkeletonLoader extends StatelessWidget {
-
   const ImageSkeletonLoader({
-    required this.width, required this.height, super.key,
+    required this.width,
+    required this.height,
+    super.key,
   });
   final double width;
   final double height;
@@ -383,8 +389,3 @@ class BatchImagePreloader {
     }
   }
 }
-
-
-
-
-

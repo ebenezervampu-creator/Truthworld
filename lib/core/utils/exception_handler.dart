@@ -1,8 +1,7 @@
-
-
 /// Enhanced exception handling utilities for consistent error reporting
 /// Implements industry standards for exception handling and logging
 library;
+
 import 'package:truthworld/core/services/logger_service.dart';
 
 /// Exception handler mixin for controllers and services
@@ -78,7 +77,6 @@ mixin ExceptionHandlerMixin {
 
 /// Validate input and return cleaned value or throw structured exception
 class ValidationException implements Exception {
-
   ValidationException({
     required this.fieldName,
     required this.message,
@@ -91,7 +89,6 @@ class ValidationException implements Exception {
 }
 
 class AppException implements Exception {
-
   AppException({
     required this.message,
     this.code,
@@ -109,7 +106,6 @@ class AppException implements Exception {
 
 /// Time an operation and log the duration
 class PerformanceTimer {
-
   PerformanceTimer(this.name, {this.tag});
   final String name;
   final String? tag;
@@ -137,8 +133,3 @@ class PerformanceTimer {
     );
   }
 }
-
-
-
-
-

@@ -5,11 +5,13 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ShareBottomSheet extends StatefulWidget {
-
   const ShareBottomSheet({
-    required this.title, required this.url, super.key,
+    required this.title,
+    required this.url,
+    super.key,
     this.thumbnailUrl,
     this.subtitle,
     this.avatarUrl,
@@ -304,45 +306,38 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           child: Row(
             children: [
               _buildSocialIcon(
-                icon: Icons.chat_bubble_rounded,
-                color: const Color(0xFF25D366),
+                imageAsset: 'assets/icons/whatsapp.png',
                 label: 'WhatsApp',
                 onTap: () => _shareToSocial('whatsapp'),
               ),
               _buildSocialIcon(
-                icon: Icons.facebook_rounded,
-                color: const Color(0xFF1877F2),
+                imageAsset: 'assets/icons/facebook.png',
                 label: 'Facebook',
                 onTap: () => _shareToSocial('facebook'),
               ),
               _buildSocialIcon(
-                icon: Icons.alternate_email_rounded,
-                color: const Color(0xFF1DA1F2),
+                imageAsset: 'assets/icons/x.png',
                 label: 'X',
                 onTap: () => _shareToSocial('twitter'),
               ),
               _buildSocialIcon(
-                icon: Icons.telegram_rounded,
-                color: const Color(0xFF0088CC),
+                imageAsset: 'assets/icons/telegram.png',
                 label: 'Telegram',
                 onTap: () => _shareToSocial('telegram'),
               ),
               _buildSocialIcon(
-                icon: Icons.mail_rounded,
-                color: const Color(0xFFEA4335),
+                imageAsset: 'assets/icons/email.png',
                 label: 'Email',
                 onTap: () => _shareToSocial('email'),
               ),
               if (contentType == 'video')
                 _buildSocialIcon(
                   icon: Icons.code_rounded,
-                  color: const Color(0xFF90A4AE),
                   label: 'Embed',
                   onTap: () => _showEmbedPanel.value = true,
                 ),
               _buildSocialIcon(
                 icon: Icons.more_horiz_rounded,
-                color: AppColors.textSecondary,
                 label: 'More',
                 onTap: _shareNative,
               ),
@@ -395,7 +390,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       onPressed: _copyToClipboard,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.textPrimary,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
@@ -528,7 +523,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.textPrimary,
+                        foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
@@ -724,11 +719,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   width: 124,
                   height: 124 * 9 / 16,
                   color: AppColors.bgInput,
-                  child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                  child:
+                      widget.thumbnailUrl != null &&
+                          widget.thumbnailUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: widget.thumbnailUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(color: AppColors.bgInput),
+                          placeholder: (context, url) =>
+                              Container(color: AppColors.bgInput),
                           errorWidget: (context, url, err) => Center(
                             child: Icon(
                               Icons.play_circle_fill_rounded,
@@ -751,11 +749,17 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   bottom: 5,
                   right: 5,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppColors.bgDivider, width: 0.5),
+                      border: Border.all(
+                        color: AppColors.bgDivider,
+                        width: 0.5,
+                      ),
                     ),
                     child: Text(
                       _formatMsDuration(widget.durationMs!),
@@ -781,11 +785,16 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.brand.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: AppColors.brand.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: const Text(
                         'VIDEO',
@@ -888,11 +897,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 width: 54,
                 height: 54,
                 color: AppColors.bgInput,
-                child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                child:
+                    widget.thumbnailUrl != null &&
+                        widget.thumbnailUrl!.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: widget.thumbnailUrl!,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(color: AppColors.bgInput),
+                        placeholder: (context, url) =>
+                            Container(color: AppColors.bgInput),
                         errorWidget: (context, url, err) => const Icon(
                           Icons.person_rounded,
                           color: AppColors.textTertiary,
@@ -940,7 +952,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 const SizedBox(height: 3),
                 Text(
                   widget.handle != null && widget.handle!.isNotEmpty
-                      ? (widget.handle!.startsWith('@') ? widget.handle! : '@${widget.handle!}')
+                      ? (widget.handle!.startsWith('@')
+                            ? widget.handle!
+                            : '@${widget.handle!}')
                       : '@channel',
                   style: const TextStyle(
                     color: AppColors.brand,
@@ -1004,11 +1018,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   width: 124,
                   height: 124 * 9 / 16,
                   color: AppColors.bgInput,
-                  child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                  child:
+                      widget.thumbnailUrl != null &&
+                          widget.thumbnailUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: widget.thumbnailUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(color: AppColors.bgInput),
+                          placeholder: (context, url) =>
+                              Container(color: AppColors.bgInput),
                           errorWidget: (context, url, err) => const Icon(
                             Icons.playlist_play_rounded,
                             color: AppColors.textTertiary,
@@ -1069,11 +1086,16 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.brand.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: AppColors.brand.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: const Text(
                         'PLAYLIST',
@@ -1114,7 +1136,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.subtitle ?? 'Playlist • ${widget.videoCount ?? 0} videos',
+                  widget.subtitle ??
+                      'Playlist • ${widget.videoCount ?? 0} videos',
                   style: const TextStyle(
                     color: AppColors.textTertiary,
                     fontSize: 11,
@@ -1173,14 +1196,17 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     width: 124,
                     height: 124 * 9 / 16,
                     color: AppColors.bgInput,
-                    child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                    child:
+                        widget.thumbnailUrl != null &&
+                            widget.thumbnailUrl!.isNotEmpty
                         ? Stack(
                             fit: StackFit.expand,
                             children: [
                               CachedNetworkImage(
                                 imageUrl: widget.thumbnailUrl!,
                                 fit: BoxFit.cover,
-                                errorWidget: (context, url, err) => Container(color: AppColors.bgInput),
+                                errorWidget: (context, url, err) =>
+                                    Container(color: AppColors.bgInput),
                               ),
                               Container(
                                 color: Colors.black.withValues(alpha: 0.65),
@@ -1188,11 +1214,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                               CachedNetworkImage(
                                 imageUrl: widget.thumbnailUrl!,
                                 fit: BoxFit.contain,
-                                placeholder: (context, url) => Container(color: AppColors.bgInput),
+                                placeholder: (context, url) =>
+                                    Container(color: AppColors.bgInput),
                                 errorWidget: (context, url, err) => Center(
                                   child: Icon(
                                     Icons.tag_rounded,
-                                    color: AppColors.brand.withValues(alpha: 0.8),
+                                    color: AppColors.brand.withValues(
+                                      alpha: 0.8,
+                                    ),
                                     size: 36,
                                   ),
                                 ),
@@ -1244,11 +1273,16 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.brand.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: AppColors.brand.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: const Text(
                         'TOPIC',
@@ -1264,9 +1298,11 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     Expanded(
                       child: Text(
                         widget.handle != null && widget.handle!.isNotEmpty
-                            ? (widget.handle!.startsWith('#') || widget.handle!.startsWith('T/') || widget.handle!.startsWith('t/')
-                                ? widget.handle!
-                                : '#${widget.handle!}')
+                            ? (widget.handle!.startsWith('#') ||
+                                      widget.handle!.startsWith('T/') ||
+                                      widget.handle!.startsWith('t/')
+                                  ? widget.handle!
+                                  : '#${widget.handle!}')
                             : '#topic',
                         style: const TextStyle(
                           color: AppColors.brand,
@@ -1311,26 +1347,45 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Widget _buildSocialIcon({
-    required IconData icon,
-    required Color color,
     required String label,
     required VoidCallback onTap,
+    String? imageAsset,
+    IconData? icon,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           children: [
             Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
+              width: 52,
+              height: 52,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E1E22),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 24),
+              clipBehavior: Clip.antiAlias,
+              child: Center(
+                child: imageAsset != null
+                    ? Image.asset(
+                        imageAsset,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          icon ?? Icons.share_rounded,
+                          color: AppColors.textPrimary,
+                          size: 24,
+                        ),
+                      )
+                    : Icon(
+                        icon,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -1348,8 +1403,100 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Future<void> _shareToSocial(String platform) async {
-    // Standard social share using SharePlus
-    _shareNative();
+    final shareUrl = _getShareUrl();
+    final text = 'Check this out on TruthWorld: ${widget.title}\n$shareUrl';
+    final encodedText = Uri.encodeComponent(text);
+    final encodedUrl = Uri.encodeComponent(shareUrl);
+    final encodedTitle = Uri.encodeComponent(widget.title);
+
+    try {
+      switch (platform) {
+        case 'whatsapp':
+          // WhatsApp direct share scheme opens WhatsApp's share picker (Status & Friends)
+          final whatsappUri = Uri.parse('whatsapp://send?text=$encodedText');
+          final webUri = Uri.parse(
+            'https://api.whatsapp.com/send?text=$encodedText',
+          );
+          final waMeUri = Uri.parse('https://wa.me/?text=$encodedText');
+
+          if (await canLaunchUrl(whatsappUri)) {
+            await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+          } else if (await canLaunchUrl(webUri)) {
+            await launchUrl(webUri, mode: LaunchMode.externalApplication);
+          } else if (await canLaunchUrl(waMeUri)) {
+            await launchUrl(waMeUri, mode: LaunchMode.externalApplication);
+          } else {
+            await _shareNative();
+          }
+
+        case 'facebook':
+          final fbAppUri = Uri.parse('fb://facewebmodal/f?href=$encodedUrl');
+          final fbWebUri = Uri.parse(
+            'https://www.facebook.com/sharer/sharer.php?u=$encodedUrl',
+          );
+
+          if (await canLaunchUrl(fbAppUri)) {
+            await launchUrl(fbAppUri, mode: LaunchMode.externalApplication);
+          } else if (await canLaunchUrl(fbWebUri)) {
+            await launchUrl(fbWebUri, mode: LaunchMode.externalApplication);
+          } else {
+            await _shareNative();
+          }
+
+        case 'twitter':
+        case 'x':
+          final twitterAppUri = Uri.parse(
+            'twitter://post?message=$encodedText',
+          );
+          final twitterWebUri = Uri.parse(
+            'https://twitter.com/intent/tweet?text=$encodedText',
+          );
+
+          if (await canLaunchUrl(twitterAppUri)) {
+            await launchUrl(
+              twitterAppUri,
+              mode: LaunchMode.externalApplication,
+            );
+          } else if (await canLaunchUrl(twitterWebUri)) {
+            await launchUrl(
+              twitterWebUri,
+              mode: LaunchMode.externalApplication,
+            );
+          } else {
+            await _shareNative();
+          }
+
+        case 'telegram':
+          final tgAppUri = Uri.parse('tg://msg?text=$encodedText');
+          final tgWebUri = Uri.parse(
+            'https://t.me/share/url?url=$encodedUrl&text=$encodedTitle',
+          );
+
+          if (await canLaunchUrl(tgAppUri)) {
+            await launchUrl(tgAppUri, mode: LaunchMode.externalApplication);
+          } else if (await canLaunchUrl(tgWebUri)) {
+            await launchUrl(tgWebUri, mode: LaunchMode.externalApplication);
+          } else {
+            await _shareNative();
+          }
+
+        case 'email':
+          final mailUri = Uri.parse(
+            'mailto:?subject=$encodedTitle&body=$encodedText',
+          );
+
+          if (await canLaunchUrl(mailUri)) {
+            await launchUrl(mailUri, mode: LaunchMode.externalApplication);
+          } else {
+            await _shareNative();
+          }
+
+        default:
+          await _shareNative();
+      }
+    } catch (_) {
+      await _shareNative();
+    }
   }
 
   Future<void> _shareNative() async {

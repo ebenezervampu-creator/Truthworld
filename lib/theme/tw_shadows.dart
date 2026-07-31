@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic shadows and elevation offsets.
 class TWShadows extends ThemeExtension<TWShadows> {
-
   const TWShadows({
     required this.card,
     required this.dialog,

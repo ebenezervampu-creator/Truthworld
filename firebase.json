@@ -38,31 +38,81 @@
           "source": "/admin/**",
           "destination": "https://truthworld-1-admin.web.app/",
           "type": 301
-        },
-        {
-          "source": "/studio",
-          "destination": "https://truthworld-1-studio.web.app/",
-          "type": 301
-        },
-        {
-          "source": "/studio/**",
-          "destination": "https://truthworld-1-studio.web.app/",
-          "type": 301
-        },
-        {
-          "source": "/advertiser",
-          "destination": "https://truthworld-1-advertiser.web.app/",
-          "type": 301
-        },
-        {
-          "source": "/advertiser/**",
-          "destination": "https://truthworld-1-advertiser.web.app/",
-          "type": 301
         }
       ],
       "rewrites": [
         {
           "source": "/sitemap*.xml",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/studio",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/studio/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/.well-known/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/advertiser",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/advertiser/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/advertisements",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/advertisements/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/ads",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/post/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
+          "source": "/community/**",
           "function": {
             "functionId": "seoServer",
             "region": "asia-south1"

@@ -10,13 +10,13 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CommunityPostReactionState {
-
   const CommunityPostReactionState({
     required this.likes,
     required this.dislikes,
@@ -62,7 +62,9 @@ class CommunityPostCardReactionEngine {
 
     return CommunityPostReactionState(
       likes: state.likes + 1,
-      dislikes: hadDisliked ? (state.dislikes - 1).clamp(0, 999999999) : state.dislikes,
+      dislikes: hadDisliked
+          ? (state.dislikes - 1).clamp(0, 999999999)
+          : state.dislikes,
       likedBy: likedBy,
       dislikedBy: dislikedBy,
       isLiked: true,
@@ -108,9 +110,9 @@ class CommunityPostCardReactionEngine {
 }
 
 class CommunityPostCard extends StatefulWidget {
-
   const CommunityPostCard({
-    required this.post, super.key,
+    required this.post,
+    super.key,
     this.onTap,
     this.isFullWidth = true,
   });
@@ -150,7 +152,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       if (mounted &&
           Get.arguments != null &&
           Get.arguments is Map &&
-          (Get.arguments['postId'] == widget.post.id || Get.arguments['commentId'] != null) &&
+          (Get.arguments['postId'] == widget.post.id ||
+              Get.arguments['commentId'] != null) &&
           (Get.arguments['autoOpenComments'] == true)) {
         _openCommentsPopup(context);
       }
@@ -179,7 +182,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           .doc(widget.post.id)
           .get();
 
-      final results = await Future.wait([hiddenDocFuture, mutedChannelFuture, reportedDocFuture]);
+      final results = await Future.wait([
+        hiddenDocFuture,
+        mutedChannelFuture,
+        reportedDocFuture,
+      ]);
       if (results[0].exists || results[1].exists || results[2].exists) {
         if (mounted) {
           setState(() {
@@ -232,11 +239,16 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
     }
 
     final previousState = _reactionState.value;
-    final nextState = CommunityPostCardReactionEngine.toggleLike(previousState, _currentUid);
+    final nextState = CommunityPostCardReactionEngine.toggleLike(
+      previousState,
+      _currentUid,
+    );
     _reactionState.value = nextState;
 
     try {
-      final docRef = FirebaseFirestore.instance.collection('Community').doc(widget.post.id);
+      final docRef = FirebaseFirestore.instance
+          .collection('Community')
+          .doc(widget.post.id);
       final updates = <String, dynamic>{};
 
       if (previousState.isLiked && !nextState.isLiked) {
@@ -266,16 +278,24 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
   Future<void> _toggleDislike() async {
     if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to dislike posts.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to dislike posts.',
+      );
       return;
     }
 
     final previousState = _reactionState.value;
-    final nextState = CommunityPostCardReactionEngine.toggleDislike(previousState, _currentUid);
+    final nextState = CommunityPostCardReactionEngine.toggleDislike(
+      previousState,
+      _currentUid,
+    );
     _reactionState.value = nextState;
 
     try {
-      final docRef = FirebaseFirestore.instance.collection('Community').doc(widget.post.id);
+      final docRef = FirebaseFirestore.instance
+          .collection('Community')
+          .doc(widget.post.id);
       final updates = <String, dynamic>{};
 
       if (previousState.isDisliked && !nextState.isDisliked) {
@@ -373,7 +393,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+                  icon: const Icon(
+                    Icons.more_vert,
+                    color: AppColors.textPrimary,
+                  ),
                   onPressed: () => _showPostOptionsMenu(context),
                 ),
               ],
@@ -385,8 +408,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           if (widget.post.description.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                widget.post.description,
+              child: ClickableUrlText(
+                text: widget.post.description,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -410,22 +433,30 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   if (widget.post.isLikeEnabled) ...[
                     IconButton(
                       icon: Icon(
-                        state.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                        state.isLiked
+                            ? Icons.thumb_up
+                            : Icons.thumb_up_outlined,
                         color: Colors.white,
                         size: 20,
                       ),
                       onPressed: _toggleLike,
                     ),
-                    Text(
-                      FormatUtils.formatCount(state.likes),
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                    ),
+                    if (widget.post.showLikeCount)
+                      Text(
+                        FormatUtils.formatCount(state.likes),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                        ),
+                      ),
                     const SizedBox(width: 12),
                   ],
                   if (widget.post.isDislikeEnabled) ...[
                     IconButton(
                       icon: Icon(
-                        state.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                        state.isDisliked
+                            ? Icons.thumb_down
+                            : Icons.thumb_down_outlined,
                         color: Colors.white,
                         size: 20,
                       ),
@@ -434,7 +465,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                     if (widget.post.showDislikeCount)
                       Text(
                         FormatUtils.formatCount(state.dislikes),
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                        ),
                       ),
                     const SizedBox(width: 12),
                   ],
@@ -445,7 +479,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                       onTap: () => _openCommentsPopup(context),
                       borderRadius: BorderRadius.circular(20),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 4,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -457,7 +494,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                             const SizedBox(width: 4),
                             Text(
                               FormatUtils.formatCount(_commentCount),
-                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                              ),
                             ),
                           ],
                         ),
@@ -469,15 +509,23 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   InkWell(
                     onTap: () {
                       ShareBottomSheet.show(
-                        title: widget.post.title.isNotEmpty ? widget.post.title : widget.post.description,
-                        url: 'https://www.truthworld.in/community/${widget.post.id}',
-                        thumbnailUrl: widget.post.images.isNotEmpty ? widget.post.images.first : null,
+                        title: widget.post.title.isNotEmpty
+                            ? widget.post.title
+                            : widget.post.description,
+                        url:
+                            'https://www.truthworld.in/community/${widget.post.id}',
+                        thumbnailUrl: widget.post.images.isNotEmpty
+                            ? widget.post.images.first
+                            : null,
                         channelName: widget.post.channelName,
                       );
                     },
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -489,9 +537,14 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                           const SizedBox(width: 4),
                           Text(
                             widget.post.shares.isNotEmpty
-                                ? FormatUtils.formatCount(widget.post.shares.length)
+                                ? FormatUtils.formatCount(
+                                    widget.post.shares.length,
+                                  )
                                 : 'Share',
-                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -529,30 +582,43 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   ),
                 ),
               ),
-              Obx(() => ListTile(
-                leading: Icon(
-                  _isSaved.value ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+              Obx(
+                () => ListTile(
+                  leading: Icon(
+                    _isSaved.value
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_outline_rounded,
+                    color: Colors.white,
+                  ),
+                  title: Text(
+                    _isSaved.value ? 'Unsave post' : 'Save post',
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _toggleSavePost();
+                  },
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.visibility_off_outlined,
                   color: Colors.white,
                 ),
-                title: Text(
-                  _isSaved.value ? 'Unsave post' : 'Save post',
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                title: const Text(
+                  'Hide post',
+                  style: TextStyle(color: Colors.white, fontSize: 15),
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _toggleSavePost();
-                },
-              )),
-              ListTile(
-                leading: const Icon(Icons.visibility_off_outlined, color: Colors.white),
-                title: const Text('Hide post', style: TextStyle(color: Colors.white, fontSize: 15)),
                 onTap: () {
                   Navigator.pop(context);
                   _hidePost();
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.notifications_off_outlined, color: Colors.white),
+                leading: const Icon(
+                  Icons.notifications_off_outlined,
+                  color: Colors.white,
+                ),
                 title: const Text(
                   'Off community posts from this channel',
                   style: TextStyle(color: Colors.white, fontSize: 15),
@@ -563,7 +629,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.person_remove_outlined, color: Colors.white),
+                leading: const Icon(
+                  Icons.person_remove_outlined,
+                  color: Colors.white,
+                ),
                 title: const Text(
                   'Unsubscribe',
                   style: TextStyle(color: Colors.white, fontSize: 15),
@@ -573,8 +642,26 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   _unsubscribeChannel();
                 },
               ),
+              if (_currentUid != null && _currentUid == widget.post.ownerId)
+                ListTile(
+                  leading: const Icon(
+                    Icons.thumbs_up_down_outlined,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Like & Dislike Count Settings',
+                    style: TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showPostReactionsSettingsModal(context);
+                  },
+                ),
               ListTile(
-                leading: const Icon(Icons.flag_outlined, color: Colors.redAccent),
+                leading: const Icon(
+                  Icons.flag_outlined,
+                  color: Colors.redAccent,
+                ),
                 title: const Text(
                   'Report',
                   style: TextStyle(color: Colors.redAccent, fontSize: 15),
@@ -586,6 +673,124 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               ),
               const SizedBox(height: 8),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPostReactionsSettingsModal(BuildContext context) {
+    final showLike = widget.post.showLikeCount.obs;
+    final showDislike = widget.post.showDislikeCount.obs;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Obx(
+              () => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(
+                        Icons.thumbs_up_down_outlined,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      SizedBox(width: 10),
+                      Text(
+                        'Like & Dislike Counts',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile.adaptive(
+                    title: const Text(
+                      'Show Like Count',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Show like count to users',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    value: showLike.value,
+                    onChanged: (v) => showLike.value = v,
+                    activeTrackColor: AppColors.brand,
+                  ),
+                  SwitchListTile.adaptive(
+                    title: const Text(
+                      'Show Dislike Count',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Show dislike count to users',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    value: showDislike.value,
+                    onChanged: (v) => showDislike.value = v,
+                    activeTrackColor: AppColors.brand,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('Community')
+                                .doc(widget.post.id)
+                                .update({
+                                  'showLikeCount': showLike.value,
+                                  'showDislikeCount': showDislike.value,
+                                });
+                            Get.snackbar(
+                              'Success',
+                              'Post count settings updated.',
+                            );
+                          } catch (e) {
+                            Get.snackbar(
+                              'Error',
+                              'Failed to update settings: $e',
+                            );
+                          }
+                        },
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -631,7 +836,13 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           borderRadius: 12,
           mainButton: TextButton(
             onPressed: () => Get.toNamed('/saved-community-posts'),
-            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'VIEW',
+              style: TextStyle(
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         );
       }
@@ -713,12 +924,17 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
   Future<void> _unsubscribeChannel() async {
     if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to manage subscriptions.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to manage subscriptions.',
+      );
       return;
     }
     try {
       if (Get.isRegistered<ChannelController>()) {
-        await Get.find<ChannelController>().unsubscribeFromChannel(widget.post.channelId);
+        await Get.find<ChannelController>().unsubscribeFromChannel(
+          widget.post.channelId,
+        );
       } else {
         final channelCtrl = Get.put(ChannelController());
         await channelCtrl.unsubscribeFromChannel(widget.post.channelId);
@@ -754,7 +970,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
   void _showReportModal(BuildContext context) {
     if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to report posts.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to report posts.',
+      );
       return;
     }
 
@@ -824,13 +1043,22 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 children: [
                   if (currentStep.value == 2)
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.textPrimary,
+                      ),
                       onPressed: () => currentStep.value = 1,
                     ),
-                  const Icon(Icons.flag_rounded, color: Colors.redAccent, size: 26),
+                  const Icon(
+                    Icons.flag_rounded,
+                    color: Colors.redAccent,
+                    size: 26,
+                  ),
                   const SizedBox(width: 12),
                   Text(
-                    currentStep.value == 1 ? 'Report community post' : 'Provide details',
+                    currentStep.value == 1
+                        ? 'Report community post'
+                        : 'Provide details',
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 18,
@@ -842,11 +1070,14 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               const SizedBox(height: 16),
               if (currentStep.value == 1) ...[
                 ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.5,
+                  ),
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: reasons.length,
-                    separatorBuilder: (context, index) => const Divider(color: Colors.white10, height: 1),
+                    separatorBuilder: (context, index) =>
+                        const Divider(color: Colors.white10, height: 1),
                     itemBuilder: (context, index) {
                       final item = reasons[index];
                       final label = item['label']!;
@@ -854,8 +1085,21 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                       return RadioListTile<String>(
                         value: label,
                         groupValue: selectedReason.value,
-                        title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        title: Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          desc,
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
                         activeColor: AppColors.brand,
                         onChanged: (val) {
                           selectedReason.value = val;
@@ -873,16 +1117,25 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Next', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Next',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ] else ...[
                 Text(
                   'Selected Reason: ${selectedReason.value}',
-                  style: const TextStyle(color: AppColors.brand, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: AppColors.brand,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -904,15 +1157,23 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 ElevatedButton(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await _submitReport(selectedReason.value ?? 'Reported', detailsController.text.trim());
+                    await _submitReport(
+                      selectedReason.value ?? 'Reported',
+                      detailsController.text.trim(),
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.redAccent,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Submit Report', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'Submit Report',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ],
@@ -964,9 +1225,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
     );
   }
 
-
-
-  void _showFullScreenImage(BuildContext context, List<String> images, int initialIndex) {
+  void _showFullScreenImage(
+    BuildContext context,
+    List<String> images,
+    int initialIndex,
+  ) {
     if (images.isEmpty) return;
     final pageController = PageController(initialPage: initialIndex);
     final currentPage = initialIndex.obs;
@@ -991,7 +1254,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                       imageUrl: images[index],
                       fit: BoxFit.contain,
                       placeholder: (context, url) => const Center(
-                        child: CircularProgressIndicator(color: AppColors.brand),
+                        child: CircularProgressIndicator(
+                          color: AppColors.brand,
+                        ),
                       ),
                       errorWidget: (context, url, error) => const Icon(
                         Icons.broken_image_rounded,
@@ -1007,7 +1272,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               top: MediaQuery.of(context).padding.top + 12,
               right: 16,
               child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 onPressed: Get.back,
               ),
             ),
@@ -1018,19 +1287,24 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 right: 0,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Obx(() => Text(
-                      '${currentPage.value + 1} / ${images.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                    child: Obx(
+                      () => Text(
+                        '${currentPage.value + 1} / ${images.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    )),
+                    ),
                   ),
                 ),
               ),
@@ -1066,7 +1340,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   ),
                   errorWidget: (context, url, error) => ColoredBox(
                     color: AppTheme.colors.surface,
-                    child: const Icon(Icons.error, color: AppColors.textPrimary),
+                    child: const Icon(
+                      Icons.error,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               );
@@ -1082,22 +1359,22 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   color: AppColors.bgPage.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Obx(() => Text(
-                  '${_currentPage.value + 1}/${images.length}',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                child: Obx(
+                  () => Text(
+                    '${_currentPage.value + 1}/${images.length}',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                )),
+                ),
               ),
             ),
         ],
       ),
     );
   }
-
-
 
   Widget _buildCompactGridCard(BuildContext context) {
     return Semantics(
@@ -1160,7 +1437,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       return GestureDetector(
         onTap: () => _showFullScreenImage(context, widget.post.images, 0),
         child: ClipRRect(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radius.lg)),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppTheme.radius.lg),
+          ),
           child: CachedNetworkImage(
             imageUrl: widget.post.images.first,
             fit: BoxFit.cover,
@@ -1182,7 +1461,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radius.lg)),
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(AppTheme.radius.lg),
+      ),
       child: SizedBox(
         height: 150,
         child: GridView.builder(
@@ -1195,7 +1476,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           itemCount: widget.post.images.take(4).length,
           itemBuilder: (context, index) {
             return GestureDetector(
-              onTap: () => _showFullScreenImage(context, widget.post.images, index),
+              onTap: () =>
+                  _showFullScreenImage(context, widget.post.images, index),
               child: CachedNetworkImage(
                 imageUrl: widget.post.images[index],
                 fit: BoxFit.cover,
@@ -1221,8 +1503,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          widget.post.title,
+        ClickableUrlText(
+          text: widget.post.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: AppTheme.typography.body.copyWith(
@@ -1260,7 +1542,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
         SizedBox(height: AppTheme.spacing.xs),
         Row(
           children: [
-            Icon(Icons.thumb_up_outlined, size: 14, color: AppTheme.colors.textTertiary),
+            Icon(
+              Icons.thumb_up_outlined,
+              size: 14,
+              color: AppTheme.colors.textTertiary,
+            ),
             const SizedBox(width: 4),
             Text(
               '${widget.post.likes}',
@@ -1269,7 +1555,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               ),
             ),
             SizedBox(width: AppTheme.spacing.sm),
-            Icon(Icons.thumb_down_outlined, size: 14, color: AppTheme.colors.textTertiary),
+            Icon(
+              Icons.thumb_down_outlined,
+              size: 14,
+              color: AppTheme.colors.textTertiary,
+            ),
             const SizedBox(width: 4),
             Text(
               '${widget.post.dislikeCount}',
@@ -1278,7 +1568,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               ),
             ),
             SizedBox(width: AppTheme.spacing.sm),
-            Icon(Icons.comment_outlined, size: 14, color: AppTheme.colors.textTertiary),
+            Icon(
+              Icons.comment_outlined,
+              size: 14,
+              color: AppTheme.colors.textTertiary,
+            ),
             const SizedBox(width: 4),
             Text(
               '${widget.post.commentCount}',
@@ -1287,7 +1581,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               ),
             ),
             SizedBox(width: AppTheme.spacing.sm),
-            Icon(Icons.visibility_outlined, size: 14, color: AppTheme.colors.textTertiary),
+            Icon(
+              Icons.visibility_outlined,
+              size: 14,
+              color: AppTheme.colors.textTertiary,
+            ),
             const SizedBox(width: 4),
             Text(
               '${widget.post.views}',
@@ -1331,7 +1629,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1342,7 +1643,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                             .collection('comments')
                             .snapshots(),
                         builder: (context, snapshot) {
-                          final count = snapshot.data?.docs.length ?? _commentCount;
+                          final count =
+                              snapshot.data?.docs.length ?? _commentCount;
                           return Text(
                             'Comments ($count)',
                             style: GoogleFonts.roboto(
@@ -1360,45 +1662,54 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                               isSortNewest.value = newest;
                             },
                             offset: const Offset(0, 30),
-                            itemBuilder: (BuildContext context) => <PopupMenuEntry<bool>>[
-                              PopupMenuItem<bool>(
-                                value: false,
-                                child: Obx(() {
-                                  final isSelected = !isSortNewest.value;
-                                  return Row(
-                                    children: [
-                                      Icon(
-                                        Icons.check,
-                                        size: 18,
-                                        color: isSelected ? Colors.white : Colors.transparent,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text('Top comments'),
-                                    ],
-                                  );
-                                }),
-                              ),
-                              PopupMenuItem<bool>(
-                                value: true,
-                                child: Obx(() {
-                                  final isSelected = isSortNewest.value;
-                                  return Row(
-                                    children: [
-                                      Icon(
-                                        Icons.check,
-                                        size: 18,
-                                        color: isSelected ? Colors.white : Colors.transparent,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text('Newest first'),
-                                    ],
-                                  );
-                                }),
-                              ),
-                            ],
+                            itemBuilder: (BuildContext context) =>
+                                <PopupMenuEntry<bool>>[
+                                  PopupMenuItem<bool>(
+                                    value: false,
+                                    child: Obx(() {
+                                      final isSelected = !isSortNewest.value;
+                                      return Row(
+                                        children: [
+                                          Icon(
+                                            Icons.check,
+                                            size: 18,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : Colors.transparent,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Text('Top comments'),
+                                        ],
+                                      );
+                                    }),
+                                  ),
+                                  PopupMenuItem<bool>(
+                                    value: true,
+                                    child: Obx(() {
+                                      final isSelected = isSortNewest.value;
+                                      return Row(
+                                        children: [
+                                          Icon(
+                                            Icons.check,
+                                            size: 18,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : Colors.transparent,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Text('Newest first'),
+                                        ],
+                                      );
+                                    }),
+                                  ),
+                                ],
                             child: const Padding(
                               padding: EdgeInsets.all(8),
-                              child: Icon(Icons.sort_rounded, color: Colors.white, size: 22),
+                              child: Icon(
+                                Icons.sort_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                             ),
                           ),
                           IconButton(
@@ -1419,13 +1730,20 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                         .collection('comments')
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !snapshot.hasData) {
                         return const Center(
-                          child: CircularProgressIndicator(color: AppColors.brand),
+                          child: CircularProgressIndicator(
+                            color: AppColors.brand,
+                          ),
                         );
                       }
 
-                      final docs = snapshot.data?.docs.map((d) => {'id': d.id, ...d.data()}).toList() ?? [];
+                      final docs =
+                          snapshot.data?.docs
+                              .map((d) => {'id': d.id, ...d.data()})
+                              .toList() ??
+                          [];
 
                       if (docs.isEmpty) {
                         return Center(
@@ -1452,17 +1770,31 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
                       return Obx(() {
                         final newest = isSortNewest.value;
-                        final sortedDocs = List<Map<String, dynamic>>.from(docs);
+                        final sortedDocs = List<Map<String, dynamic>>.from(
+                          docs,
+                        );
                         if (newest) {
                           sortedDocs.sort((a, b) {
-                            final tsA = a['createdAt'] as Timestamp? ?? a['timestamp'] as Timestamp? ?? Timestamp.now();
-                            final tsB = b['createdAt'] as Timestamp? ?? b['timestamp'] as Timestamp? ?? Timestamp.now();
+                            final tsA =
+                                a['createdAt'] as Timestamp? ??
+                                a['timestamp'] as Timestamp? ??
+                                Timestamp.now();
+                            final tsB =
+                                b['createdAt'] as Timestamp? ??
+                                b['timestamp'] as Timestamp? ??
+                                Timestamp.now();
                             return tsB.compareTo(tsA);
                           });
                         } else {
                           sortedDocs.sort((a, b) {
-                            final likesA = (a['likeCount'] as num?)?.toInt() ?? (a['likes'] as num?)?.toInt() ?? ((a['likedBy'] as List?)?.length ?? 0);
-                            final likesB = (b['likeCount'] as num?)?.toInt() ?? (b['likes'] as num?)?.toInt() ?? ((b['likedBy'] as List?)?.length ?? 0);
+                            final likesA =
+                                (a['likeCount'] as num?)?.toInt() ??
+                                (a['likes'] as num?)?.toInt() ??
+                                ((a['likedBy'] as List?)?.length ?? 0);
+                            final likesB =
+                                (b['likeCount'] as num?)?.toInt() ??
+                                (b['likes'] as num?)?.toInt() ??
+                                ((b['likedBy'] as List?)?.length ?? 0);
                             return likesB.compareTo(likesA);
                           });
                         }
@@ -1491,7 +1823,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                     bottom: MediaQuery.of(context).viewInsets.bottom,
                   ),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     color: const Color(0xFF181818),
                     child: Row(
                       children: [
@@ -1499,32 +1834,51 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                           radius: 16,
                           photoUrl: AuthService.to.activePhotoUrl.isNotEmpty
                               ? AuthService.to.activePhotoUrl
-                              : (FirebaseAuth.instance.currentUser?.photoURL ?? ''),
-                          displayName: AuthService.to.activeDisplayName.isNotEmpty
+                              : (FirebaseAuth.instance.currentUser?.photoURL ??
+                                    ''),
+                          displayName:
+                              AuthService.to.activeDisplayName.isNotEmpty
                               ? AuthService.to.activeDisplayName
-                              : (FirebaseAuth.instance.currentUser?.displayName ?? 'User'),
+                              : (FirebaseAuth
+                                        .instance
+                                        .currentUser
+                                        ?.displayName ??
+                                    'User'),
                           fontSize: 11,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
                             controller: textController,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
                             decoration: const InputDecoration(
                               hintText: 'Add a comment...',
-                              hintStyle: TextStyle(color: Colors.white54, fontSize: 14),
+                              hintStyle: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 14,
+                              ),
                               border: InputBorder.none,
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                          icon: const Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           onPressed: () async {
                             final text = textController.text.trim();
                             if (text.isEmpty) return;
                             final user = FirebaseAuth.instance.currentUser;
                             if (user == null) {
-                              Get.snackbar('Authentication Required', 'Please sign in to comment.');
+                              Get.snackbar(
+                                'Authentication Required',
+                                'Please sign in to comment.',
+                              );
                               return;
                             }
                             textController.clear();
@@ -1534,16 +1888,26 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                               final channel = authService.userChannel;
 
                               final channelId = hasChannel ? channel?.id : null;
-                              final channelName = hasChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
-                              final channelAvatar = hasChannel ? channel?.avatarUrl : null;
-                              final userAvatar = authService.activePhotoUrl.isNotEmpty
+                              final channelName = hasChannel
+                                  ? (channel?.handle.isNotEmpty ?? false
+                                        ? channel?.handle
+                                        : channel?.name)
+                                  : null;
+                              final channelAvatar = hasChannel
+                                  ? channel?.avatarUrl
+                                  : null;
+                              final userAvatar =
+                                  authService.activePhotoUrl.isNotEmpty
                                   ? authService.activePhotoUrl
                                   : (user.photoURL ?? '');
-                              final userName = authService.activeDisplayName.isNotEmpty
+                              final userName =
+                                  authService.activeDisplayName.isNotEmpty
                                   ? authService.activeDisplayName
                                   : (user.displayName ?? 'User');
 
-                              final postDoc = FirebaseFirestore.instance.collection('Community').doc(widget.post.id);
+                              final postDoc = FirebaseFirestore.instance
+                                  .collection('Community')
+                                  .doc(widget.post.id);
                               await postDoc.collection('comments').add({
                                 'text': text,
                                 'userId': user.uid,
@@ -1561,12 +1925,17 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                                 'dislikedBy': [],
                                 'replyCount': 0,
                               });
-                              await postDoc.update({'commentCount': FieldValue.increment(1)});
+                              await postDoc.update({
+                                'commentCount': FieldValue.increment(1),
+                              });
                               setState(() {
                                 _commentCount += 1;
                               });
                             } catch (e) {
-                              Get.snackbar('Error', 'Failed to post comment: $e');
+                              Get.snackbar(
+                                'Error',
+                                'Failed to post comment: $e',
+                              );
                             }
                           },
                         ),
@@ -1599,10 +1968,12 @@ class _CommunityCommentItemWidget extends StatefulWidget {
   final String? postOwnerId;
 
   @override
-  State<_CommunityCommentItemWidget> createState() => _CommunityCommentItemWidgetState();
+  State<_CommunityCommentItemWidget> createState() =>
+      _CommunityCommentItemWidgetState();
 }
 
-class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget> {
+class _CommunityCommentItemWidgetState
+    extends State<_CommunityCommentItemWidget> {
   late RxBool _isLiked;
   late RxBool _isDisliked;
   late RxInt _likeCount;
@@ -1614,19 +1985,40 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
   @override
   void initState() {
     super.initState();
-    final likedBy = List<String>.from(widget.commentData['likedBy'] ?? widget.commentData['likedby'] ?? []);
-    final dislikedBy = List<String>.from(widget.commentData['dislikedBy'] ?? widget.commentData['dislikedby'] ?? []);
+    final likedBy = List<String>.from(
+      widget.commentData['likedBy'] ?? widget.commentData['likedby'] ?? [],
+    );
+    final dislikedBy = List<String>.from(
+      widget.commentData['dislikedBy'] ??
+          widget.commentData['dislikedby'] ??
+          [],
+    );
     final uid = widget.currentUid ?? '';
     _isLiked = likedBy.contains(uid).obs;
     _isDisliked = dislikedBy.contains(uid).obs;
-    _likeCount = ((widget.commentData['likeCount'] ?? widget.commentData['likes'] ?? likedBy.length) as num).toInt().obs;
-    _dislikeCount = ((widget.commentData['dislikeCount'] ?? widget.commentData['dislikes'] ?? dislikedBy.length) as num).toInt().obs;
+    _likeCount =
+        ((widget.commentData['likeCount'] ??
+                    widget.commentData['likes'] ??
+                    likedBy.length)
+                as num)
+            .toInt()
+            .obs;
+    _dislikeCount =
+        ((widget.commentData['dislikeCount'] ??
+                    widget.commentData['dislikes'] ??
+                    dislikedBy.length)
+                as num)
+            .toInt()
+            .obs;
   }
 
   Future<void> _toggleCommentLike() async {
     final uid = widget.currentUid;
     if (uid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to like comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to like comments.',
+      );
       return;
     }
     final commentId = widget.commentData['id'] as String;
@@ -1670,7 +2062,10 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
   Future<void> _toggleCommentDislike() async {
     final uid = widget.currentUid;
     if (uid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to dislike comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to dislike comments.',
+      );
       return;
     }
     final commentId = widget.commentData['id'] as String;
@@ -1729,7 +2124,11 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
       final channel = authService.userChannel;
 
       final channelId = hasChannel ? channel?.id : null;
-      final channelName = hasChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
+      final channelName = hasChannel
+          ? (channel?.handle.isNotEmpty ?? false
+                ? channel?.handle
+                : channel?.name)
+          : null;
       final channelAvatar = hasChannel ? channel?.avatarUrl : null;
       final userAvatar = authService.activePhotoUrl.isNotEmpty
           ? authService.activePhotoUrl
@@ -1774,7 +2173,10 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
   Future<void> _toggleSaveComment() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to save comments.',
+      );
       return;
     }
     final commentId = widget.commentData['id'] as String? ?? '';
@@ -1792,12 +2194,17 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
         await docRef.delete();
         Get.snackbar('Removed', 'Comment removed from Saved Comments');
       } else {
-        final userName = widget.commentData['channelName']?.toString().isNotEmpty ?? false
+        final userName =
+            widget.commentData['channelName']?.toString().isNotEmpty ?? false
             ? widget.commentData['channelName'].toString()
             : (widget.commentData['userName']?.toString() ?? 'User');
-        final userImage = widget.commentData['channelProfilePicUrl']?.toString().isNotEmpty ?? false
+        final userImage =
+            widget.commentData['channelProfilePicUrl']?.toString().isNotEmpty ??
+                false
             ? widget.commentData['channelProfilePicUrl'].toString()
-            : (widget.commentData['userImage']?.toString() ?? widget.commentData['userProfilePicUrl']?.toString() ?? '');
+            : (widget.commentData['userImage']?.toString() ??
+                  widget.commentData['userProfilePicUrl']?.toString() ??
+                  '');
         final text = widget.commentData['text']?.toString() ?? '';
 
         await docRef.set({
@@ -1820,7 +2227,13 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
           borderRadius: 12,
           mainButton: TextButton(
             onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'VIEW',
+              style: TextStyle(
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         );
       }
@@ -1847,8 +2260,14 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.bookmark_outline_rounded, color: Colors.white),
-                title: const Text('Save comment', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.bookmark_outline_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Save comment',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _toggleSaveComment();
@@ -1856,7 +2275,10 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
               ),
               ListTile(
                 leading: const Icon(Icons.copy_rounded, color: Colors.white),
-                title: const Text('Copy comment text', style: TextStyle(color: Colors.white)),
+                title: const Text(
+                  'Copy comment text',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: text));
                   Navigator.pop(context);
@@ -1865,8 +2287,14 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
               ),
               if (isOwner)
                 ListTile(
-                  leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                  title: const Text('Delete comment', style: TextStyle(color: Colors.redAccent)),
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.redAccent,
+                  ),
+                  title: const Text(
+                    'Delete comment',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
                   onTap: () async {
                     Navigator.pop(context);
                     final commentId = widget.commentData['id'] as String;
@@ -1889,10 +2317,16 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
               else
                 ListTile(
                   leading: const Icon(Icons.flag_outlined, color: Colors.white),
-                  title: const Text('Report comment', style: TextStyle(color: Colors.white)),
+                  title: const Text(
+                    'Report comment',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    Get.snackbar('Reported', 'Thank you for reporting inappropriate content');
+                    Get.snackbar(
+                      'Reported',
+                      'Thank you for reporting inappropriate content',
+                    );
                   },
                 ),
             ],
@@ -1904,14 +2338,21 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
 
   @override
   Widget build(BuildContext context) {
-    final userName = widget.commentData['channelName']?.toString().isNotEmpty ?? false
+    final userName =
+        widget.commentData['channelName']?.toString().isNotEmpty ?? false
         ? widget.commentData['channelName'].toString()
         : (widget.commentData['userName']?.toString() ?? 'User');
-    final userImage = widget.commentData['channelProfilePicUrl']?.toString().isNotEmpty ?? false
+    final userImage =
+        widget.commentData['channelProfilePicUrl']?.toString().isNotEmpty ??
+            false
         ? widget.commentData['channelProfilePicUrl'].toString()
-        : (widget.commentData['userImage']?.toString() ?? widget.commentData['userProfilePicUrl']?.toString() ?? '');
+        : (widget.commentData['userImage']?.toString() ??
+              widget.commentData['userProfilePicUrl']?.toString() ??
+              '');
     final text = widget.commentData['text']?.toString() ?? '';
-    final ts = widget.commentData['createdAt'] as Timestamp? ?? widget.commentData['timestamp'] as Timestamp?;
+    final ts =
+        widget.commentData['createdAt'] as Timestamp? ??
+        widget.commentData['timestamp'] as Timestamp?;
     final timeStr = ts != null ? timeago.format(ts.toDate()) : '';
 
     return Padding(
@@ -1967,53 +2408,79 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Obx(() => InkWell(
-                          onTap: _toggleCommentLike,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _isLiked.value ? Icons.thumb_up : Icons.thumb_up_outlined,
-                                  color: _isLiked.value ? Colors.white : Colors.white70,
-                                  size: 16,
-                                ),
-                                if (_likeCount.value > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    FormatUtils.formatCount(_likeCount.value),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        Obx(
+                          () => InkWell(
+                            onTap: _toggleCommentLike,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isLiked.value
+                                        ? Icons.thumb_up
+                                        : Icons.thumb_up_outlined,
+                                    color: _isLiked.value
+                                        ? Colors.white
+                                        : Colors.white70,
+                                    size: 16,
                                   ),
+                                  if (_likeCount.value > 0) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      FormatUtils.formatCount(_likeCount.value),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                         const SizedBox(width: 12),
-                        Obx(() => InkWell(
-                          onTap: _toggleCommentDislike,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _isDisliked.value ? Icons.thumb_down : Icons.thumb_down_outlined,
-                                  color: _isDisliked.value ? AppColors.error : Colors.white70,
-                                  size: 16,
-                                ),
-                                if (_dislikeCount.value > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    FormatUtils.formatCount(_dislikeCount.value),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        Obx(
+                          () => InkWell(
+                            onTap: _toggleCommentDislike,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isDisliked.value
+                                        ? Icons.thumb_down
+                                        : Icons.thumb_down_outlined,
+                                    color: _isDisliked.value
+                                        ? AppColors.error
+                                        : Colors.white70,
+                                    size: 16,
                                   ),
+                                  if (_dislikeCount.value > 0) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      FormatUtils.formatCount(
+                                        _dislikeCount.value,
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                         const SizedBox(width: 16),
                         InkWell(
                           onTap: () {
@@ -2021,7 +2488,10 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                           },
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
                             child: Text(
                               'Reply',
                               style: GoogleFonts.roboto(
@@ -2034,7 +2504,11 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.more_vert, color: Colors.white54, size: 16),
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: Colors.white54,
+                            size: 16,
+                          ),
                           constraints: const BoxConstraints(),
                           padding: EdgeInsets.zero,
                           onPressed: () => _showCommentOptions(context),
@@ -2068,10 +2542,16 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                       Expanded(
                         child: TextField(
                           controller: _replyController,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
                           decoration: const InputDecoration(
                             hintText: 'Add a reply...',
-                            hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                            hintStyle: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 13,
+                            ),
                             isDense: true,
                             border: InputBorder.none,
                           ),
@@ -2079,10 +2559,17 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                       ),
                       TextButton(
                         onPressed: () => _isReplying.value = false,
-                        child: const Text('Cancel', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                        icon: const Icon(
+                          Icons.send_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         onPressed: _submitReply,
                       ),
                     ],
@@ -2111,7 +2598,9 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
-        final replies = snapshot.data!.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+        final replies = snapshot.data!.docs
+            .map((d) => {'id': d.id, ...d.data()})
+            .toList();
         if (replies.isEmpty) return const SizedBox.shrink();
 
         return Obx(() {
@@ -2119,10 +2608,15 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
 
           if (!isExpanded) {
             final firstReply = replies.first;
-            final replyAvatar = firstReply['channelProfilePicUrl']?.toString().isNotEmpty ?? false
+            final replyAvatar =
+                firstReply['channelProfilePicUrl']?.toString().isNotEmpty ??
+                    false
                 ? firstReply['channelProfilePicUrl'].toString()
-                : (firstReply['userImage']?.toString() ?? firstReply['userProfilePicUrl']?.toString() ?? '');
-            final replyName = firstReply['channelName']?.toString().isNotEmpty ?? false
+                : (firstReply['userImage']?.toString() ??
+                      firstReply['userProfilePicUrl']?.toString() ??
+                      '');
+            final replyName =
+                firstReply['channelName']?.toString().isNotEmpty ?? false
                 ? firstReply['channelName'].toString()
                 : (firstReply['userName']?.toString() ?? 'User');
 
@@ -2147,7 +2641,9 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      replies.length == 1 ? '• 1 reply' : '• ${replies.length} replies',
+                      replies.length == 1
+                          ? '• 1 reply'
+                          : '• ${replies.length} replies',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.blue,
@@ -2227,17 +2723,34 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
   void initState() {
     super.initState();
     _replyId = widget.replyData['id'] as String? ?? '';
-    final likedBy = List<String>.from(widget.replyData['likedBy'] ?? widget.replyData['likedby'] ?? []);
-    final dislikedBy = List<String>.from(widget.replyData['dislikedBy'] ?? widget.replyData['dislikedby'] ?? []);
+    final likedBy = List<String>.from(
+      widget.replyData['likedBy'] ?? widget.replyData['likedby'] ?? [],
+    );
+    final dislikedBy = List<String>.from(
+      widget.replyData['dislikedBy'] ?? widget.replyData['dislikedby'] ?? [],
+    );
 
-    _likeCount = ((widget.replyData['likeCount'] ?? widget.replyData['likes'] ?? likedBy.length) as num).toInt().obs;
-    _dislikeCount = ((widget.replyData['dislikeCount'] ?? widget.replyData['dislikes'] ?? dislikedBy.length) as num).toInt().obs;
+    _likeCount =
+        ((widget.replyData['likeCount'] ??
+                    widget.replyData['likes'] ??
+                    likedBy.length)
+                as num)
+            .toInt()
+            .obs;
+    _dislikeCount =
+        ((widget.replyData['dislikeCount'] ??
+                    widget.replyData['dislikes'] ??
+                    dislikedBy.length)
+                as num)
+            .toInt()
+            .obs;
 
     _isLiked = (_currentUid != null && likedBy.contains(_currentUid)).obs;
     _isDisliked = (_currentUid != null && dislikedBy.contains(_currentUid)).obs;
   }
 
-  DocumentReference<Map<String, dynamic>> get _replyRef => FirebaseFirestore.instance
+  DocumentReference<Map<String, dynamic>> get _replyRef => FirebaseFirestore
+      .instance
       .collection('Community')
       .doc(widget.postId)
       .collection('comments')
@@ -2247,7 +2760,10 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
 
   Future<void> _toggleReplyLike() async {
     if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to react to replies.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to react to replies.',
+      );
       return;
     }
 
@@ -2271,15 +2787,25 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
           'likedBy': FieldValue.arrayUnion([_currentUid]),
           'dislikedBy': FieldValue.arrayRemove([_currentUid]),
         });
-        await _replyRef.collection('likes').doc(_currentUid).set({'likedAt': FieldValue.serverTimestamp()});
-        await _replyRef.collection('dislikes').doc(_currentUid).delete().catchError((_) {});
+        await _replyRef.collection('likes').doc(_currentUid).set({
+          'likedAt': FieldValue.serverTimestamp(),
+        });
+        await _replyRef
+            .collection('dislikes')
+            .doc(_currentUid)
+            .delete()
+            .catchError((_) {});
       } else {
         await _replyRef.update({
           'likes': FieldValue.increment(-1),
           'likeCount': FieldValue.increment(-1),
           'likedBy': FieldValue.arrayRemove([_currentUid]),
         });
-        await _replyRef.collection('likes').doc(_currentUid).delete().catchError((_) {});
+        await _replyRef
+            .collection('likes')
+            .doc(_currentUid)
+            .delete()
+            .catchError((_) {});
       }
     } catch (e) {
       debugPrint('Error toggling reply like: $e');
@@ -2288,7 +2814,10 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
 
   Future<void> _toggleReplyDislike() async {
     if (_currentUid == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to react to replies.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to react to replies.',
+      );
       return;
     }
 
@@ -2312,15 +2841,25 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
           'dislikedBy': FieldValue.arrayUnion([_currentUid]),
           'likedBy': FieldValue.arrayRemove([_currentUid]),
         });
-        await _replyRef.collection('dislikes').doc(_currentUid).set({'dislikedAt': FieldValue.serverTimestamp()});
-        await _replyRef.collection('likes').doc(_currentUid).delete().catchError((_) {});
+        await _replyRef.collection('dislikes').doc(_currentUid).set({
+          'dislikedAt': FieldValue.serverTimestamp(),
+        });
+        await _replyRef
+            .collection('likes')
+            .doc(_currentUid)
+            .delete()
+            .catchError((_) {});
       } else {
         await _replyRef.update({
           'dislikes': FieldValue.increment(-1),
           'dislikeCount': FieldValue.increment(-1),
           'dislikedBy': FieldValue.arrayRemove([_currentUid]),
         });
-        await _replyRef.collection('dislikes').doc(_currentUid).delete().catchError((_) {});
+        await _replyRef
+            .collection('dislikes')
+            .doc(_currentUid)
+            .delete()
+            .catchError((_) {});
       }
     } catch (e) {
       debugPrint('Error toggling reply dislike: $e');
@@ -2328,8 +2867,12 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
   }
 
   void _showReplyOptions(BuildContext context) {
-    final authorId = widget.replyData['userId'] as String? ?? widget.replyData['channelId'] as String?;
-    final isOwner = _currentUid != null && (_currentUid == authorId || _currentUid == widget.postOwnerId);
+    final authorId =
+        widget.replyData['userId'] as String? ??
+        widget.replyData['channelId'] as String?;
+    final isOwner =
+        _currentUid != null &&
+        (_currentUid == authorId || _currentUid == widget.postOwnerId);
     final text = widget.replyData['text']?.toString() ?? '';
 
     showModalBottomSheet(
@@ -2344,8 +2887,14 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.bookmark_outline_rounded, color: Colors.white),
-                title: const Text('Save reply', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.bookmark_outline_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Save reply',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () async {
                   Navigator.pop(context);
                   if (_currentUid == null) return;
@@ -2356,14 +2905,14 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
                         .collection('savedComments')
                         .doc(_replyId)
                         .set({
-                      'text': text,
-                      'userName': widget.replyData['userName'] ?? 'User',
-                      'userImage': widget.replyData['userImage'] ?? '',
-                      'sourceType': 'community_post_reply',
-                      'sourceId': widget.postId,
-                      'sourceTitle': 'Community Post Reply',
-                      'savedAt': FieldValue.serverTimestamp(),
-                    });
+                          'text': text,
+                          'userName': widget.replyData['userName'] ?? 'User',
+                          'userImage': widget.replyData['userImage'] ?? '',
+                          'sourceType': 'community_post_reply',
+                          'sourceId': widget.postId,
+                          'sourceTitle': 'Community Post Reply',
+                          'savedAt': FieldValue.serverTimestamp(),
+                        });
                     Get.snackbar('Saved', 'Reply saved to Saved Comments');
                   } catch (e) {
                     Get.snackbar('Error', 'Failed to save reply: $e');
@@ -2372,7 +2921,10 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
               ),
               ListTile(
                 leading: const Icon(Icons.copy_rounded, color: Colors.white),
-                title: const Text('Copy reply text', style: TextStyle(color: Colors.white)),
+                title: const Text(
+                  'Copy reply text',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: text));
                   Navigator.pop(context);
@@ -2381,8 +2933,14 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
               ),
               if (isOwner)
                 ListTile(
-                  leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                  title: const Text('Delete reply', style: TextStyle(color: Colors.redAccent)),
+                  leading: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.redAccent,
+                  ),
+                  title: const Text(
+                    'Delete reply',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
                   onTap: () async {
                     Navigator.pop(context);
                     try {
@@ -2401,10 +2959,16 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
               else
                 ListTile(
                   leading: const Icon(Icons.flag_outlined, color: Colors.white),
-                  title: const Text('Report reply', style: TextStyle(color: Colors.white)),
+                  title: const Text(
+                    'Report reply',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
-                    Get.snackbar('Reported', 'Thank you for reporting inappropriate content');
+                    Get.snackbar(
+                      'Reported',
+                      'Thank you for reporting inappropriate content',
+                    );
                   },
                 ),
             ],
@@ -2416,17 +2980,26 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
 
   @override
   Widget build(BuildContext context) {
-    final rName = widget.replyData['channelName']?.toString().isNotEmpty ?? false
+    final rName =
+        widget.replyData['channelName']?.toString().isNotEmpty ?? false
         ? widget.replyData['channelName'].toString()
         : (widget.replyData['userName']?.toString() ?? 'User');
-    final rImage = widget.replyData['channelProfilePicUrl']?.toString().isNotEmpty ?? false
+    final rImage =
+        widget.replyData['channelProfilePicUrl']?.toString().isNotEmpty ?? false
         ? widget.replyData['channelProfilePicUrl'].toString()
-        : (widget.replyData['userImage']?.toString() ?? widget.replyData['userProfilePicUrl']?.toString() ?? '');
+        : (widget.replyData['userImage']?.toString() ??
+              widget.replyData['userProfilePicUrl']?.toString() ??
+              '');
     final rText = widget.replyData['text']?.toString() ?? '';
-    final rTs = widget.replyData['createdAt'] as Timestamp? ?? widget.replyData['timestamp'] as Timestamp?;
+    final rTs =
+        widget.replyData['createdAt'] as Timestamp? ??
+        widget.replyData['timestamp'] as Timestamp?;
     final rTimeStr = rTs != null ? timeago.format(rTs.toDate()) : '';
-    final isChannel = (widget.replyData['channelId']?.toString().isNotEmpty ?? false) ||
-        (widget.postOwnerId != null && (widget.replyData['userId'] == widget.postOwnerId || widget.replyData['channelId'] == widget.postOwnerId));
+    final isChannel =
+        (widget.replyData['channelId']?.toString().isNotEmpty ?? false) ||
+        (widget.postOwnerId != null &&
+            (widget.replyData['userId'] == widget.postOwnerId ||
+                widget.replyData['channelId'] == widget.postOwnerId));
 
     return IntrinsicHeight(
       child: Padding(
@@ -2444,7 +3017,12 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 6, left: 6, right: 8),
+                padding: const EdgeInsets.only(
+                  top: 4,
+                  bottom: 6,
+                  left: 6,
+                  right: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2468,7 +3046,10 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
                         if (isChannel) ...[
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.brand,
                               borderRadius: BorderRadius.circular(3),
@@ -2506,59 +3087,88 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Obx(() => InkWell(
-                          onTap: _toggleReplyLike,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _isLiked.value ? Icons.thumb_up : Icons.thumb_up_outlined,
-                                  color: _isLiked.value ? Colors.white : Colors.white70,
-                                  size: 14,
-                                ),
-                                if (_likeCount.value > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    FormatUtils.formatCount(_likeCount.value),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                        Obx(
+                          () => InkWell(
+                            onTap: _toggleReplyLike,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isLiked.value
+                                        ? Icons.thumb_up
+                                        : Icons.thumb_up_outlined,
+                                    color: _isLiked.value
+                                        ? Colors.white
+                                        : Colors.white70,
+                                    size: 14,
                                   ),
+                                  if (_likeCount.value > 0) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      FormatUtils.formatCount(_likeCount.value),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                         const SizedBox(width: 12),
-                        Obx(() => InkWell(
-                          onTap: _toggleReplyDislike,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _isDisliked.value ? Icons.thumb_down : Icons.thumb_down_outlined,
-                                  color: _isDisliked.value ? AppColors.error : Colors.white70,
-                                  size: 14,
-                                ),
-                                if (_dislikeCount.value > 0) ...[
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    FormatUtils.formatCount(_dislikeCount.value),
-                                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                        Obx(
+                          () => InkWell(
+                            onTap: _toggleReplyDislike,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _isDisliked.value
+                                        ? Icons.thumb_down
+                                        : Icons.thumb_down_outlined,
+                                    color: _isDisliked.value
+                                        ? AppColors.error
+                                        : Colors.white70,
+                                    size: 14,
                                   ),
+                                  if (_dislikeCount.value > 0) ...[
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      FormatUtils.formatCount(
+                                        _dislikeCount.value,
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                         const SizedBox(width: 14),
                         InkWell(
                           onTap: () => widget.onReplyToUser(rName),
                           borderRadius: BorderRadius.circular(12),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
                             child: Text(
                               'Reply',
                               style: GoogleFonts.roboto(
@@ -2571,7 +3181,11 @@ class _CommunityReplyItemState extends State<_CommunityReplyItem> {
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.more_vert, color: Colors.white54, size: 14),
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: Colors.white54,
+                            size: 14,
+                          ),
                           constraints: const BoxConstraints(),
                           padding: EdgeInsets.zero,
                           onPressed: () => _showReplyOptions(context),
@@ -2629,4 +3243,3 @@ class ReplyThreadLinePainter extends CustomPainter {
         oldDelegate.branchY != branchY;
   }
 }
-

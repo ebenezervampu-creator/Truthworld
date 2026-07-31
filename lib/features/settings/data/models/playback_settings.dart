@@ -1,5 +1,4 @@
 class PlaybackSettings {
-
   const PlaybackSettings({
     this.wifiQuality = 'Auto',
     this.cellularQuality = 'Data Saver (480p)',
@@ -20,11 +19,14 @@ class PlaybackSettings {
   factory PlaybackSettings.fromJson(Map<String, dynamic> json) {
     return PlaybackSettings(
       wifiQuality: json['wifiQuality'] as String? ?? 'Auto',
-      cellularQuality: json['cellularQuality'] as String? ?? 'Data Saver (480p)',
+      cellularQuality:
+          json['cellularQuality'] as String? ?? 'Data Saver (480p)',
       autoplayNext: json['autoplayNext'] as bool? ?? true,
       seekDurationSeconds: json['seekDurationSeconds'] as int? ?? 10,
-      volumeNormalizationMode: json['volumeNormalizationMode'] as String? ?? 'Standard',
-      backgroundPlaybackMode: json['backgroundPlaybackMode'] as String? ?? 'Off',
+      volumeNormalizationMode:
+          json['volumeNormalizationMode'] as String? ?? 'Standard',
+      backgroundPlaybackMode:
+          json['backgroundPlaybackMode'] as String? ?? 'Off',
       statsForNerdsEnabled: json['statsForNerdsEnabled'] as bool? ?? false,
       showResolution: json['showResolution'] as bool? ?? true,
       showDroppedFrames: json['showDroppedFrames'] as bool? ?? true,
@@ -39,7 +41,8 @@ class PlaybackSettings {
   final String cellularQuality; // 'Auto', 'Data Saver (480p)', 'Low (360p)'
   final bool autoplayNext;
   final int seekDurationSeconds;
-  final String volumeNormalizationMode; // 'Off', 'Light', 'Standard', 'Aggressive'
+  final String
+  volumeNormalizationMode; // 'Off', 'Light', 'Standard', 'Aggressive'
   final String backgroundPlaybackMode; // 'Off', 'Always On', 'Headphones Only'
 
   // Stats for Nerds Granular Configuration
@@ -73,8 +76,10 @@ class PlaybackSettings {
       cellularQuality: cellularQuality ?? this.cellularQuality,
       autoplayNext: autoplayNext ?? this.autoplayNext,
       seekDurationSeconds: seekDurationSeconds ?? this.seekDurationSeconds,
-      volumeNormalizationMode: volumeNormalizationMode ?? this.volumeNormalizationMode,
-      backgroundPlaybackMode: backgroundPlaybackMode ?? this.backgroundPlaybackMode,
+      volumeNormalizationMode:
+          volumeNormalizationMode ?? this.volumeNormalizationMode,
+      backgroundPlaybackMode:
+          backgroundPlaybackMode ?? this.backgroundPlaybackMode,
       statsForNerdsEnabled: statsForNerdsEnabled ?? this.statsForNerdsEnabled,
       showResolution: showResolution ?? this.showResolution,
       showDroppedFrames: showDroppedFrames ?? this.showDroppedFrames,

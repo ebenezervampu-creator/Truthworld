@@ -55,7 +55,6 @@ import 'package:video_player/video_player.dart';
 // PLAYER CONTROLLER  (Industry-standard state machine)
 // ─────────────────────────────────────────────────────────────────────────────
 class TowerPlayerController extends GetxController {
-
   TowerPlayerController({
     required this.videoPlayerController,
     required this.chewieController,
@@ -77,6 +76,7 @@ class TowerPlayerController extends GetxController {
     }
     return null;
   }
+
   final RxBool isPlaying = false.obs;
 
   // ── Reactive video state ───────────────────────────────────
@@ -115,7 +115,8 @@ class TowerPlayerController extends GetxController {
   bool _isSwitchingModes = false;
 
   PlaybackSource get activePlayback {
-    if (playbackMode.value == PlaybackMode.audio && _audioPlaybackSource != null) {
+    if (playbackMode.value == PlaybackMode.audio &&
+        _audioPlaybackSource != null) {
       return _audioPlaybackSource!;
     }
     return _videoPlaybackSource ?? VideoPlaybackSource(videoPlayerController);
@@ -169,8 +170,11 @@ class TowerPlayerController extends GetxController {
           return true;
         }
         // Check recommendations
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-        return currentIndex > 0 || (currentIndex == -1 && vc.recommendedVideos.isNotEmpty);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
+        return currentIndex > 0 ||
+            (currentIndex == -1 && vc.recommendedVideos.isNotEmpty);
       }
     } catch (_) {}
     return false;
@@ -182,12 +186,14 @@ class TowerPlayerController extends GetxController {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
         // Check playlist first
-        if (vc.playlistVideos.isNotEmpty && 
+        if (vc.playlistVideos.isNotEmpty &&
             vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
           return true;
         }
         // Check recommendations
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
         if (currentIndex >= 0) {
           return currentIndex < vc.recommendedVideos.length - 1;
         }
@@ -196,7 +202,7 @@ class TowerPlayerController extends GetxController {
     } catch (_) {}
     return false;
   }
-  
+
   // ── Chapters ───────────────────────────────────────────────
   final RxList<VideoChapter> chapters = <VideoChapter>[].obs;
   final Rx<VideoChapter?> currentChapter = Rx<VideoChapter?>(null);
@@ -244,13 +250,17 @@ class TowerPlayerController extends GetxController {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
         if (vc.availableResolutions.isNotEmpty) {
-          ladder = vc.availableResolutions.reversed.map((v) => ResolutionTier(
-            label: v.label,
-            url: v.url,
-            height: v.height,
-            bitrate: v.bitrate,
-            minBandwidth: (v.bitrate * 1.2).toInt(),
-          )).toList();
+          ladder = vc.availableResolutions.reversed
+              .map(
+                (v) => ResolutionTier(
+                  label: v.label,
+                  url: v.url,
+                  height: v.height,
+                  bitrate: v.bitrate,
+                  minBandwidth: (v.bitrate * 1.2).toInt(),
+                ),
+              )
+              .toList();
         }
       }
     } catch (_) {}
@@ -259,7 +269,7 @@ class TowerPlayerController extends GetxController {
       ladder: ladder,
       vpc: videoPlayerController,
     );
-    
+
     // INDUSTRY STANDARD: Hook ABR tier changes to actual video resolution switching
     // This ensures that when the user selects a quality or ABR auto-switches,
     // the actual video URL is loaded (not just the internal tier index)
@@ -267,27 +277,31 @@ class TowerPlayerController extends GetxController {
       try {
         if (Get.isRegistered<VideoController>(tag: tag)) {
           final vc = Get.find<VideoController>(tag: tag);
-          
+
           // Guard against redundant switches or simultaneous triggers
           if (vc.isSwitchingResolution.value) return;
 
           // Map from ABR tier to available resolution and actually load it
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
             final selectedTier = abr.resolutionLadder[tierIndex];
-            
+
             // Find matching ResolutionV2 based on height
             final matchingRes = vc.availableResolutions.firstWhereOrNull(
               (r) => r.height == selectedTier.height,
             );
-            
+
             if (matchingRes != null) {
               // Ensure we don't switch to the same URL
               if (vc.currentResolution.value?.url != matchingRes.url) {
                 vc.setResolution(matchingRes, isManual: isManual);
-                debugPrint('[TowerPlayer] Resolution switch triggered: ${selectedTier.label} (Index: $tierIndex) | Manual: $isManual');
+                debugPrint(
+                  '[TowerPlayer] Resolution switch triggered: ${selectedTier.label} (Index: $tierIndex) | Manual: $isManual',
+                );
               }
             } else {
-              debugPrint('[TowerPlayer] ⚠️ No matching resolution found for height: ${selectedTier.height}');
+              debugPrint(
+                '[TowerPlayer] ⚠️ No matching resolution found for height: ${selectedTier.height}',
+              );
             }
           }
         }
@@ -414,7 +428,7 @@ class TowerPlayerController extends GetxController {
           audioTracks.assignAll(vc.availableAudioTracks);
           activeAudioLang.value = audioTracks.first.label;
         }
-        
+
         // Sync chapters
         if (vc.video.chapters.isNotEmpty) {
           if (chapters.length != vc.video.chapters.length) {
@@ -506,33 +520,36 @@ class TowerPlayerController extends GetxController {
 
   void playNext() {
     _trackAnalytics(PlayerEvent('next'));
-    
+
     // Industry-standard navigation: Check playlist first, then recommendations
     if (Get.isRegistered<VideoController>(tag: tag)) {
       final vc = Get.find<VideoController>(tag: tag);
-      
+
       // Priority 1: If in a playlist and not at the end, go to next playlist video
-      if (vc.playlistVideos.isNotEmpty && 
+      if (vc.playlistVideos.isNotEmpty &&
           vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
         final nextIndex = vc.currentPlaylistIndex.value + 1;
         final nextVideo = vc.playlistVideos[nextIndex];
         _navigateToVideo(nextVideo, vc);
         return;
       }
-      
+
       // Priority 2: Use recommendations as navigation queue
       if (vc.recommendedVideos.isNotEmpty) {
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
         Video? nextVideo;
-        
-        if (currentIndex >= 0 && currentIndex < vc.recommendedVideos.length - 1) {
+
+        if (currentIndex >= 0 &&
+            currentIndex < vc.recommendedVideos.length - 1) {
           // Get next video in recommendations list
           nextVideo = vc.recommendedVideos[currentIndex + 1];
         } else if (currentIndex == -1) {
           // Current video not in recommendations, play first recommendation
           nextVideo = vc.recommendedVideos.first;
         }
-        
+
         if (nextVideo != null && nextVideo.id != vc.video.id) {
           _navigateToVideo(nextVideo, vc);
         }
@@ -542,11 +559,11 @@ class TowerPlayerController extends GetxController {
 
   void playPrevious() {
     _trackAnalytics(PlayerEvent('previous'));
-    
+
     // Industry-standard navigation: Check playlist first, then recommendations
     if (Get.isRegistered<VideoController>(tag: tag)) {
       final vc = Get.find<VideoController>(tag: tag);
-      
+
       // Priority 1: If in a playlist and not at the start, go to previous playlist video
       if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
         final prevIndex = vc.currentPlaylistIndex.value - 1;
@@ -554,12 +571,14 @@ class TowerPlayerController extends GetxController {
         _navigateToVideo(prevVideo, vc);
         return;
       }
-      
+
       // Priority 2: Use recommendations as navigation queue
       if (vc.recommendedVideos.isNotEmpty) {
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
         Video? prevVideo;
-        
+
         if (currentIndex > 0) {
           // Get previous video in recommendations list
           prevVideo = vc.recommendedVideos[currentIndex - 1];
@@ -567,7 +586,7 @@ class TowerPlayerController extends GetxController {
           // Current video not in recommendations, play first recommendation
           prevVideo = vc.recommendedVideos.first;
         }
-        
+
         if (prevVideo != null && prevVideo.id != vc.video.id) {
           _navigateToVideo(prevVideo, vc);
         }
@@ -578,14 +597,17 @@ class TowerPlayerController extends GetxController {
   void _navigateToVideo(Video video, VideoController vc) {
     // Pause current video before navigation
     videoPlayerController.pause();
-    
+
     // Navigate to new video screen with proper arguments
     // GetX will handle cleanup of current controller
-    Get.offNamed('/watch?v=${video.id}', arguments: {
-      'video': video,
-      'playlist': vc.currentPlaylist.value,
-      'heroTag': 'video_${video.id}_${DateTime.now().millisecondsSinceEpoch}',
-    });
+    Get.offNamed(
+      '/watch?v=${video.id}',
+      arguments: {
+        'video': video,
+        'playlist': vc.currentPlaylist.value,
+        'heroTag': 'video_${video.id}_${DateTime.now().millisecondsSinceEpoch}',
+      },
+    );
   }
 
   void _onTrackEnded() {
@@ -642,7 +664,7 @@ class TowerPlayerController extends GetxController {
       debugPrint('[TowerPlayer] Invalid tier index: $tierIndex');
       return;
     }
-    
+
     abr.setManualTier(tierIndex);
     activePanel.value = '';
     _closeSettings();
@@ -729,7 +751,9 @@ class TowerPlayerController extends GetxController {
       }
     } catch (e) {
       debugPrint('[TowerPlayer] Mode switch error: $e');
-      playbackMode.value = isAudioOnly.value ? PlaybackMode.audio : PlaybackMode.video;
+      playbackMode.value = isAudioOnly.value
+          ? PlaybackMode.audio
+          : PlaybackMode.video;
     } finally {
       _isSwitchingModes = false;
     }
@@ -757,10 +781,10 @@ class TowerPlayerController extends GetxController {
       debugPrint('[TowerPlayer] Fetching subtitles: $url');
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        // Industry Standard: Use utf8.decode on bodyBytes to ensure correct encoding 
+        // Industry Standard: Use utf8.decode on bodyBytes to ensure correct encoding
         // regardless of server headers. Also handle the UTF-8 BOM if present.
         var content = utf8.decode(response.bodyBytes, allowMalformed: true);
-        
+
         // Remove UTF-8 BOM (\uFEFF) if present at the start of the file
         if (content.startsWith('\uFEFF')) {
           content = content.substring(1);
@@ -778,12 +802,14 @@ class TowerPlayerController extends GetxController {
 
   List<SubtitleSegment> _parseSRT(String content) {
     final segments = <SubtitleSegment>[];
-    
+
     // Normalize line endings and handle WebVTT header
     var normalized = content.replaceAll('\r\n', '\n').trim();
     if (normalized.startsWith('WEBVTT')) {
       // Remove WEBVTT header and any metadata following it until the first blank line
-      normalized = normalized.replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '').trim();
+      normalized = normalized
+          .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
+          .trim();
     }
 
     // Split into blocks by double newline
@@ -812,7 +838,7 @@ class TowerPlayerController extends GetxController {
 
       final start = _parseSRTTime(times[0]);
       final end = _parseSRTTime(times[1]);
-      
+
       if (lines.length <= textStartIndex) continue;
       final text = lines.sublist(textStartIndex).join('\n').trim();
 
@@ -837,8 +863,6 @@ class TowerPlayerController extends GetxController {
     return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
   }
 
-
-
   void _disableWebVTT() {
     debugPrint('[TowerPlayer] Subtitles disabled');
   }
@@ -856,7 +880,7 @@ class TowerPlayerController extends GetxController {
         if (Get.isRegistered<VideoController>(tag: tag)) {
           final vc = Get.find<VideoController>(tag: tag);
           final currentRes = vc.currentResolution.value;
-          
+
           // Create a temporary resolution object for the dubbed track
           final dubbedRes = VideoResolutionV2(
             label: '${currentRes?.label ?? 'Auto'} (Dubbed)',
@@ -865,9 +889,11 @@ class TowerPlayerController extends GetxController {
             height: currentRes?.height ?? 0,
             bitrate: currentRes?.bitrate ?? 0,
           );
-          
+
           vc.setResolution(dubbedRes);
-          debugPrint('[TowerPlayer] Switched to dubbed audio/video: ${track.label}');
+          debugPrint(
+            '[TowerPlayer] Switched to dubbed audio/video: ${track.label}',
+          );
         }
       } catch (e) {
         debugPrint('[TowerPlayer] Failed to switch to dubbed audio: $e');
@@ -963,8 +989,8 @@ class TowerPlayerController extends GetxController {
       onInteraction();
       _trackAnalytics(
         PlayerEvent(
-          chewieController.isFullScreen 
-              ? 'fullscreen_exit' 
+          chewieController.isFullScreen
+              ? 'fullscreen_exit'
               : 'fullscreen_enter',
         ),
       );
@@ -982,7 +1008,9 @@ class TowerPlayerController extends GetxController {
       if (video == null) return;
       final docJs = js.JsObject.fromBrowserObject(html.document);
       if (docJs['pictureInPictureElement'] == null) {
-        js.JsObject.fromBrowserObject(video).callMethod('requestPictureInPicture', []);
+        js.JsObject.fromBrowserObject(
+          video,
+        ).callMethod('requestPictureInPicture', []);
         isPiP.value = true;
       } else {
         docJs.callMethod('exitPictureInPicture', []);
@@ -1120,118 +1148,119 @@ class TowerCustomPlayer extends StatelessWidget {
         return MouseRegion(
           onHover: (_) => c.onInteraction(),
           child: KeyboardListener(
-          focusNode: c.focusNode,
-          autofocus: true,
-          onKeyEvent: c.handleKey,
-          child: GestureDetector(
-            onTap: c.onTap,
-            onDoubleTapDown: (d) {
-              final half = context.size!.width / 2;
-              if (d.localPosition.dx < half) {
-                c.doubleTapLeft();
-              } else {
-                c.doubleTapRight();
-              }
-            },
-            child: Stack(
-              children: [
-                // ── Layer 0: Audio-Only overlay ──────────────────────────────
-                Obx(
-                  () => c.isAudioOnly.value
-                      ? const _AudioOnlyOverlay()
-                      : const SizedBox.shrink(),
-                ),
+            focusNode: c.focusNode,
+            autofocus: true,
+            onKeyEvent: c.handleKey,
+            child: GestureDetector(
+              onTap: c.onTap,
+              onDoubleTapDown: (d) {
+                final half = context.size!.width / 2;
+                if (d.localPosition.dx < half) {
+                  c.doubleTapLeft();
+                } else {
+                  c.doubleTapRight();
+                }
+              },
+              child: Stack(
+                children: [
+                  // ── Layer 0: Audio-Only overlay ──────────────────────────────
+                  Obx(
+                    () => c.isAudioOnly.value
+                        ? const _AudioOnlyOverlay()
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 1: Subtitles ───────────────────────────────────────
-                Obx(() {
-                  if (!c.subtitlesEnabled.value) return const SizedBox.shrink();
-                  return Positioned(
-                    bottom: c.controlsVisible.value ? 120 : 60,
-                    left: 40,
-                    right: 40,
-                    child: _SubtitleOverlay(ctrl: c),
-                  );
-                }),
+                  // ── Layer 1: Subtitles ───────────────────────────────────────
+                  Obx(() {
+                    if (!c.subtitlesEnabled.value)
+                      return const SizedBox.shrink();
+                    return Positioned(
+                      bottom: c.controlsVisible.value ? 75 : 20,
+                      left: 16,
+                      right: 16,
+                      child: _SubtitleOverlay(ctrl: c),
+                    );
+                  }),
 
-                // ── Layer 2: Double-tap ripple ───────────────────────────────
-                Obx(
-                  () => c.showDoubleTapLeft.value
-                      ? const _DoubleTapRipple(isLeft: true)
-                      : const SizedBox.shrink(),
-                ),
-                Obx(
-                  () => c.showDoubleTapRight.value
-                      ? const _DoubleTapRipple(isLeft: false)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 2: Double-tap ripple ───────────────────────────────
+                  Obx(
+                    () => c.showDoubleTapLeft.value
+                        ? const _DoubleTapRipple(isLeft: true)
+                        : const SizedBox.shrink(),
+                  ),
+                  Obx(
+                    () => c.showDoubleTapRight.value
+                        ? const _DoubleTapRipple(isLeft: false)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 2: Buffering / State overlay ───────────────────────
-                _StateOverlay(ctrl: c),
+                  // ── Layer 2: Buffering / State overlay ───────────────────────
+                  _StateOverlay(ctrl: c),
 
-                // ── Layer 3: Seek preview tooltip ────────────────────────────
-                Obx(
-                  () => c.seekPreviewVis.value
-                      ? _SeekPreviewTooltip(ctrl: c)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 3: Seek preview tooltip ────────────────────────────
+                  Obx(
+                    () => c.seekPreviewVis.value
+                        ? _SeekPreviewTooltip(ctrl: c)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 4: Toast ───────────────────────────────────────────
-                Obx(
-                  () => c.toastMessage.value.isNotEmpty
-                      ? _Toast(message: c.toastMessage.value)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 4: Toast ───────────────────────────────────────────
+                  Obx(
+                    () => c.toastMessage.value.isNotEmpty
+                        ? _Toast(message: c.toastMessage.value)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 5: Main controls (auto-hide) ───────────────────────
-                Obx(
-                  () => AnimatedOpacity(
-                    duration: const Duration(milliseconds: 250),
-                    opacity: c.controlsVisible.value ? 1.0 : 0.0,
-                    child: AbsorbPointer(
-                      absorbing: !c.controlsVisible.value,
-                      child: _MainControls(ctrl: c),
+                  // ── Layer 5: Main controls (auto-hide) ───────────────────────
+                  Obx(
+                    () => AnimatedOpacity(
+                      duration: const Duration(milliseconds: 250),
+                      opacity: c.controlsVisible.value ? 1.0 : 0.0,
+                      child: AbsorbPointer(
+                        absorbing: !c.controlsVisible.value,
+                        child: _MainControls(ctrl: c),
+                      ),
                     ),
                   ),
-                ),
 
-                // ── Layer 6: Settings panel ───────────────────────────────────
-                Obx(
-                  () => c.settingsOpen.value
-                      ? _SettingsPanel(ctrl: c)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 6: Settings panel ───────────────────────────────────
+                  Obx(
+                    () => c.settingsOpen.value
+                        ? _SettingsPanel(ctrl: c)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 7: Premium Resolution Switching Overlay ─────────────
-                Obx(() {
-                  // Ensure Obx is not empty
-                  c.isAudioOnly.value;
+                  // ── Layer 7: Premium Resolution Switching Overlay ─────────────
+                  Obx(() {
+                    // Ensure Obx is not empty
+                    c.isAudioOnly.value;
 
-                  var isSwitching = false;
-                  var isManual = false;
+                    var isSwitching = false;
+                    var isManual = false;
                     final vc = c.videoController;
                     if (vc != null) {
                       isSwitching = vc.isSwitchingResolution.value;
                       isManual = !vc.isAutoSwitching.value;
                     }
 
-                  // Industry Standard: ONLY show "Optimizing Quality" for manual switches
-                  final showOverlay = isSwitching && isManual;
+                    // Industry Standard: ONLY show "Optimizing Quality" for manual switches
+                    final showOverlay = isSwitching && isManual;
 
-                  return AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: showOverlay ? 1.0 : 0.0,
-                    child: showOverlay 
-                        ? const _SwitchingResolutionOverlay() 
-                        : const SizedBox.shrink(),
-                  );
-                }),
-              ],
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: showOverlay ? 1.0 : 0.0,
+                      child: showOverlay
+                          ? const _SwitchingResolutionOverlay()
+                          : const SizedBox.shrink(),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
   }
 }
 
@@ -1358,7 +1387,10 @@ class _AudioOnlyOverlay extends StatelessWidget {
                   : null;
               return Text(
                 svc?.currentTrackTitle.value ?? '',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                ),
                 textAlign: TextAlign.center,
               );
             }),
@@ -1445,7 +1477,9 @@ class _StateOverlay extends StatelessWidget {
       var isAutoSwitching = false;
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-          isAutoSwitching = Get.find<VideoController>(tag: ctrl.tag).isAutoSwitching.value;
+          isAutoSwitching = Get.find<VideoController>(
+            tag: ctrl.tag,
+          ).isAutoSwitching.value;
         }
       } catch (_) {}
 
@@ -1527,7 +1561,10 @@ class _StateOverlay extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               ctrl.vv.errorDescription ?? 'An unknown error occurred',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -1625,49 +1662,49 @@ class _SeekPreviewTooltip extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                Positioned(
-                  left: xPx - 52,
-                  top: 0,
-                  child: Column(
-                    children: [
-                      Container(
-                      width: 104,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: PT.surface,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: PT.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.bgPage.withValues(alpha: 0.6),
-                            blurRadius: 12,
+                  Positioned(
+                    left: xPx - 52,
+                    top: 0,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 104,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        _fmtDuration(pos),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          decoration: BoxDecoration(
+                            color: PT.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: PT.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.bgPage.withValues(alpha: 0.6),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            _fmtDuration(pos),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
                 ],
               ),
             );
-        },
-      ),
-    );
-  });
-}
+          },
+        ),
+      );
+    });
+  }
 
   String _fmtDuration(Duration d) {
     final h = d.inHours;
@@ -1690,27 +1727,71 @@ class _SubtitleOverlay extends StatelessWidget {
       final text = ctrl.currentSubtitle.value;
       if (text.isEmpty) return const SizedBox.shrink();
 
-      return Center(
+      final mediaQuery = MediaQuery.of(context);
+      final isMobile = mediaQuery.size.width < 600;
+
+      final fontSizeOpt =
+          TowerPlayerController.globalSubtitleFontSizeOption.value;
+      double baseFontSize = 16.0;
+      if (fontSizeOpt == 'Small') {
+        baseFontSize = 13.0;
+      } else if (fontSizeOpt == 'Large') {
+        baseFontSize = 19.0;
+      } else if (fontSizeOpt == 'Extra Large') {
+        baseFontSize = 23.0;
+      }
+      final fontSize = isMobile
+          ? (baseFontSize * 0.85).clamp(11.0, 22.0)
+          : baseFontSize;
+
+      final textColor = TowerPlayerController.globalSubtitleTextColor.value;
+      final bgColor = TowerPlayerController.globalSubtitleBgColor.value;
+      final bgOpacity = TowerPlayerController.globalSubtitleBgOpacity.value;
+      final edgeStyle = TowerPlayerController.globalSubtitleEdgeStyle.value;
+      final fontFamily = TowerPlayerController.globalSubtitleFontFamily.value;
+
+      List<Shadow> shadows = const [];
+      if (edgeStyle == 'Drop Shadow') {
+        shadows = const [
+          Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+        ];
+      } else if (edgeStyle == 'Raised') {
+        shadows = const [
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, -1)),
+          Shadow(blurRadius: 3, color: Colors.black, offset: Offset(2, 2)),
+        ];
+      } else if (edgeStyle == 'Outline') {
+        shadows = const [
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, -1)),
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, -1)),
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, 1)),
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, 1)),
+        ];
+      }
+
+      return Align(
+        alignment: Alignment.bottomCenter,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 10 : 14,
+            vertical: isMobile ? 4 : 6,
+          ),
           decoration: BoxDecoration(
-            color: AppColors.bgPage.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(8),
+            color: bgColor.withValues(alpha: bgOpacity),
+            borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TowerPlayerController.getSubtitleTextStyle(
+              fontFamily: fontFamily,
+              color: textColor,
+              fontSize: fontSize,
               fontWeight: FontWeight.w500,
-              shadows: [
-                Shadow(
-                  blurRadius: 4,
-                  color: AppColors.bgPage,
-                  offset: Offset(1, 1),
-                ),
-              ],
+              height: 1.2,
+              shadows: shadows,
             ),
           ),
         ),
@@ -2006,7 +2087,7 @@ class _NetworkBadge extends StatelessWidget {
       case NetworkQuality.good:
         return Colors.lightGreenAccent;
       case NetworkQuality.fair:
-        return Colors.yellowAccent;
+        return AppColors.brandHover;
       case NetworkQuality.poor:
         return AppColors.warning;
       case NetworkQuality.terrible:
@@ -2035,7 +2116,9 @@ class _AbrBadge extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.textPrimary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.12)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.12),
+            ),
           ),
           child: Text(
             label,
@@ -2122,7 +2205,9 @@ class _ProgressBar extends StatelessWidget {
               // Chapter Markers
               if (ctrl.chapters.isNotEmpty && dur.inMilliseconds > 0)
                 ...ctrl.chapters.skip(1).map((VideoChapter chapter) {
-                  final frac = (chapter.startTime.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
+                  final frac =
+                      (chapter.startTime.inMilliseconds / dur.inMilliseconds)
+                          .clamp(0.0, 1.0);
                   return Align(
                     alignment: Alignment.centerLeft,
                     child: FractionallySizedBox(
@@ -2285,40 +2370,42 @@ class _TimeDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+            style: TextStyle(
+              color: AppColors.textPrimary.withValues(alpha: 0.9),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (ctrl.currentChapter.value != null) ...[
+            const SizedBox(width: 8),
             Text(
-              '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+              '•',
               style: TextStyle(
-                color: AppColors.textPrimary.withValues(alpha: 0.9),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary.withValues(alpha: 0.5),
               ),
             ),
-            if (ctrl.currentChapter.value != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                '•',
-                style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5)),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  ctrl.currentChapter.value!.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: PT.primary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                ctrl.currentChapter.value!.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: PT.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
+            ),
           ],
-        );
-      });
+        ],
+      );
+    });
   }
 }
 
@@ -2579,7 +2666,7 @@ class _QualityPanel extends StatelessWidget {
       // Get available resolutions from VideoController (only what exists in video)
       var availableResolutions = <VideoResolutionV2>[];
       var hasNoResolutions = false;
-      
+
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
           final vc = Get.find<VideoController>(tag: ctrl.tag);
@@ -2648,7 +2735,11 @@ class _QualityPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.speed_rounded, color: AppColors.textTertiary, size: 14),
+                const Icon(
+                  Icons.speed_rounded,
+                  color: AppColors.textTertiary,
+                  size: 14,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Network: ',
@@ -2704,20 +2795,23 @@ class _QualityPanel extends StatelessWidget {
           ...tiers.reversed
               .where((tier) {
                 // Only include tiers that have a matching resolution in the video
-                final hasResolution = availableResolutions
-                    .any((res) => res.height == tier.height);
+                final hasResolution = availableResolutions.any(
+                  (res) => res.height == tier.height,
+                );
                 return hasResolution;
               })
               .map(
                 (tier) => _SelectTile(
                   label: tier.label,
                   sublabel: '${tier.bitrate} kbps',
-                  selected: !ctrl.abr.isAutoMode.value &&
+                  selected:
+                      !ctrl.abr.isAutoMode.value &&
                       ctrl.abr.currentTier.height == tier.height,
                   onTap: () {
                     // Find actual tier index
-                    final tierIndex =
-                        tiers.indexWhere((t) => t.height == tier.height);
+                    final tierIndex = tiers.indexWhere(
+                      (t) => t.height == tier.height,
+                    );
                     if (tierIndex >= 0) {
                       ctrl.selectQuality(tierIndex);
                     }
@@ -2741,7 +2835,7 @@ class _QualityPanel extends StatelessWidget {
       case NetworkQuality.good:
         return AppColors.success;
       case NetworkQuality.fair:
-        return Colors.yellowAccent;
+        return AppColors.brandHover;
       default:
         return PT.primary;
     }
@@ -2752,8 +2846,6 @@ class _QualityPanel extends StatelessWidget {
 class _SubtitlesPanel extends StatelessWidget {
   const _SubtitlesPanel({required this.ctrl});
   final TowerPlayerController ctrl;
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -2810,7 +2902,10 @@ class _SubtitlesPanel extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'No subtitles available',
-                        style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   );
@@ -2866,7 +2961,10 @@ class _LanguagePanel extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'Original audio only',
-                        style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   );
@@ -2957,10 +3055,14 @@ class _RatingPanel extends StatelessWidget {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.textPrimary.withValues(alpha: 0.06),
+                                  color: AppColors.textPrimary.withValues(
+                                    alpha: 0.06,
+                                  ),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: AppColors.textPrimary.withValues(alpha: 0.12),
+                                    color: AppColors.textPrimary.withValues(
+                                      alpha: 0.12,
+                                    ),
                                   ),
                                 ),
                                 child: Text(
@@ -2978,71 +3080,89 @@ class _RatingPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 // NEW: Video Rating Section in Player Settings
-                Builder(builder: (context) {
-                  try {
-                    final vc = Get.find<VideoController>(tag: ctrl.tag);
-                    if (vc.video.videoRating > 0) {
-                      final rating = vc.video.videoRating;
-                      final isHigh = rating > 75;
-                      final statusColor = isHigh ? AppColors.success : AppColors.warning;
-                      
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 20),
-                        child: InkWell(
-                          onTap: () {
-                            ctrl.settingsOpen.value = false;
-                            vc.fetchFullDisclosure();
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.textPrimary.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.verified_user_rounded, color: statusColor, size: 20),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Video Rating: ${rating.toStringAsFixed(1)}%',
-                                        style: const TextStyle(
-                                          color: AppColors.textPrimary,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
+                Builder(
+                  builder: (context) {
+                    try {
+                      final vc = Get.find<VideoController>(tag: ctrl.tag);
+                      if (vc.video.videoRating > 0) {
+                        final rating = vc.video.videoRating;
+                        final isHigh = rating > 75;
+                        final statusColor = isHigh
+                            ? AppColors.success
+                            : AppColors.warning;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 20),
+                          child: InkWell(
+                            onTap: () {
+                              ctrl.settingsOpen.value = false;
+                              vc.fetchFullDisclosure();
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.textPrimary.withValues(
+                                  alpha: 0.05,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.textPrimary.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.verified_user_rounded,
+                                    color: statusColor,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Video Rating: ${rating.toStringAsFixed(1)}%',
+                                          style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
-                                      const Text(
-                                        'AI Verified Content',
-                                        style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
-                                      ),
-                                    ],
+                                        const Text(
+                                          'AI Verified Content',
+                                          style: TextStyle(
+                                            color: AppColors.textTertiary,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                const Text(
-                                  'VIEW REPORT',
-                                  style: TextStyle(
-                                    color: PT.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                                  const Text(
+                                    'VIEW REPORT',
+                                    style: TextStyle(
+                                      color: PT.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }
-                  } catch (_) {}
-                  return const SizedBox.shrink();
-                }),
+                        );
+                      }
+                    } catch (_) {}
+                    return const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
           ),
@@ -3284,7 +3404,9 @@ class _SettingsTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: PT.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: PT.primary.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: PT.primary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Text(
                     badge!,
@@ -3299,10 +3421,17 @@ class _SettingsTile extends StatelessWidget {
               ],
               Text(
                 value,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 18),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textDisabled,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -3431,7 +3560,9 @@ class _SelectTile extends StatelessWidget {
                       Text(
                         sublabel!,
                         style: TextStyle(
-                          color: dimmed ? AppColors.bgDivider : AppColors.textTertiary,
+                          color: dimmed
+                              ? AppColors.bgDivider
+                              : AppColors.textTertiary,
                           fontSize: 11,
                         ),
                       ),
@@ -3461,9 +3592,3 @@ class _Divider extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

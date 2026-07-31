@@ -17,7 +17,11 @@ class SavedCommentModel {
       id: docId,
       text: map['text'] ?? '',
       userName: map['userName'] ?? map['displayName'] ?? 'User',
-      userImage: map['userImage'] ?? map['avatarUrl'] ?? map['userProfilePicUrl'] ?? '',
+      userImage:
+          map['userImage'] ??
+          map['avatarUrl'] ??
+          map['userProfilePicUrl'] ??
+          '',
       sourceType: map['sourceType'] ?? 'video',
       sourceId: map['sourceId'] ?? '',
       sourceTitle: map['sourceTitle'] ?? map['title'] ?? '',
@@ -37,12 +41,12 @@ class SavedCommentModel {
   final DateTime savedAt;
 
   Map<String, dynamic> toMap() => {
-        'text': text,
-        'userName': userName,
-        'userImage': userImage,
-        'sourceType': sourceType,
-        'sourceId': sourceId,
-        'sourceTitle': sourceTitle,
-        'savedAt': Timestamp.fromDate(savedAt),
-      };
+    'text': text,
+    'userName': userName,
+    'userImage': userImage,
+    'sourceType': sourceType,
+    'sourceId': sourceId,
+    'sourceTitle': sourceTitle,
+    'savedAt': Timestamp.fromDate(savedAt),
+  };
 }

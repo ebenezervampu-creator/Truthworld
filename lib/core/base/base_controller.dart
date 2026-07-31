@@ -64,7 +64,9 @@ abstract class BaseController extends GetxController {
   }
 
   void logDispose() {
-    debugPrint('⚫ [Controller Dispose] $runtimeType disposed (${workers.length} workers cleaned)');
+    debugPrint(
+      '⚫ [Controller Dispose] $runtimeType disposed (${workers.length} workers cleaned)',
+    );
   }
 
   void logApi(String endpoint) {
@@ -85,7 +87,9 @@ abstract class BaseController extends GetxController {
 
   void setViewState(ViewState state) {
     if (rxState.value != state) {
-      debugPrint('🔄 [ViewState Transition] $runtimeType: ${rxState.value.name} -> ${state.name}');
+      debugPrint(
+        '🔄 [ViewState Transition] $runtimeType: ${rxState.value.name} -> ${state.name}',
+      );
       rxState.value = state;
     }
   }
@@ -125,50 +129,60 @@ abstract class BaseController extends GetxController {
     if (state == ViewState.error) setViewState(ViewState.idle);
   }
 
+  void _presentSnackbar(
+    String title,
+    String message, {
+    bool isError = false,
+    bool isWarning = false,
+  }) {
+    if (Get.context == null) return;
+    try {
+      final theme = Get.theme;
+      final bg = isError
+          ? theme.colorScheme.errorContainer
+          : isWarning
+          ? theme.colorScheme.tertiaryContainer
+          : theme.colorScheme.primaryContainer;
+      final fg = isError
+          ? theme.colorScheme.onErrorContainer
+          : isWarning
+          ? theme.colorScheme.onTertiaryContainer
+          : theme.colorScheme.onPrimaryContainer;
+
+      Get.snackbar(
+        title,
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: bg,
+        colorText: fg,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      debugPrint(
+        '⚠️ [BaseController] Suppressed snackbar in non-UI context: $e',
+      );
+    }
+  }
+
   void handleError(dynamic error) {
     var message = error.toString();
     if (error is AppException) {
       message = error.message;
     }
     setError(message);
-
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Get.theme.colorScheme.errorContainer,
-      colorText: Get.theme.colorScheme.onErrorContainer,
-    );
+    _presentSnackbar('Error', message, isError: true);
   }
 
   void showSuccess(String message) {
-    Get.snackbar(
-      'Success',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Get.theme.colorScheme.primaryContainer,
-      colorText: Get.theme.colorScheme.onPrimaryContainer,
-    );
+    _presentSnackbar('Success', message);
   }
 
   void showError(String message) {
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Get.theme.colorScheme.errorContainer,
-      colorText: Get.theme.colorScheme.onErrorContainer,
-    );
+    _presentSnackbar('Error', message, isError: true);
   }
 
   void showWarning(String message) {
-    Get.snackbar(
-      'Warning',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Get.theme.colorScheme.tertiaryContainer,
-      colorText: Get.theme.colorScheme.onTertiaryContainer,
-    );
+    _presentSnackbar('Warning', message, isWarning: true);
   }
 
   /// Execute an async function returning a `Result<T>` with automatic UI state transitions
@@ -196,7 +210,9 @@ abstract class BaseController extends GetxController {
       return Result.failure(e);
     } catch (e) {
       handleError(e);
-      return Result.failure(GenericAppException(message: e.toString(), originalException: e));
+      return Result.failure(
+        GenericAppException(message: e.toString(), originalException: e),
+      );
     }
   }
 
@@ -210,7 +226,9 @@ abstract class BaseController extends GetxController {
       if (showLoading && isItemsEmpty) setViewState(ViewState.loading);
       await task();
       if (state == ViewState.loading) setViewState(ViewState.success);
-      if (isItemsEmpty && state != ViewState.error && state != ViewState.cancelled) {
+      if (isItemsEmpty &&
+          state != ViewState.error &&
+          state != ViewState.cancelled) {
         setViewState(ViewState.empty);
       }
     } on OperationCancelledException catch (e) {
@@ -226,6 +244,10 @@ abstract class BaseController extends GetxController {
     bool showLoading = true,
     String? loadingMessage,
   }) async {
-    await safeExecute(task, showLoading: showLoading, loadingMessage: loadingMessage);
+    await safeExecute(
+      task,
+      showLoading: showLoading,
+      loadingMessage: loadingMessage,
+    );
   }
 }

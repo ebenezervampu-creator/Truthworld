@@ -43,25 +43,52 @@ void main() {
               webProvider: ReCaptchaEnterpriseProvider(
                 '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
               ),
-              androidProvider: kDebugMode
-                  ? AndroidProvider.debug
-                  : AndroidProvider.playIntegrity,
+              androidProvider: AndroidProvider.debug,
               appleProvider: kDebugMode
                   ? AppleProvider.debug
                   : AppleProvider.deviceCheck,
             );
+            await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+            if (kDebugMode) {
+              try {
+                final token = await FirebaseAppCheck.instance.getToken();
+                logger.info(
+                  'Firebase App Check Debug Token: $token',
+                  tag: 'Startup',
+                );
+              } catch (e) {
+                logger.warning(
+                  'Could not retrieve App Check debug token: $e',
+                  tag: 'Startup',
+                );
+              }
+            }
           } catch (e) {
-            logger.error('Firebase App Check initialization error: $e', tag: 'Startup');
+            logger.error(
+              'Firebase App Check initialization error: $e',
+              tag: 'Startup',
+            );
           }
         } on FirebaseException catch (e) {
-          logger.error('Firebase initialization error: ${e.code}', tag: 'Firebase', error: e);
+          logger.error(
+            'Firebase initialization error: ${e.code}',
+            tag: 'Firebase',
+            error: e,
+          );
           rethrow;
         }
 
         if (!kIsWeb) {
-          await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
-          FirebaseCrashlytics.instance.setCustomKey('platform', defaultTargetPlatform.name);
-          await FirebasePerformance.instance.setPerformanceCollectionEnabled(!kDebugMode);
+          await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+            !kDebugMode,
+          );
+          FirebaseCrashlytics.instance.setCustomKey(
+            'platform',
+            defaultTargetPlatform.name,
+          );
+          await FirebasePerformance.instance.setPerformanceCollectionEnabled(
+            !kDebugMode,
+          );
         }
 
         await GetStorage.init().catchError((e) {
@@ -84,17 +111,22 @@ void main() {
           }
         }
 
-        runApp(const Truthworld(
-          overrideInitialRoute: '/admin',
-          title: 'Truthworld Admin',
-        ));
+        runApp(
+          const Truthworld(
+            overrideInitialRoute: '/admin',
+            title: 'Truthworld Admin',
+          ),
+        );
 
         Future.wait([
           Get.find<AppService>().init(),
           Get.find<ConnectivityService>().init(),
           Get.find<PushNotificationService>().init(),
         ]).then((_) {
-          logger.info('All Admin background services initialized', tag: 'Startup');
+          logger.info(
+            'All Admin background services initialized',
+            tag: 'Startup',
+          );
         });
       } catch (error, stackTrace) {
         logger.wtf(

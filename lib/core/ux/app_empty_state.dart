@@ -57,9 +57,10 @@ class ActionButtonController extends GetxController {
 
 /// Premium empty state widget for all list/grid screens.
 class AppEmptyState extends StatelessWidget {
-
   const AppEmptyState({
-    required this.icon, required this.title, super.key,
+    required this.icon,
+    required this.title,
+    super.key,
     this.subtitle,
     this.actionLabel,
     this.onAction,
@@ -93,81 +94,83 @@ class AppEmptyState extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                    // Animated Icon Container
-                    ScaleTransition(
-                      scale: controller.scaleAnimation,
-                      child: Container(
-                        width: iconSize + 40,
-                        height: iconSize + 40,
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [
-                              AppColors.brand.withValues(alpha: 0.08),
-                              AppColors.brand.withValues(alpha: 0.02),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.6, 1.0],
+                      // Animated Icon Container
+                      ScaleTransition(
+                        scale: controller.scaleAnimation,
+                        child: Container(
+                          width: iconSize + 40,
+                          height: iconSize + 40,
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.brand.withValues(alpha: 0.08),
+                                AppColors.brand.withValues(alpha: 0.02),
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.6, 1.0],
+                            ),
+                            shape: BoxShape.circle,
                           ),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Icon(
-                            icon,
-                            size: iconSize,
-                            color: AppColors.textTertiary.withValues(
-                              alpha: 0.6,
+                          child: Center(
+                            child: Icon(
+                              icon,
+                              size: iconSize,
+                              color: AppColors.textTertiary.withValues(
+                                alpha: 0.6,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                    // Title
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.titleLarge.copyWith(
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-
-                    // Subtitle
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        child: Text(
-                          subtitle!,
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
-                            height: 1.5,
-                          ),
+                      // Title
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.titleLarge.copyWith(
+                          letterSpacing: -0.3,
                         ),
                       ),
-                    ],
 
-                    // Action Button
-                    if (actionLabel != null && onAction != null) ...[
-                      const SizedBox(height: 28),
-                      _ActionButton(label: actionLabel!, onPressed: onAction!),
+                      // Subtitle
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 8),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          child: Text(
+                            subtitle!,
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      // Action Button
+                      if (actionLabel != null && onAction != null) ...[
+                        const SizedBox(height: 28),
+                        _ActionButton(
+                          label: actionLabel!,
+                          onPressed: onAction!,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
   }
 }
 
 class _ActionButton extends StatelessWidget {
-
   const _ActionButton({required this.label, required this.onPressed});
   final String label;
   final VoidCallback onPressed;

@@ -6,15 +6,22 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Professional Comment Card Widget (Industry Standard)
 /// Displays a single comment with like/dislike/reply functionality
 class CommentCardWidget extends StatefulWidget {
-
   const CommentCardWidget({
-    required this.comment, required this.onLike, required this.onDislike, required this.onReply, required this.isLiked, required this.isDisliked, required this.isCreatorComment, super.key,
+    required this.comment,
+    required this.onLike,
+    required this.onDislike,
+    required this.onReply,
+    required this.isLiked,
+    required this.isDisliked,
+    required this.isCreatorComment,
+    super.key,
     this.onShowReplies,
     this.replyCount = 0,
   });
@@ -33,9 +40,112 @@ class CommentCardWidget extends StatefulWidget {
 }
 
 class _CommentCardWidgetState extends State<CommentCardWidget> {
-
   @override
   Widget build(BuildContext context) {
+    final isDonated =
+        widget.comment.isDonatedComment || widget.comment.donationAmount > 0;
+    final donationColor = isDonated
+        ? (widget.comment.donationColorHex != null
+              ? Color(int.parse(widget.comment.donationColorHex!))
+              : const Color(0xFF1E88E5))
+        : null;
+
+    if (isDonated) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: AppColors.bgInput,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: donationColor!, width: 1.5),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // YouTube-style Super Thanks Header Banner
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              color: donationColor,
+              child: Row(
+                children: [
+                  UserAvatar(
+                    radius: 16,
+                    photoUrl: widget.comment.avatarUrl,
+                    displayName: widget.comment.displayName,
+                    fontSize: 16,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.comment.displayName,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          _formatTimeAgo(widget.comment.createdAt.toDate()),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.attach_money,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${widget.comment.donationCurrency}${widget.comment.donationAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Comment Body & Interactions
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCommentText(),
+                  const SizedBox(height: 12),
+                  _buildInteractions(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -155,12 +265,18 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 margin: const EdgeInsets.all(16),
                 borderRadius: 12,
                 duration: const Duration(seconds: 2),
-                icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
+                icon: const Icon(
+                  Icons.content_copy_rounded,
+                  color: Colors.white,
+                ),
               );
             } else if (value == 'save') {
               final user = FirebaseAuth.instance.currentUser;
               if (user == null) {
-                Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+                Get.snackbar(
+                  'Authentication Required',
+                  'Please sign in to save comments.',
+                );
                 return;
               }
               final docRef = FirebaseFirestore.instance
@@ -173,7 +289,10 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 final docSnap = await docRef.get();
                 if (docSnap.exists) {
                   await docRef.delete();
-                  Get.snackbar('Removed', 'Comment removed from Saved Comments');
+                  Get.snackbar(
+                    'Removed',
+                    'Comment removed from Saved Comments',
+                  );
                 } else {
                   await docRef.set({
                     'text': widget.comment.text,
@@ -195,7 +314,13 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                     borderRadius: 12,
                     mainButton: TextButton(
                       onPressed: () => Get.toNamed('/saved-comments'),
-                      child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'VIEW',
+                        style: TextStyle(
+                          color: AppColors.brand,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   );
                 }
@@ -211,7 +336,11 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               value: 'copy',
               child: Row(
                 children: [
-                  Icon(Icons.content_copy_rounded, size: 18, color: AppColors.textPrimary),
+                  Icon(
+                    Icons.content_copy_rounded,
+                    size: 18,
+                    color: AppColors.textPrimary,
+                  ),
                   SizedBox(width: 12),
                   Text('Copy text'),
                 ],
@@ -221,7 +350,11 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               value: 'save',
               child: Row(
                 children: [
-                  Icon(Icons.bookmark_outline_rounded, size: 18, color: AppColors.textPrimary),
+                  Icon(
+                    Icons.bookmark_outline_rounded,
+                    size: 18,
+                    color: AppColors.textPrimary,
+                  ),
                   SizedBox(width: 12),
                   Text('Save comment'),
                 ],
@@ -232,7 +365,11 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 value: 'helpful',
                 child: Row(
                   children: [
-                    Icon(Icons.star_outline_rounded, size: 18, color: Colors.white),
+                    Icon(
+                      Icons.star_outline_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                     SizedBox(width: 12),
                     Text('Mark as Helpful'),
                   ],
@@ -242,7 +379,11 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               value: 'report',
               child: Row(
                 children: [
-                  Icon(Icons.flag_outlined, size: 18, color: AppColors.textSecondary),
+                  Icon(
+                    Icons.flag_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                   SizedBox(width: 12),
                   Text('Report'),
                 ],
@@ -259,14 +400,30 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildCommentText() {
+    final formattedData = ClickableUrlText.formatMarkdownLinks(
+      widget.comment.text,
+    );
     return MarkdownBody(
-      data: widget.comment.text,
+      data: formattedData,
       selectable: true,
+      onTapLink: (text, href, title) {
+        final target = href ?? text;
+        if (target.startsWith('mention://')) {
+          final handle = target.replaceFirst('mention://', '@');
+          ClickableUrlText.navigateToChannelByHandle(handle);
+        } else if (target.isNotEmpty) {
+          ClickableUrlText.launchUrlString(target);
+        }
+      },
       styleSheet: MarkdownStyleSheet(
         p: const TextStyle(
           fontSize: 13,
           color: AppColors.textPrimary,
           height: 1.5,
+        ),
+        a: const TextStyle(
+          color: Color(0xFF3EA6FF),
+          decoration: TextDecoration.underline,
         ),
       ),
     );
@@ -290,9 +447,13 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                widget.isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+                widget.isLiked
+                    ? Icons.thumb_up_rounded
+                    : Icons.thumb_up_outlined,
                 size: 16,
-                color: widget.isLiked ? AppColors.brand : AppColors.textSecondary,
+                color: widget.isLiked
+                    ? AppColors.brand
+                    : AppColors.textSecondary,
               ),
               const SizedBox(width: 4),
               Text(
@@ -301,8 +462,12 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                     : 'Like',
                 style: TextStyle(
                   fontSize: 12,
-                  color: widget.isLiked ? AppColors.brand : AppColors.textSecondary,
-                  fontWeight: widget.isLiked ? FontWeight.w600 : FontWeight.w500,
+                  color: widget.isLiked
+                      ? AppColors.brand
+                      : AppColors.textSecondary,
+                  fontWeight: widget.isLiked
+                      ? FontWeight.w600
+                      : FontWeight.w500,
                 ),
               ),
             ],
@@ -320,9 +485,13 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                widget.isDisliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+                widget.isDisliked
+                    ? Icons.thumb_down_rounded
+                    : Icons.thumb_down_outlined,
                 size: 16,
-                color: widget.isDisliked ? AppColors.brand : AppColors.textSecondary,
+                color: widget.isDisliked
+                    ? AppColors.brand
+                    : AppColors.textSecondary,
               ),
               const SizedBox(width: 4),
               Text(
@@ -331,8 +500,12 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                     : 'Dislike',
                 style: TextStyle(
                   fontSize: 12,
-                  color: widget.isDisliked ? AppColors.brand : AppColors.textSecondary,
-                  fontWeight: widget.isDisliked ? FontWeight.w600 : FontWeight.w500,
+                  color: widget.isDisliked
+                      ? AppColors.brand
+                      : AppColors.textSecondary,
+                  fontWeight: widget.isDisliked
+                      ? FontWeight.w600
+                      : FontWeight.w500,
                 ),
               ),
             ],
@@ -465,9 +638,3 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
     }
   }
 }
-
-
-
-
-
-

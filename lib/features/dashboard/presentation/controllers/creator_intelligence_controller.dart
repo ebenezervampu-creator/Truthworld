@@ -5,7 +5,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
 class CreatorIntelligenceController extends GetxController {
-
   CreatorIntelligenceController({
     required this.channelId,
     required this.creatorId,
@@ -52,22 +51,24 @@ class CreatorIntelligenceController extends GetxController {
         .limit(200)
         .snapshots()
         .listen(
-      (snapshot) {
-        if (snapshot.docs.isNotEmpty) {
-          final list = snapshot.docs.map(UserNotification.fromDocumentSnapshot).toList();
-          notifications.value = list;
-          unreadCount.value = list.where((n) => !n.read).length;
-        } else {
-          // Fallback to legacy user_notifications if active subcollection is empty
-          _listenToLegacyNotifications();
-        }
-        isLoading.value = false;
-      },
-      onError: (err) {
-        debugPrint('[CreatorIntelligence] Firestore Stream Error: $err');
-        _listenToLegacyNotifications();
-      },
-    );
+          (snapshot) {
+            if (snapshot.docs.isNotEmpty) {
+              final list = snapshot.docs
+                  .map(UserNotification.fromDocumentSnapshot)
+                  .toList();
+              notifications.value = list;
+              unreadCount.value = list.where((n) => !n.read).length;
+            } else {
+              // Fallback to legacy user_notifications if active subcollection is empty
+              _listenToLegacyNotifications();
+            }
+            isLoading.value = false;
+          },
+          onError: (err) {
+            debugPrint('[CreatorIntelligence] Firestore Stream Error: $err');
+            _listenToLegacyNotifications();
+          },
+        );
   }
 
   void _listenToLegacyNotifications() {
@@ -78,14 +79,17 @@ class CreatorIntelligenceController extends GetxController {
         .limit(100)
         .get()
         .then((snapshot) {
-      final list = snapshot.docs.map(UserNotification.fromDocumentSnapshot).toList();
-      notifications.value = list;
-      unreadCount.value = list.where((n) => !n.read).length;
-      isLoading.value = false;
-    }).catchError((err) {
-      debugPrint('[CreatorIntelligence] Legacy Fetch Error: $err');
-      isLoading.value = false;
-    });
+          final list = snapshot.docs
+              .map(UserNotification.fromDocumentSnapshot)
+              .toList();
+          notifications.value = list;
+          unreadCount.value = list.where((n) => !n.read).length;
+          isLoading.value = false;
+        })
+        .catchError((err) {
+          debugPrint('[CreatorIntelligence] Legacy Fetch Error: $err');
+          isLoading.value = false;
+        });
   }
 
   List<UserNotification> get filteredNotifications {
@@ -93,10 +97,12 @@ class CreatorIntelligenceController extends GetxController {
 
     // Sort by rankingScore first (critical priority items), then createdAt
     result.sort((a, b) {
-      if (a.priority == NotificationPriority.critical && b.priority != NotificationPriority.critical) {
+      if (a.priority == NotificationPriority.critical &&
+          b.priority != NotificationPriority.critical) {
         return -1;
       }
-      if (b.priority == NotificationPriority.critical && a.priority != NotificationPriority.critical) {
+      if (b.priority == NotificationPriority.critical &&
+          a.priority != NotificationPriority.critical) {
         return 1;
       }
       return b.createdAt.compareTo(a.createdAt);
@@ -105,25 +111,52 @@ class CreatorIntelligenceController extends GetxController {
     if (selectedCategory.value != 'all') {
       final cat = selectedCategory.value.toLowerCase();
       if (cat == 'critical') {
-        result = result.where((n) => n.priority == NotificationPriority.critical || n.severity == NotificationSeverity.priority).toList();
+        result = result
+            .where(
+              (n) =>
+                  n.priority == NotificationPriority.critical ||
+                  n.severity == NotificationSeverity.priority,
+            )
+            .toList();
       } else if (cat == 'growth') {
-        result = result.where((n) => n.category == 'growth' || n.type.contains('milestone')).toList();
+        result = result
+            .where(
+              (n) => n.category == 'growth' || n.type.contains('milestone'),
+            )
+            .toList();
       } else if (cat == 'verification') {
-        result = result.where((n) => n.category == 'verification' || n.type.contains('verification')).toList();
+        result = result
+            .where(
+              (n) =>
+                  n.category == 'verification' ||
+                  n.type.contains('verification'),
+            )
+            .toList();
       } else if (cat == 'performance') {
-        result = result.where((n) => n.category == 'analytics' || n.type.contains('performance') || n.type.contains('retention')).toList();
+        result = result
+            .where(
+              (n) =>
+                  n.category == 'analytics' ||
+                  n.type.contains('performance') ||
+                  n.type.contains('retention'),
+            )
+            .toList();
       } else if (cat == 'coach') {
-        result = result.where((n) => n.category == 'education' || n.type.contains('coach')).toList();
+        result = result
+            .where((n) => n.category == 'education' || n.type.contains('coach'))
+            .toList();
       }
     }
 
     if (searchQuery.value.isNotEmpty) {
       final query = searchQuery.value.toLowerCase();
       result = result
-          .where((n) =>
-              n.title.toLowerCase().contains(query) ||
-              n.message.toLowerCase().contains(query) ||
-              n.type.toLowerCase().contains(query))
+          .where(
+            (n) =>
+                n.title.toLowerCase().contains(query) ||
+                n.message.toLowerCase().contains(query) ||
+                n.type.toLowerCase().contains(query),
+          )
           .toList();
     }
 
@@ -139,14 +172,18 @@ class CreatorIntelligenceController extends GetxController {
   List<UserNotification> get thisWeekNotifications =>
       filteredNotifications.where((n) => n.isThisWeek).toList();
 
-  List<UserNotification> get earlierNotifications =>
-      filteredNotifications.where((n) => !n.isToday && !n.isYesterday && !n.isThisWeek).toList();
+  List<UserNotification> get earlierNotifications => filteredNotifications
+      .where((n) => !n.isToday && !n.isYesterday && !n.isThisWeek)
+      .toList();
 
   Future<void> markAsRead(String notificationId) async {
     try {
       final index = notifications.indexWhere((n) => n.id == notificationId);
       if (index != -1) {
-        notifications[index] = notifications[index].copyWith(read: true, status: NotificationLifecycle.read);
+        notifications[index] = notifications[index].copyWith(
+          read: true,
+          status: NotificationLifecycle.read,
+        );
         unreadCount.value = notifications.where((n) => !n.read).length;
       }
 
@@ -163,7 +200,11 @@ class CreatorIntelligenceController extends GetxController {
 
   Future<void> markAllAsRead() async {
     try {
-      notifications.value = notifications.map((n) => n.copyWith(read: true, status: NotificationLifecycle.read)).toList();
+      notifications.value = notifications
+          .map(
+            (n) => n.copyWith(read: true, status: NotificationLifecycle.read),
+          )
+          .toList();
       unreadCount.value = 0;
 
       final snap = await _firestore
@@ -185,7 +226,9 @@ class CreatorIntelligenceController extends GetxController {
 
   Future<void> archiveNotification(String notificationId) async {
     try {
-      final notif = notifications.firstWhereOrNull((n) => n.id == notificationId);
+      final notif = notifications.firstWhereOrNull(
+        (n) => n.id == notificationId,
+      );
       notifications.removeWhere((n) => n.id == notificationId);
       unreadCount.value = notifications.where((n) => !n.read).length;
 
@@ -212,7 +255,10 @@ class CreatorIntelligenceController extends GetxController {
 
   Future<Map<String, dynamic>?> fetchVerificationReport(String reportId) async {
     try {
-      final doc = await _firestore.collection('verificationReports').doc(reportId).get();
+      final doc = await _firestore
+          .collection('verificationReports')
+          .doc(reportId)
+          .get();
       if (doc.exists) {
         return doc.data();
       }

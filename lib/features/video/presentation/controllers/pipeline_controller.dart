@@ -1,4 +1,3 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/content_verification.dart';
@@ -433,8 +432,3 @@ class PipelineController extends GetxController {
     return PipelineService.getTemplates();
   }
 }
-
-
-
-
-

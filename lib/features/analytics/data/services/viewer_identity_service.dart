@@ -100,7 +100,10 @@ class ViewerIdentityService extends GetxService {
       _cachedDeviceFingerprint = rawFingerprint;
       return rawFingerprint;
     } catch (e) {
-      logger.warning('Device fingerprint failed, using install ID: $e', tag: _tag);
+      logger.warning(
+        'Device fingerprint failed, using install ID: $e',
+        tag: _tag,
+      );
       return _getOrCreateInstallId();
     }
   }
@@ -110,7 +113,8 @@ class ViewerIdentityService extends GetxService {
     final storage = GetStorage();
     var installId = storage.read<String>(_installIdKey);
     if (installId == null || installId.isEmpty) {
-      installId = 'install_${DateTime.now().microsecondsSinceEpoch}_${identityHashCode(this)}';
+      installId =
+          'install_${DateTime.now().microsecondsSinceEpoch}_${identityHashCode(this)}';
       try {
         storage.write(_installIdKey, installId);
       } catch (_) {}
@@ -133,7 +137,8 @@ class ViewerIdentityService extends GetxService {
   Future<String> generateDedupKey(String videoId) async {
     final identity = await getViewerIdentity();
     final today = DateTime.now();
-    final dateKey = '${today.year}_${today.month.toString().padLeft(2, '0')}_${today.day.toString().padLeft(2, '0')}';
+    final dateKey =
+        '${today.year}_${today.month.toString().padLeft(2, '0')}_${today.day.toString().padLeft(2, '0')}';
     return '${videoId}_${identity}_$dateKey';
   }
 
@@ -143,8 +148,3 @@ class ViewerIdentityService extends GetxService {
     _cachedDeviceFingerprint = null;
   }
 }
-
-
-
-
-

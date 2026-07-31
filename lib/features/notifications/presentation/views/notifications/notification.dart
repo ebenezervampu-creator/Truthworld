@@ -11,6 +11,7 @@ import 'package:truthworld/features/notifications/data/models/user_notification.
 import 'package:truthworld/features/notifications/presentation/controllers/user_notification_controller.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // Extension for capitalize (top-level)
@@ -118,7 +119,8 @@ class _VideoFeedNotificationScreenState
               SliverToBoxAdapter(child: _buildPillTabs()),
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
               Obx(() {
-                if (controller.isLoading.value || userNotificationController.isLoading.value) {
+                if (controller.isLoading.value ||
+                    userNotificationController.isLoading.value) {
                   return SliverFillRemaining(child: _buildLoadingState());
                 }
 
@@ -146,33 +148,40 @@ class _VideoFeedNotificationScreenState
         icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
         onPressed: Get.back,
       ),
-      title: Obx(() => controller.isSearching.value
-          ? _buildSearchBar()
-          : const Text(
-              'Notifications',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+      title: Obx(
+        () => controller.isSearching.value
+            ? _buildSearchBar()
+            : const Text(
+                'Notifications',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            )),
+      ),
       actions: [
-        Obx(() => IconButton(
-              icon: Icon(
-                controller.isSearching.value
-                    ? Icons.close_rounded
-                    : Icons.search_rounded,
-                color: AppColors.textPrimary,
-              ),
-              onPressed: () {
-                controller.toggleSearching();
-                if (!controller.isSearching.value) {
-                  _searchController.clear();
-                }
-              },
-            )),
+        Obx(
+          () => IconButton(
+            icon: Icon(
+              controller.isSearching.value
+                  ? Icons.close_rounded
+                  : Icons.search_rounded,
+              color: AppColors.textPrimary,
+            ),
+            onPressed: () {
+              controller.toggleSearching();
+              if (!controller.isSearching.value) {
+                _searchController.clear();
+              }
+            },
+          ),
+        ),
         PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.more_vert_rounded,
+            color: AppColors.textPrimary,
+          ),
           onSelected: (value) {
             if (value == 'mark_all_read') {
               _markAllActiveTabAsRead();
@@ -183,7 +192,11 @@ class _VideoFeedNotificationScreenState
               value: 'mark_all_read',
               child: Row(
                 children: [
-                  Icon(Icons.done_all_rounded, size: 20, color: AppColors.textPrimary),
+                  Icon(
+                    Icons.done_all_rounded,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
                   SizedBox(width: 12),
                   Text('Mark all as read'),
                 ],
@@ -274,11 +287,13 @@ class _VideoFeedNotificationScreenState
           final channelMatch = v.channelName.toLowerCase().contains(query);
           if (!titleMatch && !channelMatch) continue;
         }
-        items.add(_UnifiedNotification(
-          video: v,
-          timestamp: v.uploadedAt.toDate(),
-          isSeen: v.isSeen,
-        ));
+        items.add(
+          _UnifiedNotification(
+            video: v,
+            timestamp: v.uploadedAt.toDate(),
+            isSeen: v.isSeen,
+          ),
+        );
       }
     }
 
@@ -292,15 +307,16 @@ class _VideoFeedNotificationScreenState
         belongsToTab = true; // All tab includes everything
       } else if (activeTab == 1) {
         // Topics tab: only includes new_video_topic/topic notifications
-        belongsToTab = typeLower == 'new_video_topic' || typeLower.contains('topic');
+        belongsToTab =
+            typeLower == 'new_video_topic' || typeLower.contains('topic');
       } else if (activeTab == 2) {
         // Comments tab: social interactions like comments, replies, and comment/video likes, excluding mentions
-        belongsToTab = !isMention && (
-          typeLower.contains('comment') ||
-          typeLower.contains('reply') ||
-          typeLower.contains('like') ||
-          n.typeCategory == 'social'
-        );
+        belongsToTab =
+            !isMention &&
+            (typeLower.contains('comment') ||
+                typeLower.contains('reply') ||
+                typeLower.contains('like') ||
+                n.typeCategory == 'social');
       } else if (activeTab == 3) {
         // Mentions tab
         belongsToTab = isMention;
@@ -314,11 +330,13 @@ class _VideoFeedNotificationScreenState
         if (!titleMatch && !messageMatch) continue;
       }
 
-      items.add(_UnifiedNotification(
-        alert: n,
-        timestamp: n.createdAt,
-        isSeen: n.read,
-      ));
+      items.add(
+        _UnifiedNotification(
+          alert: n,
+          timestamp: n.createdAt,
+          isSeen: n.read,
+        ),
+      );
     }
 
     // Sort by timestamp descending
@@ -346,9 +364,11 @@ class _VideoFeedNotificationScreenState
     final olderItems = <_UnifiedNotification>[];
 
     for (final item in items) {
-      if (item.timestamp.isAfter(todayStart) || item.timestamp.isAtSameMomentAs(todayStart)) {
+      if (item.timestamp.isAfter(todayStart) ||
+          item.timestamp.isAtSameMomentAs(todayStart)) {
         todayItems.add(item);
-      } else if (item.timestamp.isAfter(weekStart) || item.timestamp.isAtSameMomentAs(weekStart)) {
+      } else if (item.timestamp.isAfter(weekStart) ||
+          item.timestamp.isAtSameMomentAs(weekStart)) {
         weekItems.add(item);
       } else {
         olderItems.add(item);
@@ -426,7 +446,9 @@ class _VideoFeedNotificationScreenState
           HapticFeedback.lightImpact();
         },
         child: Container(
-          color: item.isSeen ? Colors.transparent : AppColors.textPrimary.withValues(alpha: 0.05),
+          color: item.isSeen
+              ? Colors.transparent
+              : AppColors.textPrimary.withValues(alpha: 0.05),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,8 +493,10 @@ class _VideoFeedNotificationScreenState
       fallbackIcon = Icons.video_library_rounded;
     } else if (item.alert != null) {
       final metadata = item.alert!.metadata;
-      avatarUrl = metadata?['avatarUrl'] as String? ??
-                  metadata?['userAvatar'] as String? ?? '';
+      avatarUrl =
+          metadata?['avatarUrl'] as String? ??
+          metadata?['userAvatar'] as String? ??
+          '';
 
       switch (item.alert!.severity) {
         case NotificationSeverity.priority:
@@ -585,7 +609,9 @@ class _VideoFeedNotificationScreenState
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textDisabled),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.textDisabled,
+                ),
               ),
             ),
           ),
@@ -624,14 +650,18 @@ class _VideoFeedNotificationScreenState
                   .collection('feed_inbox')
                   .doc(item.video!.id)
                   .delete();
-              controller.notifications.removeWhere((v) => v.id == item.video!.id);
+              controller.notifications.removeWhere(
+                (v) => v.id == item.video!.id,
+              );
               controller.notifications.refresh();
             } else if (item.alert != null) {
               await FirebaseFirestore.instance
                   .collection('user_notifications')
                   .doc(item.alert!.id)
                   .delete();
-              userNotificationController.notifications.removeWhere((a) => a.id == item.alert!.id);
+              userNotificationController.notifications.removeWhere(
+                (a) => a.id == item.alert!.id,
+              );
               userNotificationController.notifications.refresh();
             }
             Get.snackbar(
@@ -894,12 +924,24 @@ class _VideoFeedNotificationScreenState
   }
 
   void _navigateToVideo(Video notification) {
-    Get.toNamed('/watch?v=${notification.id}', arguments: {'video': notification});
+    Get.toNamed(
+      '/watch?v=${notification.id}',
+      arguments: {'video': notification},
+    );
   }
 
   void _navigateToAlertVideo(UserNotification alert) {
-    final videoId = alert.metadata?['videoId'] as String?;
-    if (videoId != null && videoId.isNotEmpty) {
+    final videoId = alert.metadata?['videoId'] as String? ?? alert.id;
+    if (alert.type == 'perspective_flip' && videoId.isNotEmpty) {
+      NotificationService.to.handlePerspectiveFlipNotification(
+        videoId: videoId,
+        commentId: alert.metadata?['commentId'] as String?,
+        replyId: alert.metadata?['replyId'] as String?,
+      );
+      return;
+    }
+
+    if (videoId.isNotEmpty) {
       final mockVideo = Video(
         id: videoId,
         title: alert.title,
@@ -911,11 +953,14 @@ class _VideoFeedNotificationScreenState
         category: 'Alerts',
         tags: const [],
       );
-      Get.toNamed('/watch?v=${mockVideo.id}', arguments: {
-        'video': mockVideo,
-        'commentId': alert.metadata?['commentId'],
-        'replyId': alert.metadata?['replyId'],
-      });
+      Get.toNamed(
+        '/watch?v=${mockVideo.id}',
+        arguments: {
+          'video': mockVideo,
+          'commentId': alert.metadata?['commentId'],
+          'replyId': alert.metadata?['replyId'],
+        },
+      );
     } else if (alert.actionUrl != null && alert.actionUrl!.isNotEmpty) {
       try {
         if (alert.actionUrl!.startsWith('/')) {
@@ -946,9 +991,10 @@ class _VideoFeedNotificationScreenState
 }
 
 class _UnifiedNotification {
-
   _UnifiedNotification({
-    required this.timestamp, required this.isSeen, this.video,
+    required this.timestamp,
+    required this.isSeen,
+    this.video,
     this.alert,
   });
   final Video? video;
@@ -958,7 +1004,6 @@ class _UnifiedNotification {
 }
 
 class _DynamicAvatarController extends GetxController {
-
   _DynamicAvatarController({
     required this.item,
     required this.initialAvatarUrl,
@@ -999,7 +1044,8 @@ class _DynamicAvatarController extends GetxController {
     if (metadata == null) return;
 
     // Check action performer's ID first, instead of the video owner's channelId!
-    final targetId = metadata['subscriberId'] as String? ??
+    final targetId =
+        metadata['subscriberId'] as String? ??
         metadata['likerId'] as String? ??
         metadata['commentAuthorId'] as String? ??
         metadata['senderUserId'] as String? ??
@@ -1041,12 +1087,15 @@ class _DynamicAvatarController extends GetxController {
         _avatarCache[targetId] = url;
         _storage.write(targetId, url);
       }
-      
+
       avatarUrl.value = url;
       isLoading.value = false;
 
       // Update Firestore document metadata so we never hit this fallback again
-      final currentMetaAvatar = metadata['userAvatar'] as String? ?? metadata['avatarUrl'] as String? ?? '';
+      final currentMetaAvatar =
+          metadata['userAvatar'] as String? ??
+          metadata['avatarUrl'] as String? ??
+          '';
       if (currentMetaAvatar.isEmpty && url.isNotEmpty) {
         unawaited(() async {
           try {
@@ -1078,7 +1127,8 @@ class _DynamicAvatarController extends GetxController {
       final data = channelDoc.data();
       if (data != null) {
         return data['avatarUrl'] as String? ??
-            (data['profile'] as Map<String, dynamic>?)?['photoUrl'] as String? ??
+            (data['profile'] as Map<String, dynamic>?)?['photoUrl']
+                as String? ??
             '';
       }
     }
@@ -1102,7 +1152,8 @@ class _DynamicAvatarController extends GetxController {
             final chanData = userChannelDoc.data();
             if (chanData != null) {
               return chanData['avatarUrl'] as String? ??
-                  (chanData['profile'] as Map<String, dynamic>?)?['photoUrl'] as String? ??
+                  (chanData['profile'] as Map<String, dynamic>?)?['photoUrl']
+                      as String? ??
                   '';
             }
           }
@@ -1117,7 +1168,8 @@ class _DynamicAvatarController extends GetxController {
           if (channelsQuery.docs.isNotEmpty) {
             final chanData = channelsQuery.docs.first.data();
             return chanData['avatarUrl'] as String? ??
-                (chanData['profile'] as Map<String, dynamic>?)?['photoUrl'] as String? ??
+                (chanData['profile'] as Map<String, dynamic>?)?['photoUrl']
+                    as String? ??
                 '';
           }
         }
@@ -1133,7 +1185,6 @@ class _DynamicAvatarController extends GetxController {
 }
 
 class _DynamicAvatar extends StatefulWidget {
-
   const _DynamicAvatar({
     required this.item,
     required this.initialAvatarUrl,
@@ -1190,7 +1241,9 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textTertiary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.textTertiary,
+                ),
               ),
             ),
           ),
@@ -1217,7 +1270,9 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textTertiary),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.textTertiary,
+                    ),
                   ),
                 ),
               ),
@@ -1268,10 +1323,3 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
     );
   }
 }
-
-
-
-
-
-
-

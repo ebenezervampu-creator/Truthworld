@@ -8,7 +8,7 @@ class SearchPageController extends BaseController {
   final RxList<Video> searchResults = <Video>[].obs;
   final RxBool isSearching = false.obs;
   final RxList<String> searchHistory = <String>[].obs;
-  
+
   // Hover states for various UI elements (mapped by item ID)
   final RxMap<String, bool> hoverStates = <String, bool>{}.obs;
 
@@ -25,7 +25,7 @@ class SearchPageController extends BaseController {
     try {
       setViewState(ViewState.loading);
       isSearching.value = true;
-      
+
       // Basic search logic using Firestore
       // For high scale, this should ideally be an Algolia or ElasticSearch service
       final snapshot = await FirebaseFirestore.instance
@@ -38,7 +38,9 @@ class SearchPageController extends BaseController {
           .limit(20)
           .get();
 
-      searchResults.assignAll(snapshot.docs.map(Video.fromDocumentSnapshot).toList());
+      searchResults.assignAll(
+        snapshot.docs.map(Video.fromDocumentSnapshot).toList(),
+      );
       setViewState(ViewState.success);
     } catch (e) {
       handleError(e);
@@ -65,8 +67,3 @@ class SearchPageController extends BaseController {
     searchHistory.clear();
   }
 }
-
-
-
-
-

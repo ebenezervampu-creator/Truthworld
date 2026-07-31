@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Base class for all application-specific exceptions
 abstract class AppException implements Exception {
-
   const AppException(this.message, [this.originalException]);
   final String message;
   final dynamic originalException;
@@ -14,13 +13,13 @@ abstract class AppException implements Exception {
 /// TimeoutException custom wrapper for async cancellation
 class TimeoutException extends AppException {
   const TimeoutException({required String message, dynamic originalException})
-      : super(message, originalException);
+    : super(message, originalException);
 }
 
 /// Custom Exception wrapper for cloud Firestore errors
 class FirestoreException extends AppException {
   const FirestoreException({required String message, dynamic originalException})
-      : super(message, originalException);
+    : super(message, originalException);
 
   /// Factory function to parse from basic FirebaseException instances
   factory FirestoreException.fromFirebase(FirebaseException e) {
@@ -33,25 +32,28 @@ class FirestoreException extends AppException {
 
 /// Custom Exception wrapper for validation errors
 class ValidationException extends AppException {
-  const ValidationException({required String message, dynamic originalException})
-      : super(message, originalException);
+  const ValidationException({
+    required String message,
+    dynamic originalException,
+  }) : super(message, originalException);
 }
 
 /// Custom Exception wrapper for network errors
 class NetworkException extends AppException {
   const NetworkException({required String message, dynamic originalException})
-      : super(message, originalException);
+    : super(message, originalException);
 }
 
 /// Custom Exception wrapper for generic errors
 class GenericAppException extends AppException {
-  const GenericAppException({required String message, dynamic originalException})
-      : super(message, originalException);
+  const GenericAppException({
+    required String message,
+    dynamic originalException,
+  }) : super(message, originalException);
 }
 
 /// Custom Exception wrapper for authentication errors
 class AuthException extends AppException {
-
   const AuthException({
     required String message,
     dynamic originalException,
@@ -123,12 +125,13 @@ class GoogleSignInFailedException implements Exception {
 
 /// Thrown when an asynchronous operation is cancelled by the user or system.
 class OperationCancelledException extends AppException {
-  const OperationCancelledException([super.message = 'Operation was cancelled']);
+  const OperationCancelledException([
+    super.message = 'Operation was cancelled',
+  ]);
 }
 
 /// Custom Exception wrapper for user profile errors
 class UserProfileException extends AppException {
-
   const UserProfileException({
     required String message,
     dynamic originalException,
@@ -138,8 +141,13 @@ class UserProfileException extends AppException {
 }
 
 class FriendlyErrorTranslator {
-  static String getFriendlyMessage(Object error, {String? defaultActionMessage}) {
-    final action = defaultActionMessage != null ? ' to $defaultActionMessage' : '';
+  static String getFriendlyMessage(
+    Object error, {
+    String? defaultActionMessage,
+  }) {
+    final action = defaultActionMessage != null
+        ? ' to $defaultActionMessage'
+        : '';
     if (error is AuthException) {
       return error.getDisplayMessage();
     } else if (error is FirestoreException) {

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 class LayoutContainer extends StatelessWidget {
-
   const LayoutContainer({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.maxWidth = 1400,
     this.padding,
     this.alignment = Alignment.center,
@@ -47,9 +46,9 @@ class LayoutContainer extends StatelessWidget {
 /// - Consistent vertical spacing between sections
 /// - Semantic structure
 class ContentSection extends StatelessWidget {
-
   const ContentSection({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.padding,
     this.backgroundColor,
     this.borderRadius,
@@ -86,8 +85,3 @@ class ContentSection extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

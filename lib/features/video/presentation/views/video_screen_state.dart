@@ -1,6 +1,5 @@
 /// Immutable UI state for the video screen.
 class VideoScreenState {
-
   const VideoScreenState({
     required this.isLoadingVideo,
     required this.isLoadingRecommendations,

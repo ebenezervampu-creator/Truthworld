@@ -13,13 +13,11 @@ class PremiumPlansScreen extends StatelessWidget {
     final controller = Get.put(PremiumController());
 
     return Scaffold(
-      backgroundColor: const Color(
-        0xFF0F0F0F,
-      ), // True YouTube dark theme background
+      backgroundColor: const Color(0xFF0F0F0F), // True dark theme background
       appBar: AppBar(
         title: Row(
           children: [
-            // Play Button Icon
+            // Play Button Icon Badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(
@@ -28,15 +26,14 @@ class PremiumPlansScreen extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.play_arrow_rounded,
-                color: AppColors.textPrimary,
+                color: Colors.white,
                 size: 18,
               ),
             ),
             const SizedBox(width: 8),
             const Text(
-              'Premium',
+              'Truthworld Premium',
               style: TextStyle(
-                
                 fontWeight: FontWeight.w600,
                 fontSize: 20,
                 color: AppColors.textPrimary,
@@ -48,7 +45,7 @@ class PremiumPlansScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: Get.back,
         ),
       ),
@@ -63,15 +60,15 @@ class PremiumPlansScreen extends StatelessWidget {
               SingleChildScrollView(
                 child: Column(
                   children: [
-                    // 1. YouTube Premium Landing Hero
-                    _buildYouTubeHeroSection(
+                    // 1. Premium Landing Hero
+                    _buildHeroSection(
                       context,
                       controller,
                       isPremium,
                       currentPlanId,
                     ),
 
-                    // 2. Feature Cards List (YouTube Premium Style)
+                    // 2. Feature Cards List
                     _buildFeatureGrid(context),
 
                     // 3. User Membership Status Panel / Sandbox Panel
@@ -94,16 +91,23 @@ class PremiumPlansScreen extends StatelessWidget {
                       const Text(
                         'Choose the plan that fits you',
                         style: TextStyle(
-                          
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Ad-free videos, offline downloads, background play, and more.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _buildYouTubePlansList(context, controller),
+                        child: _buildPlansList(context, controller),
                       ),
                       const SizedBox(height: 24),
                       Padding(
@@ -117,7 +121,6 @@ class PremiumPlansScreen extends StatelessWidget {
                     const Text(
                       'Compare Free vs Premium',
                       style: TextStyle(
-                        
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -134,7 +137,6 @@ class PremiumPlansScreen extends StatelessWidget {
                     const Text(
                       'Frequently asked questions',
                       style: TextStyle(
-                        
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -160,7 +162,9 @@ class PremiumPlansScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.error,
+                          ),
                         ),
                         SizedBox(height: 16),
                         Text(
@@ -182,28 +186,30 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildYouTubeHeroSection(
+  Widget _buildHeroSection(
     BuildContext context,
     PremiumController controller,
     bool isPremium,
     String? planId,
   ) {
     final selectedId = controller.selectedPlanId.value;
-    var trialText = '7 days free • Then ₹129.00/month';
+    var trialText = '7 days free • Then ₹150/month';
     if (selectedId == 'individual_yearly') {
-      trialText = 'Prepaid plan • ₹1,290.00/year';
+      trialText = 'Prepaid plan • ₹1,500/year (~16% discount)';
     } else if (selectedId == 'family_monthly') {
-      trialText = '7 days free • Then ₹189.00/month';
+      trialText = '7 days free • Then ₹250/month for up to 6 accounts';
     } else if (selectedId == 'student_monthly') {
-      trialText = '7 days free • Then ₹79.00/month';
+      trialText = '7 days free • Then ₹100/month (Verified student rate)';
+    } else if (selectedId == 'creator_pro_monthly') {
+      trialText = '₹300/month • Includes 4K High-Bitrate Upload Priority';
     }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 48),
+      padding: const EdgeInsets.fromLTRB(24, 48, 24, 40),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1F1F1F), Color(0xFF0F0F0F)],
+          colors: [Color(0xFF231815), Color(0xFF0F0F0F)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -214,23 +220,45 @@ class PremiumPlansScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.error,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.play_arrow_rounded,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                   size: 32,
                 ),
               ),
               const SizedBox(width: 12),
               Text(
-                'Premium',
+                'Truthworld',
                 style: context.typography.logo.copyWith(
-                  fontSize: 36,
+                  fontSize: 32,
                   color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'PREMIUM',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.black,
+                    letterSpacing: 1.0,
+                  ),
                 ),
               ),
             ],
@@ -240,34 +268,30 @@ class PremiumPlansScreen extends StatelessWidget {
             'Ad-free, offline, and in the background',
             textAlign: TextAlign.center,
             style: TextStyle(
-              
-              fontSize: 24,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           const Text(
-            'Enjoy Truthworld and Truthworld Music uninterrupted. Plus, get enhanced bitrate 1080p Premium quality.',
+            'Enjoy Truthworld videos and audio uninterrupted. Experience enhanced 1080p Premium resolution, AI dubbing, offline downloads, and background playback.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              
               fontSize: 15,
               color: AppColors.textSecondary,
               height: 1.4,
             ),
           ),
           if (!isPremium) ...[
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             SizedBox(
               width: 280,
               height: 52,
               child: ElevatedButton(
                 onPressed: () => controller.purchasePlan(selectedId),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(
-                    0xFF3EA6FF,
-                  ), // Classic YouTube blue button
+                  backgroundColor: const Color(0xFF3EA6FF),
                   foregroundColor: AppColors.bgPage,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(26),
@@ -275,10 +299,9 @@ class PremiumPlansScreen extends StatelessWidget {
                 ),
                 child: Text(
                   selectedId == 'individual_yearly'
-                      ? 'Get Prepaid Plan'
-                      : 'Try it free',
+                      ? 'Get Prepaid Annual Plan'
+                      : 'Try 7 Days Free',
                   style: const TextStyle(
-                    
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.bgPage,
@@ -289,7 +312,10 @@ class PremiumPlansScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               trialText,
-              style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textTertiary,
+              ),
             ),
             const SizedBox(height: 4),
             const Text(
@@ -303,17 +329,18 @@ class PremiumPlansScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.warning.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.3),
+                ),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.star_rounded, color: AppColors.warning, size: 20),
+                  Icon(Icons.star_rounded, color: Colors.white, size: 20),
                   SizedBox(width: 8),
                   Text(
                     'Active Premium Member',
                     style: TextStyle(
-                      
                       color: AppColors.warning,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -334,30 +361,42 @@ class PremiumPlansScreen extends StatelessWidget {
         icon: Icons.play_disabled_rounded,
         title: 'Ad-free playback',
         description:
-            'Watch videos without interruptions. Enjoy Truthworld videos without ads on your mobile device, tablet, computer, or TV.',
+            'Watch videos without ad interruptions. Enjoy Truthworld videos seamlessly across mobile, desktop, TV, and tablet.',
       ),
       _FeatureItem(
         icon: Icons.download_for_offline_rounded,
         title: 'Download and go',
         description:
-            'Save videos for when you are low on data or cannot get online—like when you are on a plane or commuting.',
+            'Save your favorite videos and playlists offline for when you are traveling or low on internet data.',
       ),
       _FeatureItem(
         icon: Icons.picture_in_picture_rounded,
-        title: 'Background play',
+        title: 'Background play & PiP',
         description:
-            'Keep videos playing when your screen is off or you are using other apps. Listen to your favorite creators while multitasking.',
+            'Keep videos and audio playing when your screen is locked or while multitasking in other apps.',
       ),
       _FeatureItem(
         icon: Icons.hd_rounded,
-        title: 'Enhanced 1080p Quality',
+        title: 'Enhanced Bitrate 1080p & 4K',
         description:
-            'Get extra crisp video quality with our high bitrate 1080p Premium resolution option.',
+            'Experience ultra-crisp video clarity with high bitrate 1080p Premium and 4K Ultra HD streaming options.',
+      ),
+      _FeatureItem(
+        icon: Icons.translate_rounded,
+        title: 'Multilingual AI Dubbing',
+        description:
+            'Unlock instant multilingual AI voice dubbing and auto-translated audio tracks for global video content.',
+      ),
+      _FeatureItem(
+        icon: Icons.workspace_premium_rounded,
+        title: 'Creator Supporter Perks',
+        description:
+            'Get exclusive supporter badges in live chat, priority video upload processing, and channel perks.',
       ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Column(
         children: features.map((feat) {
           return Padding(
@@ -371,7 +410,7 @@ class PremiumPlansScreen extends StatelessWidget {
                     color: Color(0xFF212121),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(feat.icon, color: AppColors.textPrimary, size: 28),
+                  child: Icon(feat.icon, color: Colors.white, size: 28),
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -381,7 +420,6 @@ class PremiumPlansScreen extends StatelessWidget {
                       Text(
                         feat.title,
                         style: const TextStyle(
-                          
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
@@ -391,7 +429,6 @@ class PremiumPlansScreen extends StatelessWidget {
                       Text(
                         feat.description,
                         style: const TextStyle(
-                          
                           fontSize: 13,
                           color: AppColors.textSecondary,
                           height: 1.4,
@@ -416,16 +453,19 @@ class PremiumPlansScreen extends StatelessWidget {
   ) {
     if (isPremium) {
       var planName = 'Individual Monthly';
-      var planPrice = '₹129/month';
+      var planPrice = '₹150/month';
       if (planId == 'individual_yearly') {
-        planName = 'Individual Annual';
-        planPrice = '₹1,290/year';
+        planName = 'Individual Annual (Prepaid)';
+        planPrice = '₹1,500/year';
       } else if (planId == 'family_monthly') {
         planName = 'Family Monthly';
-        planPrice = '₹189/month';
+        planPrice = '₹250/month';
       } else if (planId == 'student_monthly') {
         planName = 'Student Monthly';
-        planPrice = '₹79/month';
+        planPrice = '₹100/month';
+      } else if (planId == 'creator_pro_monthly') {
+        planName = 'Creator Pro Membership';
+        planPrice = '₹300/month';
       }
 
       return Container(
@@ -446,14 +486,13 @@ class PremiumPlansScreen extends StatelessWidget {
               children: [
                 Icon(
                   Icons.check_circle_rounded,
-                  color: AppColors.success,
+                  color: Colors.white,
                   size: 28,
                 ),
                 SizedBox(width: 12),
                 Text(
-                  'Membership details',
+                  'Membership Details',
                   style: TextStyle(
-                    
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -469,7 +508,7 @@ class PremiumPlansScreen extends StatelessWidget {
             _buildInfoRow(
               'Billing Cycle',
               planId == 'individual_yearly'
-                  ? 'Non-recurring (1 year)'
+                  ? 'Non-recurring (1 year prepaid)'
                   : 'Recurring monthly',
             ),
             const SizedBox(height: 24),
@@ -487,7 +526,6 @@ class PremiumPlansScreen extends StatelessWidget {
                 child: const Text(
                   'Cancel Membership',
                   style: TextStyle(
-                    
                     color: AppColors.error,
                     fontWeight: FontWeight.bold,
                   ),
@@ -499,7 +537,7 @@ class PremiumPlansScreen extends StatelessWidget {
       );
     }
 
-    // Developer sandbox simulation card
+    // Developer Sandbox simulation card
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -513,12 +551,11 @@ class PremiumPlansScreen extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.auto_awesome, color: AppColors.warning, size: 20),
+              Icon(Icons.auto_awesome, color: Colors.white, size: 20),
               SizedBox(width: 8),
               Text(
                 'Developer Sandbox Panel',
                 style: TextStyle(
-                  
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textSecondary,
@@ -528,7 +565,7 @@ class PremiumPlansScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Bypass external payment loops and instantly activate/deactivate Premium tiers to test restriction bypasses.',
+            'Instantly toggle Premium activation to verify ad-free playback, offline downloads, and background mode locally.',
             style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
           ),
           const SizedBox(height: 16),
@@ -538,28 +575,29 @@ class PremiumPlansScreen extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(
                 Icons.offline_bolt_rounded,
-                color: AppColors.bgPage,
+                color: Colors.white,
               ),
               label: const Text(
-                'Simulate Upgrade (Unlock)',
+                'Simulate Premium Unlock',
                 style: TextStyle(
-                  
                   color: AppColors.bgPage,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              onPressed: () {
+              onPressed: () async {
                 final auth = AuthService.to;
                 if (!auth.isAuthenticated.value) {
                   AppSnackbar.show(
                     'Authentication Required',
-                    'Please sign in to upgrade.',
+                    'Please sign in to simulate premium upgrade.',
                     snackPosition: SnackPosition.BOTTOM,
                     backgroundColor: AppColors.error,
                     colorText: AppColors.textPrimary,
                   );
                 } else {
-                  controller.upgradeSimulated(controller.selectedPlanId.value);
+                  await controller.upgradeSimulated(
+                    controller.selectedPlanId.value,
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -575,42 +613,50 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildYouTubePlansList(
+  Widget _buildPlansList(
     BuildContext context,
     PremiumController controller,
   ) {
     final plans = [
       _PlanDetails(
         id: 'individual_monthly',
-        title: 'Individual Membership',
-        priceLabel: '₹129.00/month',
-        tagline: '7 days free trial',
+        title: 'Individual Plan',
+        priceLabel: '₹150/month',
+        tagline: '7 Days Free Trial',
         description:
             'Enjoy ad-free streaming, background play, and offline downloads on one account.',
       ),
       _PlanDetails(
         id: 'individual_yearly',
-        title: 'Annual Membership (Prepaid)',
-        priceLabel: '₹1,290.00/year',
-        tagline: 'Save ~17%',
+        title: 'Individual Annual (Prepaid)',
+        priceLabel: '₹1,500/year',
+        tagline: 'Save ~16%',
         description:
-            '12 months of non-recurring premium access. Single checkout payment.',
+            '12 months of non-recurring premium access with a single discounted checkout payment.',
       ),
       _PlanDetails(
         id: 'family_monthly',
-        title: 'Family Membership',
-        priceLabel: '₹189.00/month',
-        tagline: '7 days free trial',
+        title: 'Family Plan',
+        priceLabel: '₹250/month',
+        tagline: '7 Days Free Trial',
         description:
-            'Add up to 5 family members (ages 13+) living in the same household.',
+            'Share with up to 5 family members (ages 13+) living in the same household. Each member gets their own private account recommendations.',
       ),
       _PlanDetails(
         id: 'student_monthly',
-        title: 'Student Membership',
-        priceLabel: '₹79.00/month',
-        tagline: '7 days free trial',
+        title: 'Student Plan',
+        priceLabel: '₹100/month',
+        tagline: '7 Days Free Trial',
         description:
-            'Verifiable student discount for eligible undergraduate/graduate students.',
+            'Verifiable student discount for eligible undergraduate/graduate university students.',
+      ),
+      _PlanDetails(
+        id: 'creator_pro_monthly',
+        title: 'Creator Pro Plan',
+        priceLabel: '₹300/month',
+        tagline: 'For Content Creators',
+        description:
+            'Includes all Premium perks + 4K high bitrate upload priority, exclusive live chat supporter badges, and custom channel tools.',
       ),
     ];
 
@@ -642,14 +688,14 @@ class PremiumPlansScreen extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Radio icon selector
+                // Selection indicator icon
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Icon(
                     isSelected
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off,
-                    color: isSelected ? AppColors.error : AppColors.textSecondary,
+                    color: Colors.white,
                     size: 20,
                   ),
                 ),
@@ -665,7 +711,6 @@ class PremiumPlansScreen extends StatelessWidget {
                             child: Text(
                               plan.title,
                               style: const TextStyle(
-                                
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
@@ -675,10 +720,11 @@ class PremiumPlansScreen extends StatelessWidget {
                           Text(
                             plan.priceLabel.split('/')[0],
                             style: TextStyle(
-                              
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? AppColors.error : AppColors.textPrimary,
+                              color: isSelected
+                                  ? AppColors.error
+                                  : AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -701,7 +747,9 @@ class PremiumPlansScreen extends StatelessWidget {
                             child: Text(
                               plan.tagline,
                               style: TextStyle(
-                                color: isSelected ? AppColors.error : AppColors.textSecondary,
+                                color: isSelected
+                                    ? AppColors.error
+                                    : AppColors.textSecondary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -744,6 +792,8 @@ class PremiumPlansScreen extends StatelessWidget {
     var label = 'Start 7-Day Free Trial';
     if (selectedId == 'individual_yearly') {
       label = 'Get Annual Plan (Prepaid)';
+    } else if (selectedId == 'creator_pro_monthly') {
+      label = 'Upgrade to Creator Pro';
     }
 
     return SizedBox(
@@ -752,8 +802,7 @@ class PremiumPlansScreen extends StatelessWidget {
       child: ElevatedButton(
         onPressed: () => controller.purchasePlan(selectedId),
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors
-              .white, // YouTube styles the primary action button white in dark pages
+          backgroundColor: Colors.white,
           foregroundColor: AppColors.bgPage,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(26),
@@ -762,7 +811,6 @@ class PremiumPlansScreen extends StatelessWidget {
         child: Text(
           label,
           style: const TextStyle(
-            
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: AppColors.bgPage,
@@ -789,15 +837,17 @@ class PremiumPlansScreen extends StatelessWidget {
           },
           children: [
             _buildTableHeaderRow(),
-            _buildTableRow('Ad-free Video Playback', 'With Ads', 'Ad-Free'),
+            _buildTableRow('Ad-free Video & Audio', 'With Ads', 'Ad-Free'),
             _buildTableRow('Offline Downloads', 'No', 'Unlimited'),
-            _buildTableRow('Background Play', 'No', 'Yes'),
+            _buildTableRow('Background & PiP Play', 'No', 'Included'),
             _buildTableRow(
-              '1080p Premium Resolution',
+              '1080p Premium & 4K Quality',
               'Standard',
-              'Enhanced Bitrate + 4K',
+              'Enhanced Bitrate',
             ),
-            _buildTableRow('AI Dubbing & Translation', 'Basic', 'Unlocked'),
+            _buildTableRow('Multilingual AI Dubbing', 'Basic', 'Unlocked'),
+            _buildTableRow('Family Sharing (5 members)', 'No', 'Family Plan'),
+            _buildTableRow('Student Discount', 'No', 'Student Plan'),
           ],
         ),
       ),
@@ -812,14 +862,14 @@ class PremiumPlansScreen extends StatelessWidget {
           padding: EdgeInsets.all(16),
           child: Text(
             'Features',
-            style: TextStyle( fontWeight: FontWeight.bold),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ),
         Padding(
           padding: EdgeInsets.all(16),
           child: Text(
             'Free',
-            style: TextStyle( color: AppColors.textSecondary),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
         Padding(
@@ -827,7 +877,6 @@ class PremiumPlansScreen extends StatelessWidget {
           child: Text(
             'Premium',
             style: TextStyle(
-              
               color: AppColors.error,
               fontWeight: FontWeight.bold,
             ),
@@ -844,7 +893,10 @@ class PremiumPlansScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             feature,
-            style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
         Padding(
@@ -873,15 +925,19 @@ class PremiumPlansScreen extends StatelessWidget {
     final faqs = [
       _FaqItem(
         q: 'What is Truthworld Premium?',
-        a: 'Truthworld Premium is a paid membership that elevates your viewing experience with ad-free videos, background play, offline downloads, and higher-quality 1080p Premium bitrates.',
+        a: 'Truthworld Premium is a paid membership that elevates your viewing experience with ad-free videos, background play, offline downloads, enhanced 1080p bitrate resolution, and multilingual AI dubbing.',
       ),
       _FaqItem(
         q: 'How does the Family Plan work?',
-        a: 'The Family Plan allows you to share premium privileges with up to 5 family members (ages 13+) living in the same household. Each family member gets their own personalized account recommendations and library.',
+        a: 'The Family Plan allows you to share premium privileges with up to 5 family members (ages 13+) living in the same household. Each family member gets their own private account recommendations and library.',
       ),
       _FaqItem(
         q: 'Who is eligible for the Student Plan?',
         a: 'Full-time students at accredited universities or higher education establishments are eligible. Annual verification is required to maintain student pricing.',
+      ),
+      _FaqItem(
+        q: 'What extra features are in Creator Pro?',
+        a: 'Creator Pro includes all Truthworld Premium features plus priority video encoding queue for 4K video uploads, custom supporter badges in live streams, and channel monetization tools.',
       ),
       _FaqItem(
         q: 'Can I cancel my subscription at any time?',
@@ -889,7 +945,7 @@ class PremiumPlansScreen extends StatelessWidget {
       ),
       _FaqItem(
         q: 'How does the 7-day free trial work?',
-        a: "First-time subscribers are eligible for a 7-day free trial. You won't be charged until the trial period ends, and you will receive a reminder beforehand.",
+        a: "First-time subscribers are eligible for a 7-day free trial. You won't be charged until the trial period ends, and you can cancel anytime before then.",
       ),
     ];
 
@@ -906,12 +962,13 @@ class PremiumPlansScreen extends StatelessWidget {
             title: Text(
               faq.q,
               style: const TextStyle(
-                
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
               ),
             ),
+            iconColor: Colors.white,
+            collapsedIconColor: Colors.white,
             shape: const Border(),
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
@@ -938,7 +995,10 @@ class PremiumPlansScreen extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
           ),
           Text(
             value,
@@ -966,7 +1026,6 @@ class _FeatureItem {
 }
 
 class _PlanDetails {
-
   _PlanDetails({
     required this.id,
     required this.title,

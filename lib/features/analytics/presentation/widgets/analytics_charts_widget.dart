@@ -6,7 +6,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Display pie chart for watchtime categories
 class WatchtimePieChart extends StatelessWidget {
-
   WatchtimePieChart({super.key});
   final CreatorAnalyticsController controller =
       Get.find<CreatorAnalyticsController>();
@@ -117,7 +116,6 @@ class WatchtimePieChart extends StatelessWidget {
 
 /// Display pie chart for state-wise traffic
 class StateTrafficChart extends StatelessWidget {
-
   StateTrafficChart({super.key});
   final CreatorAnalyticsController controller =
       Get.find<CreatorAnalyticsController>();
@@ -190,11 +188,13 @@ class StateTrafficChart extends StatelessWidget {
                   DataColumn(label: Text('Percentage'), numeric: true),
                 ],
                 rows: topStates.map((data) {
-                  return DataRow(cells: [
-                    DataCell(Text(data.title)),
-                    DataCell(Text('${data.value.toInt()}')),
-                    DataCell(Text('${data.percentage.toStringAsFixed(1)}%')),
-                  ]);
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(data.title)),
+                      DataCell(Text('${data.value.toInt()}')),
+                      DataCell(Text('${data.percentage.toStringAsFixed(1)}%')),
+                    ],
+                  );
                 }).toList(),
               ),
             ),
@@ -222,7 +222,6 @@ class StateTrafficChart extends StatelessWidget {
 
 /// Summary metrics cards
 class AnalyticsSummaryCards extends StatelessWidget {
-
   AnalyticsSummaryCards({super.key});
   final CreatorAnalyticsController controller =
       Get.find<CreatorAnalyticsController>();
@@ -272,7 +271,8 @@ class AnalyticsSummaryCards extends StatelessWidget {
             ),
             _buildMetricCard(
               title: 'Engagement Score',
-              value: '${controller.engagementScore.value.toStringAsFixed(1)}/100',
+              value:
+                  '${controller.engagementScore.value.toStringAsFixed(1)}/100',
               icon: Icons.stacked_bar_chart,
               color: const Color(0xFF9B59B6),
             ),
@@ -348,7 +348,6 @@ class AnalyticsSummaryCards extends StatelessWidget {
 
 /// Top states breakdown
 class TopStatesBreakdown extends StatelessWidget {
-
   TopStatesBreakdown({super.key});
   final CreatorAnalyticsController controller =
       Get.find<CreatorAnalyticsController>();
@@ -399,7 +398,10 @@ class TopStatesBreakdown extends StatelessWidget {
               return Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -461,7 +463,6 @@ class TopStatesBreakdown extends StatelessWidget {
 
 /// Device breakdown
 class DeviceBreakdownWidget extends StatelessWidget {
-
   DeviceBreakdownWidget({super.key});
   final CreatorAnalyticsController controller =
       Get.find<CreatorAnalyticsController>();
@@ -556,8 +557,3 @@ class DeviceBreakdownWidget extends StatelessWidget {
     });
   }
 }
-
-
-
-
-

@@ -7,9 +7,13 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Pipeline Configuration Widget
 /// Allows users to select and configure pipeline features
 class PipelineConfigurationWidget extends StatefulWidget {
-
   const PipelineConfigurationWidget({
-    required this.videoTitle, required this.videoDescription, required this.videoDuration, required this.videoCategory, required this.channelId, super.key,
+    required this.videoTitle,
+    required this.videoDescription,
+    required this.videoDuration,
+    required this.videoCategory,
+    required this.channelId,
+    super.key,
     this.onConfigChanged,
   });
   final String videoTitle;
@@ -120,7 +124,10 @@ class _PipelineConfigurationWidgetState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text((template['icon'] as String?) ?? '', style: const TextStyle(fontSize: 32)),
+              Text(
+                (template['icon'] as String?) ?? '',
+                style: const TextStyle(fontSize: 32),
+              ),
               const SizedBox(height: 8),
               Text(
                 (template['name'] as String?) ?? '',
@@ -133,7 +140,9 @@ class _PipelineConfigurationWidgetState
               const Spacer(),
               Text(
                 '${template['tier']} Tier',
-                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),
@@ -516,8 +525,7 @@ class _PipelineConfigurationWidgetState
             _buildFeatureItem('✓', 'Path 2: Dubbing'),
           if (controller.enableFactCheck.value)
             _buildFeatureItem('✓', 'Fact-Checking'),
-          if (controller.enableOCR.value)
-            _buildFeatureItem('✓', 'OCR'),
+          if (controller.enableOCR.value) _buildFeatureItem('✓', 'OCR'),
           if (controller.enableVisualContext.value)
             _buildFeatureItem('✓', 'Visual Context'),
           if (controller.enableAudioEnhancement.value)
@@ -641,8 +649,3 @@ class _PipelineConfigurationWidgetState
     }
   }
 }
-
-
-
-
-

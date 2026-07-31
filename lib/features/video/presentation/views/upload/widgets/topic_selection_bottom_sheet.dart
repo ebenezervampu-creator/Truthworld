@@ -9,9 +9,10 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Industry-standard Topic Selection Bottom Sheet for Upload Video Flow
 class TopicSelectionBottomSheet extends StatelessWidget {
-
   const TopicSelectionBottomSheet({
-    required this.controller, required this.onCreateNewTopicRequested, super.key,
+    required this.controller,
+    required this.onCreateNewTopicRequested,
+    super.key,
   });
   final UploadController controller;
   final Function(bool isDark) onCreateNewTopicRequested;
@@ -39,10 +40,16 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF161B22) : AppColors.textPrimary;
-    final surfaceColor = isDark ? const Color(0xFF0D1117) : const Color(0xFFF9FAFB);
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB);
+    final surfaceColor = isDark
+        ? const Color(0xFF0D1117)
+        : const Color(0xFFF9FAFB);
+    final borderColor = isDark
+        ? const Color(0xFF30363D)
+        : const Color(0xFFE5E7EB);
     final textColor = isDark ? AppColors.textPrimary : const Color(0xFF111827);
-    final subtextColor = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
+    final subtextColor = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF6B7280);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
@@ -64,12 +71,27 @@ class TopicSelectionBottomSheet extends StatelessWidget {
           child: Column(
             children: [
               // Top Drag Handle & Header
-              _buildHeader(context, isDark, textColor, subtextColor, borderColor),
+              _buildHeader(
+                context,
+                isDark,
+                textColor,
+                subtextColor,
+                borderColor,
+              ),
 
               // Search Bar Field
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: _buildSearchBar(context, isDark, textColor, subtextColor, borderColor),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                child: _buildSearchBar(
+                  context,
+                  isDark,
+                  textColor,
+                  subtextColor,
+                  borderColor,
+                ),
               ),
 
               const SizedBox(height: 4),
@@ -96,7 +118,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     );
                   }
 
-                  final query = controller.topicSearchQuery.value.trim().toLowerCase();
+                  final query = controller.topicSearchQuery.value
+                      .trim()
+                      .toLowerCase();
                   final allTopics = controller.availableTopics;
 
                   // Filter topics by title, handle, slug, description, or creator channel name
@@ -105,14 +129,19 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     if (topic.title.toLowerCase().contains(query)) return true;
                     if (topic.slug.toLowerCase().contains(query)) return true;
                     if (topic.handle.toLowerCase().contains(query)) return true;
-                    if (topic.description.toLowerCase().contains(query)) return true;
+                    if (topic.description.toLowerCase().contains(query))
+                      return true;
 
                     // Channel search
-                    final channelMeta = controller.getChannelMetadata(topic.channelId ?? '');
+                    final channelMeta = controller.getChannelMetadata(
+                      topic.channelId ?? '',
+                    );
                     if (channelMeta != null) {
                       final chName = (channelMeta['name'] ?? '').toLowerCase();
-                      final chHandle = (channelMeta['handle'] ?? '').toLowerCase();
-                      if (chName.contains(query) || chHandle.contains(query)) return true;
+                      final chHandle = (channelMeta['handle'] ?? '')
+                          .toLowerCase();
+                      if (chName.contains(query) || chHandle.contains(query))
+                        return true;
                     }
                     return false;
                   }).toList();
@@ -122,7 +151,13 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                     children: [
                       // "None" option card
-                      _buildNoneTopicCard(context, isDark, textColor, subtextColor, borderColor),
+                      _buildNoneTopicCard(
+                        context,
+                        isDark,
+                        textColor,
+                        subtextColor,
+                        borderColor,
+                      ),
                       const SizedBox(height: 8),
 
                       // Draft Topic Option (if exists)
@@ -134,7 +169,11 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                       // Header label
                       if (filteredTopics.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 8, left: 4),
+                          padding: const EdgeInsets.only(
+                            top: 8,
+                            bottom: 8,
+                            left: 4,
+                          ),
                           child: Text(
                             'AVAILABLE TOPICS (${filteredTopics.length})',
                             style: TextStyle(
@@ -164,7 +203,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                query.isEmpty ? 'No topics found' : 'No matching topics for "$query"',
+                                query.isEmpty
+                                    ? 'No topics found'
+                                    : 'No matching topics for "$query"',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 15,
@@ -189,10 +230,12 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: filteredTopics.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final topic = filteredTopics[index];
-                            final isSelected = controller.selectedTopicId.value == topic.slug;
+                            final isSelected =
+                                controller.selectedTopicId.value == topic.slug;
                             return _buildTopicCard(
                               context,
                               topic,
@@ -366,7 +409,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
     Color borderColor,
   ) {
     return Obx(() {
-      final isSelected = controller.selectedTopicId.value.isEmpty && controller.newTopicData.isEmpty;
+      final isSelected =
+          controller.selectedTopicId.value.isEmpty &&
+          controller.newTopicData.isEmpty;
       return InkWell(
         onTap: () {
           controller.selectTopic('');
@@ -386,7 +431,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
             border: Border.all(
               color: isSelected
                   ? const Color(0xFF3B82F6)
-                  : (isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB)),
+                  : (isDark
+                        ? const Color(0xFF30363D)
+                        : const Color(0xFFE5E7EB)),
               width: isSelected ? 1.8 : 1.0,
             ),
           ),
@@ -396,7 +443,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF21262D) : const Color(0xFFF3F4F6),
+                  color: isDark
+                      ? const Color(0xFF21262D)
+                      : const Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -449,7 +498,8 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   ) {
     return Obx(() {
       final isSelected = controller.selectedTopicId.value == 'new_topic_draft';
-      final title = controller.newTopicData['title'] as String? ?? 'Untitled Draft';
+      final title =
+          controller.newTopicData['title'] as String? ?? 'Untitled Draft';
 
       return InkWell(
         onTap: () {
@@ -500,7 +550,10 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.brand.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
@@ -552,7 +605,8 @@ class TopicSelectionBottomSheet extends StatelessWidget {
     Color surfaceColor,
   ) {
     final isPrivate = topic.visibilityType == TopicVisibilityType.private;
-    final isChannelOnly = topic.visibilityType == TopicVisibilityType.channelOnly;
+    final isChannelOnly =
+        topic.visibilityType == TopicVisibilityType.channelOnly;
 
     final imageSrc = topic.thumbnailUrl ?? topic.coverImage;
 
@@ -568,9 +622,7 @@ class TopicSelectionBottomSheet extends StatelessWidget {
               : surfaceColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? const Color(0xFF3B82F6)
-                : borderColor,
+            color: isSelected ? const Color(0xFF3B82F6) : borderColor,
             width: isSelected ? 2.0 : 1.0,
           ),
         ),
@@ -584,7 +636,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   child: Container(
                     width: 58,
                     height: 58,
-                    color: isDark ? const Color(0xFF21262D) : const Color(0xFFE5E7EB),
+                    color: isDark
+                        ? const Color(0xFF21262D)
+                        : const Color(0xFFE5E7EB),
                     child: imageSrc != null && imageSrc.isNotEmpty
                         ? Stack(
                             fit: StackFit.expand,
@@ -592,7 +646,8 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                               Image.network(
                                 imageSrc,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => _buildFallbackThumbnail(isDark),
+                                errorBuilder: (_, _, _) =>
+                                    _buildFallbackThumbnail(isDark),
                               ),
                               Container(
                                 color: Colors.black.withValues(alpha: 0.65),
@@ -600,7 +655,8 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                               Image.network(
                                 imageSrc,
                                 fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) => _buildFallbackThumbnail(isDark),
+                                errorBuilder: (_, _, _) =>
+                                    _buildFallbackThumbnail(isDark),
                               ),
                             ],
                           )
@@ -617,14 +673,21 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: isPrivate
                           ? AppColors.warning
-                          : (isChannelOnly ? AppColors.info : AppColors.success),
+                          : (isChannelOnly
+                                ? AppColors.info
+                                : AppColors.success),
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.textPrimary, width: 1.2),
+                      border: Border.all(
+                        color: AppColors.textPrimary,
+                        width: 1.2,
+                      ),
                     ),
                     child: Icon(
                       isPrivate
                           ? Icons.lock_rounded
-                          : (isChannelOnly ? Icons.group_rounded : Icons.public_rounded),
+                          : (isChannelOnly
+                                ? Icons.group_rounded
+                                : Icons.public_rounded),
                       size: 10,
                       color: AppColors.textPrimary,
                     ),
@@ -667,7 +730,11 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   // Followers & Videos Count Row
                   Row(
                     children: [
-                      Icon(Icons.people_alt_outlined, size: 13, color: subtextColor),
+                      Icon(
+                        Icons.people_alt_outlined,
+                        size: 13,
+                        color: subtextColor,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${FormatUtils.formatCount(topic.followerCount)} followers',
@@ -679,9 +746,16 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Text('•', style: TextStyle(color: subtextColor, fontSize: 12)),
+                        child: Text(
+                          '•',
+                          style: TextStyle(color: subtextColor, fontSize: 12),
+                        ),
                       ),
-                      Icon(Icons.video_library_outlined, size: 13, color: subtextColor),
+                      Icon(
+                        Icons.video_library_outlined,
+                        size: 13,
+                        color: subtextColor,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '${FormatUtils.formatCount(topic.videoCount)} videos',
@@ -801,7 +875,11 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   }
 
   /// Displays Creator Channel details for public topics
-  Widget _buildCreatorChannelInfo(Topic topic, bool isDark, Color subtextColor) {
+  Widget _buildCreatorChannelInfo(
+    Topic topic,
+    bool isDark,
+    Color subtextColor,
+  ) {
     if (topic.channelId == null || topic.channelId!.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -890,8 +968,10 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   /// Handles selection of a topic (and prompts for PIN if topic is private)
   void _handleTopicSelection(BuildContext context, Topic topic) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final isCreator = topic.creatorId == currentUserId ||
-        (controller.selectedChannel.value != null && topic.channelId == controller.selectedChannel.value!.id);
+    final isCreator =
+        topic.creatorId == currentUserId ||
+        (controller.selectedChannel.value != null &&
+            topic.channelId == controller.selectedChannel.value!.id);
 
     // If public or channelOnly or created by current user -> select immediately
     if (topic.visibilityType != TopicVisibilityType.private || isCreator) {
@@ -927,8 +1007,12 @@ class TopicSelectionBottomSheet extends StatelessWidget {
       barrierDismissible: false,
       builder: (dialogCtx) {
         return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: isDark
+              ? const Color(0xFF161B22)
+              : AppColors.textPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Row(
             children: [
               Container(
@@ -937,7 +1021,11 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   color: AppColors.warning.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.lock_rounded, color: AppColors.warning, size: 22),
+                child: const Icon(
+                  Icons.lock_rounded,
+                  color: AppColors.warning,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -949,14 +1037,18 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                        color: isDark
+                            ? AppColors.textPrimary
+                            : const Color(0xFF111827),
                       ),
                     ),
                     Text(
                       'Passcode required to save video',
                       style: TextStyle(
                         fontSize: 12,
-                        color: isDark ? AppColors.textSecondary : AppColors.bgPage54,
+                        color: isDark
+                            ? AppColors.textSecondary
+                            : AppColors.bgPage54,
                       ),
                     ),
                   ],
@@ -972,50 +1064,68 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                 'Enter PIN / Password for "${topic.title}":',
                 style: TextStyle(
                   fontSize: 13,
-                  color: isDark ? AppColors.textSecondary : const Color(0xFF374151),
+                  color: isDark
+                      ? AppColors.textSecondary
+                      : const Color(0xFF374151),
                 ),
               ),
               const SizedBox(height: 12),
 
-              Obx(() => TextField(
-                controller: pinController,
-                obscureText: isObscured.value,
-                autofocus: true,
-                style: TextStyle(
-                  fontSize: 15,
-                  letterSpacing: isObscured.value ? 2.0 : 0.5,
-                  color: isDark ? AppColors.textPrimary : AppColors.bgPage,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Enter topic passcode...',
-                  prefixIcon: const Icon(Icons.key_rounded, size: 18, color: AppColors.warning),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      isObscured.value ? Icons.visibility_off : Icons.visibility,
+              Obx(
+                () => TextField(
+                  controller: pinController,
+                  obscureText: isObscured.value,
+                  autofocus: true,
+                  style: TextStyle(
+                    fontSize: 15,
+                    letterSpacing: isObscured.value ? 2.0 : 0.5,
+                    color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Enter topic passcode...',
+                    prefixIcon: const Icon(
+                      Icons.key_rounded,
                       size: 18,
-                      color: isDark ? AppColors.textSecondary : Colors.black45,
+                      color: AppColors.warning,
                     ),
-                    onPressed: isObscured.toggle,
-                  ),
-                  filled: true,
-                  fillColor: isDark ? const Color(0xFF0D1117) : const Color(0xFFF3F4F6),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: errorMessage.isNotEmpty
-                          ? AppColors.error
-                          : (isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB)),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        isObscured.value
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        size: 18,
+                        color: isDark
+                            ? AppColors.textSecondary
+                            : Colors.black45,
+                      ),
+                      onPressed: isObscured.toggle,
                     ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: errorMessage.isNotEmpty ? AppColors.error : AppColors.warning,
-                      width: 1.8,
+                    filled: true,
+                    fillColor: isDark
+                        ? const Color(0xFF0D1117)
+                        : const Color(0xFFF3F4F6),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: errorMessage.isNotEmpty
+                            ? AppColors.error
+                            : (isDark
+                                  ? const Color(0xFF30363D)
+                                  : const Color(0xFFE5E7EB)),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: errorMessage.isNotEmpty
+                            ? AppColors.error
+                            : AppColors.warning,
+                        width: 1.8,
+                      ),
                     ),
                   ),
                 ),
-              )),
+              ),
 
               Obx(() {
                 if (errorMessage.isEmpty) return const SizedBox.shrink();
@@ -1023,7 +1133,11 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 8),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline_rounded, size: 14, color: AppColors.error),
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 14,
+                        color: AppColors.error,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -1050,46 +1164,59 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                 ),
               ),
             ),
-            Obx(() => ElevatedButton.icon(
-              onPressed: isVerifying.value
-                  ? null
-                  : () async {
-                      final inputPasscode = pinController.text.trim();
-                      if (inputPasscode.isEmpty) {
-                        errorMessage.value = 'Passcode cannot be empty';
-                        return;
-                      }
+            Obx(
+              () => ElevatedButton.icon(
+                onPressed: isVerifying.value
+                    ? null
+                    : () async {
+                        final inputPasscode = pinController.text.trim();
+                        if (inputPasscode.isEmpty) {
+                          errorMessage.value = 'Passcode cannot be empty';
+                          return;
+                        }
 
-                      isVerifying.value = true;
-                      errorMessage.value = '';
+                        isVerifying.value = true;
+                        errorMessage.value = '';
 
-                      final success = await controller.unlockPrivateTopic(topic.slug, inputPasscode);
-                      isVerifying.value = false;
+                        final success = await controller.unlockPrivateTopic(
+                          topic.slug,
+                          inputPasscode,
+                        );
+                        isVerifying.value = false;
 
-                      if (success) {
-                        if (dialogCtx.mounted) Navigator.pop(dialogCtx); // Close PIN dialog
-                        if (context.mounted) Navigator.pop(context); // Close Bottom Sheet
-                      } else {
-                        errorMessage.value = 'Incorrect PIN / Password for this topic';
-                      }
-                    },
-              icon: isVerifying.value
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary),
-                    )
-                  : const Icon(Icons.lock_open_rounded, size: 16),
-              label: Text(
-                isVerifying.value ? 'Verifying...' : 'Unlock & Select',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                        if (success) {
+                          if (dialogCtx.mounted)
+                            Navigator.pop(dialogCtx); // Close PIN dialog
+                          if (context.mounted)
+                            Navigator.pop(context); // Close Bottom Sheet
+                        } else {
+                          errorMessage.value =
+                              'Incorrect PIN / Password for this topic';
+                        }
+                      },
+                icon: isVerifying.value
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textPrimary,
+                        ),
+                      )
+                    : const Icon(Icons.lock_open_rounded, size: 16),
+                label: Text(
+                  isVerifying.value ? 'Verifying...' : 'Unlock & Select',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.warning,
+                  foregroundColor: AppColors.textPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: AppColors.textPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            )),
+            ),
           ],
         );
       },

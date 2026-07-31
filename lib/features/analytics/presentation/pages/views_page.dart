@@ -46,7 +46,8 @@ class ViewsPage extends StatelessWidget {
         ),
       ),
       body: Obx(() {
-        final isLoading = controller.isLoadingVideoAnalytics.value ||
+        final isLoading =
+            controller.isLoadingVideoAnalytics.value ||
             controller.isLoadingChannelAnalytics.value;
 
         if (isLoading) {
@@ -70,7 +71,9 @@ class ViewsPage extends StatelessWidget {
                     child: InkWell(
                       onTap: () {
                         controller.selectedVideoId.value = '';
-                        controller.loadChannelAnalytics(controller.selectedChannelId.value);
+                        controller.loadChannelAnalytics(
+                          controller.selectedChannelId.value,
+                        );
                       },
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -79,7 +82,11 @@ class ViewsPage extends StatelessWidget {
                           SizedBox(width: 4),
                           Text(
                             'Back to Channel Analytics',
-                            style: TextStyle(color: Color(0xFF10B981), fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: Color(0xFF10B981),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -106,7 +113,10 @@ class ViewsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMainMetric(CreatorAnalyticsController controller, Map<String, dynamic> args) {
+  Widget _buildMainMetric(
+    CreatorAnalyticsController controller,
+    Map<String, dynamic> args,
+  ) {
     final viewsChange = args['viewsChange'] as String? ?? '+0%';
     final isPositive = viewsChange.startsWith('+');
     final totalViews = controller.selectedVideoId.value.isNotEmpty
@@ -144,15 +154,20 @@ class ViewsPage extends StatelessWidget {
               children: [
                 Icon(
                   isPositive ? Icons.trending_up : Icons.trending_down,
-                  color: isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                  color: isPositive
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFFEF4444),
                   size: 16,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '$viewsChange in last 28 days',
                   style: TextStyle(
-                    color: (isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444))
-                        .withValues(alpha: 0.8),
+                    color:
+                        (isPositive
+                                ? const Color(0xFF22C55E)
+                                : const Color(0xFFEF4444))
+                            .withValues(alpha: 0.8),
                     fontSize: 12,
                   ),
                 ),
@@ -181,7 +196,10 @@ class ViewsPage extends StatelessWidget {
               color: AppColors.textPrimary.withValues(alpha: 0.05),
               dashArray: const [5, 5],
             ),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            labelStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
             axisLine: const AxisLine(width: 0),
           ),
           tooltipBehavior: TooltipBehavior(enable: true),
@@ -216,23 +234,41 @@ class ViewsPage extends StatelessWidget {
             children: [
               const Text(
                 'Country Distribution',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
                 height: 180,
                 child: Obx(() {
                   final data = controller.countryTrafficChartData;
-                  if (data.isEmpty) return const Center(child: Text('No data', style: TextStyle(color: AppColors.textTertiary)));
+                  if (data.isEmpty)
+                    return const Center(
+                      child: Text(
+                        'No data',
+                        style: TextStyle(color: AppColors.textTertiary),
+                      ),
+                    );
                   return PieChart(
                     PieChartData(
-                      sections: data.map((d) => PieChartSectionData(
-                        value: d.value,
-                        color: Color(d.color),
-                        title: '${d.percentage.toStringAsFixed(1)}%',
-                        titleStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
-                        radius: 60,
-                      )).toList(),
+                      sections: data
+                          .map(
+                            (d) => PieChartSectionData(
+                              value: d.value,
+                              color: Color(d.color),
+                              title: '${d.percentage.toStringAsFixed(1)}%',
+                              titleStyle: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              radius: 60,
+                            ),
+                          )
+                          .toList(),
                       centerSpaceRadius: 40,
                       sectionsSpace: 2,
                     ),
@@ -240,15 +276,21 @@ class ViewsPage extends StatelessWidget {
                 }),
               ),
               const SizedBox(height: 12),
-              Obx(() => Wrap(
-                spacing: 16,
-                runSpacing: 8,
-                children: controller.countryTrafficChartData.map((d) => _LegendItem(
-                  color: Color(d.color),
-                  label: d.title,
-                  value: '${d.percentage.toStringAsFixed(1)}%',
-                )).toList(),
-              )),
+              Obx(
+                () => Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: controller.countryTrafficChartData
+                      .map(
+                        (d) => _LegendItem(
+                          color: Color(d.color),
+                          label: d.title,
+                          value: '${d.percentage.toStringAsFixed(1)}%',
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
             ],
           ),
         ),
@@ -259,12 +301,22 @@ class ViewsPage extends StatelessWidget {
             children: [
               const Text(
                 'Top Indian States',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 16),
               Obx(() {
                 final states = controller.stateTrafficChartData;
-                if (states.isEmpty) return const Center(child: Text('No data', style: TextStyle(color: AppColors.textTertiary)));
+                if (states.isEmpty)
+                  return const Center(
+                    child: Text(
+                      'No data',
+                      style: TextStyle(color: AppColors.textTertiary),
+                    ),
+                  );
                 return ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -277,8 +329,20 @@ class ViewsPage extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(s.title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
-                            Text('${s.percentage.toStringAsFixed(1)}%', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            Text(
+                              s.title,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${s.percentage.toStringAsFixed(1)}%',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -286,8 +350,12 @@ class ViewsPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(2),
                           child: LinearProgressIndicator(
                             value: s.percentage / 100,
-                            backgroundColor: AppColors.textPrimary.withValues(alpha: 0.05),
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(s.color)),
+                            backgroundColor: AppColors.textPrimary.withValues(
+                              alpha: 0.05,
+                            ),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(s.color),
+                            ),
                             minHeight: 4,
                           ),
                         ),
@@ -307,7 +375,12 @@ class ViewsPage extends StatelessWidget {
     return Obx(() {
       final videos = controller.channelVideos;
       if (videos.isEmpty) {
-        return const Center(child: Text('No videos found', style: TextStyle(color: AppColors.textTertiary)));
+        return const Center(
+          child: Text(
+            'No videos found',
+            style: TextStyle(color: AppColors.textTertiary),
+          ),
+        );
       }
 
       return ListView.separated(
@@ -317,10 +390,13 @@ class ViewsPage extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final video = videos[index];
-          return _VideoStatCard(video: video, onTap: () {
-            controller.selectedVideoId.value = video.id;
-            // Scroll to top or just update metrics
-          });
+          return _VideoStatCard(
+            video: video,
+            onTap: () {
+              controller.selectedVideoId.value = video.id;
+              // Scroll to top or just update metrics
+            },
+          );
         },
       );
     });
@@ -328,7 +404,6 @@ class ViewsPage extends StatelessWidget {
 }
 
 class _VideoStatCard extends StatelessWidget {
-
   const _VideoStatCard({required this.video, required this.onTap});
   final Video video;
   final VoidCallback onTap;
@@ -343,7 +418,9 @@ class _VideoStatCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.textPrimary.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: AppColors.textPrimary.withValues(alpha: 0.06),
+          ),
         ),
         child: Row(
           children: [
@@ -365,17 +442,28 @@ class _VideoStatCard extends StatelessWidget {
                     video.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${NumberFormat.compact().format(video.viewCount)} views',
-                    style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 11),
+                    style: TextStyle(
+                      color: AppColors.textPrimary.withValues(alpha: 0.5),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 20),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textDisabled,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -413,7 +501,9 @@ class _GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: child,
     );
@@ -421,7 +511,6 @@ class _GlassCard extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-
   const _LegendItem({
     required this.color,
     required this.label,

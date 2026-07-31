@@ -13,7 +13,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
   Widget build(BuildContext context) {
     // Inject the controller if not already present
     Get.put(TrendingController());
-    
+
     return ResponsiveBuilder(
       builder: (context, device) {
         final deviceType = device.type;
@@ -90,7 +90,10 @@ class TrendingVideosPage extends GetView<TrendingController> {
   Widget _buildLoadingState(BuildContext context, DeviceType deviceType) {
     return SingleChildScrollView(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing, vertical: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: context.layoutSpacing,
+          vertical: 16,
+        ),
         child: deviceType == DeviceType.mobile
             ? buildShimmerVideoList()
             : buildShimmerVideoGrid(
@@ -211,8 +214,3 @@ class TrendingVideosPage extends GetView<TrendingController> {
     );
   }
 }
-
-
-
-
-

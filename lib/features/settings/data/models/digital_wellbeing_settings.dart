@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 class DigitalWellbeingSettings {
-
   const DigitalWellbeingSettings({
     this.breakReminderMinutes = 0,
     this.lastBreakReminderTime,
@@ -29,15 +28,18 @@ class DigitalWellbeingSettings {
     return DigitalWellbeingSettings(
       breakReminderMinutes: json['breakReminderMinutes'] as int? ?? 0,
       lastBreakReminderTime: json['lastBreakReminderTime'] as String?,
-      continuousWatchDurationMinutes: json['continuousWatchDurationMinutes'] as int? ?? 0,
+      continuousWatchDurationMinutes:
+          json['continuousWatchDurationMinutes'] as int? ?? 0,
       ignoreBreakCasting: json['ignoreBreakCasting'] as bool? ?? true,
       ignoreBreakFullscreen: json['ignoreBreakFullscreen'] as bool? ?? false,
       bedtimeEnabled: json['bedtimeEnabled'] as bool? ?? false,
       bedtimeStartTime: json['bedtimeStartTime'] as String? ?? '11:00 PM',
       bedtimeEndTime: json['bedtimeEndTime'] as String? ?? '06:00 AM',
       bedtimeDaysSchedule: json['bedtimeDaysSchedule'] as String? ?? 'Everyday',
-      pauseAutoplayDuringBedtime: json['pauseAutoplayDuringBedtime'] as bool? ?? true,
-      muteNotificationsDuringBedtime: json['muteNotificationsDuringBedtime'] as bool? ?? true,
+      pauseAutoplayDuringBedtime:
+          json['pauseAutoplayDuringBedtime'] as bool? ?? true,
+      muteNotificationsDuringBedtime:
+          json['muteNotificationsDuringBedtime'] as bool? ?? true,
       parentalPinEnabled: json['parentalPinEnabled'] as bool? ?? false,
       hashedPin: json['hashedPin'] as String?,
       failedPinAttempts: json['failedPinAttempts'] as int? ?? 0,
@@ -103,16 +105,21 @@ class DigitalWellbeingSettings {
   }) {
     return DigitalWellbeingSettings(
       breakReminderMinutes: breakReminderMinutes ?? this.breakReminderMinutes,
-      lastBreakReminderTime: lastBreakReminderTime ?? this.lastBreakReminderTime,
-      continuousWatchDurationMinutes: continuousWatchDurationMinutes ?? this.continuousWatchDurationMinutes,
+      lastBreakReminderTime:
+          lastBreakReminderTime ?? this.lastBreakReminderTime,
+      continuousWatchDurationMinutes:
+          continuousWatchDurationMinutes ?? this.continuousWatchDurationMinutes,
       ignoreBreakCasting: ignoreBreakCasting ?? this.ignoreBreakCasting,
-      ignoreBreakFullscreen: ignoreBreakFullscreen ?? this.ignoreBreakFullscreen,
+      ignoreBreakFullscreen:
+          ignoreBreakFullscreen ?? this.ignoreBreakFullscreen,
       bedtimeEnabled: bedtimeEnabled ?? this.bedtimeEnabled,
       bedtimeStartTime: bedtimeStartTime ?? this.bedtimeStartTime,
       bedtimeEndTime: bedtimeEndTime ?? this.bedtimeEndTime,
       bedtimeDaysSchedule: bedtimeDaysSchedule ?? this.bedtimeDaysSchedule,
-      pauseAutoplayDuringBedtime: pauseAutoplayDuringBedtime ?? this.pauseAutoplayDuringBedtime,
-      muteNotificationsDuringBedtime: muteNotificationsDuringBedtime ?? this.muteNotificationsDuringBedtime,
+      pauseAutoplayDuringBedtime:
+          pauseAutoplayDuringBedtime ?? this.pauseAutoplayDuringBedtime,
+      muteNotificationsDuringBedtime:
+          muteNotificationsDuringBedtime ?? this.muteNotificationsDuringBedtime,
       parentalPinEnabled: parentalPinEnabled ?? this.parentalPinEnabled,
       hashedPin: hashedPin ?? this.hashedPin,
       failedPinAttempts: failedPinAttempts ?? this.failedPinAttempts,

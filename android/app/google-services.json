@@ -51,6 +51,94 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:768266102263:android:e9895203ef172ec6143af2",
+        "android_client_info": {
+          "package_name": "com.truthworld.admin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "768266102263-533ri2uitm81a9m8vvegpqmbitmj20uc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truthworld.admin",
+            "certificate_hash": "cd1caf4684839b90a9d6848c49bc5283662f9622"
+          }
+        },
+        {
+          "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.truthworld"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768266102263:android:965d98e244225dc4143af2",
+        "android_client_info": {
+          "package_name": "com.truthworld.advertiser"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "768266102263-2v5lo52on67fghrfspnc80dd2tsm724g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truthworld.advertiser",
+            "certificate_hash": "cd1caf4684839b90a9d6848c49bc5283662f9622"
+          }
+        },
+        {
+          "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.truthworld"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:768266102263:android:0d33a0242f2106ac143af2",
         "android_client_info": {
           "package_name": "com.truthworld.app"
@@ -62,6 +150,50 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.truthworld.app",
+            "certificate_hash": "cd1caf4684839b90a9d6848c49bc5283662f9622"
+          }
+        },
+        {
+          "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.truthworld"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768266102263:android:c076a1455520f5cd143af2",
+        "android_client_info": {
+          "package_name": "com.truthworld.studio"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "768266102263-vv9g0s7kgt7471rr4svf9i39t7ac35u0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.truthworld.studio",
             "certificate_hash": "cd1caf4684839b90a9d6848c49bc5283662f9622"
           }
         },

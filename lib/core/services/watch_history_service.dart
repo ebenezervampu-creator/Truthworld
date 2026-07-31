@@ -8,9 +8,11 @@ class WatchHistoryService extends GetxService {
   static WatchHistoryService get to => Get.find<WatchHistoryService>();
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final RxMap<String, double> _watchProgress = <String, double>{}.obs; // videoId -> percentage (0-100)
-  final RxMap<String, int> _lastPositions = <String, int>{}.obs; // videoId -> seconds
-  
+  final RxMap<String, double> _watchProgress =
+      <String, double>{}.obs; // videoId -> percentage (0-100)
+  final RxMap<String, int> _lastPositions =
+      <String, int>{}.obs; // videoId -> seconds
+
   StreamSubscription? _historySubscription;
 
   @override
@@ -33,25 +35,32 @@ class WatchHistoryService extends GetxService {
           .doc(userId)
           .collection('watch_history')
           .snapshots()
-          .listen((snapshot) {
-        final newProgress = <String, double>{};
-        final newPositions = <String, int>{};
-        
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          final videoId = doc.id;
-          final percentage = (data['watchPercentage'] as num?)?.toDouble() ?? 0.0;
-          final lastPos = (data['lastPosition'] as num?)?.toInt() ?? 0;
-          
-          newProgress[videoId] = percentage;
-          newPositions[videoId] = lastPos;
-        }
-        
-        _watchProgress.assignAll(newProgress);
-        _lastPositions.assignAll(newPositions);
-      }, onError: (e) {
-        logger.error('Error listening to watch history: $e', tag: 'WATCH_HISTORY');
-      });
+          .listen(
+            (snapshot) {
+              final newProgress = <String, double>{};
+              final newPositions = <String, int>{};
+
+              for (final doc in snapshot.docs) {
+                final data = doc.data();
+                final videoId = doc.id;
+                final percentage =
+                    (data['watchPercentage'] as num?)?.toDouble() ?? 0.0;
+                final lastPos = (data['lastPosition'] as num?)?.toInt() ?? 0;
+
+                newProgress[videoId] = percentage;
+                newPositions[videoId] = lastPos;
+              }
+
+              _watchProgress.assignAll(newProgress);
+              _lastPositions.assignAll(newPositions);
+            },
+            onError: (e) {
+              logger.error(
+                'Error listening to watch history: $e',
+                tag: 'WATCH_HISTORY',
+              );
+            },
+          );
     }
   }
 

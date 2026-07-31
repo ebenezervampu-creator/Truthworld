@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class VideoClip {
-
   VideoClip({
     required this.id,
     required this.videoId,
@@ -27,7 +26,8 @@ class VideoClip {
       thumbnailUrl: map['thumbnailUrl'] ?? '',
       videoTitle: map['videoTitle'] ?? '',
       channelName: map['channelName'] ?? '',
-      createdAt: TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
+      createdAt:
+          TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
     );
   }
 
@@ -60,7 +60,3 @@ class VideoClip {
     };
   }
 }
-
-
-
-

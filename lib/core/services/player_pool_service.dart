@@ -7,9 +7,9 @@ import 'package:video_player/video_player.dart';
 /// Holds at most [maxActivePlayers] (default 3: Previous, Current, Next) active instances
 /// to prevent hardware video decoder exhaustion and RAM bloat during vertical scrolling.
 class PlayerPoolService extends GetxService {
-
   PlayerPoolService({int? maxActivePlayers})
-      : maxActivePlayers = maxActivePlayers ?? (AppConfig.instance.defaultPlayerPoolSize);
+    : maxActivePlayers =
+          maxActivePlayers ?? (AppConfig.instance.defaultPlayerPoolSize);
   static PlayerPoolService get to => Get.find<PlayerPoolService>();
 
   final int maxActivePlayers;
@@ -32,7 +32,9 @@ class PlayerPoolService extends GetxService {
 
     _pool[id] = controller;
     _lruOrder.add(id);
-    debugPrint('🎥 [PlayerPool] Registered player: $id (Pool size: ${_pool.length}/$maxActivePlayers)');
+    debugPrint(
+      '🎥 [PlayerPool] Registered player: $id (Pool size: ${_pool.length}/$maxActivePlayers)',
+    );
   }
 
   /// Evict the least recently used player outside the sliding active window
@@ -45,7 +47,9 @@ class PlayerPoolService extends GetxService {
       try {
         oldestController.pause();
         oldestController.dispose();
-        debugPrint('🗑️ [PlayerPool Evicted] Disposed player decoder for $oldestId');
+        debugPrint(
+          '🗑️ [PlayerPool Evicted] Disposed player decoder for $oldestId',
+        );
       } catch (e) {
         debugPrint('🔴 [PlayerPool Eviction Error] $oldestId: $e');
       }

@@ -10,7 +10,6 @@ import 'package:truthworld/theme/app_theme.dart';
 ///
 /// Each bar is color-coded with percentage labels for quick visual scanning.
 class RetentionFunnelChartWidget extends StatelessWidget {
-
   const RetentionFunnelChartWidget({required this.funnel, super.key});
   final RetentionFunnelModel funnel;
 
@@ -41,7 +40,9 @@ class RetentionFunnelChartWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,7 +130,9 @@ class RetentionFunnelChartWidget extends StatelessWidget {
                           child: Text(
                             stages[idx].label,
                             style: TextStyle(
-                              color: AppColors.textPrimary.withValues(alpha: 0.6),
+                              color: AppColors.textPrimary.withValues(
+                                alpha: 0.6,
+                              ),
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
@@ -139,12 +142,8 @@ class RetentionFunnelChartWidget extends StatelessWidget {
                       reservedSize: 30,
                     ),
                   ),
-                  topTitles: const AxisTitles(
-                    
-                  ),
-                  rightTitles: const AxisTitles(
-                    
-                  ),
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
                 ),
                 borderData: FlBorderData(show: false),
                 gridData: FlGridData(
@@ -190,7 +189,6 @@ class RetentionFunnelChartWidget extends StatelessWidget {
 }
 
 class _FunnelStage {
-
   const _FunnelStage(this.label, this.value, this.color);
   final String label;
   final int value;
@@ -198,7 +196,6 @@ class _FunnelStage {
 }
 
 class _RatePill extends StatelessWidget {
-
   const _RatePill(this.label, this.rate, this.color);
   final String label;
   final double rate;

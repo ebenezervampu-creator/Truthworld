@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -120,7 +121,10 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
         body: Center(
           child: Text(
             'Please sign in to view your saved comments',
-            style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 16),
+            style: GoogleFonts.roboto(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+            ),
           ),
         ),
       );
@@ -142,10 +146,16 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
           if (controller.isSearching.value) {
             return TextField(
               autofocus: true,
-              style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 16),
+              style: GoogleFonts.roboto(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search saved comments...',
-                hintStyle: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 16),
+                hintStyle: GoogleFonts.roboto(
+                  color: AppColors.textSecondary,
+                  fontSize: 16,
+                ),
                 border: InputBorder.none,
               ),
               onChanged: controller.setSearchQuery,
@@ -161,13 +171,15 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
           );
         }),
         actions: [
-          Obx(() => IconButton(
-            icon: Icon(
-              controller.isSearching.value ? Icons.close : Icons.search,
-              color: AppColors.textPrimary,
+          Obx(
+            () => IconButton(
+              icon: Icon(
+                controller.isSearching.value ? Icons.close : Icons.search,
+                color: AppColors.textPrimary,
+              ),
+              onPressed: controller.toggleSearching,
             ),
-            onPressed: controller.toggleSearching,
-          )),
+          ),
         ],
       ),
       body: Obx(() {
@@ -182,20 +194,30 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, color: AppColors.error, size: 48),
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.error,
+                  size: 48,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   controller.errorMessage.value,
-                  style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 14),
+                  style: GoogleFonts.roboto(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: controller.refreshComments,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.black,
                   ),
-                  child: Text('Retry', style: GoogleFonts.roboto(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    'Retry',
+                    style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -233,7 +255,9 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                           Text(
                             controller.searchQuery.value.isNotEmpty
                                 ? 'No matching saved comments'
-                                : _getEmptyCategoryTitle(controller.selectedCategory.value),
+                                : _getEmptyCategoryTitle(
+                                    controller.selectedCategory.value,
+                                  ),
                             style: GoogleFonts.roboto(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -269,11 +293,18 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                           // Saved Section Header
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                12,
+                              ),
                               child: Row(
                                 children: [
                                   Text(
-                                    _getCategoryTitle(controller.selectedCategory.value),
+                                    _getCategoryTitle(
+                                      controller.selectedCategory.value,
+                                    ),
                                     style: GoogleFonts.roboto(
                                       color: AppColors.textPrimary,
                                       fontSize: 18,
@@ -282,9 +313,14 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                                   ),
                                   const SizedBox(width: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.brand.withValues(alpha: 0.15),
+                                      color: AppColors.brand.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
@@ -311,20 +347,27 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                                   return _SavedCommentCard(
                                     comment: comment,
                                     onTap: () => _navigateToSource(comment),
-                                    onUnsave: () => controller.unsaveComment(comment.id),
-                                    onCopyText: () => _copyCommentText(comment.text),
-                                    sourceIcon: _getSourceIcon(comment.sourceType),
-                                    sourceLabel: _getSourceLabel(comment.sourceType),
+                                    onUnsave: () =>
+                                        controller.unsaveComment(comment.id),
+                                    onCopyText: () =>
+                                        _copyCommentText(comment.text),
+                                    sourceIcon: _getSourceIcon(
+                                      comment.sourceType,
+                                    ),
+                                    sourceLabel: _getSourceLabel(
+                                      comment.sourceType,
+                                    ),
                                   );
                                 },
                                 childCount: filtered.length,
                               ),
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                mainAxisSpacing: 12,
-                                crossAxisSpacing: 12,
-                                childAspectRatio: 1.15,
-                              ),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossAxisCount,
+                                    mainAxisSpacing: 12,
+                                    crossAxisSpacing: 12,
+                                    childAspectRatio: 1.15,
+                                  ),
                             ),
                           ),
                         ],
@@ -339,10 +382,30 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
 
   Widget _buildCategoryFilterChips(SavedCommentsController controller) {
     final categories = [
-      {'id': 'all', 'label': 'All', 'icon': Icons.all_inbox_rounded, 'count': controller.totalCount},
-      {'id': 'video', 'label': 'Videos', 'icon': Icons.play_circle_fill_rounded, 'count': controller.videoCount},
-      {'id': 'topic', 'label': 'Topics', 'icon': Icons.tag_rounded, 'count': controller.topicCount},
-      {'id': 'community_post', 'label': 'Community', 'icon': Icons.article_rounded, 'count': controller.communityCount},
+      {
+        'id': 'all',
+        'label': 'All',
+        'icon': Icons.all_inbox_rounded,
+        'count': controller.totalCount,
+      },
+      {
+        'id': 'video',
+        'label': 'Videos',
+        'icon': Icons.play_circle_fill_rounded,
+        'count': controller.videoCount,
+      },
+      {
+        'id': 'topic',
+        'label': 'Topics',
+        'icon': Icons.tag_rounded,
+        'count': controller.topicCount,
+      },
+      {
+        'id': 'community_post',
+        'label': 'Community',
+        'icon': Icons.article_rounded,
+        'count': controller.communityCount,
+      },
     ];
 
     return SizedBox(
@@ -368,11 +431,12 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                 borderRadius: BorderRadius.circular(20),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.brand
-                        : AppColors.bgSurface,
+                    color: isSelected ? AppColors.brand : AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isSelected
@@ -386,20 +450,29 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                       Icon(
                         icon,
                         size: 15,
-                        color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                        color: isSelected
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
                       ),
                       const SizedBox(width: 6),
                       Text(
                         label,
                         style: GoogleFonts.roboto(
                           fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? AppColors.textPrimary
+                              : AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: isSelected
                               ? Colors.black.withValues(alpha: 0.25)
@@ -411,7 +484,9 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                           style: GoogleFonts.roboto(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                            color: isSelected
+                                ? AppColors.textPrimary
+                                : AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -473,7 +548,9 @@ class _SavedCommentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rawHandle = comment.userName.replaceAll(' ', '_').toLowerCase();
-    final handle = rawHandle.startsWith('@') ? rawHandle.substring(1) : rawHandle;
+    final handle = rawHandle.startsWith('@')
+        ? rawHandle.substring(1)
+        : rawHandle;
 
     return Material(
       color: Colors.transparent,
@@ -545,7 +622,9 @@ class _SavedCommentCard extends StatelessWidget {
                     color: AppColors.bgSurfaceHover,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
                     ),
                     onSelected: (option) {
                       switch (option) {
@@ -563,9 +642,19 @@ class _SavedCommentCard extends StatelessWidget {
                         height: 36,
                         child: Row(
                           children: [
-                            const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.white),
+                            const Icon(
+                              Icons.open_in_new_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 8),
-                            Text('View source', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.textPrimary)),
+                            Text(
+                              'View source',
+                              style: GoogleFonts.roboto(
+                                fontSize: 12,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -574,9 +663,19 @@ class _SavedCommentCard extends StatelessWidget {
                         height: 36,
                         child: Row(
                           children: [
-                            const Icon(Icons.copy_rounded, size: 16, color: AppColors.textSecondary),
+                            const Icon(
+                              Icons.copy_rounded,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
                             const SizedBox(width: 8),
-                            Text('Copy text', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.textPrimary)),
+                            Text(
+                              'Copy text',
+                              style: GoogleFonts.roboto(
+                                fontSize: 12,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -585,9 +684,19 @@ class _SavedCommentCard extends StatelessWidget {
                         height: 36,
                         child: Row(
                           children: [
-                            const Icon(Icons.bookmark_remove_rounded, size: 16, color: AppColors.error),
+                            const Icon(
+                              Icons.bookmark_remove_rounded,
+                              size: 16,
+                              color: AppColors.error,
+                            ),
                             const SizedBox(width: 8),
-                            Text('Unsave', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.error)),
+                            Text(
+                              'Unsave',
+                              style: GoogleFonts.roboto(
+                                fontSize: 12,
+                                color: AppColors.error,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -599,8 +708,8 @@ class _SavedCommentCard extends StatelessWidget {
 
               // Comment Body Text
               Expanded(
-                child: Text(
-                  comment.text,
+                child: ClickableUrlText(
+                  text: comment.text,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.roboto(
@@ -627,7 +736,9 @@ class _SavedCommentCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
-                        comment.sourceTitle.isNotEmpty ? comment.sourceTitle : sourceLabel,
+                        comment.sourceTitle.isNotEmpty
+                            ? comment.sourceTitle
+                            : sourceLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.roboto(
@@ -647,4 +758,3 @@ class _SavedCommentCard extends StatelessWidget {
     );
   }
 }
-

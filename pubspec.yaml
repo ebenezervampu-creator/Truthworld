@@ -143,6 +143,7 @@ flutter:
 
   assets:
     - assets/
+    - assets/icons/
 
   fonts:
     - family: TruthWorld Sans

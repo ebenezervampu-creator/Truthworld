@@ -16,46 +16,58 @@ class StudioSettingsPage extends StatelessWidget {
         title: const Text('Settings'),
         elevation: 0,
       ),
-      body: Obx(() => controller.isLoadingData.value
-          ? const Center(child: CircularProgressIndicator())
-          : (controller.userData.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+      body: Obx(
+        () => controller.isLoadingData.value
+            ? const Center(child: CircularProgressIndicator())
+            : (controller.userData.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.person_off,
+                            size: 48,
+                            color: AppColors.textSecondary,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No user data available',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 16,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Please sign in to access settings',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
                       children: [
-                        Icon(Icons.person_off, size: 48, color: AppColors.textSecondary),
-                        SizedBox(height: 16),
-                        Text(
-                          'No user data available',
-                          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Please sign in to access settings',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-                        ),
+                        _buildSectionHeader('Channel'),
+                        _buildChannelInfo(controller),
+                        const Divider(color: Color(0xFF333333), height: 32),
+                        _buildSectionHeader('Notifications'),
+                        _buildNotificationSettings(controller),
+                        const Divider(color: Color(0xFF333333), height: 32),
+                        _buildSectionHeader('Monetization'),
+                        _buildMonetizationSettings(controller),
+                        const Divider(color: Color(0xFF333333), height: 32),
+                        _buildSectionHeader('Privacy'),
+                        _buildPrivacySettings(controller),
+                        const Divider(color: Color(0xFF333333), height: 32),
+                        _buildSectionHeader('Advanced'),
+                        _buildAdvancedSettings(controller),
                       ],
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _buildSectionHeader('Channel'),
-                      _buildChannelInfo(controller),
-                      const Divider(color: Color(0xFF333333), height: 32),
-                      _buildSectionHeader('Notifications'),
-                      _buildNotificationSettings(controller),
-                      const Divider(color: Color(0xFF333333), height: 32),
-                      _buildSectionHeader('Monetization'),
-                      _buildMonetizationSettings(controller),
-                      const Divider(color: Color(0xFF333333), height: 32),
-                      _buildSectionHeader('Privacy'),
-                      _buildPrivacySettings(controller),
-                      const Divider(color: Color(0xFF333333), height: 32),
-                      _buildSectionHeader('Advanced'),
-                      _buildAdvancedSettings(controller),
-                    ],
-                  ))),
+                    )),
+      ),
     );
   }
 
@@ -136,8 +148,11 @@ class StudioSettingsPage extends StatelessWidget {
         _buildToggleListTile(
           'Weekly performance digest email',
           notif['digestWeekly'] ?? false,
-          (value) =>
-              controller.updateNestedField('notificationSettings', 'digestWeekly', value),
+          (value) => controller.updateNestedField(
+            'notificationSettings',
+            'digestWeekly',
+            value,
+          ),
         ),
       ],
     );
@@ -145,7 +160,8 @@ class StudioSettingsPage extends StatelessWidget {
 
   // ===== MONETIZATION SECTION =====
   Widget _buildMonetizationSettings(StudioSettingsController controller) {
-    final isMonetizationEnabled = controller.userData['monetizationEnabled'] ?? false;
+    final isMonetizationEnabled =
+        controller.userData['monetizationEnabled'] ?? false;
     return Column(
       children: [
         _buildToggleListTile(
@@ -201,7 +217,8 @@ class StudioSettingsPage extends StatelessWidget {
 
   // ===== ADVANCED SECTION =====
   Widget _buildAdvancedSettings(StudioSettingsController controller) {
-    final defaultVisibility = controller.userData['defaultVideoVisibility'] ?? 'public';
+    final defaultVisibility =
+        controller.userData['defaultVideoVisibility'] ?? 'public';
     return Column(
       children: [
         ListTile(
@@ -281,8 +298,3 @@ class StudioSettingsPage extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

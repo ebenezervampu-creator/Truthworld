@@ -6,9 +6,10 @@ import 'package:truthworld/features/dashboard/presentation/controllers/audience_
 import 'package:truthworld/theme/app_theme.dart';
 
 class AudiencePage extends StatefulWidget {
-
   const AudiencePage({
-    required this.channelId, required this.isDarkMode, super.key,
+    required this.channelId,
+    required this.isDarkMode,
+    super.key,
   });
   final String channelId;
   final bool isDarkMode;
@@ -28,11 +29,21 @@ class _AudiencePageState extends State<AudiencePage> {
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColor = widget.isDarkMode ? AppColors.bgInput : AppColors.textPrimary;
-    final backgroundColor = widget.isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final textColor = widget.isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
-    final subtitleColor = widget.isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
-    final borderColor = widget.isDarkMode ? const Color(0xFF2A2A2A) : AppColors.bgDivider;
+    final surfaceColor = widget.isDarkMode
+        ? AppColors.bgInput
+        : AppColors.textPrimary;
+    final backgroundColor = widget.isDarkMode
+        ? AppColors.bgPage
+        : AppColors.bgPage;
+    final textColor = widget.isDarkMode
+        ? AppColors.textPrimary
+        : AppColors.textPrimary;
+    final subtitleColor = widget.isDarkMode
+        ? AppColors.textSecondary
+        : AppColors.textSecondary;
+    final borderColor = widget.isDarkMode
+        ? const Color(0xFF2A2A2A)
+        : AppColors.bgDivider;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -48,7 +59,11 @@ class _AudiencePageState extends State<AudiencePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline_rounded, size: 48, color: Colors.white),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 48,
+                  color: Colors.white,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   controller.errorMessage,
@@ -58,7 +73,7 @@ class _AudiencePageState extends State<AudiencePage> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.black,
                   ),
                   onPressed: () => controller.fetchAudienceData(),
                   child: const Text('Retry'),
@@ -120,17 +135,30 @@ class _AudiencePageState extends State<AudiencePage> {
                         ),
                         IconButton(
                           tooltip: 'Refresh Metrics',
-                          icon: Icon(Icons.refresh_rounded, color: subtitleColor),
+                          icon: Icon(
+                            Icons.refresh_rounded,
+                            color: subtitleColor,
+                          ),
                           onPressed: () => controller.fetchAudienceData(),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
                     // Summary Analytic Dashboard Cards Block
-                    _buildSummaryCardsMatrix(surfaceColor, borderColor, textColor, subtitleColor),
+                    _buildSummaryCardsMatrix(
+                      surfaceColor,
+                      borderColor,
+                      textColor,
+                      subtitleColor,
+                    ),
                     const SizedBox(height: 24),
                     // Live Local Search Bar Filter
-                    _buildSearchBar(surfaceColor, borderColor, textColor, subtitleColor),
+                    _buildSearchBar(
+                      surfaceColor,
+                      borderColor,
+                      textColor,
+                      subtitleColor,
+                    ),
                     const SizedBox(height: 20),
                     // Table Subtitles
                     Row(
@@ -165,7 +193,11 @@ class _AudiencePageState extends State<AudiencePage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.search_off_rounded, size: 48, color: subtitleColor.withValues(alpha: 0.5)),
+                      Icon(
+                        Icons.search_off_rounded,
+                        size: 48,
+                        color: subtitleColor.withValues(alpha: 0.5),
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         'No matching states or regions found.',
@@ -177,12 +209,21 @@ class _AudiencePageState extends State<AudiencePage> {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final item = stateItems[index];
-                      return _buildStateCard(item, surfaceColor, borderColor, textColor, subtitleColor);
+                      return _buildStateCard(
+                        item,
+                        surfaceColor,
+                        borderColor,
+                        textColor,
+                        subtitleColor,
+                      );
                     },
                     childCount: stateItems.length,
                   ),
@@ -195,7 +236,12 @@ class _AudiencePageState extends State<AudiencePage> {
     );
   }
 
-  Widget _buildSummaryCardsMatrix(Color surfaceColor, Color borderColor, Color textColor, Color subtitleColor) {
+  Widget _buildSummaryCardsMatrix(
+    Color surfaceColor,
+    Color borderColor,
+    Color textColor,
+    Color subtitleColor,
+  ) {
     final views = controller.totalViews.value;
     final subs = controller.totalSubscribersGained.value;
     final conv = controller.subscriberConversionRate.value;
@@ -214,7 +260,9 @@ class _AudiencePageState extends State<AudiencePage> {
               subtitle: 'Accumulated active watch reach',
               icon: Icons.visibility_rounded,
               accentColor: const Color(0xFF3B82F6),
-              width: isDesktop ? (constraints.maxWidth - 48) / 4 : (constraints.maxWidth - 16) / 2,
+              width: isDesktop
+                  ? (constraints.maxWidth - 48) / 4
+                  : (constraints.maxWidth - 16) / 2,
               surfaceColor: surfaceColor,
               borderColor: borderColor,
               textColor: textColor,
@@ -226,7 +274,9 @@ class _AudiencePageState extends State<AudiencePage> {
               subtitle: 'Direct regional retention',
               icon: Icons.person_add_rounded,
               accentColor: AppColors.brand,
-              width: isDesktop ? (constraints.maxWidth - 48) / 4 : (constraints.maxWidth - 16) / 2,
+              width: isDesktop
+                  ? (constraints.maxWidth - 48) / 4
+                  : (constraints.maxWidth - 16) / 2,
               surfaceColor: surfaceColor,
               borderColor: borderColor,
               textColor: textColor,
@@ -238,7 +288,9 @@ class _AudiencePageState extends State<AudiencePage> {
               subtitle: 'Views to subscriber efficiency',
               icon: Icons.trending_up_rounded,
               accentColor: const Color(0xFF10B981),
-              width: isDesktop ? (constraints.maxWidth - 48) / 4 : (constraints.maxWidth - 16) / 2,
+              width: isDesktop
+                  ? (constraints.maxWidth - 48) / 4
+                  : (constraints.maxWidth - 16) / 2,
               surfaceColor: surfaceColor,
               borderColor: borderColor,
               textColor: textColor,
@@ -247,10 +299,13 @@ class _AudiencePageState extends State<AudiencePage> {
             _buildMetricTile(
               title: 'Urban Demographics',
               value: '${urban.toStringAsFixed(0)}%',
-              subtitle: '${(100 - urban).toStringAsFixed(0)}% rural distribution scope',
+              subtitle:
+                  '${(100 - urban).toStringAsFixed(0)}% rural distribution scope',
               icon: Icons.location_city_rounded,
               accentColor: const Color(0xFF8B5CF6),
-              width: isDesktop ? (constraints.maxWidth - 48) / 4 : (constraints.maxWidth - 16) / 2,
+              width: isDesktop
+                  ? (constraints.maxWidth - 48) / 4
+                  : (constraints.maxWidth - 16) / 2,
               surfaceColor: surfaceColor,
               borderColor: borderColor,
               textColor: textColor,
@@ -283,7 +338,9 @@ class _AudiencePageState extends State<AudiencePage> {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: widget.isDarkMode ? 0.2 : 0.02),
+            color: AppColors.bgPage.withValues(
+              alpha: widget.isDarkMode ? 0.2 : 0.02,
+            ),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -334,7 +391,12 @@ class _AudiencePageState extends State<AudiencePage> {
     );
   }
 
-  Widget _buildSearchBar(Color surfaceColor, Color borderColor, Color textColor, Color subtitleColor) {
+  Widget _buildSearchBar(
+    Color surfaceColor,
+    Color borderColor,
+    Color textColor,
+    Color subtitleColor,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor,
@@ -344,11 +406,19 @@ class _AudiencePageState extends State<AudiencePage> {
       child: TextField(
         style: TextStyle(color: textColor, fontSize: 14),
         decoration: InputDecoration(
-          hintText: 'Search localized view matrix by State Name or Abbrev (e.g. Maharashtra, KA)...',
+          hintText:
+              'Search localized view matrix by State Name or Abbrev (e.g. Maharashtra, KA)...',
           hintStyle: TextStyle(color: subtitleColor, fontSize: 14),
-          prefixIcon: Icon(Icons.search_rounded, color: subtitleColor, size: 20),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: subtitleColor,
+            size: 20,
+          ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
         onChanged: (val) => controller.updateSearchQuery(val),
       ),
@@ -379,7 +449,9 @@ class _AudiencePageState extends State<AudiencePage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: widget.isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFFF1F5F9),
+                  color: widget.isDarkMode
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -487,9 +559,3 @@ class _AudiencePageState extends State<AudiencePage> {
     );
   }
 }
-
-
-
-
-
-

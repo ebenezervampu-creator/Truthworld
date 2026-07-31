@@ -132,23 +132,29 @@ export async function cascadeDeleteUser(userId: string): Promise<void> {
   await deleteQueryBatch(db.collection("content_verifications").where("userId", "==", userId));
   await deleteQueryBatch(db.collection("content_verifications").where("ownerId", "==", userId));
 
-  // 10. Find and delete channels owned by the user (which triggers channel deletion triggers)
+  // Helper for batch deletion
+  const batchDeleteDocs = async (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => {
+    if (docs.length === 0) return;
+    const batchSize = 500;
+    for (let i = 0; i < docs.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = docs.slice(i, i + batchSize);
+      chunk.forEach(doc => batch.delete(doc.ref));
+      await batch.commit().catch(err => console.error(`[UserCascade] Batch delete error:`, err));
+    }
+  };
+
+  // 10. Find and delete channels owned by the user
   const channelsSnap = await db.collection("channels").where("ownerId", "==", userId).get();
-  for (const channelDoc of channelsSnap.docs) {
-    await channelDoc.ref.delete().catch(err => console.error(`[UserCascade] Error deleting channel doc:`, err));
-  }
+  await batchDeleteDocs(channelsSnap.docs);
 
-  // 11. Find and delete videos uploaded/owned by the user (which triggers video deletion triggers)
+  // 11. Find and delete videos uploaded/owned by the user
   const videosSnap = await db.collection("videos").where("ownerId", "==", userId).get();
-  for (const videoDoc of videosSnap.docs) {
-    await videoDoc.ref.delete().catch(err => console.error(`[UserCascade] Error deleting video doc:`, err));
-  }
+  await batchDeleteDocs(videosSnap.docs);
 
-  // 12. Find and delete topics created by the user (which triggers topic deletion triggers)
+  // 12. Find and delete topics created by the user
   const topicsSnap = await db.collection("topics").where("creatorId", "==", userId).get();
-  for (const topicDoc of topicsSnap.docs) {
-    await topicDoc.ref.delete().catch(err => console.error(`[UserCascade] Error deleting topic doc:`, err));
-  }
+  await batchDeleteDocs(topicsSnap.docs);
 
   // 13. Delete Storage assets for the user
   await deleteStorageFolder(`channel_avatars/${userId}`);

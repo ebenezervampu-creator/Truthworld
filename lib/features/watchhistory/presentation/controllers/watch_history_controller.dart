@@ -40,9 +40,9 @@ class WatchHistoryController extends BaseController {
     storage.write('watch_history_paused', isHistoryPaused.value);
     Get.snackbar(
       isHistoryPaused.value ? 'History Paused' : 'History Resumed',
-      isHistoryPaused.value 
-        ? 'Your viewing history will no longer be saved.' 
-        : 'Your viewing history will now be saved.',
+      isHistoryPaused.value
+          ? 'Your viewing history will no longer be saved.'
+          : 'Your viewing history will now be saved.',
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppTheme.colors.surface.withValues(alpha: 0.9),
       colorText: AppTheme.colors.textPrimary,
@@ -60,7 +60,7 @@ class WatchHistoryController extends BaseController {
           .collection('watch_history')
           .doc(videoId)
           .delete();
-      
+
       Get.snackbar(
         'Item Removed',
         'Video removed from watch history',
@@ -78,7 +78,9 @@ class WatchHistoryController extends BaseController {
     Get.dialog(
       AlertDialog(
         title: const Text('Clear Watch History?'),
-        content: const Text('This will remove all videos from your viewing history. This action cannot be undone.'),
+        content: const Text(
+          'This will remove all videos from your viewing history. This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: Get.back,
@@ -93,26 +95,33 @@ class WatchHistoryController extends BaseController {
                     .collection('users')
                     .doc(userId)
                     .collection('watch_history');
-                
+
                 final snapshots = await collection.get();
                 for (final doc in snapshots.docs) {
                   batch.delete(doc.reference);
                 }
-                
+
                 await batch.commit();
                 Get.snackbar('Success', 'Watch history cleared');
               } catch (e) {
                 Get.snackbar('Error', 'Failed to clear history: $e');
               }
             },
-            child: const Text('Clear All', style: TextStyle(color: AppColors.error)),
+            child: const Text(
+              'Clear All',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> deleteHistoryRange(DateTime start, DateTime end, String label) async {
+  Future<void> deleteHistoryRange(
+    DateTime start,
+    DateTime end,
+    String label,
+  ) async {
     final userId = AuthService.to.uid;
     if (userId.isEmpty) return;
 
@@ -122,7 +131,7 @@ class WatchHistoryController extends BaseController {
           .collection('users')
           .doc(userId)
           .collection('watch_history');
-      
+
       final snapshots = await collection
           .where('watchedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
           .where('watchedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
@@ -138,7 +147,7 @@ class WatchHistoryController extends BaseController {
       for (final doc in snapshots.docs) {
         batch.delete(doc.reference);
       }
-      
+
       await batch.commit();
       setViewState(ViewState.idle);
       Get.snackbar('Success', 'Cleared history for $label');
@@ -163,15 +172,30 @@ class WatchHistoryController extends BaseController {
   Future<void> deleteYesterday() async {
     final now = DateTime.now();
     final yesterday = now.subtract(const Duration(days: 1));
-    final startOfYesterday = DateTime(yesterday.year, yesterday.month, yesterday.day);
-    final endOfYesterday = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
+    final startOfYesterday = DateTime(
+      yesterday.year,
+      yesterday.month,
+      yesterday.day,
+    );
+    final endOfYesterday = DateTime(
+      yesterday.year,
+      yesterday.month,
+      yesterday.day,
+      23,
+      59,
+      59,
+    );
     await deleteHistoryRange(startOfYesterday, endOfYesterday, 'yesterday');
   }
 
   Future<void> deleteThisWeek() async {
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    final startOfFirstDay = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+    final startOfFirstDay = DateTime(
+      startOfWeek.year,
+      startOfWeek.month,
+      startOfWeek.day,
+    );
     await deleteHistoryRange(startOfFirstDay, now, 'this week');
   }
 
@@ -180,8 +204,16 @@ class WatchHistoryController extends BaseController {
     final startOfThisWeek = now.subtract(Duration(days: now.weekday - 1));
     final endOfPrevWeek = startOfThisWeek.subtract(const Duration(seconds: 1));
     final startOfPrevWeek = startOfThisWeek.subtract(const Duration(days: 7));
-    final startOfPrevWeekDay = DateTime(startOfPrevWeek.year, startOfPrevWeek.month, startOfPrevWeek.day);
-    await deleteHistoryRange(startOfPrevWeekDay, endOfPrevWeek, 'previous week');
+    final startOfPrevWeekDay = DateTime(
+      startOfPrevWeek.year,
+      startOfPrevWeek.month,
+      startOfPrevWeek.day,
+    );
+    await deleteHistoryRange(
+      startOfPrevWeekDay,
+      endOfPrevWeek,
+      'previous week',
+    );
   }
 
   void _onScroll() {
@@ -223,7 +255,7 @@ class WatchHistoryController extends BaseController {
 
     switch (sortBy.value) {
       case 'recent':
-        // Note: For true 'recent' sort by watchedAt, we'd need that metadata in the Video object 
+        // Note: For true 'recent' sort by watchedAt, we'd need that metadata in the Video object
         // or sort in the StreamBuilder. Since we are sorting the fetched Video list:
         videos.sort(
           (a, b) => isAscending.value
@@ -279,8 +311,18 @@ class WatchHistoryController extends BaseController {
 
   String _getMonthName(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return months[month - 1];
   }
@@ -292,8 +334,3 @@ class WatchHistoryController extends BaseController {
     super.onClose();
   }
 }
-
-
-
-
-

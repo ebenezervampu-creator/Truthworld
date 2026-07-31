@@ -1,5 +1,4 @@
 class RouteMetadata {
-
   const RouteMetadata({
     required this.title,
     required this.description,
@@ -101,6 +100,13 @@ class RouteMetadataConfig {
       description: 'Manage your account settings and preferences',
       keywords: 'settings, account, preferences',
     ),
+    '/premium': const RouteMetadata(
+      title: 'Truthworld Premium',
+      description:
+          'Ad-free videos, offline downloads, background play, and 1080p Premium',
+      keywords:
+          'premium, ad-free, family plan, student plan, creator pro, offline, background play',
+    ),
     '/feedback': const RouteMetadata(
       title: 'Feedback',
       description: 'Help us improve Truthworld by sharing your thoughts',
@@ -189,8 +195,3 @@ class RouteMetadataConfig {
     return _routes['/'];
   }
 }
-
-
-
-
-

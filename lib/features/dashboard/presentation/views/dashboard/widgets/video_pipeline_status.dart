@@ -7,7 +7,6 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class VideoPipelineStatusWidget extends StatelessWidget {
-
   VideoPipelineStatusWidget({
     required this.video,
     required this.isDarkMode,
@@ -58,15 +57,24 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     final thumbnailFile = _getThumbnailFileName(video.thumbnailUrl);
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('videos').doc(video.id).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('videos')
+          .doc(video.id)
+          .snapshots(),
       builder: (context, videoDocSnap) {
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: thumbnailFile != null
-              ? FirebaseFirestore.instance.collection('image_verification').doc(thumbnailFile).snapshots()
+              ? FirebaseFirestore.instance
+                    .collection('image_verification')
+                    .doc(thumbnailFile)
+                    .snapshots()
               : const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty(),
           builder: (context, imageSnap) {
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance.collection('resolution_jobs').doc(video.id).snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('resolution_jobs')
+                  .doc(video.id)
+                  .snapshots(),
               builder: (context, resolutionSnap) {
                 return StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -80,26 +88,45 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     final resolutionDoc = resolutionSnap.data?.data();
 
                     // Video Content Moderation (Gemini v3.0 Intent-Aware Analysis)
-                    final moderationData = videoDocData?['moderation'] as Map<String, dynamic>?;
-                    final moderationStatus = (moderationData?['status'] as String?)?.toUpperCase() ?? 'PENDING';
-                    final moderationReason = moderationData?['policyReason'] as String? ?? moderationData?['reason'] as String?;
-                    final moderationSummary = moderationData?['summary'] as String?;
-                    final moderationCategories = (moderationData?['violationCategories'] as List<dynamic>?)?.cast<String>() ?? [];
-                    final moderationTime = moderationData?['processingTimeMs'] as num?;
+                    final moderationData =
+                        videoDocData?['moderation'] as Map<String, dynamic>?;
+                    final moderationStatus =
+                        (moderationData?['status'] as String?)?.toUpperCase() ??
+                        'PENDING';
+                    final moderationReason =
+                        moderationData?['policyReason'] as String? ??
+                        moderationData?['reason'] as String?;
+                    final moderationSummary =
+                        moderationData?['summary'] as String?;
+                    final moderationCategories =
+                        (moderationData?['violationCategories']
+                                as List<dynamic>?)
+                            ?.cast<String>() ??
+                        [];
+                    final moderationTime =
+                        moderationData?['processingTimeMs'] as num?;
                     final moderationTopic = moderationData?['topic'] as String?;
-                    final moderationIntent = moderationData?['intent'] as String?;
-                    final moderationRiskLevel = moderationData?['riskLevel'] as String?;
-                    final moderationExplanation = moderationData?['explanation'] as String?;
+                    final moderationIntent =
+                        moderationData?['intent'] as String?;
+                    final moderationRiskLevel =
+                        moderationData?['riskLevel'] as String?;
+                    final moderationExplanation =
+                        moderationData?['explanation'] as String?;
 
                     // Thumbnail Safety Verification (Vertex AI Vision)
-                    final imageStatus = (imageDoc?['status'] as String?)?.toUpperCase() ?? 'PENDING';
+                    final imageStatus =
+                        (imageDoc?['status'] as String?)?.toUpperCase() ??
+                        'PENDING';
                     final imageReason = imageDoc?['reason'] as String?;
 
                     // Resolution job status mapping
-                    final variants = resolutionDoc?['variants'] as Map<String, dynamic>? ?? {};
+                    final variants =
+                        resolutionDoc?['variants'] as Map<String, dynamic>? ??
+                        {};
 
                     // Pipeline timeline stages mapping from videoDoc
-                    final stages = videoDocData?['stages'] as Map<String, dynamic>? ?? {};
+                    final stages =
+                        videoDocData?['stages'] as Map<String, dynamic>? ?? {};
 
                     return Obx(() {
                       return Container(
@@ -130,17 +157,18 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                       children: [
                                         const Icon(
                                           Icons.tune_rounded,
-                                          color: AppColors.brand,
+                                          color: Colors.white,
                                           size: 20,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
                                             'Processing Pipeline',
-                                            style: AppTextStyles.titleMedium.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.textPrimary,
-                                            ),
+                                            style: AppTextStyles.titleMedium
+                                                .copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.textPrimary,
+                                                ),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
@@ -150,7 +178,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                           _isExpanded.value
                                               ? Icons.expand_less_rounded
                                               : Icons.expand_more_rounded,
-                                          color: AppColors.textSecondary,
+                                          color: Colors.white,
                                           size: 22,
                                         ),
                                       ],
@@ -159,29 +187,40 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     Wrap(
                                       spacing: 6,
                                       runSpacing: 6,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
                                       children: [
                                         _buildMiniBadge(
                                           label: 'Content: $moderationStatus',
-                                          color: _getSafetyColor(moderationStatus),
+                                          color: _getSafetyColor(
+                                            moderationStatus,
+                                          ),
                                         ),
                                         _buildMiniBadge(
                                           label: 'Thumb: $imageStatus',
                                           color: _getSafetyColor(imageStatus),
                                         ),
                                         _buildMiniBadge(
-                                          label: video.status.name == 'pending_review'
+                                          label:
+                                              video.status.name ==
+                                                  'pending_review'
                                               ? 'PENDING REVIEW'
                                               : video.status.name.toUpperCase(),
                                           color: video.status.name == 'ready'
                                               ? AppColors.success
                                               : (video.status.name == 'rejected'
-                                                  ? AppColors.error
-                                                  : (video.status.name == 'pending_review'
-                                                      ? AppColors.info
-                                                      : (video.status.name == 'failed'
-                                                          ? AppColors.error
-                                                          : AppColors.warning))),
+                                                    ? AppColors.error
+                                                    : (video.status.name ==
+                                                              'pending_review'
+                                                          ? AppColors.info
+                                                          : (video
+                                                                        .status
+                                                                        .name ==
+                                                                    'failed'
+                                                                ? AppColors
+                                                                      .error
+                                                                : AppColors
+                                                                      .warning))),
                                         ),
                                       ],
                                     ),
@@ -189,19 +228,29 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            
+
                             // Collapsible Body
                             AnimatedCrossFade(
                               firstChild: const SizedBox.shrink(),
                               secondChild: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  12,
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Divider(height: 16),
-                                    
+                                    const Divider(
+                                      height: 16,
+                                      color: AppColors.bgDivider,
+                                    ),
+
                                     // Section 1: Video Content Moderation (Gemini Audio Analysis)
-                                    _buildSectionTitle('Video Content Moderation (Gemini)'),
+                                    _buildSectionTitle(
+                                      'Video Content Moderation (Gemini)',
+                                    ),
                                     const SizedBox(height: 6),
                                     _buildModerationPanel(
                                       status: moderationStatus,
@@ -218,79 +267,116 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     const SizedBox(height: 16),
 
                                     // Section 2: Thumbnail Safety Verification
-                                    _buildSectionTitle('Thumbnail Safety Verification'),
+                                    _buildSectionTitle(
+                                      'Thumbnail Safety Verification',
+                                    ),
                                     const SizedBox(height: 6),
                                     Row(
                                       children: [
                                         Icon(
                                           _getSafetyIcon(imageStatus),
-                                          color: _getSafetyColor(imageStatus),
+                                          color: Colors.white,
                                           size: 18,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            imageReason ?? 'Awaiting safety checks from Vertex AI Vision...',
-                                            style: AppTextStyles.bodySmall.copyWith(
-                                              fontSize: 13,
-                                              color: AppColors.textSecondary,
-                                            ),
+                                            imageReason ??
+                                                'Awaiting safety checks from Vertex AI Vision...',
+                                            style: AppTextStyles.bodySmall
+                                                .copyWith(
+                                                  fontSize: 12,
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                    
+
                                     const SizedBox(height: 16),
-                                    
+
                                     // Section 2: Adaptive Resolution Transcoding
-                                    _buildSectionTitle('Resolution Transcoding (Adaptive HLS)'),
+                                    _buildSectionTitle(
+                                      'Resolution Transcoding (Adaptive HLS)',
+                                    ),
                                     const SizedBox(height: 8),
                                     Wrap(
                                       spacing: 8,
                                       runSpacing: 8,
                                       children: [
-                                        _buildResolutionChip('144p', variants['144p']),
-                                        _buildResolutionChip('240p', variants['240p']),
-                                        _buildResolutionChip('360p', variants['360p']),
-                                        _buildResolutionChip('480p', variants['480p']),
-                                        _buildResolutionChip('720p', variants['720p']),
+                                        _buildResolutionChip(
+                                          '144p',
+                                          variants['144p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '240p',
+                                          variants['240p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '360p',
+                                          variants['360p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '480p',
+                                          variants['480p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '720p',
+                                          variants['720p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '1040p',
+                                          variants['1040p'],
+                                        ),
                                       ],
                                     ),
-                                    
+
                                     const SizedBox(height: 16),
-                                    
+
                                     // Section 3: AI Processing Timeline Stages
-                                    _buildSectionTitle('AI Metadata & Pipeline Stages'),
+                                    _buildSectionTitle(
+                                      'AI Metadata & Pipeline Stages',
+                                    ),
                                     const SizedBox(height: 10),
                                     _buildPipelineTimeline(stages),
-                                    
+
                                     // Section 4: Direct Links & Stored Artifacts (Only if ready)
-                                    if (video.status.name == 'ready' || stages.isNotEmpty) ...[
+                                    if (video.status.name == 'ready' ||
+                                        stages.isNotEmpty) ...[
                                       const SizedBox(height: 16),
-                                      _buildSectionTitle('Direct Links & Stored Artifacts'),
+                                      _buildSectionTitle(
+                                        'Direct Links & Stored Artifacts',
+                                      ),
                                       const SizedBox(height: 8),
                                       _buildArtifactLinksPanel(),
                                     ],
 
                                     // Section 5: Gemini Generated Summary (Low Latency Stored)
-                                    if (video.description.isNotEmpty && video.status.name == 'ready') ...[
+                                    if (video.description.isNotEmpty &&
+                                        video.status.name == 'ready') ...[
                                       const SizedBox(height: 16),
-                                      _buildSectionTitle('Gemini Video Summary'),
+                                      _buildSectionTitle(
+                                        'Gemini Video Summary',
+                                      ),
                                       const SizedBox(height: 8),
                                       Container(
                                         width: double.infinity,
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
                                           color: AppColors.bgSurfaceHover,
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
                                         child: Text(
                                           video.description,
-                                          style: AppTextStyles.bodyMedium.copyWith(
-                                            fontSize: 12.5,
-                                            color: AppColors.textSecondary,
-                                            height: 1.4,
-                                          ),
+                                          style: AppTextStyles.bodyMedium
+                                              .copyWith(
+                                                fontSize: 13,
+                                                color: AppColors.textSecondary,
+                                                height: 1.4,
+                                              ),
                                         ),
                                       ),
                                     ],
@@ -300,7 +386,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              crossFadeState: _isExpanded.value ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                              crossFadeState: _isExpanded.value
+                                  ? CrossFadeState.showSecond
+                                  : CrossFadeState.showFirst,
                               duration: const Duration(milliseconds: 250),
                             ),
                           ],
@@ -338,9 +426,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,23 +446,23 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   ),
                 )
               else
-                Icon(icon, color: color, size: 18),
+                Icon(icon, color: Colors.white, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   isProcessing
                       ? 'Analyzing content (topic, intent, risk)...'
                       : (status == 'APPROVED'
-                          ? 'Content approved — complies with Community Guidelines'
-                          : (status == 'REJECTED'
-                              ? 'Content rejected — policy violation detected'
-                              : (isManualReview
-                                  ? 'Pending manual review — awaiting admin decision'
-                                  : (status == 'ERROR'
-                                      ? 'Moderation system error (transient failure)'
-                                      : 'Awaiting content moderation...')))),
+                            ? 'Content approved — complies with Community Guidelines'
+                            : (status == 'REJECTED'
+                                  ? 'Content rejected — policy violation detected'
+                                  : (isManualReview
+                                        ? 'Pending manual review — awaiting admin decision'
+                                        : (status == 'ERROR'
+                                              ? 'Moderation system error (transient failure)'
+                                              : 'Awaiting content moderation...')))),
                   style: AppTextStyles.bodyMedium.copyWith(
-                    fontSize: 12.5,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
                   ),
@@ -384,16 +472,18 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 Text(
                   '${(processingTimeMs / 1000).toStringAsFixed(1)}s',
                   style: AppTextStyles.caption.copyWith(
-                    fontSize: 10,
+                    fontSize: 11,
                     color: AppColors.textTertiary,
                   ),
                 ),
             ],
           ),
 
-          // Intent & Topic Badges (v3.0 — show for all completed states)
+          // Intent & Topic Badges
           if ((topic != null || intent != null || riskLevel != null) &&
-              (status == 'APPROVED' || status == 'REJECTED' || isManualReview)) ...[
+              (status == 'APPROVED' ||
+                  status == 'REJECTED' ||
+                  isManualReview)) ...[
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
@@ -429,7 +519,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               runSpacing: 4,
               children: categories.map((cat) {
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
@@ -437,7 +530,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   child: Text(
                     cat.replaceAll('_', ' ').toUpperCase(),
                     style: AppTextStyles.labelSmall.copyWith(
-                      fontSize: 9,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       color: AppColors.error,
                       letterSpacing: 0.5,
@@ -448,26 +541,34 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             ),
           ],
 
-          // Policy Reason (if rejected, manual review, or error)
-          if (reason != null && reason.isNotEmpty && (status == 'REJECTED' || isManualReview || status == 'ERROR')) ...[
+          // Policy Reason
+          if (reason != null &&
+              reason.isNotEmpty &&
+              (status == 'REJECTED' ||
+                  isManualReview ||
+                  status == 'ERROR')) ...[
             const SizedBox(height: 6),
             Text(
               reason,
               style: AppTextStyles.bodySmall.copyWith(
-                fontSize: 11.5,
-                color: status == 'REJECTED' ? AppColors.error : AppColors.warning,
+                fontSize: 12,
+                color: status == 'REJECTED'
+                    ? AppColors.error
+                    : AppColors.warning,
                 height: 1.3,
               ),
             ),
           ],
 
-          // Explanation (v3.0 — brief reasoning chain)
-          if (explanation != null && explanation.isNotEmpty && status != 'ERROR') ...[
+          // Explanation
+          if (explanation != null &&
+              explanation.isNotEmpty &&
+              status != 'ERROR') ...[
             const SizedBox(height: 4),
             Text(
               explanation,
               style: AppTextStyles.caption.copyWith(
-                fontSize: 10.5,
+                fontSize: 11,
                 color: AppColors.textTertiary,
                 fontStyle: FontStyle.italic,
                 height: 1.3,
@@ -483,21 +584,27 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.info.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: AppColors.info.withValues(alpha: 0.2),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Padding(
                     padding: EdgeInsets.only(top: 1),
-                    child: Icon(Icons.info_outline_rounded, size: 14, color: AppColors.info),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Our AI detected this content discusses a sensitive topic but could not confidently determine if it is journalistic/educational or promotional. An admin will review shortly.',
                       style: AppTextStyles.caption.copyWith(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         color: AppColors.info,
                         height: 1.3,
                       ),
@@ -509,12 +616,14 @@ class VideoPipelineStatusWidget extends StatelessWidget {
           ],
 
           // Summary (if approved)
-          if (summary != null && summary.isNotEmpty && status == 'APPROVED') ...[
+          if (summary != null &&
+              summary.isNotEmpty &&
+              status == 'APPROVED') ...[
             const SizedBox(height: 6),
             Text(
               summary,
               style: AppTextStyles.bodySmall.copyWith(
-                fontSize: 11.5,
+                fontSize: 12,
                 color: AppColors.textSecondary,
                 height: 1.3,
               ),
@@ -530,10 +639,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: AppTextStyles.labelMedium.copyWith(
-        fontSize: 12,
+      style: AppTextStyles.titleMedium.copyWith(
+        fontSize: 13,
         fontWeight: FontWeight.bold,
-        color: AppColors.textTertiary,
+        color: AppColors.textSecondary,
         letterSpacing: 0.5,
       ),
     );
@@ -550,7 +659,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       child: Text(
         label,
         style: AppTextStyles.labelSmall.copyWith(
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.bold,
           color: color,
         ),
@@ -592,7 +701,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     }
   }
 
-  /// Returns a color based on the moderation intent category.
   Color _getIntentColor(String intent) {
     switch (intent.toLowerCase()) {
       case 'news_reporting':
@@ -616,7 +724,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     }
   }
 
-  /// Returns a color based on the moderation risk level.
   Color _getRiskColor(String riskLevel) {
     switch (riskLevel.toLowerCase()) {
       case 'safe':
@@ -632,8 +739,11 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     }
   }
 
-  /// Builds a compact info chip for displaying topic/intent/risk metadata.
-  Widget _buildInfoChip({required String label, required Color color, String? prefix}) {
+  Widget _buildInfoChip({
+    required String label,
+    required Color color,
+    String? prefix,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -644,7 +754,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       child: Text(
         prefix != null ? '$prefix: $label' : label,
         style: AppTextStyles.labelSmall.copyWith(
-          fontSize: 9,
+          fontSize: 11,
           fontWeight: FontWeight.bold,
           color: color,
           letterSpacing: 0.3,
@@ -654,11 +764,13 @@ class VideoPipelineStatusWidget extends StatelessWidget {
   }
 
   Widget _buildResolutionChip(String label, dynamic variantData) {
-    final status = (variantData is Map) ? (variantData['status'] as String? ?? 'pending') : 'pending';
-    
+    final status = (variantData is Map)
+        ? (variantData['status'] as String? ?? 'pending')
+        : 'pending';
+
     Color chipColor;
     IconData icon;
-    
+
     switch (status) {
       case 'completed':
         chipColor = AppColors.success;
@@ -685,12 +797,12 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: chipColor),
+          Icon(icon, size: 12, color: Colors.white),
           const SizedBox(width: 6),
           Text(
             label,
             style: AppTextStyles.labelMedium.copyWith(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
@@ -726,27 +838,50 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         switch (status) {
           case 'completed':
             itemColor = AppColors.success;
-            leadingWidget = const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16);
+            leadingWidget = const Icon(
+              Icons.check_circle_rounded,
+              color: Colors.white,
+              size: 16,
+            );
           case 'running':
             itemColor = AppColors.brand;
             leadingWidget = const SizedBox(
               width: 12,
               height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.brand,
+              ),
             );
           case 'pending_review':
             itemColor = AppColors.info;
-            leadingWidget = const Icon(Icons.hourglass_top_rounded, color: AppColors.info, size: 16);
+            leadingWidget = const Icon(
+              Icons.hourglass_top_rounded,
+              color: Colors.white,
+              size: 16,
+            );
           case 'failed':
             itemColor = AppColors.error;
-            leadingWidget = const Icon(Icons.error_rounded, color: AppColors.error, size: 16);
+            leadingWidget = const Icon(
+              Icons.error_rounded,
+              color: Colors.white,
+              size: 16,
+            );
           case 'skipped':
             itemColor = AppColors.textTertiary;
-            leadingWidget = const Icon(Icons.skip_next_rounded, color: AppColors.textTertiary, size: 16);
+            leadingWidget = const Icon(
+              Icons.skip_next_rounded,
+              color: Colors.white,
+              size: 16,
+            );
           case 'pending':
           default:
             itemColor = AppColors.textTertiary;
-            leadingWidget = const Icon(Icons.radio_button_unchecked_rounded, color: AppColors.textTertiary, size: 14);
+            leadingWidget = const Icon(
+              Icons.radio_button_unchecked_rounded,
+              color: Colors.white,
+              size: 14,
+            );
         }
 
         return Padding(
@@ -759,8 +894,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 child: Text(
                   label,
                   style: AppTextStyles.bodyMedium.copyWith(
-                    fontSize: 12.5,
-                    fontWeight: status == 'running' ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 13,
+                    fontWeight: status == 'running'
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                     color: status == 'pending'
                         ? AppColors.textTertiary
                         : AppColors.textPrimary,
@@ -772,7 +909,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 Text(
                   '${progress.toInt()}%',
                   style: AppTextStyles.labelMedium.copyWith(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: AppColors.brand,
                   ),
@@ -781,7 +918,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 Text(
                   status.toUpperCase(),
                   style: AppTextStyles.labelSmall.copyWith(
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: itemColor,
                   ),
@@ -798,26 +935,22 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Grid of Download actions
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            // 1. Transcription jsonUrl
             if (video.transcriptionUrl.isNotEmpty)
               _buildActionButton(
                 icon: Icons.description_outlined,
                 label: 'Transcript JSON',
                 onPressed: () => _launchURL(video.transcriptionUrl),
               ),
-            // 2. Factchecking report Url
             if (video.factCheckUrl.isNotEmpty)
               _buildActionButton(
                 icon: Icons.fact_check_outlined,
                 label: 'Fact-Check Report',
                 onPressed: () => _launchURL(video.factCheckUrl),
               ),
-            // 3. Subtitles
             if (video.mediaSubtitles.isNotEmpty)
               ...video.mediaSubtitles.entries.map((entry) {
                 return _buildActionButton(
@@ -826,7 +959,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   onPressed: () => _launchURL(entry.value),
                 );
               }),
-            // 4. Audio Tracks / Dubs
             if (video.audioTracks.isNotEmpty)
               ...video.audioTracks.entries.map((entry) {
                 return _buildActionButton(
@@ -835,7 +967,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   onPressed: () => _launchURL(entry.value),
                 );
               }),
-            // 5. Resolution variants
             if (video.resolutions.isNotEmpty)
               ...video.adaptiveResolutions.map((res) {
                 return _buildActionButton(
@@ -877,7 +1008,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
           Text(
             label,
             style: AppTextStyles.labelMedium.copyWith(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
               color: AppColors.textPrimary,
             ),
@@ -903,7 +1034,11 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
           ),
         ),
-        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+        icon: const Icon(
+          Icons.auto_awesome_rounded,
+          size: 18,
+          color: Colors.white,
+        ),
         label: Text(
           'Generate / Add AI Features (Telugu, Hindi, Dubbing, Factcheck...)',
           style: AppTextStyles.labelMedium.copyWith(
@@ -924,7 +1059,13 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     VideoManagementController controller,
   ) {
     final selectedLangs = <String>{'te', 'hi'}.obs;
-    final selectedFeatures = <String>{'subtitles', 'dubbing', 'factcheck', 'summary', 'chapters'}.obs;
+    final selectedFeatures = <String>{
+      'subtitles',
+      'dubbing',
+      'factcheck',
+      'summary',
+      'chapters',
+    }.obs;
     final isAccuracyMode = true.obs;
 
     final availableLangs = [
@@ -958,7 +1099,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                       children: [
                         const Icon(
                           Icons.auto_awesome_rounded,
-                          color: AppColors.brand,
+                          color: Colors.white,
                           size: 22,
                         ),
                         const SizedBox(width: 8),
@@ -968,12 +1109,16 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                             style: AppTextStyles.titleLarge.copyWith(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
-                              fontSize: 17,
+                              fontSize: 18,
                             ),
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                           onPressed: Get.back<void>,
                         ),
                       ],
@@ -981,7 +1126,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(
                       'Target Languages',
-                      style: AppTextStyles.labelMedium.copyWith(
+                      style: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
@@ -998,11 +1143,15 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                           label: Text(name),
                           selected: isSelected,
                           selectedColor: AppColors.brand.withValues(alpha: 0.2),
-                          checkmarkColor: AppColors.brand,
+                          checkmarkColor: Colors.white,
                           labelStyle: AppTextStyles.labelMedium.copyWith(
-                            fontSize: 11.5,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                            fontSize: 12,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isSelected
+                                ? AppColors.brand
+                                : AppColors.textPrimary,
                           ),
                           onSelected: (val) {
                             if (val) {
@@ -1017,7 +1166,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       'AI Features',
-                      style: AppTextStyles.labelMedium.copyWith(
+                      style: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
@@ -1028,45 +1177,105 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                       activeColor: AppColors.brand,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Subtitles (SRT/VTT)'),
-                      subtitle: const Text('Generate captions in target languages'),
-                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('subtitles') : selectedFeatures.remove('subtitles'),
+                      title: Text(
+                        'Subtitles (SRT/VTT)',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Generate captions in target languages',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onChanged: (val) => (val ?? false)
+                          ? selectedFeatures.add('subtitles')
+                          : selectedFeatures.remove('subtitles'),
                     ),
                     CheckboxListTile(
                       value: selectedFeatures.contains('dubbing'),
                       activeColor: AppColors.brand,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Audio Dubbing Tracks'),
-                      subtitle: const Text('Generate voice audio in Telugu, Hindi, etc.'),
-                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('dubbing') : selectedFeatures.remove('dubbing'),
+                      title: Text(
+                        'Audio Dubbing Tracks',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Generate voice audio in Telugu, Hindi, etc.',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onChanged: (val) => (val ?? false)
+                          ? selectedFeatures.add('dubbing')
+                          : selectedFeatures.remove('dubbing'),
                     ),
                     CheckboxListTile(
                       value: selectedFeatures.contains('factcheck'),
                       activeColor: AppColors.brand,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Fact-Checking Report'),
-                      subtitle: const Text('Extract claims and truth score'),
-                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('factcheck') : selectedFeatures.remove('factcheck'),
+                      title: Text(
+                        'Fact-Checking Report',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Extract claims and truth score',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onChanged: (val) => (val ?? false)
+                          ? selectedFeatures.add('factcheck')
+                          : selectedFeatures.remove('factcheck'),
                     ),
                     CheckboxListTile(
                       value: selectedFeatures.contains('summary'),
                       activeColor: AppColors.brand,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('AI Video Summary'),
-                      subtitle: const Text('Generate smart video summary'),
-                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('summary') : selectedFeatures.remove('summary'),
+                      title: Text(
+                        'AI Video Summary',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Generate smart video summary',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onChanged: (val) => (val ?? false)
+                          ? selectedFeatures.add('summary')
+                          : selectedFeatures.remove('summary'),
                     ),
                     CheckboxListTile(
                       value: selectedFeatures.contains('chapters'),
                       activeColor: AppColors.brand,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Auto-Chapters'),
-                      subtitle: const Text('Generate timestamped section breaks'),
-                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('chapters') : selectedFeatures.remove('chapters'),
+                      title: Text(
+                        'Auto-Chapters',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Generate timestamped section breaks',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      onChanged: (val) => (val ?? false)
+                          ? selectedFeatures.add('chapters')
+                          : selectedFeatures.remove('chapters'),
                     ),
                     const SizedBox(height: 20),
                     Row(
@@ -1074,7 +1283,12 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                       children: [
                         TextButton(
                           onPressed: Get.back<void>,
-                          child: const Text('Cancel'),
+                          child: Text(
+                            'Cancel',
+                            style: AppTextStyles.buttonText.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton.icon(
@@ -1082,8 +1296,18 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                             backgroundColor: AppColors.brand,
                             foregroundColor: AppColors.textPrimary,
                           ),
-                          icon: const Icon(Icons.bolt_rounded, size: 16),
-                          label: const Text('Generate AI Features'),
+                          icon: const Icon(
+                            Icons.bolt_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            'Generate AI Features',
+                            style: AppTextStyles.buttonText.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           onPressed: selectedFeatures.isEmpty
                               ? null
                               : () {
@@ -1092,8 +1316,12 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     videoId: video.id,
                                     features: selectedFeatures.toList(),
                                     targetLanguages: selectedLangs.toList(),
-                                    priorityMode: isAccuracyMode.value ? 'accuracy' : 'speed',
-                                    autoChapters: selectedFeatures.contains('chapters'),
+                                    priorityMode: isAccuracyMode.value
+                                        ? 'accuracy'
+                                        : 'speed',
+                                    autoChapters: selectedFeatures.contains(
+                                      'chapters',
+                                    ),
                                   );
                                 },
                         ),

@@ -62,7 +62,8 @@ class DownloadsPage extends StatefulWidget {
   State<DownloadsPage> createState() => _DownloadsPageState();
 }
 
-class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateMixin {
+class _DownloadsPageState extends State<DownloadsPage>
+    with TickerProviderStateMixin {
   final controller = Get.put(DownloadsController());
 
   @override
@@ -140,10 +141,16 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                       : Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                              icon: const Icon(
+                                Icons.arrow_back,
+                                color: AppColors.textPrimary,
+                              ),
                               onPressed: () {
                                 if (widget.isDashboard) {
-                                  Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                                  Get.find<HomeController>()
+                                          .sideNavSelectedIndex
+                                          .value =
+                                      HomeController.indexLibrary;
                                 } else {
                                   Get.back();
                                 }
@@ -176,10 +183,14 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                           : const SizedBox.shrink(),
                     ),
                     IconButton(
-                      icon: Obx(() => Icon(
-                        controller.isListView.value ? Icons.grid_view_rounded : Icons.view_list_rounded,
-                        color: AppColors.textPrimary,
-                      )),
+                      icon: Obx(
+                        () => Icon(
+                          controller.isListView.value
+                              ? Icons.grid_view_rounded
+                              : Icons.view_list_rounded,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       onPressed: controller.toggleView,
                     ),
                   ],
@@ -222,7 +233,10 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
             delegate: SliverChildListDelegate([
               if (videos.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 24,
+                    horizontal: 16,
+                  ),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -275,7 +289,10 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                     ),
                   ),
                   for (final video in entry.value)
-                    _DownloadVideoListCard(video: video, controller: controller),
+                    _DownloadVideoListCard(
+                      video: video,
+                      controller: controller,
+                    ),
                 ],
 
               const SizedBox(height: 28),
@@ -304,7 +321,9 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
           .take(10)
           .toList();
 
-      final displayList = recommended.isNotEmpty ? recommended : allVideos.take(10).toList();
+      final displayList = recommended.isNotEmpty
+          ? recommended
+          : allVideos.take(10).toList();
 
       if (displayList.isEmpty) {
         return const SizedBox.shrink();
@@ -364,7 +383,10 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
     });
   }
 
-  Future<void> _downloadRecommendedVideo(Video video, BuildContext context) async {
+  Future<void> _downloadRecommendedVideo(
+    Video video,
+    BuildContext context,
+  ) async {
     try {
       final offlineVideo = OfflineVideo(
         id: video.id,
@@ -387,7 +409,9 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
       );
 
       var videoBytes = Uint8List(0);
-      final targetUrl = video.originalUrl.isNotEmpty ? video.originalUrl : video.videoUrl;
+      final targetUrl = video.originalUrl.isNotEmpty
+          ? video.originalUrl
+          : video.videoUrl;
       if (targetUrl.isNotEmpty && targetUrl.startsWith('http')) {
         final res = await http.get(Uri.parse(targetUrl));
         if (res.statusCode == 200) {
@@ -507,7 +531,11 @@ class _DownloadVideoListCard extends StatelessWidget {
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.download_done, color: AppColors.textPrimary, size: 12),
+                        Icon(
+                          Icons.download_done,
+                          color: AppColors.textPrimary,
+                          size: 12,
+                        ),
                         SizedBox(width: 4),
                         Text(
                           'OFFLINE',
@@ -693,7 +721,6 @@ class _DownloadVideoListCard extends StatelessWidget {
 }
 
 class _RecommendedDownloadCard extends StatefulWidget {
-
   const _RecommendedDownloadCard({
     required this.video,
     required this.isDownloaded,
@@ -704,7 +731,8 @@ class _RecommendedDownloadCard extends StatefulWidget {
   final VoidCallback onDownload;
 
   @override
-  State<_RecommendedDownloadCard> createState() => _RecommendedDownloadCardState();
+  State<_RecommendedDownloadCard> createState() =>
+      _RecommendedDownloadCardState();
 }
 
 class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
@@ -740,7 +768,10 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                       bottom: 4,
                       right: 4,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.bgPage.withValues(alpha: 0.85),
                           borderRadius: BorderRadius.circular(4),
@@ -826,9 +857,3 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
     );
   }
 }
-
-
-
-
-
-

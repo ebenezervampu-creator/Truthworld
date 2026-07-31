@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -68,7 +70,7 @@ class ClipController extends GetxController {
 
       Get.back(); // Close dialog
       Get.snackbar(
-        'Success', 
+        'Success',
         'Clip saved to your library',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppColors.success.withValues(alpha: 0.8),
@@ -80,8 +82,48 @@ class ClipController extends GetxController {
       isSaving.value = false;
     }
   }
+
+  void shareClipWithWatermark(BuildContext context, {VideoClip? existingClip}) {
+    final start = existingClip?.startTime ?? startSeconds.value;
+    final end = existingClip?.endTime ?? endSeconds.value;
+    final title = (existingClip?.title.isNotEmpty ?? false)
+        ? existingClip!.title
+        : (clipTitle.value.isNotEmpty ? clipTitle.value : video.title);
+    final duration = end - start;
+
+    if (duration > maxDuration + 1) {
+      Get.snackbar(
+        'Error',
+        'Clip duration cannot exceed 1 minute (60 seconds)',
+      );
+      return;
+    }
+
+    final encodedTitle = Uri.encodeComponent(title);
+    final clipUrl =
+        'https://www.truthworld.in/watch?v=${video.id}&start=${start.toInt()}&end=${end.toInt()}&clipTitle=$encodedTitle';
+
+    final durationText =
+        '${start.toInt()}s - ${end.toInt()}s (${duration.toInt()}s)';
+    final watermarkText =
+        '🎬 Watch clip: "$title" [$durationText]\n'
+        '✨ Truthworld Watermark\n'
+        '👇 Tap to watch in Truthworld App:\n'
+        '$clipUrl';
+
+    // Close current clip creation sheet if open
+    if (Get.isBottomSheetOpen ?? false) {
+      Get.back();
+    }
+
+    ShareBottomSheet.show(
+      title: '🎬 $title (Truthworld Watermark Clip)',
+      url: clipUrl,
+      thumbnailUrl: video.thumbnailUrl,
+      subtitle: watermarkText,
+      channelName: video.channelName,
+      durationMs: (duration * 1000).toInt(),
+      type: 'clip',
+    );
+  }
 }
-
-
-
-

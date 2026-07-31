@@ -5,13 +5,12 @@ import 'package:truthworld/core/network/result.dart';
 /// Generic base controller for all paginated lists, feeds, comments, and search results.
 /// Eliminates duplicate pagination logic across features.
 abstract class PagedController<T> extends BaseController {
-
   PagedController({this.pageSize = 10});
   final RxList<T> itemList = <T>[].obs;
 
   @override
   bool get isItemsEmpty => itemList.isEmpty;
-  
+
   final _currentPage = 1.obs;
   int get currentPage => _currentPage.value;
 
@@ -57,7 +56,8 @@ abstract class PagedController<T> extends BaseController {
 
   /// Fetch next page for infinite scrolling
   Future<void> fetchNextPage() async {
-    if (!hasMoreData || isLoading || isPaginationLoading || isRefreshing) return;
+    if (!hasMoreData || isLoading || isPaginationLoading || isRefreshing)
+      return;
 
     setViewState(ViewState.paginationLoading);
     final nextPage = _currentPage.value + 1;

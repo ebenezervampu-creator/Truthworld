@@ -1,6 +1,5 @@
 /// Immutable UI state for the home screen feed.
 class HomePageState {
-
   const HomePageState({
     required this.isLoadingTopics,
     required this.isLoadingVideos,

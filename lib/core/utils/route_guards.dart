@@ -31,18 +31,21 @@ class AuthGuard extends GetMiddleware {
 
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
-      final isStudio = host.startsWith('studio') ||
+      final isStudio =
+          host.startsWith('studio') ||
           Uri.base.queryParameters.containsKey('studio');
 
       if (isStudio) {
-        if (route == '/studio/auth' || (route != null && route.contains('studio/auth'))) {
+        if (route == '/studio/auth' ||
+            (route != null && route.contains('studio/auth'))) {
           return const RouteSettings(name: '/');
         }
       }
     }
 
     final cleanRoute = route?.split('?').first;
-    final isProtected = (cleanRoute != null && protectedRoutes.contains(cleanRoute)) ||
+    final isProtected =
+        (cleanRoute != null && protectedRoutes.contains(cleanRoute)) ||
         (route != null && protectedRoutes.contains(route));
 
     if (isProtected && !_authService.isAuthenticated.value) {
@@ -132,8 +135,3 @@ class RouteProtection {
     return null;
   }
 }
-
-
-
-
-

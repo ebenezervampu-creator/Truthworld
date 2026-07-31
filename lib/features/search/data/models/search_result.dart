@@ -6,7 +6,6 @@ enum ResultType { video, channel, playlist, topic }
 /// Lightweight search result model (only essential fields)
 /// Purpose: Minimize payload size for fast network transfers
 class SearchResult {
-
   SearchResult({
     required this.id,
     required this.title,
@@ -58,7 +57,9 @@ class SearchResult {
           id: doc.id,
           title: data['title'] as String? ?? 'Untitled Topic',
           thumbnail: data['thumbnailUrl'] as String? ?? '',
-          views: (data['videoCount'] as num?)?.toInt() ?? 0, // Using videoCount as views/popularity
+          views:
+              (data['videoCount'] as num?)?.toInt() ??
+              0, // Using videoCount as views/popularity
           channelName: data['handle'] as String? ?? 'T/${data['slug'] ?? ""}',
           channelImage: '',
           createdAt: TimestampUtils.parse(data['createdAt']),
@@ -69,10 +70,21 @@ class SearchResult {
           id: doc.id,
           title: data['title'] as String? ?? 'Untitled',
           thumbnail: data['thumbnailUrl'] as String? ?? '',
-          views: (data['views'] as num?)?.toInt() ?? 0,
+          views:
+              (data['viewCount'] as num?)?.toInt() ??
+              (data['views'] as num?)?.toInt() ??
+              (data['stats'] is Map
+                  ? (data['stats']['views'] as num?)?.toInt()
+                  : null) ??
+              0,
           channelName: data['channelName'] as String? ?? 'Unknown',
-          channelImage: data['channelImage'] as String? ?? '',
-          createdAt: TimestampUtils.parse(data['uploadedAt'] ?? data['createdAt']),
+          channelImage:
+              data['channelAvatarUrl'] as String? ??
+              data['channelImage'] as String? ??
+              '',
+          createdAt: TimestampUtils.parse(
+            data['uploadedAt'] ?? data['createdAt'],
+          ),
           durationMs: (data['durationMs'] as num?)?.toInt(),
         );
     }
@@ -87,7 +99,9 @@ class SearchResult {
       views: (map['views'] as num?)?.toInt() ?? 0,
       channelName: map['channelName'] as String? ?? '',
       channelImage: map['channelImage'] as String? ?? '',
-      createdAt: TimestampUtils.parse(map['createdAt']), // Fallback if serialization lost Timestamp type
+      createdAt: TimestampUtils.parse(
+        map['createdAt'],
+      ), // Fallback if serialization lost Timestamp type
       type: ResultType.values.firstWhere(
         (e) => e.toString() == (map['type'] as String?),
         orElse: () => ResultType.video,
@@ -110,8 +124,10 @@ class SearchResult {
   int get viewCount => views;
   DateTime get uploadedAt => createdAt.toDate();
   int? get duration => durationMs != null ? (durationMs! ~/ 1000) : null;
-  String? get quality => null; // SearchResult is lightweight, quality might not be present
-  int? get videoCount => type == ResultType.playlist || type == ResultType.topic ? views : null;
+  String? get quality =>
+      null; // SearchResult is lightweight, quality might not be present
+  int? get videoCount =>
+      type == ResultType.playlist || type == ResultType.topic ? views : null;
 
   /// Convert to map for testing
   Map<String, dynamic> toMap() => {
@@ -129,8 +145,3 @@ class SearchResult {
   @override
   String toString() => 'SearchResult($type: $id, title: $title, views: $views)';
 }
-
-
-
-
-

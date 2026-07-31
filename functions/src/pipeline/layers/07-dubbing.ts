@@ -166,14 +166,14 @@ export class DubbingEngine {
           temporaryVoices.push(cloneId);
         } else {
           // PRESET MODE: Best-fit based on role, pitch, and style
-          let voiceId = "21m00Tcm4TlvDq8ikWAM"; // Rachel (Default)
+          let voiceId = "EXAVITQu4vr4xnSDxMaL"; // Sarah (Default)
           
           if (role === "host") {
-            voiceId = profile.pitchBand === "deep" ? "pNInz6obpg8ndEao7m8D" : "Lcf7u9D9nuS9H6N4F4E0"; // Adam or Bella
+            voiceId = profile.pitchBand === "deep" ? "pNInz6obpgDQGcFmaJgB" : "hpp4J3VqNfWAUOO0d1Us"; // Adam or Bella
           } else if (profile.pitchBand === "deep") {
-            voiceId = "pNInz6obpg8ndEao7m8D"; // Adam
+            voiceId = "pNInz6obpgDQGcFmaJgB"; // Adam
           } else if (profile.pitchBand === "high") {
-            voiceId = "EXAVITQu4vr4xnSDTE08"; // Bella
+            voiceId = "hpp4J3VqNfWAUOO0d1Us"; // Bella
           }
 
           voiceMapping[profile.speakerId] = voiceId;
@@ -546,7 +546,7 @@ export class DubbingEngine {
       const batchUrls = await Promise.allSettled(
         batch.map(async (seg) => {
           // Identify the voiceId mapped to this speaker
-          const voiceId = voiceMapping[seg.speaker || "speaker_0"] || "21m00Tcm4TlvDq8ikWAM";
+          const voiceId = voiceMapping[seg.speaker || "speaker_0"] || "EXAVITQu4vr4xnSDxMaL";
 
           // ✅ Cache check FIRST
           const cached = await this.performanceLayer.checkTTSCache(

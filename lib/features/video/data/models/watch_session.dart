@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class WatchSession {
-
   WatchSession({
     required this.sessionId,
     required this.userId,
@@ -53,8 +52,3 @@ class WatchSession {
     };
   }
 }
-
-
-
-
-

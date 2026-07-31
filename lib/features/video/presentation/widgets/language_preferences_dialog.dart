@@ -15,7 +15,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            
             color: AppColors.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -31,7 +30,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
           label: const Text(
             'Edit',
             style: TextStyle(
-              
               color: AppColors.brand,
               fontSize: 13,
             ),
@@ -64,7 +62,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              
               color: AppColors.textPrimary,
               fontSize: 13,
             ),
@@ -196,7 +193,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
                   const Text(
                     'Preferred Languages',
                     style: TextStyle(
-                      
                       color: AppColors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -204,7 +200,10 @@ class LanguagePreferencesDialog extends StatelessWidget {
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.close,
+                      color: AppColors.textSecondary,
+                    ),
                     onPressed: Get.back,
                   ),
                 ],
@@ -213,7 +212,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
               const Text(
                 'Set your language profile to automatically enable matched subtitles and dubs.',
                 style: TextStyle(
-                  
                   color: AppColors.textTertiary,
                   fontSize: 13,
                 ),
@@ -237,7 +235,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
                 const Text(
                   'None configured',
                   style: TextStyle(
-                    
                     color: AppColors.textDisabled,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
@@ -289,7 +286,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     child: const Text(
                       'Cancel',
                       style: TextStyle(
-                        
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
@@ -312,7 +308,6 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     child: const Text(
                       'Save Preferences',
                       style: TextStyle(
-                        
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -328,9 +323,10 @@ class LanguagePreferencesDialog extends StatelessWidget {
 }
 
 class LanguageSelectionDialog extends StatelessWidget {
-
   const LanguageSelectionDialog({
-    required this.title, required this.multiple, super.key,
+    required this.title,
+    required this.multiple,
+    super.key,
     this.initialSelection = const [],
     this.exclude = const [],
     this.locked = const [],
@@ -394,7 +390,6 @@ class LanguageSelectionDialog extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    
                     color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -418,10 +413,16 @@ class LanguageSelectionDialog extends StatelessWidget {
             TextField(
               controller: searchCtrl,
               onChanged: onSearch,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search language...',
-                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
+                hintStyle: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 14,
+                ),
                 prefixIcon: const Icon(
                   Icons.search,
                   color: AppColors.textTertiary,
@@ -457,8 +458,9 @@ class LanguageSelectionDialog extends StatelessWidget {
                       title: Text(
                         lang.name,
                         style: TextStyle(
-                          
-                          color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                          color: isSelected
+                              ? AppColors.brand
+                              : AppColors.textPrimary,
                           fontWeight: isSelected
                               ? FontWeight.bold
                               : FontWeight.normal,
@@ -468,7 +470,6 @@ class LanguageSelectionDialog extends StatelessWidget {
                       subtitle: Text(
                         lang.nativeName,
                         style: const TextStyle(
-                          
                           color: AppColors.textTertiary,
                           fontSize: 11,
                         ),
@@ -504,7 +505,6 @@ class LanguageSelectionDialog extends StatelessWidget {
                   child: const Text(
                     'Cancel',
                     style: TextStyle(
-                      
                       color: AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
@@ -529,7 +529,6 @@ class LanguageSelectionDialog extends StatelessWidget {
                   child: const Text(
                     'Confirm',
                     style: TextStyle(
-                      
                       fontWeight: FontWeight.w600,
                     ),
                   ),

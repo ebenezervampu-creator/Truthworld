@@ -2,7 +2,8 @@
 ///
 /// A quiz contains 2–6 questions, each with 2–4 options and one correct answer.
 /// After answering, the user sees their score and how they compare to others.
-class QuizModel { // 0 = no limit
+class QuizModel {
+  // 0 = no limit
 
   QuizModel({
     required this.title,
@@ -31,7 +32,8 @@ class QuizModel { // 0 = no limit
   };
 }
 
-class QuizQuestion { // 0-based index of correct option
+class QuizQuestion {
+  // 0-based index of correct option
 
   QuizQuestion({
     required this.id,

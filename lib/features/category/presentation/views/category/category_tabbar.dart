@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CategoryTabBar extends StatelessWidget {
-
   const CategoryTabBar({
-    required this.tabs, required this.selectedIndex, required this.onTabSelected, super.key,
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onTabSelected,
+    super.key,
   });
   final List<String> tabs;
   final int selectedIndex;
@@ -78,8 +80,3 @@ class CategoryTabBar extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

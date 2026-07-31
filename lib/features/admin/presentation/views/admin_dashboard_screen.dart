@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:truthworld/features/admin/presentation/controllers/admin_video_player_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/admin/presentation/views/user_management_tab.dart';
@@ -118,7 +119,10 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.brand.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
@@ -151,42 +155,50 @@ class AdminDashboardScreen extends StatelessWidget {
                   controller: controller,
                   context: context,
                 ),
-                Obx(() => _buildNavItem(
-                      icon: Icons.video_library_outlined,
-                      activeIcon: Icons.video_library_rounded,
-                      label: 'Video Queue',
-                      tabId: 'videos',
-                      badgeCount: controller.pendingVideos.value,
-                      controller: controller,
-                      context: context,
-                    )),
-                Obx(() => _buildNavItem(
-                      icon: Icons.image_outlined,
-                      activeIcon: Icons.image_rounded,
-                      label: 'Image Queue',
-                      tabId: 'images',
-                      badgeCount: controller.pendingImages.value,
-                      controller: controller,
-                      context: context,
-                    )),
-                Obx(() => _buildNavItem(
-                      icon: Icons.account_circle_outlined,
-                      activeIcon: Icons.account_circle_rounded,
-                      label: 'Channel Queue',
-                      tabId: 'channels',
-                      badgeCount: controller.pendingChannels.value,
-                      controller: controller,
-                      context: context,
-                    )),
-                Obx(() => _buildNavItem(
-                      icon: Icons.report_gmailerrorred_rounded,
-                      activeIcon: Icons.report_gmailerrorred_rounded,
-                      label: 'Video Reports',
-                      tabId: 'reports',
-                      badgeCount: controller.pendingReports.value,
-                      controller: controller,
-                      context: context,
-                    )),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.video_library_outlined,
+                    activeIcon: Icons.video_library_rounded,
+                    label: 'Video Queue',
+                    tabId: 'videos',
+                    badgeCount: controller.pendingVideos.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.image_outlined,
+                    activeIcon: Icons.image_rounded,
+                    label: 'Image Queue',
+                    tabId: 'images',
+                    badgeCount: controller.pendingImages.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.account_circle_outlined,
+                    activeIcon: Icons.account_circle_rounded,
+                    label: 'Channel Queue',
+                    tabId: 'channels',
+                    badgeCount: controller.pendingChannels.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.report_gmailerrorred_rounded,
+                    activeIcon: Icons.report_gmailerrorred_rounded,
+                    label: 'Video Reports',
+                    tabId: 'reports',
+                    badgeCount: controller.pendingReports.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
                 _buildNavItem(
                   icon: Icons.history_edu_outlined,
                   activeIcon: Icons.history_edu_rounded,
@@ -225,15 +237,17 @@ class AdminDashboardScreen extends StatelessWidget {
                   controller: controller,
                   context: context,
                 ),
-                Obx(() => _buildNavItem(
-                      icon: Icons.gavel_outlined,
-                      activeIcon: Icons.gavel_rounded,
-                      label: 'Appeals',
-                      tabId: 'appeals',
-                      badgeCount: controller.pendingAppeals.value,
-                      controller: controller,
-                      context: context,
-                    )),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.gavel_outlined,
+                    activeIcon: Icons.gavel_rounded,
+                    label: 'Appeals',
+                    tabId: 'appeals',
+                    badgeCount: controller.pendingAppeals.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
                 _buildNavItem(
                   icon: Icons.feedback_outlined,
                   activeIcon: Icons.feedback_rounded,
@@ -353,7 +367,9 @@ class AdminDashboardScreen extends StatelessWidget {
       return Container(
         margin: const EdgeInsets.only(bottom: 4),
         child: Material(
-          color: isSelected ? AppColors.brand.withValues(alpha: 0.1) : Colors.transparent,
+          color: isSelected
+              ? AppColors.brand.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             borderRadius: BorderRadius.circular(12),
@@ -381,15 +397,22 @@ class AdminDashboardScreen extends StatelessWidget {
                     child: Text(
                       label,
                       style: TextStyle(
-                        color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                        color: isSelected
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
                         fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                       ),
                     ),
                   ),
                   if (badgeCount > 0)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.brand,
                         borderRadius: BorderRadius.circular(10),
@@ -413,7 +436,11 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 
   // Header Widget (AppBar)
-  Widget _buildHeader(BuildContext context, AdminController controller, bool isDesktop) {
+  Widget _buildHeader(
+    BuildContext context,
+    AdminController controller,
+    bool isDesktop,
+  ) {
     return AppBar(
       backgroundColor: AppColors.bgSurface,
       elevation: 0,
@@ -421,7 +448,10 @@ class AdminDashboardScreen extends StatelessWidget {
       titleSpacing: isDesktop ? 24 : 8,
       leading: !isDesktop
           ? IconButton(
-              icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
+              icon: const Icon(
+                Icons.menu_rounded,
+                color: AppColors.textPrimary,
+              ),
               onPressed: () {
                 _scaffoldKey.currentState?.openDrawer();
               },
@@ -429,18 +459,27 @@ class AdminDashboardScreen extends StatelessWidget {
           : null,
       title: Obx(() {
         var title = 'Dashboard Overview';
-        if (controller.currentTab.value == 'videos') title = 'Video Verification Queue';
-        if (controller.currentTab.value == 'images') title = 'Image Moderation Grid';
-        if (controller.currentTab.value == 'channels') title = 'Channel Verification Queue';
-        if (controller.currentTab.value == 'reports') title = 'Video Reports Review';
+        if (controller.currentTab.value == 'videos')
+          title = 'Video Verification Queue';
+        if (controller.currentTab.value == 'images')
+          title = 'Image Moderation Grid';
+        if (controller.currentTab.value == 'channels')
+          title = 'Channel Verification Queue';
+        if (controller.currentTab.value == 'reports')
+          title = 'Video Reports Review';
         if (controller.currentTab.value == 'logs') title = 'Audit History Logs';
         if (controller.currentTab.value == 'users') title = 'User Management';
-        if (controller.currentTab.value == 'analytics') title = 'Safety Analytics';
-        if (controller.currentTab.value == 'alerts') title = 'Alerts & Escalation';
+        if (controller.currentTab.value == 'analytics')
+          title = 'Safety Analytics';
+        if (controller.currentTab.value == 'alerts')
+          title = 'Alerts & Escalation';
         if (controller.currentTab.value == 'appeals') title = 'Content Appeals';
-        if (controller.currentTab.value == 'security') title = 'Security Center';
-        if (controller.currentTab.value == 'feedbacks') title = 'User Feedbacks & Feedback Requests';
-        if (controller.currentTab.value == 'help') title = 'Admin Help & Support';
+        if (controller.currentTab.value == 'security')
+          title = 'Security Center';
+        if (controller.currentTab.value == 'feedbacks')
+          title = 'User Feedbacks & Feedback Requests';
+        if (controller.currentTab.value == 'help')
+          title = 'Admin Help & Support';
         return Text(
           title,
           style: const TextStyle(
@@ -455,7 +494,11 @@ class AdminDashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.only(right: 12),
           child: TextButton.icon(
             onPressed: () => controller.signOutAdmin(),
-            icon: const Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
+            icon: const Icon(
+              Icons.logout_rounded,
+              size: 16,
+              color: AppColors.error,
+            ),
             label: const Text(
               'Sign Out',
               style: TextStyle(
@@ -500,8 +543,8 @@ class AdminDashboardScreen extends StatelessWidget {
               final cols = constraints.maxWidth > 1200
                   ? 6
                   : (constraints.maxWidth > 800
-                      ? 3
-                      : (constraints.maxWidth > 500 ? 2 : 1));
+                        ? 3
+                        : (constraints.maxWidth > 500 ? 2 : 1));
               return GridView.count(
                 crossAxisCount: cols,
                 shrinkWrap: true,
@@ -575,17 +618,27 @@ class AdminDashboardScreen extends StatelessWidget {
                 Obx(() {
                   final list = [
                     ...controller.videos.map((v) => {'type': 'video', ...v}),
-                    ...controller.images.map((img) => {'type': 'image', ...img}),
-                    ...controller.channels.map((ch) => {'type': 'channel', ...ch}),
+                    ...controller.images.map(
+                      (img) => {'type': 'image', ...img},
+                    ),
+                    ...controller.channels.map(
+                      (ch) => {'type': 'channel', ...ch},
+                    ),
                     ...controller.reports.map((r) => {'type': 'report', ...r}),
                   ];
                   list.sort((a, b) {
-                    final timeA = a['createdAt'] ?? a['flaggedAt'] ?? a['updatedAt'];
-                    final timeB = b['createdAt'] ?? b['flaggedAt'] ?? b['updatedAt'];
+                    final timeA =
+                        a['createdAt'] ?? a['flaggedAt'] ?? a['updatedAt'];
+                    final timeB =
+                        b['createdAt'] ?? b['flaggedAt'] ?? b['updatedAt'];
                     if (timeA == null) return 1;
                     if (timeB == null) return -1;
-                    final dtA = timeA is Timestamp ? timeA.toDate() : DateTime.parse(timeA.toString());
-                    final dtB = timeB is Timestamp ? timeB.toDate() : DateTime.parse(timeB.toString());
+                    final dtA = timeA is Timestamp
+                        ? timeA.toDate()
+                        : DateTime.parse(timeA.toString());
+                    final dtB = timeB is Timestamp
+                        ? timeB.toDate()
+                        : DateTime.parse(timeB.toString());
                     return dtB.compareTo(dtA);
                   });
 
@@ -605,7 +658,8 @@ class AdminDashboardScreen extends StatelessWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: list.take(6).length,
-                    separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+                    separatorBuilder: (context, index) =>
+                        const Divider(color: AppColors.bgDivider, height: 1),
                     itemBuilder: (context, index) {
                       final item = list[index];
                       final type = item['type'] as String;
@@ -617,17 +671,25 @@ class AdminDashboardScreen extends StatelessWidget {
                       if (isVideo) {
                         titleText = item['title'] ?? 'Untitled Video';
                       } else if (isChannel) {
-                        titleText = item['channelName'] ?? item['name'] ?? 'Unnamed Channel';
+                        titleText =
+                            item['channelName'] ??
+                            item['name'] ??
+                            'Unnamed Channel';
                       } else if (isReport) {
                         final reasonMap = item['reason'];
-                        final reason = reasonMap is Map ? (reasonMap['label'] ?? 'General') : (reasonMap?.toString() ?? 'General');
+                        final reason = reasonMap is Map
+                            ? (reasonMap['label'] ?? 'General')
+                            : (reasonMap?.toString() ?? 'General');
                         titleText = 'Report: $reason';
                       } else {
                         titleText = item['fileName'] ?? 'Flagged Image';
                       }
 
-                      final timestamp = item['createdAt'] ?? item['flaggedAt'] ?? item['updatedAt'];
-                      
+                      final timestamp =
+                          item['createdAt'] ??
+                          item['flaggedAt'] ??
+                          item['updatedAt'];
+
                       var status = 'pending';
                       if (isVideo) {
                         status = item['moderation']?['status'] ?? 'pending';
@@ -783,9 +845,13 @@ class AdminDashboardScreen extends StatelessWidget {
         if (mod == null) return false;
         final status = mod['status'] as String?;
         final violations = mod['violationCategories'] as List<dynamic>?;
-        return status == 'processing' || status == 'error' || 
-               (status == 'approved' && violations != null && violations.contains('timeout_passthrough')) || 
-               status == 'rejected' || status == 'pending';
+        return status == 'processing' ||
+            status == 'error' ||
+            (status == 'approved' &&
+                violations != null &&
+                violations.contains('timeout_passthrough')) ||
+            status == 'rejected' ||
+            status == 'pending';
       }).toList();
 
       if (list.isEmpty) {
@@ -803,14 +869,18 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         child: ListView.separated(
           itemCount: list.length,
-          separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+          separatorBuilder: (context, index) =>
+              const Divider(color: AppColors.bgDivider, height: 1),
           itemBuilder: (context, index) {
             final video = list[index];
-            final isSelected = controller.selectedVideo.value?['id'] == video['id'];
+            final isSelected =
+                controller.selectedVideo.value?['id'] == video['id'];
             final title = video['title'] ?? 'Untitled Video';
             final mod = video['moderation'] as Map<String, dynamic>?;
             final status = mod?['status'] ?? video['status'] ?? 'pending';
-            final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
+            final isTimeout =
+                mod?['violationCategories']?.contains('timeout_passthrough') ==
+                true;
 
             return Material(
               color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
@@ -819,7 +889,10 @@ class AdminDashboardScreen extends StatelessWidget {
                   controller.selectedVideo.value = video;
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -837,7 +910,10 @@ class AdminDashboardScreen extends StatelessWidget {
                               : null,
                         ),
                         child: video['thumbnailUrl'] == null
-                            ? const Icon(Icons.videocam_rounded, color: AppColors.textSecondary)
+                            ? const Icon(
+                                Icons.videocam_rounded,
+                                color: AppColors.textSecondary,
+                              )
                             : null,
                       ),
                       const SizedBox(width: 12),
@@ -870,9 +946,14 @@ class AdminDashboardScreen extends StatelessWidget {
                                 if (isTimeout) ...[
                                   const SizedBox(width: 6),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.error.withValues(alpha: 0.15),
+                                      color: AppColors.error.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: const Text(
@@ -924,8 +1005,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextButton.icon(
                     onPressed: () => controller.selectedVideo.value = null,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-                    label: const Text('Back to Video Queue', style: TextStyle(color: AppColors.textPrimary)),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Back to Video Queue',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
                   ),
                 ),
               Text(
@@ -943,14 +1031,22 @@ class AdminDashboardScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 20),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: (status == 'approved'
-                      ? AppColors.success
-                      : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
+                  color:
+                      (status == 'approved'
+                              ? AppColors.success
+                              : (status == 'rejected'
+                                    ? AppColors.error
+                                    : AppColors.warning))
+                          .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: (status == 'approved'
-                        ? AppColors.success
-                        : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
+                    color:
+                        (status == 'approved'
+                                ? AppColors.success
+                                : (status == 'rejected'
+                                      ? AppColors.error
+                                      : AppColors.warning))
+                            .withValues(alpha: 0.25),
                     width: 1.5,
                   ),
                 ),
@@ -959,10 +1055,14 @@ class AdminDashboardScreen extends StatelessWidget {
                     Icon(
                       status == 'approved'
                           ? Icons.check_circle_outline
-                          : (status == 'rejected' ? Icons.block_flipped : Icons.sync_rounded),
+                          : (status == 'rejected'
+                                ? Icons.block_flipped
+                                : Icons.sync_rounded),
                       color: status == 'approved'
                           ? AppColors.success
-                          : (status == 'rejected' ? AppColors.error : AppColors.warning),
+                          : (status == 'rejected'
+                                ? AppColors.error
+                                : AppColors.warning),
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -975,12 +1075,15 @@ class AdminDashboardScreen extends StatelessWidget {
                             style: TextStyle(
                               color: status == 'approved'
                                   ? AppColors.success
-                                  : (status == 'rejected' ? AppColors.error : AppColors.warning),
+                                  : (status == 'rejected'
+                                        ? AppColors.error
+                                        : AppColors.warning),
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (mod?['reason'] != null && mod!['reason'].toString().isNotEmpty) ...[
+                          if (mod?['reason'] != null &&
+                              mod!['reason'].toString().isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
                               mod['reason'].toString(),
@@ -1041,10 +1144,24 @@ class AdminDashboardScreen extends StatelessWidget {
                 _MetadataRow('Video ID', selected['id']),
                 _MetadataRow('Description', selected['description'] ?? 'None'),
                 _MetadataRow('Pipeline Status', status),
-                _MetadataRow('Flagged Reason', mod?['reason'] ?? selected['rejectionReason'] ?? 'System automatic moderation trigger.'),
-                _MetadataRow('Confidence Score', (mod?['confidenceScore'] ?? 'N/A').toString()),
-                _MetadataRow('GCS Storage Path', selected['storage']?['videoPath'] ?? 'N/A'),
-                _MetadataRow('Uploaded At', _formatTimestamp(selected['createdAt'])),
+                _MetadataRow(
+                  'Flagged Reason',
+                  mod?['reason'] ??
+                      selected['rejectionReason'] ??
+                      'System automatic moderation trigger.',
+                ),
+                _MetadataRow(
+                  'Confidence Score',
+                  (mod?['confidenceScore'] ?? 'N/A').toString(),
+                ),
+                _MetadataRow(
+                  'GCS Storage Path',
+                  selected['storage']?['videoPath'] ?? 'N/A',
+                ),
+                _MetadataRow(
+                  'Uploaded At',
+                  _formatTimestamp(selected['createdAt']),
+                ),
               ]),
               const SizedBox(height: 32),
 
@@ -1056,27 +1173,57 @@ class AdminDashboardScreen extends StatelessWidget {
                   ElevatedButton.icon(
                     onPressed: controller.isActionSubmitting.value
                         ? null
-                        : () => _showDecisionDialog(context, controller, selected['id'], 'approve', true),
-                    icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                        : () => _showDecisionDialog(
+                            context,
+                            controller,
+                            selected['id'],
+                            'approve',
+                            true,
+                          ),
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                     label: const Text('Approve Video'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
                     onPressed: controller.isActionSubmitting.value
                         ? null
-                        : () => _showDecisionDialog(context, controller, selected['id'], 'reject', true),
-                    icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                        : () => _showDecisionDialog(
+                            context,
+                            controller,
+                            selected['id'],
+                            'reject',
+                            true,
+                          ),
+                    icon: const Icon(
+                      Icons.block_flipped,
+                      size: 18,
+                      color: AppColors.error,
+                    ),
                     label: const Text('Reject Video & Quarantine'),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
                       foregroundColor: AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                 ],
@@ -1087,7 +1234,9 @@ class AdminDashboardScreen extends StatelessWidget {
       });
 
       if (isMobile) {
-        return controller.selectedVideo.value != null ? inspectorWidget : listWidget;
+        return controller.selectedVideo.value != null
+            ? inspectorWidget
+            : listWidget;
       }
 
       return Row(
@@ -1100,7 +1249,10 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 
   // TAB: CHANNELS QUEUE TAB
-  Widget _buildChannelQueueTab(BuildContext context, AdminController controller) {
+  Widget _buildChannelQueueTab(
+    BuildContext context,
+    AdminController controller,
+  ) {
     final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
       final list = controller.channels;
@@ -1120,11 +1272,14 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         child: ListView.separated(
           itemCount: list.length,
-          separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+          separatorBuilder: (context, index) =>
+              const Divider(color: AppColors.bgDivider, height: 1),
           itemBuilder: (context, index) {
             final channel = list[index];
-            final isSelected = controller.selectedChannel.value?['id'] == channel['id'];
-            final title = channel['channelName'] ?? channel['name'] ?? 'Unnamed Channel';
+            final isSelected =
+                controller.selectedChannel.value?['id'] == channel['id'];
+            final title =
+                channel['channelName'] ?? channel['name'] ?? 'Unnamed Channel';
             final status = channel['status'] ?? 'underReview';
 
             return Material(
@@ -1134,7 +1289,10 @@ class AdminDashboardScreen extends StatelessWidget {
                   controller.selectedChannel.value = channel;
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1144,15 +1302,22 @@ class AdminDashboardScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: AppColors.bgElevated,
                           shape: BoxShape.circle,
-                          image: channel['avatarUrl'] != null && channel['avatarUrl'].toString().isNotEmpty
+                          image:
+                              channel['avatarUrl'] != null &&
+                                  channel['avatarUrl'].toString().isNotEmpty
                               ? DecorationImage(
                                   image: NetworkImage(channel['avatarUrl']),
                                   fit: BoxFit.cover,
                                 )
                               : null,
                         ),
-                        child: channel['avatarUrl'] == null || channel['avatarUrl'].toString().isEmpty
-                            ? const Icon(Icons.face_rounded, color: AppColors.textSecondary)
+                        child:
+                            channel['avatarUrl'] == null ||
+                                channel['avatarUrl'].toString().isEmpty
+                            ? const Icon(
+                                Icons.face_rounded,
+                                color: AppColors.textSecondary,
+                              )
                             : null,
                       ),
                       const SizedBox(width: 12),
@@ -1206,7 +1371,8 @@ class AdminDashboardScreen extends StatelessWidget {
         final avatarUrl = selected['avatarUrl'];
         final bannerUrl = selected['bannerImageUrl'] ?? selected['bannerUrl'];
         final status = selected['status'] ?? 'underReview';
-        final geminiResponse = selected['moderationReason'] ?? 'No automated response logged.';
+        final geminiResponse =
+            selected['moderationReason'] ?? 'No automated response logged.';
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1218,8 +1384,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextButton.icon(
                     onPressed: () => controller.selectedChannel.value = null,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-                    label: const Text('Back to Channels', style: TextStyle(color: AppColors.textPrimary)),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Back to Channels',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
                   ),
                 ),
               // Banner Image if present
@@ -1244,12 +1417,17 @@ class AdminDashboardScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundImage: avatarUrl != null && avatarUrl.toString().isNotEmpty
+                    backgroundImage:
+                        avatarUrl != null && avatarUrl.toString().isNotEmpty
                         ? NetworkImage(avatarUrl)
                         : null,
                     backgroundColor: AppColors.bgElevated,
                     child: avatarUrl == null || avatarUrl.toString().isEmpty
-                        ? const Icon(Icons.face_rounded, size: 30, color: Colors.white)
+                        ? const Icon(
+                            Icons.face_rounded,
+                            size: 30,
+                            color: Colors.white,
+                          )
                         : null,
                   ),
                   const SizedBox(width: 16),
@@ -1258,7 +1436,9 @@ class AdminDashboardScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          selected['channelName'] ?? selected['name'] ?? 'Unnamed Channel',
+                          selected['channelName'] ??
+                              selected['name'] ??
+                              'Unnamed Channel',
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 18,
@@ -1285,14 +1465,22 @@ class AdminDashboardScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 20),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: (status == 'active'
-                      ? AppColors.success
-                      : (status == 'verificationRejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
+                  color:
+                      (status == 'active'
+                              ? AppColors.success
+                              : (status == 'verificationRejected'
+                                    ? AppColors.error
+                                    : AppColors.warning))
+                          .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: (status == 'active'
-                        ? AppColors.success
-                        : (status == 'verificationRejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
+                    color:
+                        (status == 'active'
+                                ? AppColors.success
+                                : (status == 'verificationRejected'
+                                      ? AppColors.error
+                                      : AppColors.warning))
+                            .withValues(alpha: 0.25),
                     width: 1.5,
                   ),
                 ),
@@ -1301,10 +1489,14 @@ class AdminDashboardScreen extends StatelessWidget {
                     Icon(
                       status == 'active'
                           ? Icons.check_circle_outline
-                          : (status == 'verificationRejected' ? Icons.block_flipped : Icons.sync_rounded),
+                          : (status == 'verificationRejected'
+                                ? Icons.block_flipped
+                                : Icons.sync_rounded),
                       color: status == 'active'
                           ? AppColors.success
-                          : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
+                          : (status == 'verificationRejected'
+                                ? AppColors.error
+                                : AppColors.warning),
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -1317,7 +1509,9 @@ class AdminDashboardScreen extends StatelessWidget {
                             style: TextStyle(
                               color: status == 'active'
                                   ? AppColors.success
-                                  : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
+                                  : (status == 'verificationRejected'
+                                        ? AppColors.error
+                                        : AppColors.warning),
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1374,9 +1568,15 @@ class AdminDashboardScreen extends StatelessWidget {
                 _MetadataRow('Description', selected['description'] ?? 'None'),
                 _MetadataRow('Category', selected['category'] ?? 'None'),
                 _MetadataRow('Language', selected['language'] ?? 'en'),
-                _MetadataRow('Tags', (selected['tags'] as List?)?.join(', ') ?? 'None'),
+                _MetadataRow(
+                  'Tags',
+                  (selected['tags'] as List?)?.join(', ') ?? 'None',
+                ),
                 _MetadataRow('Status', status),
-                _MetadataRow('Updated At', _formatTimestamp(selected['updatedAt'])),
+                _MetadataRow(
+                  'Updated At',
+                  _formatTimestamp(selected['updatedAt']),
+                ),
               ]),
               const SizedBox(height: 32),
 
@@ -1388,27 +1588,59 @@ class AdminDashboardScreen extends StatelessWidget {
                   ElevatedButton.icon(
                     onPressed: controller.isActionSubmitting.value
                         ? null
-                        : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false, isChannel: true),
-                    icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                        : () => _showDecisionDialog(
+                            context,
+                            controller,
+                            selected['id'],
+                            'approve',
+                            false,
+                            isChannel: true,
+                          ),
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                     label: const Text('Approve Channel'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
                     onPressed: controller.isActionSubmitting.value
                         ? null
-                        : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false, isChannel: true),
-                    icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                        : () => _showDecisionDialog(
+                            context,
+                            controller,
+                            selected['id'],
+                            'reject',
+                            false,
+                            isChannel: true,
+                          ),
+                    icon: const Icon(
+                      Icons.block_flipped,
+                      size: 18,
+                      color: AppColors.error,
+                    ),
                     label: const Text('Reject Channel'),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
                       foregroundColor: AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                 ],
@@ -1419,7 +1651,9 @@ class AdminDashboardScreen extends StatelessWidget {
       });
 
       if (isMobile) {
-        return controller.selectedChannel.value != null ? inspectorWidget : listWidget;
+        return controller.selectedChannel.value != null
+            ? inspectorWidget
+            : listWidget;
       }
 
       return Row(
@@ -1432,7 +1666,10 @@ class AdminDashboardScreen extends StatelessWidget {
   }
 
   // TAB: REPORTS QUEUE TAB
-  Widget _buildReportsQueueTab(BuildContext context, AdminController controller) {
+  Widget _buildReportsQueueTab(
+    BuildContext context,
+    AdminController controller,
+  ) {
     final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
       final list = controller.reports;
@@ -1452,13 +1689,17 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         child: ListView.separated(
           itemCount: list.length,
-          separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+          separatorBuilder: (context, index) =>
+              const Divider(color: AppColors.bgDivider, height: 1),
           itemBuilder: (context, index) {
             final report = list[index];
-            final isSelected = controller.selectedReport.value?['id'] == report['id'];
-            
+            final isSelected =
+                controller.selectedReport.value?['id'] == report['id'];
+
             final reasonMap = report['reason'];
-            final reason = reasonMap is Map ? (reasonMap['label'] ?? 'Unknown Reason') : (reasonMap?.toString() ?? 'Unknown Reason');
+            final reason = reasonMap is Map
+                ? (reasonMap['label'] ?? 'Unknown Reason')
+                : (reasonMap?.toString() ?? 'Unknown Reason');
             final status = report['status'] ?? 'pending';
             final reporter = report['userEmail'] ?? 'anonymous';
 
@@ -1469,7 +1710,10 @@ class AdminDashboardScreen extends StatelessWidget {
                   controller.selectedReport.value = report;
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1480,7 +1724,10 @@ class AdminDashboardScreen extends StatelessWidget {
                           color: AppColors.bgElevated,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.report_gmailerrorred_rounded, color: Colors.white),
+                        child: const Icon(
+                          Icons.report_gmailerrorred_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1533,12 +1780,17 @@ class AdminDashboardScreen extends StatelessWidget {
         }
 
         final videoId = selected['videoId'] as String?;
-        final video = controller.videos.firstWhereOrNull((v) => v['id'] == videoId);
+        final video = controller.videos.firstWhereOrNull(
+          (v) => v['id'] == videoId,
+        );
         final status = selected['status'] ?? 'pending';
 
         final reasonMap = selected['reason'];
-        final reason = reasonMap is Map ? (reasonMap['label'] ?? 'Unknown Reason') : (reasonMap?.toString() ?? 'Unknown Reason');
-        final comment = selected['comment'] ?? 'No detailed description provided.';
+        final reason = reasonMap is Map
+            ? (reasonMap['label'] ?? 'Unknown Reason')
+            : (reasonMap?.toString() ?? 'Unknown Reason');
+        final comment =
+            selected['comment'] ?? 'No detailed description provided.';
         final reporterEmail = selected['userEmail'] ?? 'anonymous';
         final createdAtStr = _formatTimestamp(selected['createdAt']);
 
@@ -1552,8 +1804,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextButton.icon(
                     onPressed: () => controller.selectedReport.value = null,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-                    label: const Text('Back to Reports', style: TextStyle(color: AppColors.textPrimary)),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Back to Reports',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
                   ),
                 ),
               // Status Box
@@ -1564,15 +1823,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   color: (status == 'pending' || status == 'PENDING')
                       ? AppColors.warning.withValues(alpha: 0.1)
                       : (status == 'resolved_rejected'
-                          ? AppColors.error.withValues(alpha: 0.1)
-                          : AppColors.success.withValues(alpha: 0.1)),
+                            ? AppColors.error.withValues(alpha: 0.1)
+                            : AppColors.success.withValues(alpha: 0.1)),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: (status == 'pending' || status == 'PENDING')
                         ? AppColors.warning.withValues(alpha: 0.3)
                         : (status == 'resolved_rejected'
-                            ? AppColors.error.withValues(alpha: 0.3)
-                            : AppColors.success.withValues(alpha: 0.3)),
+                              ? AppColors.error.withValues(alpha: 0.3)
+                              : AppColors.success.withValues(alpha: 0.3)),
                   ),
                 ),
                 child: Column(
@@ -1583,10 +1842,14 @@ class AdminDashboardScreen extends StatelessWidget {
                         Icon(
                           (status == 'pending' || status == 'PENDING')
                               ? Icons.hourglass_empty_rounded
-                              : (status == 'resolved_rejected' ? Icons.cancel_outlined : Icons.check_circle_outline_rounded),
+                              : (status == 'resolved_rejected'
+                                    ? Icons.cancel_outlined
+                                    : Icons.check_circle_outline_rounded),
                           color: (status == 'pending' || status == 'PENDING')
                               ? AppColors.warning
-                              : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
+                              : (status == 'resolved_rejected'
+                                    ? AppColors.error
+                                    : AppColors.success),
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -1594,11 +1857,16 @@ class AdminDashboardScreen extends StatelessWidget {
                           child: Text(
                             (status == 'pending' || status == 'PENDING')
                                 ? 'UNDER MANUAL REVIEW'
-                                : (status == 'resolved_rejected' ? 'REPORT RESOLVED: VIDEO REJECTED' : 'REPORT RESOLVED: DISMISSED'),
+                                : (status == 'resolved_rejected'
+                                      ? 'REPORT RESOLVED: VIDEO REJECTED'
+                                      : 'REPORT RESOLVED: DISMISSED'),
                             style: TextStyle(
-                              color: (status == 'pending' || status == 'PENDING')
+                              color:
+                                  (status == 'pending' || status == 'PENDING')
                                   ? AppColors.warning
-                                  : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
+                                  : (status == 'resolved_rejected'
+                                        ? AppColors.error
+                                        : AppColors.success),
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                               letterSpacing: 1.1,
@@ -1609,7 +1877,10 @@ class AdminDashboardScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (selected['resolutionComment'] != null && selected['resolutionComment'].toString().isNotEmpty) ...[
+                    if (selected['resolutionComment'] != null &&
+                        selected['resolutionComment']
+                            .toString()
+                            .isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text(
                         'Resolution Note: ${selected['resolutionComment']}',
@@ -1645,7 +1916,8 @@ class AdminDashboardScreen extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (video['thumbnailUrl'] != null && video['thumbnailUrl'].toString().isNotEmpty)
+                      if (video['thumbnailUrl'] != null &&
+                          video['thumbnailUrl'].toString().isNotEmpty)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(
@@ -1653,12 +1925,16 @@ class AdminDashboardScreen extends StatelessWidget {
                             width: 120,
                             height: 68,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              width: 120,
-                              height: 68,
-                              color: AppColors.textSecondary,
-                              child: const Icon(Icons.broken_image, color: Colors.white),
-                            ),
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  width: 120,
+                                  height: 68,
+                                  color: AppColors.textSecondary,
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white,
+                                  ),
+                                ),
                           ),
                         )
                       else
@@ -1669,7 +1945,10 @@ class AdminDashboardScreen extends StatelessWidget {
                             color: AppColors.bgElevated,
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.movie_creation_outlined, color: Colors.white),
+                          child: const Icon(
+                            Icons.movie_creation_outlined,
+                            color: Colors.white,
+                          ),
                         ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -1719,7 +1998,10 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                   child: Text(
                     'Video ID: $videoId (Video details not cached or video deleted)',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],
@@ -1781,27 +2063,59 @@ class AdminDashboardScreen extends StatelessWidget {
                     ElevatedButton.icon(
                       onPressed: controller.isActionSubmitting.value
                           ? null
-                          : () => _showDecisionDialog(context, controller, selected['id'], 'dismiss', false, isReport: true),
-                      icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                          : () => _showDecisionDialog(
+                              context,
+                              controller,
+                              selected['id'],
+                              'dismiss',
+                              false,
+                              isReport: true,
+                            ),
+                      icon: const Icon(
+                        Icons.check_circle_outline,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                       label: const Text('Dismiss Report (Keep Video)'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                     OutlinedButton.icon(
                       onPressed: controller.isActionSubmitting.value
                           ? null
-                          : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false, isReport: true),
-                      icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                          : () => _showDecisionDialog(
+                              context,
+                              controller,
+                              selected['id'],
+                              'reject',
+                              false,
+                              isReport: true,
+                            ),
+                      icon: const Icon(
+                        Icons.block_flipped,
+                        size: 18,
+                        color: AppColors.error,
+                      ),
                       label: const Text('Reject Video & Resolve'),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.error),
                         foregroundColor: AppColors.error,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                   ],
@@ -1812,7 +2126,9 @@ class AdminDashboardScreen extends StatelessWidget {
       });
 
       if (isMobile) {
-        return controller.selectedReport.value != null ? inspectorWidget : listWidget;
+        return controller.selectedReport.value != null
+            ? inspectorWidget
+            : listWidget;
       }
 
       return Row(
@@ -1854,9 +2170,12 @@ class AdminDashboardScreen extends StatelessWidget {
           itemCount: list.length,
           itemBuilder: (context, index) {
             final img = list[index];
-            final isSelected = controller.selectedImage.value?['id'] == img['id'];
+            final isSelected =
+                controller.selectedImage.value?['id'] == img['id'];
             final rawUrl = (img['gcsUri'] ?? img['filePath'] ?? '').toString();
-            final displayUrl = rawUrl.isNotEmpty ? StorageUtils.getFastDownloadUrl(rawUrl) : '';
+            final displayUrl = rawUrl.isNotEmpty
+                ? StorageUtils.getFastDownloadUrl(rawUrl)
+                : '';
 
             return GestureDetector(
               onTap: () {
@@ -1880,11 +2199,18 @@ class AdminDashboardScreen extends StatelessWidget {
                           ? Image.network(
                               displayUrl,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Center(
-                                child: Icon(Icons.broken_image, color: AppColors.textTertiary),
-                              ),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Center(
+                                    child: Icon(
+                                      Icons.broken_image,
+                                      color: AppColors.textTertiary,
+                                    ),
+                                  ),
                             )
-                          : const Icon(Icons.image, color: AppColors.textTertiary),
+                          : const Icon(
+                              Icons.image,
+                              color: AppColors.textTertiary,
+                            ),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8),
@@ -1906,7 +2232,10 @@ class AdminDashboardScreen extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.bgElevated,
                                   borderRadius: BorderRadius.circular(4),
@@ -1944,9 +2273,13 @@ class AdminDashboardScreen extends StatelessWidget {
           );
         }
 
-        final rawUrl = (selected['gcsUri'] ?? selected['filePath'] ?? '').toString();
-        final displayUrl = rawUrl.isNotEmpty ? StorageUtils.getFastDownloadUrl(rawUrl) : '';
-        final scores = selected['detailedScores'] as Map<String, dynamic>? ?? {};
+        final rawUrl = (selected['gcsUri'] ?? selected['filePath'] ?? '')
+            .toString();
+        final displayUrl = rawUrl.isNotEmpty
+            ? StorageUtils.getFastDownloadUrl(rawUrl)
+            : '';
+        final scores =
+            selected['detailedScores'] as Map<String, dynamic>? ?? {};
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1958,8 +2291,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextButton.icon(
                     onPressed: () => controller.selectedImage.value = null,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-                    label: const Text('Back to Images', style: TextStyle(color: AppColors.textPrimary)),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Back to Images',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
                   ),
                 ),
               Text(
@@ -1983,11 +2323,20 @@ class AdminDashboardScreen extends StatelessWidget {
                       ? Image.network(
                           displayUrl,
                           fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => const Center(
-                            child: Icon(Icons.broken_image, size: 48, color: AppColors.textTertiary),
-                          ),
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  size: 48,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
                         )
-                      : const Icon(Icons.image, size: 48, color: AppColors.textTertiary),
+                      : const Icon(
+                          Icons.image,
+                          size: 48,
+                          color: AppColors.textTertiary,
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -2028,11 +2377,20 @@ class AdminDashboardScreen extends StatelessWidget {
               _buildMetadataTable([
                 _MetadataRow('Document ID', selected['id']),
                 _MetadataRow('Uploader ID', selected['userId'] ?? 'Anonymous'),
-                _MetadataRow('Trigger Category', selected['category'] ?? 'image'),
-                _MetadataRow('AI Reason Log', selected['reason'] ?? 'Flagged by SafeSearch filters.'),
+                _MetadataRow(
+                  'Trigger Category',
+                  selected['category'] ?? 'image',
+                ),
+                _MetadataRow(
+                  'AI Reason Log',
+                  selected['reason'] ?? 'Flagged by SafeSearch filters.',
+                ),
                 _MetadataRow('Severity Score', '${selected['score'] ?? 0} / 5'),
                 _MetadataRow('GCS Path', selected['filePath'] ?? 'N/A'),
-                _MetadataRow('Flagged At', _formatTimestamp(selected['flaggedAt'])),
+                _MetadataRow(
+                  'Flagged At',
+                  _formatTimestamp(selected['flaggedAt']),
+                ),
               ]),
               const SizedBox(height: 32),
 
@@ -2045,27 +2403,57 @@ class AdminDashboardScreen extends StatelessWidget {
                     ElevatedButton.icon(
                       onPressed: controller.isActionSubmitting.value
                           ? null
-                          : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false),
-                      icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                          : () => _showDecisionDialog(
+                              context,
+                              controller,
+                              selected['id'],
+                              'approve',
+                              false,
+                            ),
+                      icon: const Icon(
+                        Icons.check_circle_outline,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                       label: const Text('Approve Image'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                     OutlinedButton.icon(
                       onPressed: controller.isActionSubmitting.value
                           ? null
-                          : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false),
-                      icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                          : () => _showDecisionDialog(
+                              context,
+                              controller,
+                              selected['id'],
+                              'reject',
+                              false,
+                            ),
+                      icon: const Icon(
+                        Icons.block_flipped,
+                        size: 18,
+                        color: AppColors.error,
+                      ),
                       label: const Text('Reject & Quarantine'),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.error),
                         foregroundColor: AppColors.error,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                   ],
@@ -2076,7 +2464,9 @@ class AdminDashboardScreen extends StatelessWidget {
       });
 
       if (isMobile) {
-        return controller.selectedImage.value != null ? inspectorWidget : listWidget;
+        return controller.selectedImage.value != null
+            ? inspectorWidget
+            : listWidget;
       }
 
       return Row(
@@ -2116,35 +2506,86 @@ class AdminDashboardScreen extends StatelessWidget {
               columnSpacing: 16,
               horizontalMargin: 20,
               columns: const [
-                DataColumn(label: Text('Original Location', style: TextStyle(color: AppColors.textSecondary))),
-                DataColumn(label: Text('Quarantine GCS Path', style: TextStyle(color: AppColors.textSecondary))),
-                DataColumn(label: Text('Reason Code', style: TextStyle(color: AppColors.textSecondary))),
-                DataColumn(label: Text('Owner ID', style: TextStyle(color: AppColors.textSecondary))),
-                DataColumn(label: Text('Rejection Date', style: TextStyle(color: AppColors.textSecondary))),
+                DataColumn(
+                  label: Text(
+                    'Original Location',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Quarantine GCS Path',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Reason Code',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Owner ID',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                DataColumn(
+                  label: Text(
+                    'Rejection Date',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
               ],
               rows: logs.map((log) {
                 return DataRow(
                   cells: [
-                    DataCell(Text(
-                      log['originalPath'] ?? 'N/A',
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
-                    )),
-                    DataCell(Text(
-                      log['quarantinePath'] ?? 'N/A',
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontFamily: 'monospace'),
-                    )),
-                    DataCell(Text(
-                      log['reason'] ?? 'N/A',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    )),
-                    DataCell(Text(
-                      log['userId'] ?? 'N/A',
-                      style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-                    )),
-                    DataCell(Text(
-                      _formatTimestamp(log['rejectedAt']),
-                      style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-                    )),
+                    DataCell(
+                      Text(
+                        log['originalPath'] ?? 'N/A',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        log['quarantinePath'] ?? 'N/A',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        log['reason'] ?? 'N/A',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        log['userId'] ?? 'N/A',
+                        style: const TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        _formatTimestamp(log['rejectedAt']),
+                        style: const TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                   ],
                 );
               }).toList(),
@@ -2167,64 +2608,80 @@ class AdminDashboardScreen extends StatelessWidget {
   }) {
     final textCtrl = TextEditingController();
 
-    unawaited(Get.dialog(
-      AlertDialog(
-        backgroundColor: AppColors.bgSurface,
-        title: Text(
-          'Confirm Manual ${action.capitalizeFirst}',
-          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Are you sure you want to manually $action this resource? '
-              '${action == 'reject' ? 'This action logs an audit/moderation record.' : ''}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+    unawaited(
+      Get.dialog(
+        AlertDialog(
+          backgroundColor: AppColors.bgSurface,
+          title: Text(
+            'Confirm Manual ${action.capitalizeFirst}',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: textCtrl,
-              maxLines: 3,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Enter review reason (optional)...',
-                hintStyle: const TextStyle(color: AppColors.textTertiary),
-                fillColor: AppColors.bgInput,
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Are you sure you want to manually $action this resource? '
+                '${action == 'reject' ? 'This action logs an audit/moderation record.' : ''}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
               ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: textCtrl,
+                maxLines: 3,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Enter review reason (optional)...',
+                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  fillColor: AppColors.bgInput,
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: Get.back,
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Get.back();
+                if (isReport) {
+                  await controller.moderateReport(id, action, textCtrl.text);
+                } else if (isChannel) {
+                  await controller.moderateChannel(id, action, textCtrl.text);
+                } else if (isVideo) {
+                  await controller.moderateVideo(id, action, textCtrl.text);
+                } else {
+                  await controller.moderateImage(id, action, textCtrl.text);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: (action == 'approve' || action == 'dismiss')
+                    ? AppColors.success
+                    : AppColors.error,
+                foregroundColor: AppColors.textPrimary,
+              ),
+              child: Text('Confirm ${action.capitalizeFirst}'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: Get.back,
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Get.back();
-              if (isReport) {
-                await controller.moderateReport(id, action, textCtrl.text);
-              } else if (isChannel) {
-                await controller.moderateChannel(id, action, textCtrl.text);
-              } else if (isVideo) {
-                await controller.moderateVideo(id, action, textCtrl.text);
-              } else {
-                await controller.moderateImage(id, action, textCtrl.text);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: (action == 'approve' || action == 'dismiss') ? AppColors.success : AppColors.error,
-              foregroundColor: AppColors.textPrimary,
-            ),
-            child: Text('Confirm ${action.capitalizeFirst}'),
-          ),
-        ],
       ),
-    ));
+    );
   }
 
   // SafeSearch ratings chip helper
@@ -2246,11 +2703,18 @@ class AdminDashboardScreen extends StatelessWidget {
         children: [
           Text(
             '$label: ',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
           ),
           Text(
             '$score',
-            style: TextStyle(color: scoreColor, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: scoreColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -2262,11 +2726,20 @@ class AdminDashboardScreen extends StatelessWidget {
     var color = AppColors.textTertiary;
     final txt = status.toUpperCase();
 
-    if (txt == 'APPROVED' || txt == 'SUCCESS' || txt == 'RESOLVED_DISMISSED' || txt == 'RESOLVED') {
+    if (txt == 'APPROVED' ||
+        txt == 'SUCCESS' ||
+        txt == 'RESOLVED_DISMISSED' ||
+        txt == 'RESOLVED') {
       color = AppColors.success;
-    } else if (txt == 'REJECTED' || txt == 'ERROR' || txt == 'FAILED' || txt == 'RESOLVED_REJECTED') {
+    } else if (txt == 'REJECTED' ||
+        txt == 'ERROR' ||
+        txt == 'FAILED' ||
+        txt == 'RESOLVED_REJECTED') {
       color = AppColors.error;
-    } else if (txt == 'PENDING' || txt == 'PENDING_REVIEW' || txt == 'PROCESSING' || txt == 'UNDERREVIEW') {
+    } else if (txt == 'PENDING' ||
+        txt == 'PENDING_REVIEW' ||
+        txt == 'PROCESSING' ||
+        txt == 'UNDERREVIEW') {
       color = AppColors.warning;
     }
 
@@ -2301,14 +2774,20 @@ class AdminDashboardScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16),
               child: Text(
                 row.label,
-                style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 12,
+                ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 row.value,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -2322,50 +2801,6 @@ class _MetadataRow {
   const _MetadataRow(this.label, this.value);
   final String label;
   final String value;
-}
-
-// Stateful Video Player wrapper
-class AdminVideoPlayerController extends GetxController {
-  AdminVideoPlayerController(this.url);
-  final String url;
-
-  late VideoPlayerController videoCtrl;
-  ChewieController? chewieCtrl;
-  final RxBool isPlayerInitialized = false.obs;
-  final RxnString error = RxnString();
-
-  @override
-  void onInit() {
-    super.onInit();
-    unawaited(_initPlayer());
-  }
-
-  Future<void> _initPlayer() async {
-    try {
-      videoCtrl = VideoPlayerController.networkUrl(Uri.parse(url));
-      await videoCtrl.initialize();
-      chewieCtrl = ChewieController(
-        videoPlayerController: videoCtrl,
-        aspectRatio: videoCtrl.value.aspectRatio,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: AppColors.brand,
-          handleColor: AppColors.brand,
-          bufferedColor: AppColors.progressBuffered,
-          backgroundColor: AppColors.progressTrack,
-        ),
-      );
-      isPlayerInitialized.value = true;
-    } catch (e) {
-      error.value = 'Error loading video player: $e';
-    }
-  }
-
-  @override
-  void onClose() {
-    unawaited(videoCtrl.dispose());
-    chewieCtrl?.dispose();
-    super.onClose();
-  }
 }
 
 // GetX Video Player wrapper

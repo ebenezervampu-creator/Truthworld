@@ -7,9 +7,10 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// More Options Popup Menu for Topic Card (Edit, View, Copy Link, Delete)
 class TopicPopupMenu extends StatelessWidget {
-
   const TopicPopupMenu({
-    required this.topic, required this.controller, super.key,
+    required this.topic,
+    required this.controller,
+    super.key,
   });
   final Topic topic;
   final TopicManagementController controller;
@@ -20,11 +21,11 @@ class TopicPopupMenu extends StatelessWidget {
     final isOwner =
         Get.isRegistered<AuthService>() &&
         ((topic.channelId != null &&
-            topic.channelId!.isNotEmpty &&
-            AuthService.to.userChannel?.id == topic.channelId) ||
-         (topic.creatorId != null &&
-            topic.creatorId!.isNotEmpty &&
-            AuthService.to.uid == topic.creatorId));
+                topic.channelId!.isNotEmpty &&
+                AuthService.to.userChannel?.id == topic.channelId) ||
+            (topic.creatorId != null &&
+                topic.creatorId!.isNotEmpty &&
+                AuthService.to.uid == topic.creatorId));
 
     return PopupMenuButton<String>(
       icon: Container(
@@ -69,14 +70,20 @@ class TopicPopupMenu extends StatelessWidget {
             value: 'edit',
             child: Row(
               children: [
-                const Icon(Icons.edit_rounded, size: 18, color: Color(0xFF3B82F6)),
+                const Icon(
+                  Icons.edit_rounded,
+                  size: 18,
+                  color: Color(0xFF3B82F6),
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'Edit Topic',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                    color: isDark
+                        ? AppColors.textPrimary
+                        : const Color(0xFF111827),
                   ),
                 ),
               ],
@@ -86,14 +93,20 @@ class TopicPopupMenu extends StatelessWidget {
           value: 'view',
           child: Row(
             children: [
-              const Icon(Icons.visibility_rounded, size: 18, color: Color(0xFF10B981)),
+              const Icon(
+                Icons.visibility_rounded,
+                size: 18,
+                color: Color(0xFF10B981),
+              ),
               const SizedBox(width: 12),
               Text(
                 'View Topic',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
                 ),
               ),
             ],
@@ -103,14 +116,20 @@ class TopicPopupMenu extends StatelessWidget {
           value: 'copy',
           child: Row(
             children: [
-              const Icon(Icons.link_rounded, size: 18, color: Color(0xFF8B5CF6)),
+              const Icon(
+                Icons.link_rounded,
+                size: 18,
+                color: Color(0xFF8B5CF6),
+              ),
               const SizedBox(width: 12),
               Text(
                 'Copy Link',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
                 ),
               ),
             ],
@@ -122,7 +141,11 @@ class TopicPopupMenu extends StatelessWidget {
             value: 'delete',
             child: Row(
               children: [
-                Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: AppColors.error,
+                ),
                 SizedBox(width: 12),
                 Text(
                   'Delete Topic',

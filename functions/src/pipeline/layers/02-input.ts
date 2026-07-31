@@ -19,27 +19,15 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 interface ChannelLimits {
-  maxLanguages: number;
-  maxClaims:    number;
   voiceCloning: boolean;
-  auxiliary:    boolean;
-  priority:     "low" | "normal" | "high";
 }
 
 const TYPE_LIMITS: Record<ChannelType, ChannelLimits> = {
   standard: {
-    maxLanguages: 5,
-    maxClaims:    20,
     voiceCloning: true,
-    auxiliary:    false,
-    priority:     "normal",
   },
   custom: {
-    maxLanguages: 50,
-    maxClaims:    100,
     voiceCloning: true,
-    auxiliary:    true,
-    priority:     "high",
   }
 };
 
@@ -62,10 +50,7 @@ export class InputLayer {
    */
   normalizeConfig(userId: string, partial: Partial<UserConfig>): UserConfig {
     const channelType = partial.channelType ?? "standard";
-    const limits = TYPE_LIMITS[channelType];
-
-    const rawLangs = [...new Set(partial.languages ?? ["en"])];
-    const langs = rawLangs.slice(0, limits.maxLanguages);
+    const langs = Array.from(new Set(partial.languages ?? ["en"]));
 
     return {
       userId,
@@ -75,7 +60,7 @@ export class InputLayer {
       genLangSubs: partial.genLangSubs ?? true,
       generateDubbing: partial.generateDubbing ?? false,
       enableFactCheck: partial.enableFactCheck ?? true,
-      priority: limits.priority,
+      priority: partial.priority ?? "normal",
     };
   }
 
@@ -84,7 +69,6 @@ export class InputLayer {
    */
   validateConfig(config: UserConfig): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
-    const limits = TYPE_LIMITS[config.channelType];
 
     if (!config.languages || config.languages.length === 0) {
       errors.push("At least one language is required");
@@ -95,12 +79,6 @@ export class InputLayer {
     );
     if (unsupported.length > 0) {
       errors.push(`Unsupported languages: ${unsupported.join(", ")}`);
-    }
-
-    if (config.languages.length > limits.maxLanguages) {
-      errors.push(
-        `${config.channelType} channel supports max ${limits.maxLanguages} languages (got ${config.languages.length})`
-      );
     }
 
     if (config.generateDubbing && config.languages.length === 0) {
@@ -114,22 +92,20 @@ export class InputLayer {
    * Build an execution plan from a validated config.
    */
   createExecutionPlan(jobId: string, config: UserConfig): ExecutionPlan {
-    const limits = TYPE_LIMITS[config.channelType];
-
     return {
       jobId,
       enablePath1: config.enableFactCheck,
       enablePath2: config.generateDubbing || config.genLangSubs,
       enableTruthEngine: config.enableFactCheck,
       enableReachEngine: config.generateDubbing || config.genLangSubs,
-      enableAuxiliary: limits.auxiliary && config.enableFactCheck,
-      languages: config.languages.slice(0, limits.maxLanguages),
+      enableAuxiliary: config.enableFactCheck,
+      languages: config.languages,
       dubbingMode: config.generateDubbing ? config.dubbingMode : "none",
       generateDubbing: config.generateDubbing,
       genLangSubs: config.genLangSubs,
       channelType: config.channelType,
-      maxClaims: limits.maxClaims,
-      priority: limits.priority,
+      maxClaims: 100,
+      priority: config.priority ?? "normal",
       skipCache: false,
     };
   }
@@ -165,11 +141,10 @@ export class InputLayer {
   }
 
   isFeatureAvailable(type: ChannelType, feature: string): boolean {
-    const l = TYPE_LIMITS[type];
     switch (feature) {
-      case "voice_cloning": return l.voiceCloning;
-      case "auxiliary": return l.auxiliary;
-      case "high_priority": return type === "custom";
+      case "voice_cloning": return true;
+      case "auxiliary": return true;
+      case "high_priority": return true;
       default: return true;
     }
   }

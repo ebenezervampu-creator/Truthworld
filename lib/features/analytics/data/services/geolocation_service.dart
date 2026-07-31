@@ -5,7 +5,6 @@ import 'package:truthworld/core/services/logger_service.dart';
 
 /// Resolved geolocation data
 class GeoLocation {
-
   const GeoLocation({
     required this.state,
     required this.city,
@@ -16,13 +15,13 @@ class GeoLocation {
   });
 
   factory GeoLocation.fromMap(Map<String, dynamic> map) => GeoLocation(
-        state: map['state'] as String? ?? 'Unknown',
-        city: map['city'] as String? ?? 'Unknown',
-        areaType: map['areaType'] as String? ?? 'unknown',
-        country: map['country'] as String? ?? 'IN',
-        lat: (map['lat'] as num?)?.toDouble(),
-        lon: (map['lon'] as num?)?.toDouble(),
-      );
+    state: map['state'] as String? ?? 'Unknown',
+    city: map['city'] as String? ?? 'Unknown',
+    areaType: map['areaType'] as String? ?? 'unknown',
+    country: map['country'] as String? ?? 'IN',
+    lat: (map['lat'] as num?)?.toDouble(),
+    lon: (map['lon'] as num?)?.toDouble(),
+  );
   final String state;
   final String city;
   final String areaType; // 'urban' or 'rural'
@@ -37,13 +36,13 @@ class GeoLocation {
   );
 
   Map<String, dynamic> toMap() => {
-        'state': state,
-        'city': city,
-        'areaType': areaType,
-        'country': country,
-        'lat': lat,
-        'lon': lon,
-      };
+    'state': state,
+    'city': city,
+    'areaType': areaType,
+    'country': country,
+    'lat': lat,
+    'lon': lon,
+  };
 }
 
 /// Service for IP to Geolocation mapping (State/City/Area).
@@ -87,8 +86,11 @@ class GeolocationService extends GetxService {
 
       // Call ip-api.com (free tier, no key needed)
       final response = await http
-          .get(Uri.parse(
-              'http://ip-api.com/json/$ipAddress?fields=status,country,countryCode,region,regionName,city,lat,lon'))
+          .get(
+            Uri.parse(
+              'http://ip-api.com/json/$ipAddress?fields=status,country,countryCode,region,regionName,city,lat,lon',
+            ),
+          )
           .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
@@ -163,7 +165,8 @@ class GeolocationService extends GetxService {
 
   /// Batch get locations from multiple IPs
   Future<Map<String, GeoLocation>> getLocationsFromIPs(
-      List<String> ipAddresses) async {
+    List<String> ipAddresses,
+  ) async {
     final result = <String, GeoLocation>{};
     for (final ip in ipAddresses) {
       result[ip] = await getLocationFromIP(ip);
@@ -192,10 +195,10 @@ class GeolocationService extends GetxService {
 
   /// Cache stats
   Map<String, dynamic> getCacheStats() => {
-        'cachedIPs': _cache.length,
-        'uniqueStates': _cache.values.map((g) => g.state).toSet().length,
-        'uniqueCities': _cache.values.map((g) => g.city).toSet().length,
-      };
+    'cachedIPs': _cache.length,
+    'uniqueStates': _cache.values.map((g) => g.state).toSet().length,
+    'uniqueCities': _cache.values.map((g) => g.city).toSet().length,
+  };
 
   // ---------------------------------------------------------------------------
   // Private helpers
@@ -203,8 +206,7 @@ class GeolocationService extends GetxService {
 
   bool _canMakeRequest() {
     final now = DateTime.now();
-    _requestTimestamps
-        .removeWhere((t) => now.difference(t).inSeconds > 60);
+    _requestTimestamps.removeWhere((t) => now.difference(t).inSeconds > 60);
     return _requestTimestamps.length < _maxRequestsPerMinute;
   }
 
@@ -292,8 +294,3 @@ class GeolocationService extends GetxService {
     'durgapur', 'asansol', 'nanded', 'bhilai',
   };
 }
-
-
-
-
-

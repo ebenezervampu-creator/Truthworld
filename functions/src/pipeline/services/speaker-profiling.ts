@@ -5,12 +5,12 @@
  * accurate voice matching and identity preservation.
  */
 
-import { VertexAI } from "@google-cloud/vertexai";
 import { PIPELINE_CONFIG } from "../config";
 import { Utterance } from "../types";
 import { logger } from "../utils/logger";
+import { getVertexAI } from "../utils/ai-client";
 
-const genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+const genAI = getVertexAI();
 
 export interface SpeakerProfile {
   speakerId:   string;

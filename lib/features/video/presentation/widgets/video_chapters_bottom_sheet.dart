@@ -21,20 +21,26 @@ class VideoChaptersBottomSheet extends StatelessWidget {
   final Video video;
   final String? videoTag;
 
-  static void show(BuildContext context, {required Video video, String? videoTag}) {
+  static void show(
+    BuildContext context, {
+    required Video video,
+    String? videoTag,
+  }) {
     unawaited(
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (context) => VideoChaptersBottomSheet(video: video, videoTag: videoTag),
+        builder: (context) =>
+            VideoChaptersBottomSheet(video: video, videoTag: videoTag),
       ),
     );
   }
 
   TowerPlayerController? _getPlayerController() {
     try {
-      if (videoTag != null && Get.isRegistered<TowerPlayerController>(tag: videoTag)) {
+      if (videoTag != null &&
+          Get.isRegistered<TowerPlayerController>(tag: videoTag)) {
         return Get.find<TowerPlayerController>(tag: videoTag);
       }
       if (Get.isRegistered<TowerPlayerController>()) {
@@ -47,8 +53,8 @@ class VideoChaptersBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playerCtrl = _getPlayerController();
-    final chapters = video.chapters.isNotEmpty 
-        ? video.chapters 
+    final chapters = video.chapters.isNotEmpty
+        ? video.chapters
         : (playerCtrl?.chapters ?? const <VideoChapter>[]);
 
     return DraggableScrollableSheet(
@@ -80,7 +86,10 @@ class VideoChaptersBottomSheet extends StatelessWidget {
 
               // Sheet Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -156,12 +165,14 @@ class ChapterTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       final isCurrent = playerCtrl?.currentChapter.value == chapter;
-      final thumbUrl = (chapter.thumbnailUrl != null && chapter.thumbnailUrl!.isNotEmpty)
+      final thumbUrl =
+          (chapter.thumbnailUrl != null && chapter.thumbnailUrl!.isNotEmpty)
           ? chapter.thumbnailUrl!
           : video.thumbnailUrl;
 
       return InkWell(
-        onTap: onTapOverride ??
+        onTap:
+            onTapOverride ??
             () {
               if (playerCtrl != null) {
                 unawaited(playerCtrl!.seekTo(chapter.startTime));
@@ -241,8 +252,10 @@ class ChapterTile extends StatelessWidget {
                             onTap: () {
                               ShareBottomSheet.show(
                                 title: chapter.title,
-                                url: 'https://truthworld.app/watch?v=${video.id}&t=${chapter.startTime.inSeconds}',
-                                thumbnailUrl: chapter.thumbnailUrl ?? video.thumbnailUrl,
+                                url:
+                                    'https://truthworld.app/watch?v=${video.id}&t=${chapter.startTime.inSeconds}',
+                                thumbnailUrl:
+                                    chapter.thumbnailUrl ?? video.thumbnailUrl,
                                 currentPosition: chapter.startTime,
                               );
                             },
@@ -261,7 +274,9 @@ class ChapterTile extends StatelessWidget {
                             borderRadius: BorderRadius.circular(20),
                             onTap: () {
                               if (playerCtrl != null) {
-                                unawaited(playerCtrl!.seekTo(chapter.startTime));
+                                unawaited(
+                                  playerCtrl!.seekTo(chapter.startTime),
+                                );
                               }
                             },
                             child: const Padding(

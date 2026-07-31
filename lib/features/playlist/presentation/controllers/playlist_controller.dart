@@ -21,7 +21,8 @@ class PlaylistController extends GetxController {
 
   RxList<Channel> channels = <Channel>[].obs;
   RxList<PlaylistModel> playlists = <PlaylistModel>[].obs;
-  RxList<PlaylistModel> publicPlaylists = <PlaylistModel>[].obs; // For upload screen
+  RxList<PlaylistModel> publicPlaylists =
+      <PlaylistModel>[].obs; // For upload screen
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxBool isLoading = false.obs;
   final RxBool isPlaylistsLoaded = false.obs;
@@ -45,7 +46,7 @@ class PlaylistController extends GetxController {
     'Podcasts',
     'Courses',
     'Owned',
-    'Saved'
+    'Saved',
   ];
 
   void setCategory(String category) => selectedCategory.value = category;
@@ -85,7 +86,10 @@ class PlaylistController extends GetxController {
       map[p.id] = p;
     }
     for (final p in publicPlaylists) {
-      if (user.isEmpty || p.ownerId == user || (selectedChannel.value != null && p.channelId == selectedChannel.value!.channelId)) {
+      if (user.isEmpty ||
+          p.ownerId == user ||
+          (selectedChannel.value != null &&
+              p.channelId == selectedChannel.value!.channelId)) {
         map[p.id] = p;
       }
     }
@@ -129,8 +133,10 @@ class PlaylistController extends GetxController {
         .collection('watch_later')
         .snapshots()
         .listen((snapshot) {
-      watchLaterVideoIds.value = snapshot.docs.map((doc) => doc.id).toList();
-    });
+          watchLaterVideoIds.value = snapshot.docs
+              .map((doc) => doc.id)
+              .toList();
+        });
   }
 
   PlaylistModel? getWatchLaterPlaylist() {
@@ -386,8 +392,9 @@ class PlaylistController extends GetxController {
       if (playlistId == 'watchlater') {
         return watchLaterVideoIds;
       }
-      final targetUser =
-          (ownerId != null && ownerId.isNotEmpty) ? ownerId : user;
+      final targetUser = (ownerId != null && ownerId.isNotEmpty)
+          ? ownerId
+          : user;
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
@@ -438,9 +445,11 @@ class PlaylistController extends GetxController {
       final snapshot = await ref.get();
       if (!snapshot.exists) throw 'Playlist not found';
 
-      final currentVideoIds = List<String>.from(snapshot.data()?['videoIds'] ?? []);
+      final currentVideoIds = List<String>.from(
+        snapshot.data()?['videoIds'] ?? [],
+      );
       var addedCount = 0;
-      
+
       final currentTotalCount = snapshot.data()?['videoCount'] ?? 0;
 
       for (final vid in videoIdsToAdd) {
@@ -465,7 +474,7 @@ class PlaylistController extends GetxController {
           'videoCount': FieldValue.increment(addedCount),
           'updatedAt': FieldValue.serverTimestamp(),
         });
-        
+
         // Update thumbnail if it was null or we added the first video
         if (currentVideoIds.length == addedCount ||
             snapshot.data()?['thumbnailUrl'] == null) {
@@ -525,7 +534,9 @@ class PlaylistController extends GetxController {
         });
 
         // Update parent doc
-        final currentVideoIds = List<String>.from(snapshot.data()?['videoIds'] ?? []);
+        final currentVideoIds = List<String>.from(
+          snapshot.data()?['videoIds'] ?? [],
+        );
         if (!currentVideoIds.contains(videoId)) {
           currentVideoIds.add(videoId);
         }
@@ -538,7 +549,8 @@ class PlaylistController extends GetxController {
         });
 
         // Always update thumbnail when first video added or if null
-        if (currentVideoIds.length == 1 || snapshot.data()?['thumbnailUrl'] == null) {
+        if (currentVideoIds.length == 1 ||
+            snapshot.data()?['thumbnailUrl'] == null) {
           await _updateThumbnail(ref, currentVideoIds);
         }
 
@@ -588,7 +600,11 @@ class PlaylistController extends GetxController {
         await ref.collection('items').doc(videoId).delete();
 
         // Get updated videoIds list for cache. We need to fetch from the subcollection to rebuild the first 10 items!
-        final itemsSnap = await ref.collection('items').orderBy('addedAt').limit(10).get();
+        final itemsSnap = await ref
+            .collection('items')
+            .orderBy('addedAt')
+            .limit(10)
+            .get();
         final newCachedIds = itemsSnap.docs.map((doc) => doc.id).toList();
 
         // Calculate new total count
@@ -628,45 +644,64 @@ class PlaylistController extends GetxController {
           .collection('playlists')
           .get();
 
-      for (final doc in userPlaylists.docs) {
-        final itemDoc = await doc.reference.collection('items').doc(videoId).get();
-        if (itemDoc.exists) {
-          await doc.reference.collection('items').doc(videoId).delete();
-          final itemsSnap = await doc.reference.collection('items').orderBy('addedAt').limit(10).get();
-          final newCachedIds = itemsSnap.docs.map((d) => d.id).toList();
-          final currentCount = doc.data()['videoCount'] ?? 0;
-          final newCount = currentCount > 0 ? currentCount - 1 : 0;
-
-          await doc.reference.update({
-            'videoIds': newCachedIds,
-            'videoCount': newCount,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-          await _updateThumbnail(doc.reference, newCachedIds);
-        }
-      }
-
       final publicPlaylists = await _firestore
           .collection('public_playlists')
           .limit(50)
           .get();
-      for (final doc in publicPlaylists.docs) {
-        final itemDoc = await doc.reference.collection('items').doc(videoId).get();
-        if (itemDoc.exists) {
-          await doc.reference.collection('items').doc(videoId).delete();
-          final itemsSnap = await doc.reference.collection('items').orderBy('addedAt').limit(10).get();
-          final newCachedIds = itemsSnap.docs.map((d) => d.id).toList();
-          final currentCount = doc.data()['videoCount'] ?? 0;
-          final newCount = currentCount > 0 ? currentCount - 1 : 0;
 
-          await doc.reference.update({
-            'videoIds': newCachedIds,
-            'videoCount': newCount,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-          await _updateThumbnail(doc.reference, newCachedIds);
+      final allDocs = [...userPlaylists.docs, ...publicPlaylists.docs];
+      if (allDocs.isEmpty) return;
+
+      // Check item existence in parallel
+      final checkFutures = allDocs.map((doc) async {
+        try {
+          final itemDoc = await doc.reference
+              .collection('items')
+              .doc(videoId)
+              .get();
+          if (itemDoc.exists) {
+            return doc;
+          }
+        } catch (e) {
+          logger.debug('Error checking item in playlist ${doc.id}: $e');
         }
+        return null;
+      }).toList();
+
+      final matchedResults = await Future.wait(checkFutures);
+      final affectedDocs = matchedResults
+          .whereType<QueryDocumentSnapshot<Map<String, dynamic>>>()
+          .toList();
+
+      if (affectedDocs.isEmpty) {
+        Get.snackbar(
+          'Success',
+          'Video removed from all playlists!',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
       }
+
+      final batch = _firestore.batch();
+      for (final doc in affectedDocs) {
+        final itemRef = doc.reference.collection('items').doc(videoId);
+        batch.delete(itemRef);
+
+        final currentCount = (doc.data()['videoCount'] as num?)?.toInt() ?? 0;
+        final newCount = currentCount > 0 ? currentCount - 1 : 0;
+        final currentVideoIds = List<String>.from(
+          doc.data()['videoIds'] as List? ?? [],
+        );
+        currentVideoIds.remove(videoId);
+
+        batch.update(doc.reference, {
+          'videoIds': currentVideoIds,
+          'videoCount': newCount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
 
       Get.snackbar(
         'Success',
@@ -674,7 +709,12 @@ class PlaylistController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      logger.debug('❌ Error deleting video from playlists: $e');
+      logger.debug('❌ Error deleting video from all playlists: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to remove video from all playlists!',
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -894,11 +934,13 @@ class PlaylistController extends GetxController {
             .doc(user)
             .collection('playlists')
             .doc(playlistId)
-            .set(playlist.toMap()
-              ..['isPublic'] = false
-              ..['status'] = 'underReview'
-              ..['geminiApproved'] = null
-              ..['moderationReason'] = null);
+            .set(
+              playlist.toMap()
+                ..['isPublic'] = false
+                ..['status'] = 'underReview'
+                ..['geminiApproved'] = null
+                ..['moderationReason'] = null,
+            );
         await _firestore
             .collection('public_playlists')
             .doc(playlistId)
@@ -914,11 +956,13 @@ class PlaylistController extends GetxController {
         await _firestore
             .collection('public_playlists')
             .doc(playlistId)
-            .set(playlist.toMap()
-              ..['isPublic'] = true
-              ..['status'] = 'underReview'
-              ..['geminiApproved'] = null
-              ..['moderationReason'] = null);
+            .set(
+              playlist.toMap()
+                ..['isPublic'] = true
+                ..['status'] = 'underReview'
+                ..['geminiApproved'] = null
+                ..['moderationReason'] = null,
+            );
         await _firestore
             .collection('users')
             .doc(user)
@@ -1086,6 +1130,7 @@ class PlaylistController extends GetxController {
         .collection('public_playlists')
         .orderBy('sortIndex')
         .orderBy('createdAt', descending: true)
+        .limit(50)
         .snapshots()
         .listen(
           (snapshot) {
@@ -1154,7 +1199,3 @@ class PlaylistController extends GetxController {
     }
   }
 }
-
-
-
-

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SidebarItemData {
-
   SidebarItemData({
     required this.icon,
     required this.label,
@@ -16,9 +15,9 @@ class SidebarItemData {
 }
 
 class StandardSidebar extends StatelessWidget {
-
   const StandardSidebar({
-    required this.items, super.key,
+    required this.items,
+    super.key,
     this.channelItems,
     this.isExpanded = true,
     this.onToggleExpanded,
@@ -123,7 +122,6 @@ class StandardSidebar extends StatelessWidget {
 }
 
 class _SidebarItem extends StatelessWidget {
-
   const _SidebarItem({required this.item, required this.isExpanded});
   final SidebarItemData item;
   final bool isExpanded;
@@ -216,8 +214,3 @@ class _SidebarItem extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

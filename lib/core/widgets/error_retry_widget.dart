@@ -16,9 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ErrorRetryWidget extends StatelessWidget {
-
   const ErrorRetryWidget({
-    required this.message, super.key,
+    required this.message,
+    super.key,
     this.subtitle,
     this.onRetry,
     this.icon = Icons.error_outline_rounded,
@@ -116,7 +116,7 @@ class ErrorRetryWidget extends StatelessWidget {
                 label: const Text('Try Again'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 12,
@@ -136,9 +136,9 @@ class ErrorRetryWidget extends StatelessWidget {
 
 /// Empty state widget (no data, not an error)
 class EmptyStateWidget extends StatelessWidget {
-
   const EmptyStateWidget({
-    required this.message, super.key,
+    required this.message,
+    super.key,
     this.subtitle,
     this.icon = Icons.inbox_rounded,
     this.onAction,

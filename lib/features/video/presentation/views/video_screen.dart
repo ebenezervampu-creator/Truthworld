@@ -11,9 +11,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -22,6 +25,7 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
@@ -35,6 +39,7 @@ import 'package:truthworld/features/video/presentation/views/player/tower_custom
 import 'package:truthworld/features/video/presentation/widgets/truth_index_badge.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoScreen extends GetView<VideoController> {
@@ -46,7 +51,7 @@ class VideoScreen extends GetView<VideoController> {
 
   bool _isMobilePlatform(BuildContext context) {
     return defaultTargetPlatform == TargetPlatform.android ||
-           defaultTargetPlatform == TargetPlatform.iOS;
+        defaultTargetPlatform == TargetPlatform.iOS;
   }
 
   // Theme Shortcuts
@@ -64,6 +69,9 @@ class VideoScreen extends GetView<VideoController> {
     // Controller is handled by GetX Binding in AppPages
     // Ensure controller is fully instantiated/found BEFORE entering any Obx block
     final ctrl = controller;
+    if (Get.arguments is Map<String, dynamic>) {
+      ctrl.applyClipIfPresent(Get.arguments as Map<String, dynamic>?);
+    }
 
     // Dismiss miniplayer once when screen first builds
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -100,7 +108,10 @@ class VideoScreen extends GetView<VideoController> {
               : SafeArea(
                   child: ResponsiveBuilder(
                     builder: (context, device) {
-                      final isDesktop = device.isDesktop || device.isLargeDesktop || device.isUltraWide;
+                      final isDesktop =
+                          device.isDesktop ||
+                          device.isLargeDesktop ||
+                          device.isUltraWide;
                       return isDesktop
                           ? _buildDesktopLayout(context)
                           : _buildMobileLayout(context);
@@ -124,19 +135,21 @@ class VideoScreen extends GetView<VideoController> {
     } catch (_) {}
     return null;
   }
+
   MainController? get _mainController {
     try {
       if (Get.isRegistered<MainController>()) return Get.find<MainController>();
     } catch (_) {}
     return null;
   }
+
   PlaylistController? get _playlistController {
     try {
-      if (Get.isRegistered<PlaylistController>()) return Get.find<PlaylistController>();
+      if (Get.isRegistered<PlaylistController>())
+        return Get.find<PlaylistController>();
     } catch (_) {}
     return null;
   }
-
 
   // ==========================================================================
   // RESPONSIVE LAYOUTS
@@ -234,13 +247,13 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-
   // ==========================================================================
   // SHARED WIDGETS
   // ==========================================================================
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final isDesktop = context.isDesktop || context.isLargeDesktop || context.isUltraWide;
+    final isDesktop =
+        context.isDesktop || context.isLargeDesktop || context.isUltraWide;
     // Check if user came from home screen
     final previousRoute = Get.previousRoute;
     final isFromHome =
@@ -412,7 +425,10 @@ class VideoScreen extends GetView<VideoController> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
               ),
             ),
           );
@@ -464,33 +480,35 @@ class VideoScreen extends GetView<VideoController> {
         controller.video;
         controller.isFullScreen.value;
         controller.showThumbnail.value;
-        final ratio = controller.video.isShort ? 9 / 16 : controller.vpcAspectRatio;
+        final ratio = controller.video.isShort
+            ? 9 / 16
+            : controller.vpcAspectRatio;
 
         return LayoutBuilder(
           builder: (context, constraints) {
             final mediaQuery = MediaQuery.of(context);
             final screenHeight = mediaQuery.size.height;
             final maxWidth = constraints.maxWidth;
-            
+
             // Calculate height for this aspect ratio
             final height = maxWidth / ratio;
-            
+
             // Define max height constraints
             // On desktop, cap to 65% of screen height.
             // On mobile, cap to 55% of screen height to keep controls and comments visible.
             final isDesktop = mediaQuery.size.width > 1050;
-            final maxHeight = isDesktop 
-                ? screenHeight * 0.65 
+            final maxHeight = isDesktop
+                ? screenHeight * 0.65
                 : screenHeight * 0.55;
-            
+
             var finalHeight = height;
             var finalRatio = ratio;
-            
+
             if (height > maxHeight) {
               finalHeight = maxHeight;
               finalRatio = maxWidth / finalHeight;
             }
-            
+
             final finalWidth = finalHeight * finalRatio;
 
             return Stack(
@@ -498,7 +516,8 @@ class VideoScreen extends GetView<VideoController> {
               alignment: Alignment.center,
               children: [
                 // YouTube Ambient Mode Glow (glow matches video thumbnail and is 30% wider)
-                if (!controller.isFullScreen.value && controller.video.thumbnailUrl.isNotEmpty)
+                if (!controller.isFullScreen.value &&
+                    controller.video.thumbnailUrl.isNotEmpty)
                   Positioned(
                     width: finalWidth * 1.3,
                     height: finalHeight,
@@ -507,9 +526,7 @@ class VideoScreen extends GetView<VideoController> {
                         duration: const Duration(milliseconds: 1000),
                         opacity: controller.showThumbnail.value ? 0.08 : 0.18,
                         child: Container(
-                          decoration: const BoxDecoration(
-                            
-                          ),
+                          decoration: const BoxDecoration(),
                           child: ClipRect(
                             child: ImageFiltered(
                               imageFilter: ui.ImageFilter.blur(
@@ -518,9 +535,11 @@ class VideoScreen extends GetView<VideoController> {
                                 tileMode: TileMode.decal,
                               ),
                               child: CachedNetworkImage(
-                                imageUrl: controller.video.thumbnailUrl.replaceAll(' ', '%20'),
+                                imageUrl: controller.video.thumbnailUrl
+                                    .replaceAll(' ', '%20'),
                                 fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                                errorWidget: (_, __, ___) =>
+                                    const SizedBox.shrink(),
                               ),
                             ),
                           ),
@@ -531,7 +550,9 @@ class VideoScreen extends GetView<VideoController> {
 
                 // Video Player Container
                 AspectRatio(
-                  aspectRatio: finalRatio.isFinite && finalRatio > 0 ? finalRatio : 16 / 9,
+                  aspectRatio: finalRatio.isFinite && finalRatio > 0
+                      ? finalRatio
+                      : 16 / 9,
                   child: ColoredBox(
                     color: Colors.black,
                     child: _buildVideoPlayer(),
@@ -559,11 +580,17 @@ class VideoScreen extends GetView<VideoController> {
             _buildVideoTitle(),
             Obx(() {
               final banners = <Widget>[];
-              if (ctrl.navigatedFromPlaylist.value && ctrl.currentPlaylist.value != null) {
-                banners.add(_buildPlaylistBanner(context, ctrl.currentPlaylist.value!));
+              if (ctrl.navigatedFromPlaylist.value &&
+                  ctrl.currentPlaylist.value != null) {
+                banners.add(
+                  _buildPlaylistBanner(context, ctrl.currentPlaylist.value!),
+                );
               }
-              if (ctrl.navigatedFromTopic.value && ctrl.videoTopicsList.isNotEmpty) {
-                banners.add(_buildTopicBanner(context, ctrl.videoTopicsList.first));
+              if (ctrl.navigatedFromTopic.value &&
+                  ctrl.videoTopicsList.isNotEmpty) {
+                banners.add(
+                  _buildTopicBanner(context, ctrl.videoTopicsList.first),
+                );
               }
               if (banners.isEmpty) return const SizedBox.shrink();
               return Column(
@@ -572,8 +599,7 @@ class VideoScreen extends GetView<VideoController> {
               );
             }),
             const SizedBox(height: 12),
-            if (ctrl.video.factCheckUrl.isNotEmpty)
-              const SizedBox.shrink(),
+            if (ctrl.video.factCheckUrl.isNotEmpty) const SizedBox.shrink(),
             _buildModernActionButtons(context),
             const SizedBox(height: 16),
             _buildDescriptionBox(context),
@@ -599,8 +625,8 @@ class VideoScreen extends GetView<VideoController> {
       final totalVideos = controller.playlistVideos.isNotEmpty
           ? controller.playlistVideos.length
           : (playlist.videoIds.isNotEmpty
-              ? playlist.videoIds.length
-              : (playlist.videoCount > 0 ? playlist.videoCount : 1));
+                ? playlist.videoIds.length
+                : (playlist.videoCount > 0 ? playlist.videoCount : 1));
 
       return Container(
         margin: const EdgeInsets.only(top: 12, bottom: 4),
@@ -650,7 +676,10 @@ class VideoScreen extends GetView<VideoController> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.brand,
                                 borderRadius: BorderRadius.circular(4),
@@ -781,7 +810,10 @@ class VideoScreen extends GetView<VideoController> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF3B82F6),
                                 borderRadius: BorderRadius.circular(4),
@@ -888,16 +920,22 @@ class VideoScreen extends GetView<VideoController> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Obx(() => RotatingPlaylistAvatar(
-                      playlist: controller.currentPlaylist.value!,
-                      isPlaying: controller.isPlayingRx.value,
-                      size: 46,
-                      onTap: () => _navigateToPlaylistDetail(controller.currentPlaylist.value!),
-                    )),
+                Obx(
+                  () => RotatingPlaylistAvatar(
+                    playlist: controller.currentPlaylist.value!,
+                    isPlaying: controller.isPlayingRx.value,
+                    size: 46,
+                    onTap: () => _navigateToPlaylistDetail(
+                      controller.currentPlaylist.value!,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => _navigateToPlaylistDetail(controller.currentPlaylist.value!),
+                    onTap: () => _navigateToPlaylistDetail(
+                      controller.currentPlaylist.value!,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1014,12 +1052,14 @@ class VideoScreen extends GetView<VideoController> {
                           width: 24,
                           child: Center(
                             child: isActive
-                                ? Obx(() => PlayingAudioWaveAnimation(
+                                ? Obx(
+                                    () => PlayingAudioWaveAnimation(
                                       isPlaying: controller.isPlayingRx.value,
                                       height: 16,
                                       barWidth: 2.5,
                                       color: AppColors.brand,
-                                    ))
+                                    ),
+                                  )
                                 : Text(
                                     '${index + 1}',
                                     style: GoogleFonts.roboto(
@@ -1121,8 +1161,7 @@ class VideoScreen extends GetView<VideoController> {
         controller.isAutoSwitching.value;
         controller.isAudioOnly.value;
         controller.showThumbnail.value;
-        if (controller.isLoading &&
-            !controller.isSwitchingResolution.value) {
+        if (controller.isLoading && !controller.isSwitchingResolution.value) {
           return thumbnailWidget;
         }
 
@@ -1191,7 +1230,9 @@ class VideoScreen extends GetView<VideoController> {
                 isAudioOnly);
 
         final vpc = controller.videoPlayerController;
-        if (controller.chewieController == null || vpc == null || !isVideoReady) {
+        if (controller.chewieController == null ||
+            vpc == null ||
+            !isVideoReady) {
           return thumbnailWidget;
         }
 
@@ -1220,7 +1261,7 @@ class VideoScreen extends GetView<VideoController> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.7),
+                        color: Colors.black.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: primary.withValues(alpha: 0.5),
@@ -1231,16 +1272,47 @@ class VideoScreen extends GetView<VideoController> {
                         children: [
                           const Icon(
                             Icons.content_cut_rounded,
-                            color: primary,
+                            color: Colors.white,
                             size: 14,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
                             'CLIP: ${controller.activeClip.value!.title}',
                             style: GoogleFonts.roboto(
                               color: Colors.white,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primary.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.verified_rounded,
+                                  color: Colors.white,
+                                  size: 10,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'TRUTHWORLD WATERMARK',
+                                  style: GoogleFonts.roboto(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1278,6 +1350,42 @@ class VideoScreen extends GetView<VideoController> {
                   ],
                 ),
               ),
+            // Persistent Watermark on Clip Playback
+            if (controller.activeClip.value != null)
+              Positioned(
+                bottom: 60,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.water_drop_rounded,
+                        color: Colors.white,
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Truthworld Watermark',
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         );
       }),
@@ -1285,8 +1393,8 @@ class VideoScreen extends GetView<VideoController> {
   }
 
   Widget _buildVideoTitle() {
-    return Text(
-      controller.video.title,
+    return ClickableUrlText(
+      text: controller.video.title,
       style: const TextStyle(
         fontWeight: FontWeight.bold,
         fontSize: 20,
@@ -1342,14 +1450,17 @@ class VideoScreen extends GetView<VideoController> {
     ];
 
     final selectedReason = RxnString();
-    final currentStep = 1.obs; // Step 1: select reason, Step 2: comment & timestamp
+    final currentStep =
+        1.obs; // Step 1: select reason, Step 2: comment & timestamp
     final commentController = TextEditingController();
-    
+
     // Get current playback time to suggest as timestamp
-    final currentSeconds = controller.videoPlayerController?.value.position.inSeconds ?? 0;
+    final currentSeconds =
+        controller.videoPlayerController?.value.position.inSeconds ?? 0;
     final minutes = currentSeconds ~/ 60;
     final seconds = currentSeconds % 60;
-    final defaultTimestamp = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final defaultTimestamp =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     final includeTimestamp = false.obs;
 
     Get.bottomSheet(
@@ -1375,18 +1486,21 @@ class VideoScreen extends GetView<VideoController> {
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Header
               Row(
                 children: [
                   if (currentStep.value == 2)
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.textPrimary,
+                      ),
                       onPressed: () {
                         currentStep.value = 1;
                       },
                     ),
-                  const Icon(Icons.flag_rounded, color: primary, size: 28),
+                  const Icon(Icons.flag_rounded, color: Colors.white, size: 28),
                   const SizedBox(width: 12),
                   Text(
                     currentStep.value == 1 ? 'Report video' : 'Provide details',
@@ -1411,7 +1525,7 @@ class VideoScreen extends GetView<VideoController> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Reasons List
                 Flexible(
                   child: ConstrainedBox(
@@ -1441,18 +1555,22 @@ class VideoScreen extends GetView<VideoController> {
                                   onChanged: (val) {
                                     selectedReason.value = val;
                                   },
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         label,
                                         style: GoogleFonts.roboto(
                                           fontSize: 14,
-                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                          fontWeight: isSelected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
                                           color: textPrimary,
                                         ),
                                       ),
@@ -1476,7 +1594,7 @@ class VideoScreen extends GetView<VideoController> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Next / Cancel
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -1499,7 +1617,10 @@ class VideoScreen extends GetView<VideoController> {
                         backgroundColor: primary,
                         foregroundColor: Colors.white,
                         disabledBackgroundColor: primary.withValues(alpha: 0.3),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -1522,7 +1643,7 @@ class VideoScreen extends GetView<VideoController> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Timestamp checkbox
                 CheckboxListTile(
                   value: includeTimestamp.value,
@@ -1533,7 +1654,10 @@ class VideoScreen extends GetView<VideoController> {
                   ),
                   subtitle: Text(
                     'Helps reviewers locate the issue quickly',
-                    style: GoogleFonts.roboto(color: textSecondary, fontSize: 11),
+                    style: GoogleFonts.roboto(
+                      color: textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                   contentPadding: EdgeInsets.zero,
                   onChanged: (val) {
@@ -1548,19 +1672,26 @@ class VideoScreen extends GetView<VideoController> {
                   maxLength: 500,
                   style: const TextStyle(color: textPrimary, fontSize: 13),
                   decoration: InputDecoration(
-                    hintText: 'Provide additional details (e.g. description, background info)...',
-                    hintStyle: const TextStyle(color: textSecondary, fontSize: 13),
+                    hintText:
+                        'Provide additional details (e.g. description, background info)...',
+                    hintStyle: const TextStyle(
+                      color: textSecondary,
+                      fontSize: 13,
+                    ),
                     filled: true,
                     fillColor: AppColors.bgInput,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    counterStyle: const TextStyle(color: textSecondary, fontSize: 11),
+                    counterStyle: const TextStyle(
+                      color: textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Submit / Back
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -1578,10 +1709,13 @@ class VideoScreen extends GetView<VideoController> {
                     ElevatedButton(
                       onPressed: () {
                         Get.back();
-                        
+
                         // Build detailed comment including timestamp
-                        final timestampPrefix = includeTimestamp.value ? '[Timestamp: $defaultTimestamp] ' : '';
-                        final finalComment = '$timestampPrefix${commentController.text.trim()}';
+                        final timestampPrefix = includeTimestamp.value
+                            ? '[Timestamp: $defaultTimestamp] '
+                            : '';
+                        final finalComment =
+                            '$timestampPrefix${commentController.text.trim()}';
 
                         _mainController?.reportVideo(
                           context: context,
@@ -1594,7 +1728,10 @@ class VideoScreen extends GetView<VideoController> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -1654,7 +1791,11 @@ class VideoScreen extends GetView<VideoController> {
             const SizedBox(height: 24),
             Row(
               children: [
-                const Icon(Icons.content_cut_rounded, color: primary, size: 28),
+                const Icon(
+                  Icons.content_cut_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 const SizedBox(width: 16),
                 Text(
                   'Create Clip',
@@ -1789,41 +1930,91 @@ class VideoScreen extends GetView<VideoController> {
 
             const SizedBox(height: 48),
 
-            // --- Actions ---
+            // --- Actions (Save & Share) ---
             Obx(
-              () => SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: clipController.isSaving.value
-                      ? null
-                      : clipController.saveClip,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 8,
-                    shadowColor: AppColors.brand.withValues(alpha: 0.4),
-                  ),
-                  child: clipController.isSaving.value
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text(
-                          'Share Clip',
+              () => Row(
+                children: [
+                  // --- Save Clip ---
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: clipController.isSaving.value
+                            ? null
+                            : clipController.saveClip,
+                        icon: clipController.isSaving.value
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.bookmark_add_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                        label: Text(
+                          'Save Clip',
                           style: GoogleFonts.roboto(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
                         ),
-                ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 4,
+                          shadowColor: AppColors.brand.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // --- Share Clip ---
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            clipController.shareClipWithWatermark(context),
+                        icon: const Icon(
+                          Icons.share_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        label: Text(
+                          'Share Clip',
+                          style: GoogleFonts.roboto(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.bgSurface.withValues(
+                            alpha: 0.8,
+                          ),
+                          foregroundColor: Colors.white,
+                          side: BorderSide(
+                            color: AppColors.brand.withValues(alpha: 0.8),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -1930,7 +2121,7 @@ class VideoScreen extends GetView<VideoController> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 children: [
-                  const Icon(Icons.download_for_offline, color: primary),
+                  const Icon(Icons.download_for_offline, color: Colors.white),
                   const SizedBox(width: 12),
                   Text(
                     'Select Download Quality',
@@ -1990,6 +2181,67 @@ class VideoScreen extends GetView<VideoController> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ⚔️ COIN BATTLE LINKED VIDEO BANNER
+          if (controller.video.coinBattlePairVideoId != null &&
+              controller.video.coinBattlePairVideoId!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF4A148C), Color(0xFF880E4F)],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.swap_horiz_rounded, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '⚔️ COIN BATTLE LINKED DEBATE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                          Text(
+                            'Stance: ${controller.video.coinBattleStance ?? "Opposing Viewpoint"}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Get.toNamed(
+                          '/video/${controller.video.coinBattlePairVideoId}',
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: const Text('View Debate'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Row 1: Channel Info & Subscribe Button
           _buildChannelSectionForActionRowMobile(),
           const SizedBox(height: 12),
@@ -2002,6 +2254,31 @@ class VideoScreen extends GetView<VideoController> {
                 // Like & Dislike Group
                 _buildModernLikeDislikeGroup(),
                 const SizedBox(width: 8),
+
+                // 🪙 FLIP COIN (THE OTHER SIDE / OPPOSITE PERSPECTIVE) BUTTON
+                Builder(
+                  builder: (context) {
+                    final flipService = Get.isRegistered<FlipCoinService>()
+                        ? Get.find<FlipCoinService>()
+                        : Get.put(FlipCoinService());
+                    return Obx(() {
+                      final isFlipped = flipService.isVideoFlipped(
+                        controller.video.id,
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FlipCoinWidget(
+                          isFlipped: isFlipped,
+                          showLabel: true,
+                          onTap: () {
+                            flipService.toggleVideoFlip(controller.video.id);
+                            controller.reloadRecommendationsForFlip();
+                          },
+                        ),
+                      );
+                    });
+                  },
+                ),
 
                 // Insights & Media details button (icon only, before comments)
                 _buildModernCapsuleButton(
@@ -2034,7 +2311,8 @@ class VideoScreen extends GetView<VideoController> {
                       thumbnailUrl: controller.video.thumbnailUrl,
                       channelName: controller.video.channelName,
                       durationMs: controller.video.durationValue.inMilliseconds,
-                      currentPosition: controller.videoPlayerController?.value.position,
+                      currentPosition:
+                          controller.videoPlayerController?.value.position,
                     );
                   },
                 ),
@@ -2044,9 +2322,11 @@ class VideoScreen extends GetView<VideoController> {
                 Obx(() {
                   controller.rxVideo.value;
                   _playlistController?.playlists.length;
-                  final isInWatchLater = _playlistController?.isInWatchLater(
-                    controller.video.id,
-                  ) ?? false;
+                  final isInWatchLater =
+                      _playlistController?.isInWatchLater(
+                        controller.video.id,
+                      ) ??
+                      false;
                   return _buildModernCapsuleButton(
                     icon: isInWatchLater
                         ? Icons.watch_later
@@ -2054,8 +2334,9 @@ class VideoScreen extends GetView<VideoController> {
                     label: 'Watch Later',
                     onTap: () {
                       if (!isUserSignedIn) return _showSignInPrompt();
-                      _playlistController?.toggleWatchLater(
-                        controller.video.id,
+                      showModernizedPlaylistDialog(
+                        context: context,
+                        videoId: controller.video.id,
                       );
                     },
                   );
@@ -2107,6 +2388,15 @@ class VideoScreen extends GetView<VideoController> {
                         _showDownloadQualityDialog(context, isUserSignedIn),
                   );
                 }),
+                const SizedBox(width: 8),
+
+                // Membership / Join
+                _buildModernCapsuleButton(
+                  icon: Icons.workspace_premium_outlined,
+                  label: 'Membership',
+                  onTap: () =>
+                      _showChannelMembershipModal(context, isUserSignedIn),
+                ),
                 const SizedBox(width: 8),
 
                 // More
@@ -2163,7 +2453,8 @@ class VideoScreen extends GetView<VideoController> {
                       thumbnailUrl: controller.video.thumbnailUrl,
                       channelName: controller.video.channelName,
                       durationMs: controller.video.durationValue.inMilliseconds,
-                      currentPosition: controller.videoPlayerController?.value.position,
+                      currentPosition:
+                          controller.videoPlayerController?.value.position,
                     );
                   },
                 ),
@@ -2173,9 +2464,11 @@ class VideoScreen extends GetView<VideoController> {
                 Obx(() {
                   controller.rxVideo.value;
                   _playlistController?.playlists.length;
-                  final isInWatchLater = _playlistController?.isInWatchLater(
-                    controller.video.id,
-                  ) ?? false;
+                  final isInWatchLater =
+                      _playlistController?.isInWatchLater(
+                        controller.video.id,
+                      ) ??
+                      false;
                   return _buildModernCapsuleButton(
                     icon: isInWatchLater
                         ? Icons.watch_later
@@ -2183,8 +2476,9 @@ class VideoScreen extends GetView<VideoController> {
                     label: 'Watch Later',
                     onTap: () {
                       if (!isUserSignedIn) return _showSignInPrompt();
-                      _playlistController?.toggleWatchLater(
-                        controller.video.id,
+                      showModernizedPlaylistDialog(
+                        context: context,
+                        videoId: controller.video.id,
                       );
                     },
                   );
@@ -2236,6 +2530,15 @@ class VideoScreen extends GetView<VideoController> {
                         _showDownloadQualityDialog(context, isUserSignedIn),
                   );
                 }),
+                const SizedBox(width: 8),
+
+                // Membership / Join
+                _buildModernCapsuleButton(
+                  icon: Icons.workspace_premium_outlined,
+                  label: 'Membership',
+                  onTap: () =>
+                      _showChannelMembershipModal(context, isUserSignedIn),
+                ),
                 const SizedBox(width: 8),
 
                 // More
@@ -2293,13 +2596,15 @@ class VideoScreen extends GetView<VideoController> {
                         radius: 18,
                         backgroundColor: Colors.grey.shade800,
                         child: ClipOval(
-                          child: (channel.avatarUrl.isNotEmpty ||
+                          child:
+                              (channel.avatarUrl.isNotEmpty ||
                                   channel.bannerImageUrl.isNotEmpty)
                               ? CachedNetworkImage(
-                                  imageUrl: (channel.avatarUrl.isNotEmpty
-                                          ? channel.avatarUrl
-                                          : channel.bannerImageUrl)
-                                      .replaceAll(' ', '%20'),
+                                  imageUrl:
+                                      (channel.avatarUrl.isNotEmpty
+                                              ? channel.avatarUrl
+                                              : channel.bannerImageUrl)
+                                          .replaceAll(' ', '%20'),
                                   placeholder: (context, url) => const Center(
                                     child: SizedBox(
                                       width: 16,
@@ -2389,9 +2694,12 @@ class VideoScreen extends GetView<VideoController> {
 
               // Right: Subscribe Button + Notification bell if subbed
               Obx(() {
-                final isSubbed = _channelController?.isSubscribed.value ?? false;
-                final notificationsEnabled = _channelController?.notificationsEnabled.value ?? true;
-                final notificationOption = _channelController?.notificationOption.value ?? 'all';
+                final isSubbed =
+                    _channelController?.isSubscribed.value ?? false;
+                final notificationsEnabled =
+                    _channelController?.notificationsEnabled.value ?? true;
+                final notificationOption =
+                    _channelController?.notificationOption.value ?? 'all';
 
                 IconData bellIcon;
                 if (!notificationsEnabled || notificationOption == 'none') {
@@ -2408,7 +2716,9 @@ class VideoScreen extends GetView<VideoController> {
                     InkWell(
                       onTap: () {
                         if (!isUserSignedIn) return _showSignInPrompt();
-                        _channelController?.toggleSubscription(controller.video.channelId);
+                        _channelController?.toggleSubscription(
+                          controller.video.channelId,
+                        );
                       },
                       borderRadius: BorderRadius.circular(18),
                       child: Container(
@@ -2435,7 +2745,10 @@ class VideoScreen extends GetView<VideoController> {
                     if (isSubbed) ...[
                       const SizedBox(width: 8),
                       InkWell(
-                        onTap: () => _showVideoPageNotificationsDialog(context, controller.video.channelId),
+                        onTap: () => _showVideoPageNotificationsDialog(
+                          context,
+                          controller.video.channelId,
+                        ),
                         borderRadius: BorderRadius.circular(18),
                         child: Container(
                           padding: const EdgeInsets.all(6),
@@ -2596,9 +2909,12 @@ class VideoScreen extends GetView<VideoController> {
 
               // Subscribe Button - White pill
               Obx(() {
-                final isSubscribed = _channelController?.isSubscribed.value ?? false;
-                final notificationsEnabled = _channelController?.notificationsEnabled.value ?? true;
-                final notificationOption = _channelController?.notificationOption.value ?? 'all';
+                final isSubscribed =
+                    _channelController?.isSubscribed.value ?? false;
+                final notificationsEnabled =
+                    _channelController?.notificationsEnabled.value ?? true;
+                final notificationOption =
+                    _channelController?.notificationOption.value ?? 'all';
 
                 IconData bellIcon;
                 if (!notificationsEnabled || notificationOption == 'none') {
@@ -2623,7 +2939,9 @@ class VideoScreen extends GetView<VideoController> {
                         backgroundColor: isSubscribed
                             ? Colors.grey.shade800
                             : Colors.white,
-                        foregroundColor: isSubscribed ? Colors.white : Colors.black,
+                        foregroundColor: isSubscribed
+                            ? Colors.white
+                            : Colors.black,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -2646,7 +2964,10 @@ class VideoScreen extends GetView<VideoController> {
                     if (isSubscribed) ...[
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: () => _showVideoPageNotificationsDialog(context, controller.video.channelId),
+                        onPressed: () => _showVideoPageNotificationsDialog(
+                          context,
+                          controller.video.channelId,
+                        ),
                         icon: Icon(
                           bellIcon,
                           color: Colors.white,
@@ -2669,7 +2990,10 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  void _showVideoPageNotificationsDialog(BuildContext context, String channelId) {
+  void _showVideoPageNotificationsDialog(
+    BuildContext context,
+    String channelId,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgSurface,
@@ -2700,10 +3024,13 @@ class VideoScreen extends GetView<VideoController> {
             ),
             const SizedBox(height: 16),
             Obx(() {
-              final option = _channelController?.notificationOption.value ?? 'all';
-              final notificationsEnabled = _channelController?.notificationsEnabled.value ?? true;
+              final option =
+                  _channelController?.notificationOption.value ?? 'all';
+              final notificationsEnabled =
+                  _channelController?.notificationsEnabled.value ?? true;
               final isAll = notificationsEnabled && option == 'all';
-              final isPersonalized = notificationsEnabled && option == 'personalized';
+              final isPersonalized =
+                  notificationsEnabled && option == 'personalized';
               final isNone = !notificationsEnabled || option == 'none';
 
               return Column(
@@ -2722,12 +3049,20 @@ class VideoScreen extends GetView<VideoController> {
                     ),
                     subtitle: Text(
                       "You'll get all notifications",
-                      style: GoogleFonts.roboto(fontSize: 12, color: textSecondary),
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: textSecondary,
+                      ),
                     ),
-                    trailing: isAll ? const Icon(Icons.check, color: primary) : null,
+                    trailing: isAll
+                        ? const Icon(Icons.check, color: AppColors.textPrimary)
+                        : null,
                     onTap: () {
                       Navigator.pop(context);
-                      _channelController?.updateNotificationPreference(channelId, 'all');
+                      _channelController?.updateNotificationPreference(
+                        channelId,
+                        'all',
+                      );
                     },
                   ),
                   ListTile(
@@ -2739,17 +3074,27 @@ class VideoScreen extends GetView<VideoController> {
                       'Personalized',
                       style: GoogleFonts.roboto(
                         color: isPersonalized ? primary : textPrimary,
-                        fontWeight: isPersonalized ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isPersonalized
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                     subtitle: Text(
                       "You'll get personalized notifications",
-                      style: GoogleFonts.roboto(fontSize: 12, color: textSecondary),
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: textSecondary,
+                      ),
                     ),
-                    trailing: isPersonalized ? const Icon(Icons.check, color: primary) : null,
+                    trailing: isPersonalized
+                        ? const Icon(Icons.check, color: AppColors.textPrimary)
+                        : null,
                     onTap: () {
                       Navigator.pop(context);
-                      _channelController?.updateNotificationPreference(channelId, 'personalized');
+                      _channelController?.updateNotificationPreference(
+                        channelId,
+                        'personalized',
+                      );
                     },
                   ),
                   ListTile(
@@ -2761,17 +3106,27 @@ class VideoScreen extends GetView<VideoController> {
                       'None',
                       style: GoogleFonts.roboto(
                         color: isNone ? primary : textPrimary,
-                        fontWeight: isNone ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isNone
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                     subtitle: Text(
                       'Turn off all notifications',
-                      style: GoogleFonts.roboto(fontSize: 12, color: textSecondary),
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: textSecondary,
+                      ),
                     ),
-                    trailing: isNone ? const Icon(Icons.check, color: primary) : null,
+                    trailing: isNone
+                        ? const Icon(Icons.check, color: AppColors.textPrimary)
+                        : null,
                     onTap: () {
                       Navigator.pop(context);
-                      _channelController?.updateNotificationPreference(channelId, 'none');
+                      _channelController?.updateNotificationPreference(
+                        channelId,
+                        'none',
+                      );
                     },
                   ),
                 ],
@@ -2781,6 +3136,368 @@ class VideoScreen extends GetView<VideoController> {
         ),
       ),
     );
+  }
+
+  void _showChannelMembershipModal(BuildContext context, bool isUserSignedIn) {
+    if (!isUserSignedIn) {
+      _showSignInPrompt();
+      return;
+    }
+
+    final channelId = controller.video.channelId;
+    final channelName = controller.video.channelName.isNotEmpty
+        ? controller.video.channelName
+        : 'Channel';
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.bgDivider,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.workspace_premium_outlined,
+                          color: AppColors.textPrimary,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Join $channelName Membership',
+                              style: AppTextStyles.titleLarge.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Unlock exclusive badges, perks & support the creator',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close,
+                          color: AppColors.textPrimary,
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: AppColors.bgDivider),
+                  const SizedBox(height: 16),
+
+                  // Tiers Stream
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('channels')
+                          .doc(channelId)
+                          .collection('membership_tiers')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.brand,
+                            ),
+                          );
+                        }
+
+                        List<ChannelMembershipTier> tiers = [];
+                        if (snapshot.hasData &&
+                            snapshot.data!.docs.isNotEmpty) {
+                          tiers = snapshot.data!.docs
+                              .map(
+                                (doc) => ChannelMembershipTier.fromMap(
+                                  doc.data()! as Map<String, dynamic>,
+                                  doc.id,
+                                ),
+                              )
+                              .where((t) => t.isEnabled)
+                              .toList();
+                        }
+
+                        // Default fallback tiers if creator hasn't set custom ones
+                        if (tiers.isEmpty) {
+                          tiers = [
+                            ChannelMembershipTier(
+                              id: 'default_bronze',
+                              name: 'Bronze Supporter',
+                              price: 1.99,
+                              perks: [
+                                'Exclusive channel loyalty badge next to your name',
+                                'Custom channel emojis in live chat & comments',
+                                'Early access to newly uploaded videos',
+                              ],
+                            ),
+                            ChannelMembershipTier(
+                              id: 'default_silver',
+                              name: 'Silver Supporter',
+                              price: 4.99,
+                              perks: [
+                                'All Bronze perks included',
+                                'Priority reply to your comments from creator',
+                                'Access to members-only community polls & posts',
+                                'Downloadable exclusive wallpaper & assets',
+                              ],
+                            ),
+                            ChannelMembershipTier(
+                              id: 'default_gold',
+                              name: 'Gold VIP',
+                              price: 9.99,
+                              perks: [
+                                'All Silver & Bronze perks included',
+                                'Exclusive behind-the-scenes video updates',
+                                'Direct Q&A live chat with creator',
+                                'Special credit shoutout in future video descriptions',
+                              ],
+                            ),
+                          ];
+                        }
+
+                        return ListView.separated(
+                          controller: scrollController,
+                          itemCount: tiers.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            final tier = tiers[index];
+                            return _buildMembershipTierCard(
+                              context,
+                              tier,
+                              channelId,
+                              channelName,
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMembershipTierCard(
+    BuildContext context,
+    ChannelMembershipTier tier,
+    String channelId,
+    String channelName,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgInput,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.stars_rounded,
+                    color: AppColors.textPrimary,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    tier.name,
+                    style: AppTextStyles.titleMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.brand.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  '\$${tier.price.toStringAsFixed(2)} / mo',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.brand,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AppColors.bgDivider),
+          const SizedBox(height: 12),
+          Text(
+            'PERKS & BENEFITS:',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...tier.perks.map(
+            (perk) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      perk,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () =>
+                  _joinMembershipTier(context, tier, channelId, channelName),
+              child: Text(
+                'Join ${tier.name}',
+                style: AppTextStyles.buttonText.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _joinMembershipTier(
+    BuildContext context,
+    ChannelMembershipTier tier,
+    String channelId,
+    String channelName,
+  ) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    Navigator.pop(context);
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('channelMemberships')
+          .doc(channelId)
+          .set({
+            'channelId': channelId,
+            'channelName': channelName,
+            'tierId': tier.id,
+            'tierName': tier.name,
+            'price': tier.price,
+            'perks': tier.perks,
+            'joinedAt': FieldValue.serverTimestamp(),
+            'status': 'active',
+          });
+
+      Get.snackbar(
+        'Welcome to ${tier.name}!',
+        'You are now a member of $channelName. Enjoy your exclusive perks!',
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.textPrimary,
+        duration: const Duration(seconds: 4),
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to join membership: $e',
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.error,
+      );
+    }
   }
 
   Widget _buildModernLikeDislikeGroup() {
@@ -2797,10 +3514,15 @@ class VideoScreen extends GetView<VideoController> {
           // Like Button
           Obx(() {
             final isLiked = controller.isLiked.value;
+            final showLikeCount = controller.video.showLikeCount;
+            final countStr = showLikeCount && controller.likeCount.value > 0
+                ? FormatUtils.formatCount(controller.likeCount.value)
+                : '';
             return _AnimatedReactionButton(
               icon: isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+              label: countStr,
               isActive: isLiked,
-              activeColor: primary,
+              activeColor: textPrimary,
               inactiveColor: textPrimary,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
@@ -2821,10 +3543,18 @@ class VideoScreen extends GetView<VideoController> {
           // Dislike Button
           Obx(() {
             final isDisliked = controller.isDisliked.value;
+            final showDislikeCount = controller.video.showDislikeCount;
+            final countStr =
+                showDislikeCount && controller.dislikeCount.value > 0
+                ? FormatUtils.formatCount(controller.dislikeCount.value)
+                : '';
             return _AnimatedReactionButton(
-              icon: isDisliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+              icon: isDisliked
+                  ? Icons.thumb_down_rounded
+                  : Icons.thumb_down_outlined,
+              label: countStr,
               isActive: isDisliked,
-              activeColor: primary,
+              activeColor: textPrimary,
               inactiveColor: textPrimary,
               borderRadius: const BorderRadius.only(
                 topRight: Radius.circular(24),
@@ -2854,7 +3584,10 @@ class VideoScreen extends GetView<VideoController> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: hasLabel ? 16 : 12, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: hasLabel ? 16 : 12,
+            vertical: 8,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2877,7 +3610,10 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  void _showAnalysisBottomSheet(BuildContext context, {int initialTabIndex = 0}) {
+  void _showAnalysisBottomSheet(
+    BuildContext context, {
+    int initialTabIndex = 0,
+  }) {
     Get.bottomSheet(
       VideoAnalysisBottomSheet(
         video: controller.video,
@@ -2900,8 +3636,6 @@ class VideoScreen extends GetView<VideoController> {
           switch (value) {
             case 'clip':
               _showClipDialog(context);
-            case 'settings':
-              _showPlayerSettings(context);
             case 'report':
               _showReportBottomSheet(context);
           }
@@ -2914,16 +3648,6 @@ class VideoScreen extends GetView<VideoController> {
                 Icon(Icons.content_cut_rounded, size: 20),
                 SizedBox(width: 12),
                 Text('Clip'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'settings',
-            child: Row(
-              children: [
-                Icon(Icons.settings_rounded, size: 20),
-                SizedBox(width: 12),
-                Text('Settings'),
               ],
             ),
           ),
@@ -2964,8 +3688,8 @@ class VideoScreen extends GetView<VideoController> {
       final playerCtrl = Get.isRegistered<TowerPlayerController>(tag: tag)
           ? Get.find<TowerPlayerController>(tag: tag)
           : (Get.isRegistered<TowerPlayerController>()
-              ? Get.find<TowerPlayerController>()
-              : null);
+                ? Get.find<TowerPlayerController>()
+                : null);
 
       return Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -2985,7 +3709,11 @@ class VideoScreen extends GetView<VideoController> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.bookmarks_rounded, color: Colors.white, size: 20),
+                const Icon(
+                  Icons.bookmarks_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'Chapters',
@@ -2997,7 +3725,10 @@ class VideoScreen extends GetView<VideoController> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF162A45),
                     borderRadius: BorderRadius.circular(10),
@@ -3104,44 +3835,54 @@ class VideoScreen extends GetView<VideoController> {
                   PopupMenuButton<bool>(
                     onSelected: commentsController.sortComments,
                     offset: const Offset(0, 30),
-                    itemBuilder: (BuildContext context) => <PopupMenuEntry<bool>>[
-                      PopupMenuItem<bool>(
-                        value: false,
-                        child: Obx(() {
-                          final isSelected = !commentsController.isSortNewest.value;
-                          return Row(
-                            children: [
-                              Icon(
-                                Icons.check, 
-                                size: 18, 
-                                color: isSelected ? Colors.white : Colors.transparent,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Top comments'),
-                            ],
-                          );
-                        }),
-                      ),
-                      PopupMenuItem<bool>(
-                        value: true,
-                        child: Obx(() {
-                          final isSelected = commentsController.isSortNewest.value;
-                          return Row(
-                            children: [
-                              Icon(
-                                Icons.check, 
-                                size: 18, 
-                                color: isSelected ? Colors.white : Colors.transparent,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Newest first'),
-                            ],
-                          );
-                        }),
-                      ),
-                    ],
+                    itemBuilder: (BuildContext context) =>
+                        <PopupMenuEntry<bool>>[
+                          PopupMenuItem<bool>(
+                            value: false,
+                            child: Obx(() {
+                              final isSelected =
+                                  !commentsController.isSortNewest.value;
+                              return Row(
+                                children: [
+                                  Icon(
+                                    Icons.check,
+                                    size: 18,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('Top comments'),
+                                ],
+                              );
+                            }),
+                          ),
+                          PopupMenuItem<bool>(
+                            value: true,
+                            child: Obx(() {
+                              final isSelected =
+                                  commentsController.isSortNewest.value;
+                              return Row(
+                                children: [
+                                  Icon(
+                                    Icons.check,
+                                    size: 18,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text('Newest first'),
+                                ],
+                              );
+                            }),
+                          ),
+                        ],
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 8,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -3166,59 +3907,70 @@ class VideoScreen extends GetView<VideoController> {
                 ],
               ),
               const SizedBox(height: 16),
-              if (currentUser != null) PremiumCommentInput(
-                      key: ValueKey('main_comment_input_${controller.video.id}'),
-                      videoId: controller.video.id,
-                      onSubmit: (text, postAsChannel, channelId) async {
-                        try {
-                          final authService = AuthService.to;
-                          final hasChannel = authService.hasChannel.value;
-                          final channel = authService.userChannel;
+              if (currentUser != null)
+                PremiumCommentInput(
+                  key: ValueKey('main_comment_input_${controller.video.id}'),
+                  videoId: controller.video.id,
+                  onSubmit: (text, postAsChannel, channelId) async {
+                    try {
+                      final authService = AuthService.to;
+                      final hasChannel = authService.hasChannel.value;
+                      final channel = authService.userChannel;
 
-                          final shouldPostAsChannel = postAsChannel || hasChannel;
-                          final targetChannelId = shouldPostAsChannel ? (channelId ?? channel?.id) : null;
-                          final targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
-                          final targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
-                          final targetUserAvatar = AuthService.to.activePhotoUrl;
+                      final shouldPostAsChannel = postAsChannel || hasChannel;
+                      final targetChannelId = shouldPostAsChannel
+                          ? (channelId ?? channel?.id)
+                          : null;
+                      final targetChannelName = shouldPostAsChannel
+                          ? (channel?.handle.isNotEmpty ?? false
+                                ? channel?.handle
+                                : channel?.name)
+                          : null;
+                      final targetChannelAvatar = shouldPostAsChannel
+                          ? channel?.avatarUrl
+                          : null;
+                      final targetUserAvatar = AuthService.to.activePhotoUrl;
 
-                          await commentsController.submitComment(
-                            text: text,
-                            channelId: targetChannelId,
-                            channelName: targetChannelName,
-                            channelProfilePicUrl: targetChannelAvatar,
-                            userProfilePicUrl: targetUserAvatar,
-                          );
-                          if (Get.context != null) {
-                            Get.snackbar(
-                              'Success',
-                              'Comment posted',
-                              snackPosition: SnackPosition.BOTTOM,
-                              duration: const Duration(seconds: 2),
-                            );
-                          }
-                        } catch (e) {
-                          if (Get.context != null) {
-                            Get.snackbar(
-                              'Error',
-                              'Failed to post comment: $e',
-                              snackPosition: SnackPosition.BOTTOM,
-                            );
-                          }
-                        }
-                      },
-                      onCancel: () {},
-                    ) else Container(
-                      padding: const EdgeInsets.all(16),
-                      margin: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardBackground,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Sign in to comment',
-                        style: GoogleFonts.roboto(color: textSecondary),
-                      ),
-                    ),
+                      await commentsController.submitComment(
+                        text: text,
+                        channelId: targetChannelId,
+                        channelName: targetChannelName,
+                        channelProfilePicUrl: targetChannelAvatar,
+                        userProfilePicUrl: targetUserAvatar,
+                      );
+                      if (Get.context != null) {
+                        Get.snackbar(
+                          'Success',
+                          'Comment posted',
+                          snackPosition: SnackPosition.BOTTOM,
+                          duration: const Duration(seconds: 2),
+                        );
+                      }
+                    } catch (e) {
+                      if (Get.context != null) {
+                        Get.snackbar(
+                          'Error',
+                          'Failed to post comment: $e',
+                          snackPosition: SnackPosition.BOTTOM,
+                        );
+                      }
+                    }
+                  },
+                  onCancel: () {},
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBackground,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Sign in to comment',
+                    style: GoogleFonts.roboto(color: textSecondary),
+                  ),
+                ),
             ],
           ),
         ),
@@ -3247,7 +3999,11 @@ class VideoScreen extends GetView<VideoController> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.chat_bubble_outline, color: textSecondary, size: 48),
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    color: textSecondary,
+                    size: 48,
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'No comments yet',
@@ -3322,19 +4078,41 @@ class VideoScreen extends GetView<VideoController> {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Obx(() {
                           final count = commentsController.comments.length;
-                          return Text(
-                            'Comments ($count)',
-                            style: GoogleFonts.roboto(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          final isFlipped =
+                              commentsController.isCounterArgumentFlipped.value;
+                          return Row(
+                            children: [
+                              Text(
+                                isFlipped
+                                    ? 'Counter-Arguments ($count)'
+                                    : 'Comments ($count)',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              FlipCoinWidget(
+                                isFlipped: isFlipped,
+                                size: 28,
+                                tooltip:
+                                    'Flip to see Verified Counter-Arguments',
+                                onTap: () {
+                                  commentsController
+                                      .toggleCounterArgumentSort();
+                                },
+                              ),
+                            ],
                           );
                         }),
                         IconButton(
@@ -3366,11 +4144,18 @@ class VideoScreen extends GetView<VideoController> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.chat_bubble_outline, color: textSecondary, size: 48),
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                color: textSecondary,
+                                size: 48,
+                              ),
                               SizedBox(height: 16),
                               Text(
                                 'No comments yet',
-                                style: TextStyle(color: Colors.white, fontSize: 16),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
                               ),
                             ],
                           ),
@@ -3381,7 +4166,10 @@ class VideoScreen extends GetView<VideoController> {
                         itemCount: commentsController.comments.length,
                         itemBuilder: (context, index) {
                           final comment = commentsController.comments[index];
-                          return _buildCommentItem(comment, controller.video.id);
+                          return _buildCommentItem(
+                            comment,
+                            controller.video.id,
+                          );
                         },
                       );
                     }),
@@ -3392,7 +4180,9 @@ class VideoScreen extends GetView<VideoController> {
                     ),
                     child: currentUser != null
                         ? PremiumCommentInput(
-                            key: ValueKey('popup_comment_input_${controller.video.id}'),
+                            key: ValueKey(
+                              'popup_comment_input_${controller.video.id}',
+                            ),
                             videoId: controller.video.id,
                             onSubmit: (text, postAsChannel, channelId) async {
                               try {
@@ -3400,11 +4190,21 @@ class VideoScreen extends GetView<VideoController> {
                                 final hasChannel = authService.hasChannel.value;
                                 final channel = authService.userChannel;
 
-                                final shouldPostAsChannel = postAsChannel || hasChannel;
-                                final targetChannelId = shouldPostAsChannel ? (channelId ?? channel?.id) : null;
-                                final targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
-                                final targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
-                                final targetUserAvatar = AuthService.to.activePhotoUrl;
+                                final shouldPostAsChannel =
+                                    postAsChannel || hasChannel;
+                                final targetChannelId = shouldPostAsChannel
+                                    ? (channelId ?? channel?.id)
+                                    : null;
+                                final targetChannelName = shouldPostAsChannel
+                                    ? (channel?.handle.isNotEmpty ?? false
+                                          ? channel?.handle
+                                          : channel?.name)
+                                    : null;
+                                final targetChannelAvatar = shouldPostAsChannel
+                                    ? channel?.avatarUrl
+                                    : null;
+                                final targetUserAvatar =
+                                    AuthService.to.activePhotoUrl;
 
                                 await commentsController.submitComment(
                                   text: text,
@@ -3438,8 +4238,6 @@ class VideoScreen extends GetView<VideoController> {
       },
     );
   }
-
-
 
   Widget _buildDescriptionBox(BuildContext context) {
     return Obx(() {
@@ -3499,8 +4297,8 @@ class VideoScreen extends GetView<VideoController> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    controller.video.description,
+                  ClickableUrlText(
+                    text: controller.video.description,
                     maxLines: expanded ? null : 2,
                     overflow: expanded
                         ? TextOverflow.visible
@@ -3534,16 +4332,25 @@ class VideoScreen extends GetView<VideoController> {
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.description_outlined, size: 16, color: Colors.white),
+                    const Icon(
+                      Icons.description_outlined,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       showTranscript ? 'Hide Transcript' : 'Show Transcript',
@@ -3573,7 +4380,9 @@ class VideoScreen extends GetView<VideoController> {
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
                 ),
                 child: _buildTranscriptContent(context),
               ),
@@ -3641,7 +4450,9 @@ class VideoScreen extends GetView<VideoController> {
                     style: GoogleFonts.roboto(
                       color: isActive ? Colors.white : Colors.white70,
                       fontSize: 13,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isActive
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                       height: 1.3,
                     ),
                   ),
@@ -3663,7 +4474,6 @@ class VideoScreen extends GetView<VideoController> {
     return '$mins:$secs';
   }
 
-
   void _showSignInPrompt() {
     Get.snackbar('Sign in required', 'Please sign in to proceed');
   }
@@ -3673,11 +4483,9 @@ class VideoScreen extends GetView<VideoController> {
     if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K';
     return views.toString();
   }
-
 }
 
 class _AnimatedReactionButton extends StatefulWidget {
-
   const _AnimatedReactionButton({
     required this.icon,
     required this.isActive,
@@ -3685,8 +4493,10 @@ class _AnimatedReactionButton extends StatefulWidget {
     required this.inactiveColor,
     required this.onTap,
     required this.borderRadius,
+    this.label,
   });
   final IconData icon;
+  final String? label;
   final bool isActive;
   final Color activeColor;
   final Color inactiveColor;
@@ -3694,7 +4504,8 @@ class _AnimatedReactionButton extends StatefulWidget {
   final BorderRadius borderRadius;
 
   @override
-  State<_AnimatedReactionButton> createState() => _AnimatedReactionButtonState();
+  State<_AnimatedReactionButton> createState() =>
+      _AnimatedReactionButtonState();
 }
 
 class _AnimatedReactionButtonState extends State<_AnimatedReactionButton>
@@ -3711,13 +4522,17 @@ class _AnimatedReactionButtonState extends State<_AnimatedReactionButton>
     );
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.4)
-            .chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.4,
+        ).chain(CurveTween(curve: Curves.easeOut)),
         weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.4, end: 1)
-            .chain(CurveTween(curve: Curves.bounceOut)),
+        tween: Tween<double>(
+          begin: 1.4,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.bounceOut)),
         weight: 60,
       ),
     ]).animate(_controller);
@@ -3739,21 +4554,42 @@ class _AnimatedReactionButtonState extends State<_AnimatedReactionButton>
 
   @override
   Widget build(BuildContext context) {
+    final hasLabel = widget.label != null && widget.label!.isNotEmpty;
     return InkWell(
       onTap: widget.onTap,
       borderRadius: widget.borderRadius,
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: 16,
+          horizontal: 14,
           vertical: 8,
         ),
-        child: ScaleTransition(
-          scale: _scaleAnimation,
-          child: Icon(
-            widget.icon,
-            size: 20,
-            color: widget.isActive ? widget.activeColor : widget.inactiveColor,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ScaleTransition(
+              scale: _scaleAnimation,
+              child: Icon(
+                widget.icon,
+                size: 20,
+                color: widget.isActive
+                    ? widget.activeColor
+                    : widget.inactiveColor,
+              ),
+            ),
+            if (hasLabel) ...[
+              const SizedBox(width: 6),
+              Text(
+                widget.label!,
+                style: TextStyle(
+                  color: widget.isActive
+                      ? widget.activeColor
+                      : widget.inactiveColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -3765,7 +4601,6 @@ class _AnimatedReactionButtonState extends State<_AnimatedReactionButton>
 // ==========================================================================
 
 class _CommentItemWidget extends StatefulWidget {
-
   const _CommentItemWidget({
     required this.comment,
     required this.videoId,
@@ -3827,8 +4662,14 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       final channel = authService.userChannel;
 
       final targetChannelId = hasChannel ? channel?.id : null;
-      final targetChannelName = hasChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
-      final targetChannelAvatar = AuthService.to.activePhotoUrl.isNotEmpty ? AuthService.to.activePhotoUrl : null;
+      final targetChannelName = hasChannel
+          ? (channel?.handle.isNotEmpty ?? false
+                ? channel?.handle
+                : channel?.name)
+          : null;
+      final targetChannelAvatar = AuthService.to.activePhotoUrl.isNotEmpty
+          ? AuthService.to.activePhotoUrl
+          : null;
       final targetUserAvatar = AuthService.to.activePhotoUrl;
 
       await commentsController.submitReply(
@@ -3854,7 +4695,10 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
   Future<void> _toggleSaveVideoComment(Comment comment, String videoId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to save comments.',
+      );
       return;
     }
     final docRef = FirebaseFirestore.instance
@@ -3889,7 +4733,13 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
           borderRadius: 12,
           mainButton: TextButton(
             onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'VIEW',
+              style: TextStyle(
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         );
       }
@@ -3917,7 +4767,10 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
   Future<void> _toggleSaveReply(Reply reply, String videoId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      Get.snackbar(
+        'Authentication Required',
+        'Please sign in to save comments.',
+      );
       return;
     }
     final docRef = FirebaseFirestore.instance
@@ -3952,7 +4805,13 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
           borderRadius: 12,
           mainButton: TextButton(
             onPressed: () => Get.toNamed('/saved-comments'),
-            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'VIEW',
+              style: TextStyle(
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         );
       }
@@ -3961,7 +4820,11 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     }
   }
 
-  void _showCommentOptions(BuildContext context, Comment comment, CommentsController commentsController) {
+  void _showCommentOptions(
+    BuildContext context,
+    Comment comment,
+    CommentsController commentsController,
+  ) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == comment.userId;
 
@@ -3977,25 +4840,43 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.content_copy_rounded, color: Colors.white),
-                title: const Text('Copy text', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.content_copy_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Copy text',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _copyCommentText(comment.text);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.bookmark_outline_rounded, color: Colors.white),
-                title: const Text('Save comment', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.bookmark_outline_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Save comment',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
-                  _toggleSaveVideoComment(comment, commentsController.video?.id ?? '');
+                  _toggleSaveVideoComment(
+                    comment,
+                    commentsController.video?.id ?? '',
+                  );
                 },
               ),
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     commentsController.deleteComment(comment.id);
@@ -4004,7 +4885,10 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
               else
                 ListTile(
                   leading: const Icon(Icons.flag_outlined, color: Colors.white),
-                  title: const Text('Report', style: TextStyle(color: Colors.white)),
+                  title: const Text(
+                    'Report',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     Get.snackbar('Reported', 'Thank you for your report.');
@@ -4035,7 +4919,10 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       }
       if (doc.exists) {
         final channel = Channel.fromDocumentSnapshot(doc);
-        Get.offAndToNamed(channel.channelRoute, arguments: {'channel': channel});
+        Get.offAndToNamed(
+          channel.channelRoute,
+          arguments: {'channel': channel},
+        );
       } else {
         Get.snackbar('Error', 'Channel not found');
       }
@@ -4047,7 +4934,12 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     }
   }
 
-  void _showReplyOptions(BuildContext context, Reply reply, String commentId, CommentsController commentsController) {
+  void _showReplyOptions(
+    BuildContext context,
+    Reply reply,
+    String commentId,
+    CommentsController commentsController,
+  ) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == reply.userId;
 
@@ -4063,16 +4955,28 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.content_copy_rounded, color: Colors.white),
-                title: const Text('Copy text', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.content_copy_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Copy text',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _copyCommentText(reply.text);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.bookmark_outline_rounded, color: Colors.white),
-                title: const Text('Save comment', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.bookmark_outline_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Save comment',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _toggleSaveReply(reply, commentsController.video?.id ?? '');
@@ -4081,7 +4985,10 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     commentsController.deleteReply(commentId, reply.id);
@@ -4090,7 +4997,10 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
               else
                 ListTile(
                   leading: const Icon(Icons.flag_outlined, color: Colors.white),
-                  title: const Text('Report', style: TextStyle(color: Colors.white)),
+                  title: const Text(
+                    'Report',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     Get.snackbar('Reported', 'Thank you for your report.');
@@ -4107,7 +5017,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
   Widget build(BuildContext context) {
     final comment = widget.comment;
     final userName = comment.displayName;
-    final formattedUserName = userName.startsWith('@') ? userName : '@$userName';
+    final formattedUserName = userName.startsWith('@')
+        ? userName
+        : '@$userName';
     final text = comment.text;
     final createdAt = comment.createdAt;
     final userProfilePicUrl = comment.avatarUrl;
@@ -4121,7 +5033,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       final isLiked = commentsController.isCommentLikedByUser(comment);
       final isDisliked = commentsController.isCommentDislikedByUser(comment);
 
-      final isTarget = commentsController.targetCommentId.value == comment.id && commentsController.targetReplyId.value == null;
+      final isTarget =
+          commentsController.targetCommentId.value == comment.id &&
+          commentsController.targetReplyId.value == null;
 
       // Automatically trigger scroll exactly once if it's the target comment
       if (isTarget && !commentsController.hasScrolledToTarget) {
@@ -4179,11 +5093,19 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                             onTap: () => _navigateToChannel(comment.channelId),
                             child: MouseRegion(
                               cursor: SystemMouseCursors.click,
-                              child: comment.channelId.isNotEmpty && comment.channelId == commentsController.video?.channelId
+                              child:
+                                  comment.channelId.isNotEmpty &&
+                                      comment.channelId ==
+                                          commentsController.video?.channelId
                                   ? Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.15),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.15,
+                                        ),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Row(
@@ -4246,9 +5168,13 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                             child: Row(
                               children: [
                                 Icon(
-                                  isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                  isLiked
+                                      ? Icons.thumb_up
+                                      : Icons.thumb_up_outlined,
                                   size: 16,
-                                  color: isLiked ? Colors.white : Colors.grey.shade400,
+                                  color: isLiked
+                                      ? Colors.white
+                                      : Colors.grey.shade400,
                                 ),
                                 const SizedBox(width: 6),
                                 if (likeCount > 0)
@@ -4256,7 +5182,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                     '$likeCount',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isLiked ? Colors.white : Colors.grey.shade400,
+                                      color: isLiked
+                                          ? Colors.white
+                                          : Colors.grey.shade400,
                                     ),
                                   ),
                               ],
@@ -4264,20 +5192,26 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                           ),
                           const SizedBox(width: 16),
                           InkWell(
-                            onTap: () => commentsController.toggleCommentDislike(
-                              commentId: commentId,
-                              dislikeAsChannel: false,
-                            ),
+                            onTap: () =>
+                                commentsController.toggleCommentDislike(
+                                  commentId: commentId,
+                                  dislikeAsChannel: false,
+                                ),
                             child: Icon(
-                              isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                              isDisliked
+                                  ? Icons.thumb_down
+                                  : Icons.thumb_down_outlined,
                               size: 16,
-                              color: isDisliked ? Colors.white : Colors.grey.shade400,
+                              color: isDisliked
+                                  ? Colors.white
+                                  : Colors.grey.shade400,
                             ),
                           ),
                           if (comment.isHeartedByCreator) ...[
                             const SizedBox(width: 8),
                             Tooltip(
-                              message: 'Hearted by ${comment.creatorHeartName ?? 'Creator'}',
+                              message:
+                                  'Hearted by ${comment.creatorHeartName ?? 'Creator'}',
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -4311,9 +5245,14 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                             onTap: () {
                               isReplying.value = !isReplying.value;
                               if (isReplying.value) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  if (mounted && replyFocusNode.canRequestFocus) {
-                                    FocusScope.of(context).requestFocus(replyFocusNode);
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (mounted &&
+                                      replyFocusNode.canRequestFocus) {
+                                    FocusScope.of(
+                                      context,
+                                    ).requestFocus(replyFocusNode);
                                   }
                                 });
                               }
@@ -4333,8 +5272,13 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 18),
-                  onPressed: () => _showCommentOptions(context, comment, commentsController),
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: Colors.grey.shade400,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      _showCommentOptions(context, comment, commentsController),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
@@ -4372,9 +5316,14 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                               color: Colors.grey.shade800,
                             ),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
                         ),
-                        style: const TextStyle(fontSize: 14, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _submitReply(),
                       ),
@@ -4393,11 +5342,15 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                     ),
                     IconButton(
                       onPressed: _submitReply,
-                      icon: Obx(() => Icon(
-                            Icons.send,
-                            size: 20,
-                            color: replyText.value.isNotEmpty ? Colors.blue : Colors.grey,
-                          )),
+                      icon: Obx(
+                        () => Icon(
+                          Icons.send,
+                          size: 20,
+                          color: replyText.value.isNotEmpty
+                              ? Colors.blue
+                              : Colors.grey,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -4464,7 +5417,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    replies.length == 1 ? '• 1 reply' : '• ${replies.length} replies',
+                    replies.length == 1
+                        ? '• 1 reply'
+                        : '• ${replies.length} replies',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Colors.blue,
@@ -4488,10 +5443,14 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
               ...List.generate(replies.length, (index) {
                 final reply = replies[index];
                 final isLastReply = index == replies.length - 1;
-                final isReplyLiked = commentsController.isReplyLikedByUser(reply.id);
-                final isReplyDisliked = commentsController.isReplyDislikedByUser(reply.id);
+                final isReplyLiked = commentsController.isReplyLikedByUser(
+                  reply.id,
+                );
+                final isReplyDisliked = commentsController
+                    .isReplyDislikedByUser(reply.id);
 
-                final isReplyTarget = commentsController.targetReplyId.value == reply.id;
+                final isReplyTarget =
+                    commentsController.targetReplyId.value == reply.id;
 
                 // Automatically trigger scroll exactly once if it's the target reply
                 if (isReplyTarget && !commentsController.hasScrolledToTarget) {
@@ -4523,7 +5482,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                         child: Container(
                           decoration: isReplyTarget
                               ? BoxDecoration(
-                                  color: AppColors.brand.withValues(alpha: 0.08),
+                                  color: AppColors.brand.withValues(
+                                    alpha: 0.08,
+                                  ),
                                   border: const Border(
                                     left: BorderSide(
                                       color: AppColors.brand,
@@ -4532,12 +5493,18 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                   ),
                                 )
                               : null,
-                          padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16, left: 8),
+                          padding: const EdgeInsets.only(
+                            top: 8,
+                            bottom: 8,
+                            right: 16,
+                            left: 8,
+                          ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               GestureDetector(
-                                onTap: () => _navigateToChannel(reply.channelId),
+                                onTap: () =>
+                                    _navigateToChannel(reply.channelId),
                                 child: MouseRegion(
                                   cursor: SystemMouseCursors.click,
                                   child: UserAvatar(
@@ -4555,28 +5522,58 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                     Row(
                                       children: [
                                         GestureDetector(
-                                          onTap: () => _navigateToChannel(reply.channelId),
+                                          onTap: () => _navigateToChannel(
+                                            reply.channelId,
+                                          ),
                                           child: MouseRegion(
                                             cursor: SystemMouseCursors.click,
-                                            child: reply.channelId.isNotEmpty && reply.channelId == commentsController.video?.channelId
+                                            child:
+                                                reply.channelId.isNotEmpty &&
+                                                    reply.channelId ==
+                                                        commentsController
+                                                            .video
+                                                            ?.channelId
                                                 ? Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 1.5,
+                                                        ),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.white.withValues(alpha: 0.15),
-                                                      borderRadius: BorderRadius.circular(10),
+                                                      color: Colors.white
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
                                                     ),
                                                     child: Row(
-                                                      mainAxisSize: MainAxisSize.min,
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                                       children: [
                                                         Text(
-                                                          reply.displayName.startsWith('@') ? reply.displayName : '@${reply.displayName}',
-                                                          style: const TextStyle(
-                                                            fontWeight: FontWeight.bold,
-                                                            fontSize: 11,
-                                                            color: Colors.white,
-                                                          ),
+                                                          reply.displayName
+                                                                  .startsWith(
+                                                                    '@',
+                                                                  )
+                                                              ? reply
+                                                                    .displayName
+                                                              : '@${reply.displayName}',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 11,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
                                                         ),
-                                                        const SizedBox(width: 3),
+                                                        const SizedBox(
+                                                          width: 3,
+                                                        ),
                                                         const Icon(
                                                           Icons.check,
                                                           size: 11,
@@ -4586,9 +5583,13 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                                     ),
                                                   )
                                                 : Text(
-                                                    reply.displayName.startsWith('@') ? reply.displayName : '@${reply.displayName}',
+                                                    reply.displayName
+                                                            .startsWith('@')
+                                                        ? reply.displayName
+                                                        : '@${reply.displayName}',
                                                     style: const TextStyle(
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       fontSize: 12,
                                                       color: Colors.white,
                                                     ),
@@ -4597,7 +5598,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          timeago.format(reply.createdAt.toDate()),
+                                          timeago.format(
+                                            reply.createdAt.toDate(),
+                                          ),
                                           style: TextStyle(
                                             color: Colors.grey.shade500,
                                             fontSize: 11,
@@ -4618,17 +5621,22 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                     Row(
                                       children: [
                                         InkWell(
-                                          onTap: () => commentsController.toggleReplyLike(
-                                            commentId: commentId,
-                                            replyId: reply.id,
-                                            likeAsChannel: false,
-                                            replyAuthorId: reply.userId,
-                                            replyText: reply.text,
-                                          ),
+                                          onTap: () => commentsController
+                                              .toggleReplyLike(
+                                                commentId: commentId,
+                                                replyId: reply.id,
+                                                likeAsChannel: false,
+                                                replyAuthorId: reply.userId,
+                                                replyText: reply.text,
+                                              ),
                                           child: Icon(
-                                            isReplyLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                            isReplyLiked
+                                                ? Icons.thumb_up
+                                                : Icons.thumb_up_outlined,
                                             size: 14,
-                                            color: isReplyLiked ? Colors.white : Colors.grey.shade400,
+                                            color: isReplyLiked
+                                                ? Colors.white
+                                                : Colors.grey.shade400,
                                           ),
                                         ),
                                         const SizedBox(width: 4),
@@ -4637,20 +5645,27 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                             '${reply.likeCount}',
                                             style: TextStyle(
                                               fontSize: 11,
-                                              color: isReplyLiked ? Colors.white : Colors.grey.shade400,
+                                              color: isReplyLiked
+                                                  ? Colors.white
+                                                  : Colors.grey.shade400,
                                             ),
                                           ),
                                         const SizedBox(width: 16),
                                         InkWell(
-                                          onTap: () => commentsController.toggleReplyDislike(
-                                            commentId: commentId,
-                                            replyId: reply.id,
-                                            dislikeAsChannel: false,
-                                          ),
+                                          onTap: () => commentsController
+                                              .toggleReplyDislike(
+                                                commentId: commentId,
+                                                replyId: reply.id,
+                                                dislikeAsChannel: false,
+                                              ),
                                           child: Icon(
-                                            isReplyDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                                            isReplyDisliked
+                                                ? Icons.thumb_down
+                                                : Icons.thumb_down_outlined,
                                             size: 14,
-                                            color: isReplyDisliked ? Colors.white : Colors.grey.shade400,
+                                            color: isReplyDisliked
+                                                ? Colors.white
+                                                : Colors.grey.shade400,
                                           ),
                                         ),
                                       ],
@@ -4659,8 +5674,17 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                 ),
                               ),
                               IconButton(
-                                icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 16),
-                                onPressed: () => _showReplyOptions(context, reply, commentId, commentsController),
+                                icon: Icon(
+                                  Icons.more_vert,
+                                  color: Colors.grey.shade400,
+                                  size: 16,
+                                ),
+                                onPressed: () => _showReplyOptions(
+                                  context,
+                                  reply,
+                                  commentId,
+                                  commentsController,
+                                ),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                               ),
@@ -4710,7 +5734,6 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
 }
 
 class ReplyThreadLinePainter extends CustomPainter {
-
   ReplyThreadLinePainter({
     required this.color,
     required this.isLast,
@@ -4755,9 +5778,9 @@ class ReplyThreadLinePainter extends CustomPainter {
 // ==========================================================================
 
 class RecommendationFeed extends StatelessWidget {
-
   const RecommendationFeed({
-    required this.video, super.key,
+    required this.video,
+    super.key,
     this.videoTag,
     this.shrinkWrap = false,
     this.physics,
@@ -4804,13 +5827,21 @@ class RecommendationFeed extends StatelessWidget {
                   controller.selectedRecommendationFilter.value = filter;
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
                     border: isSelected
                         ? null
-                        : Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+                        : Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            width: 0.5,
+                          ),
                   ),
                   child: Center(
                     child: Text(
@@ -4895,9 +5926,7 @@ class RecommendationFeed extends StatelessWidget {
               ),
             )
           else
-            shrinkWrap 
-                ? videoList 
-                : Expanded(child: videoList),
+            shrinkWrap ? videoList : Expanded(child: videoList),
         ],
       );
     });
@@ -4905,7 +5934,6 @@ class RecommendationFeed extends StatelessWidget {
 }
 
 class _ResponsiveAppBar extends StatelessWidget implements PreferredSizeWidget {
-
   const _ResponsiveAppBar({
     required this.controller,
     required this.appBarBuilder,
@@ -4986,90 +6014,90 @@ class _RotatingPlaylistAvatarState extends State<RotatingPlaylistAvatar>
     final avatar = Stack(
       clipBehavior: Clip.none,
       children: [
-          // Rotating vinyl disc / circular avatar
-          RotationTransition(
-            turns: _rotationController,
+        // Rotating vinyl disc / circular avatar
+        RotationTransition(
+          turns: _rotationController,
+          child: Container(
+            width: widget.size,
+            height: widget.size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const SweepGradient(
+                colors: [
+                  Color(0xFF1F2937),
+                  Color(0xFF111827),
+                  Color(0xFF374151),
+                  Color(0xFF111827),
+                  Color(0xFF1F2937),
+                ],
+              ),
+              border: Border.all(
+                color: AppColors.brand.withValues(alpha: 0.8),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.brand.withValues(alpha: 0.35),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(3.0),
+              child: ClipOval(
+                child: widget.playlist.thumbnailUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: widget.playlist.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => _buildFallback(),
+                        errorWidget: (_, __, ___) => _buildFallback(),
+                      )
+                    : _buildFallback(),
+              ),
+            ),
+          ),
+        ),
+        // Center spindle dot for vinyl record styling
+        Positioned.fill(
+          child: Center(
             child: Container(
-              width: widget.size,
-              height: widget.size,
+              width: widget.size * 0.22,
+              height: widget.size * 0.22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const SweepGradient(
-                  colors: [
-                    Color(0xFF1F2937),
-                    Color(0xFF111827),
-                    Color(0xFF374151),
-                    Color(0xFF111827),
-                    Color(0xFF1F2937),
-                  ],
-                ),
-                border: Border.all(
-                  color: AppColors.brand.withValues(alpha: 0.8),
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.brand.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(3.0),
-                child: ClipOval(
-                  child: widget.playlist.thumbnailUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: widget.playlist.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => _buildFallback(),
-                          errorWidget: (_, __, ___) => _buildFallback(),
-                        )
-                      : _buildFallback(),
-                ),
+                color: Colors.black.withValues(alpha: 0.85),
+                border: Border.all(color: Colors.white60, width: 1),
               ),
             ),
           ),
-          // Center spindle dot for vinyl record styling
-          Positioned.fill(
-            child: Center(
-              child: Container(
-                width: widget.size * 0.22,
-                height: widget.size * 0.22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black.withValues(alpha: 0.85),
-                  border: Border.all(color: Colors.white60, width: 1),
+        ),
+        // Playing equalizer badge at bottom right corner
+        Positioned(
+          bottom: -2,
+          right: -2,
+          child: Container(
+            padding: const EdgeInsets.all(3.5),
+            decoration: const BoxDecoration(
+              color: AppColors.brand,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black45,
+                  blurRadius: 4,
                 ),
-              ),
+              ],
+            ),
+            child: PlayingAudioWaveAnimation(
+              isPlaying: widget.isPlaying,
+              height: 10,
+              barWidth: 2,
+              color: Colors.white,
             ),
           ),
-          // Playing equalizer badge at bottom right corner
-          Positioned(
-            bottom: -2,
-            right: -2,
-            child: Container(
-              padding: const EdgeInsets.all(3.5),
-              decoration: const BoxDecoration(
-                color: AppColors.brand,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black45,
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-              child: PlayingAudioWaveAnimation(
-                isPlaying: widget.isPlaying,
-                height: 10,
-                barWidth: 2,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      );
+        ),
+      ],
+    );
 
     if (widget.onTap != null) {
       return GestureDetector(
@@ -5110,7 +6138,8 @@ class PlayingAudioWaveAnimation extends StatefulWidget {
   });
 
   @override
-  State<PlayingAudioWaveAnimation> createState() => _PlayingAudioWaveAnimationState();
+  State<PlayingAudioWaveAnimation> createState() =>
+      _PlayingAudioWaveAnimationState();
 }
 
 class _PlayingAudioWaveAnimationState extends State<PlayingAudioWaveAnimation>
@@ -5154,8 +6183,11 @@ class _PlayingAudioWaveAnimationState extends State<PlayingAudioWaveAnimation>
       builder: (context, _) {
         final t = _animController.value;
         final h1 = widget.height * (0.3 + 0.7 * (0.5 + 0.5 * (t * 3.14).abs()));
-        final h2 = widget.height * (0.4 + 0.6 * (0.5 + 0.5 * ((1 - t) * 3.14).abs()));
-        final h3 = widget.height * (0.2 + 0.8 * (0.5 + 0.5 * ((t + 0.5) * 3.14).abs()));
+        final h2 =
+            widget.height * (0.4 + 0.6 * (0.5 + 0.5 * ((1 - t) * 3.14).abs()));
+        final h3 =
+            widget.height *
+            (0.2 + 0.8 * (0.5 + 0.5 * ((t + 0.5) * 3.14).abs()));
 
         return SizedBox(
           height: widget.height,
@@ -5388,7 +6420,8 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
 
   VideoController? get _videoController {
     try {
-      if (widget.videoTag != null && Get.isRegistered<VideoController>(tag: widget.videoTag)) {
+      if (widget.videoTag != null &&
+          Get.isRegistered<VideoController>(tag: widget.videoTag)) {
         return Get.find<VideoController>(tag: widget.videoTag);
       }
       if (Get.isRegistered<VideoController>()) {
@@ -5436,10 +6469,16 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
             .get();
         fetched = snapFallback.docs
             .map(Video.fromDocumentSnapshot)
-            .where((v) =>
-                v.title.toLowerCase().contains(widget.topic.title.toLowerCase()) ||
-                v.tags.any((t) => t.toLowerCase() == widget.topic.title.toLowerCase()) ||
-                v.category.toLowerCase() == widget.topic.title.toLowerCase())
+            .where(
+              (v) =>
+                  v.title.toLowerCase().contains(
+                    widget.topic.title.toLowerCase(),
+                  ) ||
+                  v.tags.any(
+                    (t) => t.toLowerCase() == widget.topic.title.toLowerCase(),
+                  ) ||
+                  v.category.toLowerCase() == widget.topic.title.toLowerCase(),
+            )
             .toList();
         if (fetched.isEmpty && snapFallback.docs.isNotEmpty) {
           fetched = snapFallback.docs.map(Video.fromDocumentSnapshot).toList();
@@ -5472,7 +6511,10 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
         }).toList();
       case 'New':
         final list = List<Video>.from(_allVideos);
-        list.sort((a, b) => _getDateTime(b.createdAt).compareTo(_getDateTime(a.createdAt)));
+        list.sort(
+          (a, b) =>
+              _getDateTime(b.createdAt).compareTo(_getDateTime(a.createdAt)),
+        );
         return list;
       case 'Trending':
         final list = List<Video>.from(_allVideos);
@@ -5483,10 +6525,13 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
         list.sort((a, b) => b.likes.compareTo(a.likes));
         return list;
       case 'Fact checked':
-        final factChecked = _allVideos.where((v) =>
-          v.category.toLowerCase().contains('fact') ||
-          v.tags.any((t) => t.toLowerCase().contains('fact'))
-        ).toList();
+        final factChecked = _allVideos
+            .where(
+              (v) =>
+                  v.category.toLowerCase().contains('fact') ||
+                  v.tags.any((t) => t.toLowerCase().contains('fact')),
+            )
+            .toList();
         return factChecked.isNotEmpty ? factChecked : _allVideos;
       case 'All':
       default:
@@ -5617,7 +6662,9 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
                       style: GoogleFonts.roboto(
                         color: isSelected ? Colors.white : Colors.white70,
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                     selected: isSelected,
@@ -5638,7 +6685,10 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
                       ),
                     ),
                     showCheckmark: false,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                   ),
                 );
               }).toList(),
@@ -5656,145 +6706,153 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
                     ),
                   )
                 : _filteredVideos.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No videos found for "$_selectedFilter"',
-                          style: GoogleFonts.roboto(
-                            color: Colors.white54,
-                            fontSize: 14,
+                ? Center(
+                    child: Text(
+                      'No videos found for "$_selectedFilter"',
+                      style: GoogleFonts.roboto(
+                        color: Colors.white54,
+                        fontSize: 14,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _filteredVideos.length,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemBuilder: (context, index) {
+                      final video = _filteredVideos[index];
+                      final isCurrent = video.id == currentVideoId;
+
+                      return Material(
+                        color: isCurrent
+                            ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                            : Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Get.offNamed(
+                              '/watch?v=${video.id}',
+                              arguments: {
+                                'video': video,
+                                'topic': widget.topic,
+                                'fromTopic': true,
+                              },
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Thumbnail (NO drag handle '=' lines before it!)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Stack(
+                                    children: [
+                                      Image.network(
+                                        video.thumbnailUrl,
+                                        width: 120,
+                                        height: 68,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 120,
+                                          height: 68,
+                                          color: Colors.grey[900],
+                                          child: const Icon(
+                                            Icons.play_circle_fill_rounded,
+                                            color: Colors.white38,
+                                          ),
+                                        ),
+                                      ),
+                                      if (video.duration.isNotEmpty)
+                                        Positioned(
+                                          bottom: 4,
+                                          right: 4,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.8,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              video.duration,
+                                              style: GoogleFonts.roboto(
+                                                color: Colors.white,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                // Video details (NO like/dislike buttons!)
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              video.title,
+                                              style: GoogleFonts.roboto(
+                                                color: isCurrent
+                                                    ? const Color(0xFF3B82F6)
+                                                    : Colors.white,
+                                                fontSize: 13,
+                                                fontWeight: isCurrent
+                                                    ? FontWeight.bold
+                                                    : FontWeight.w500,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (isCurrent) ...[
+                                            const SizedBox(width: 6),
+                                            PlayingAudioWaveAnimation(
+                                              isPlaying: isPlaying,
+                                              height: 12,
+                                              barWidth: 2,
+                                              color: const Color(0xFF3B82F6),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${video.channelName} • ${_formatViews(video.views)} views • ${_formatDate(video.createdAt)}',
+                                        style: GoogleFonts.roboto(
+                                          color: Colors.white60,
+                                          fontSize: 11,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: _filteredVideos.length,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemBuilder: (context, index) {
-                          final video = _filteredVideos[index];
-                          final isCurrent = video.id == currentVideoId;
-
-                          return Material(
-                            color: isCurrent
-                                ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                Get.offNamed('/watch?v=${video.id}', arguments: {
-                                  'video': video,
-                                  'topic': widget.topic,
-                                  'fromTopic': true,
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Thumbnail (NO drag handle '=' lines before it!)
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Stack(
-                                        children: [
-                                          Image.network(
-                                            video.thumbnailUrl,
-                                            width: 120,
-                                            height: 68,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
-                                              width: 120,
-                                              height: 68,
-                                              color: Colors.grey[900],
-                                              child: const Icon(
-                                                Icons.play_circle_fill_rounded,
-                                                color: Colors.white38,
-                                              ),
-                                            ),
-                                          ),
-                                          if (video.duration.isNotEmpty)
-                                            Positioned(
-                                              bottom: 4,
-                                              right: 4,
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 4,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.black.withValues(alpha: 0.8),
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  video.duration,
-                                                  style: GoogleFonts.roboto(
-                                                    color: Colors.white,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Video details (NO like/dislike buttons!)
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  video.title,
-                                                  style: GoogleFonts.roboto(
-                                                    color: isCurrent
-                                                        ? const Color(0xFF3B82F6)
-                                                        : Colors.white,
-                                                    fontSize: 13,
-                                                    fontWeight: isCurrent
-                                                        ? FontWeight.bold
-                                                        : FontWeight.w500,
-                                                  ),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              if (isCurrent) ...[
-                                                const SizedBox(width: 6),
-                                                PlayingAudioWaveAnimation(
-                                                  isPlaying: isPlaying,
-                                                  height: 12,
-                                                  barWidth: 2,
-                                                  color: const Color(0xFF3B82F6),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${video.channelName} • ${_formatViews(video.views)} views • ${_formatDate(video.createdAt)}',
-                                            style: GoogleFonts.roboto(
-                                              color: Colors.white60,
-                                              fontSize: 11,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

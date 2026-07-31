@@ -9,9 +9,12 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Error state with retry button
 /// - Consistent dark theme matching TruthWorld branding
 class DeepLinkLoaderWidget extends StatefulWidget {
-
   const DeepLinkLoaderWidget({
-    required this.title, required this.subtitle, required this.icon, required this.accentColor, super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accentColor,
+    super.key,
     this.hasError = false,
     this.errorMessage,
     this.onRetry,
@@ -239,7 +242,6 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
 }
 
 class _ActionButton extends StatelessWidget {
-
   const _ActionButton({
     required this.icon,
     required this.label,
@@ -290,8 +292,3 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

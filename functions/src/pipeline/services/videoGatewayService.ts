@@ -1,6 +1,8 @@
 import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { withAiRetry } from "../utils/ai-utils";
+import { PIPELINE_CONFIG } from "../config";
+import { getVertexAI } from "../utils/ai-client";
 import {
   VideoGatewayDecision,
   GatewayDecisionStatus,
@@ -12,10 +14,7 @@ export class VideoGatewayService {
   private genAI: VertexAI;
 
   constructor() {
-    this.genAI = new VertexAI({
-      project: process.env.VERTEX_PROJECT_ID || "truthworld-1",
-      location: process.env.VERTEX_LOCATION || "asia-south1"
-    });
+    this.genAI = getVertexAI();
   }
 
   /**
@@ -105,9 +104,9 @@ RETURN STRICT JSON FORMAT ONLY:
 }`;
 
     const chain = {
-      primary: "gemini-2.5-pro",
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.synthesis || "gemini-2.5-flash",
       fallback: "gemini-2.5-flash",
-      forcePrimary: true
+      forcePrimary: false
     };
 
     try {

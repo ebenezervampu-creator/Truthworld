@@ -15,9 +15,9 @@ enum IconButtonVariant { primary, secondary, danger, ghost }
 /// - Accessibility with semantic labels
 /// - Consistent hover/active states
 class IconButtonCustom extends StatelessWidget {
-
   const IconButtonCustom({
-    required this.icon, super.key,
+    required this.icon,
+    super.key,
     this.onPressed,
     this.size = IconButtonSize.medium,
     this.variant = IconButtonVariant.primary,
@@ -134,8 +134,3 @@ class IconButtonCustom extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

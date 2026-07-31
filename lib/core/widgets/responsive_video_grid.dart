@@ -10,9 +10,9 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ResponsiveVideoGrid extends StatelessWidget {
-
   const ResponsiveVideoGrid({
-    required this.videos, super.key,
+    required this.videos,
+    super.key,
     this.heroPrefix,
     this.accentColor,
     this.showListView = false,
@@ -47,7 +47,8 @@ class ResponsiveVideoGrid extends StatelessWidget {
     return ListView.separated(
       padding: padding ?? context.contentPadding,
       itemCount: videos.length,
-      separatorBuilder: (context, index) => SizedBox(height: context.layoutSpacing),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: context.layoutSpacing),
       itemBuilder: (context, index) {
         final video = videos[index];
         return ModernVideoListCard(
@@ -107,9 +108,10 @@ class ResponsiveVideoGrid extends StatelessWidget {
 // RESPONSIVE VIDEO LIST WITH HEADER
 // ==========================================================================
 class ResponsiveVideoListWithHeader extends StatelessWidget {
-
   const ResponsiveVideoListWithHeader({
-    required this.title, required this.videos, super.key,
+    required this.title,
+    required this.videos,
+    super.key,
     this.heroPrefix,
     this.accentColor,
     this.showViewAll = false,
@@ -189,9 +191,10 @@ class ResponsiveVideoListWithHeader extends StatelessWidget {
 // RESPONSIVE VIDEO SECTION
 // ==========================================================================
 class ResponsiveVideoSection extends StatelessWidget {
-
   const ResponsiveVideoSection({
-    required this.title, required this.videos, super.key,
+    required this.title,
+    required this.videos,
+    super.key,
     this.heroPrefix,
     this.accentColor,
     this.showListView = false,
@@ -244,9 +247,9 @@ class ResponsiveVideoSection extends StatelessWidget {
 // RESPONSIVE VIDEO CAROUSEL
 // ==========================================================================
 class ResponsiveVideoCarousel extends StatelessWidget {
-
   const ResponsiveVideoCarousel({
-    required this.videos, super.key,
+    required this.videos,
+    super.key,
     this.heroPrefix,
     this.accentColor,
     this.height,
@@ -268,7 +271,8 @@ class ResponsiveVideoCarousel extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
         itemCount: videos.length,
-        separatorBuilder: (context, index) => SizedBox(width: context.layoutSpacing),
+        separatorBuilder: (context, index) =>
+            SizedBox(width: context.layoutSpacing),
         itemBuilder: (context, index) {
           final video = videos[index];
           final cardWidth = _getCarouselCardWidth(context);
@@ -306,10 +310,3 @@ class ResponsiveVideoCarousel extends StatelessWidget {
     return 400;
   }
 }
-
-
-
-
-
-
-

@@ -53,10 +53,12 @@ class ResponsiveUtils {
 // ==========================================================================
 
 class AdaptiveText extends StatelessWidget {
-
   const AdaptiveText(
     this.text, {
-    required this.mobileFontSize, required this.tabletFontSize, required this.desktopFontSize, super.key,
+    required this.mobileFontSize,
+    required this.tabletFontSize,
+    required this.desktopFontSize,
+    super.key,
     this.fontWeight,
     this.color,
     this.textAlign,
@@ -93,9 +95,9 @@ class AdaptiveText extends StatelessWidget {
 }
 
 class AdaptiveContainer extends StatelessWidget {
-
   const AdaptiveContainer({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.padding,
     this.margin,
     this.color,
@@ -122,7 +124,6 @@ class AdaptiveContainer extends StatelessWidget {
 }
 
 class ResponsiveBuilder extends StatelessWidget {
-
   const ResponsiveBuilder({required this.builder, super.key});
   final Widget Function(BuildContext context, BoxConstraints constraints)
   builder;
@@ -132,7 +133,6 @@ class ResponsiveBuilder extends StatelessWidget {
     return LayoutBuilder(builder: builder);
   }
 }
-
 
 // ==========================================================================
 // MAIN WIDGET
@@ -734,9 +734,3 @@ class _MyVideoListCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

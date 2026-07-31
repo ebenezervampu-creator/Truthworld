@@ -63,7 +63,9 @@ class _FloatingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MiniplayerConfig.widthForScreen(screenSize.width);
-    final height = MiniplayerConfig.heightForWidth(width) + 2.0; // Account for top/bottom borders
+    final height =
+        MiniplayerConfig.heightForWidth(width) +
+        2.0; // Account for top/bottom borders
     final cardSize = Size(width, height);
 
     return Obx(() {
@@ -78,8 +80,7 @@ class _FloatingCard extends StatelessWidget {
             height: height,
             child: FocusableActionDetector(
               shortcuts: <ShortcutActivator, Intent>{
-                LogicalKeySet(LogicalKeyboardKey.keyI):
-                    const _ExpandIntent(),
+                LogicalKeySet(LogicalKeyboardKey.keyI): const _ExpandIntent(),
                 LogicalKeySet(LogicalKeyboardKey.escape):
                     const _DismissIntent(),
               },
@@ -127,16 +128,14 @@ class _CardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final videoHeight =
-        cardSize.width / MiniplayerConfig.videoAspectRatio;
+    final videoHeight = cardSize.width / MiniplayerConfig.videoAspectRatio;
 
     return Material(
       type: MaterialType.transparency,
       child: Container(
         decoration: BoxDecoration(
           color: MiniplayerWidget._bg,
-          borderRadius:
-              BorderRadius.circular(MiniplayerConfig.borderRadius),
+          borderRadius: BorderRadius.circular(MiniplayerConfig.borderRadius),
           border: Border.all(
             color: MiniplayerWidget._border.withValues(alpha: 0.4),
           ),
@@ -159,7 +158,7 @@ class _CardBody extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onPanUpdate: (d) =>
                     controller.onPanCard(d.delta, cardSize, screenSize),
-                onTap: controller.openFullScreen,
+                onTap: controller.toggleMobileControls,
                 child: _VideoFrame(controller: controller),
               ),
             ),
@@ -197,10 +196,8 @@ class _VideoFrame extends StatelessWidget {
           return CachedNetworkImage(
             imageUrl: url.replaceAll(' ', '%20'),
             fit: BoxFit.cover,
-            placeholder: (_, _) =>
-                Container(color: MiniplayerWidget._card),
-            errorWidget: (_, _, _) =>
-                Container(color: MiniplayerWidget._card),
+            placeholder: (_, _) => Container(color: MiniplayerWidget._card),
+            errorWidget: (_, _, _) => Container(color: MiniplayerWidget._card),
           );
         }),
 
@@ -269,10 +266,12 @@ class _VideoFrame extends StatelessWidget {
           );
         }),
 
-        // Overlay controls — fade in on hover or when paused.
+        // Overlay controls — fade in on hover, when paused, or on mobile tap.
         Obx(() {
           final showOverlay =
-              controller.isHovering.value || !controller.isPlaying.value;
+              controller.isHovering.value ||
+              !controller.isPlaying.value ||
+              controller.showMobileControls.value;
           return AnimatedOpacity(
             opacity: showOverlay ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 180),
@@ -316,10 +315,11 @@ class _VideoFrame extends StatelessWidget {
                         Obx(() {
                           final enabled = controller.subtitlesEnabled.value;
                           return _OverlayIconButton(
-                            icon: enabled ? Icons.subtitles_rounded : Icons.subtitles_outlined,
+                            icon: enabled
+                                ? Icons.subtitles_rounded
+                                : Icons.subtitles_outlined,
                             tooltip: 'Subtitles (CC)',
                             onTap: controller.toggleSubtitles,
-                            iconColor: enabled ? MiniplayerWidget._brand : AppColors.textPrimary,
                           );
                         }),
                         const SizedBox(width: 6),
@@ -344,7 +344,8 @@ class _VideoFrame extends StatelessWidget {
 
         // Subtitles Overlay in Miniplayer
         Obx(() {
-          if (!controller.subtitlesEnabled.value) return const SizedBox.shrink();
+          if (!controller.subtitlesEnabled.value)
+            return const SizedBox.shrink();
           final text = controller.currentSubtitle.value;
           if (text.isEmpty) return const SizedBox.shrink();
           return Positioned(
@@ -354,7 +355,10 @@ class _VideoFrame extends StatelessWidget {
             child: IgnorePointer(
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.bgPage.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(4),
@@ -403,8 +407,11 @@ class _ExpandButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.open_in_full_rounded,
-                    size: 14, color: AppColors.textPrimary),
+                const Icon(
+                  Icons.open_in_full_rounded,
+                  size: 14,
+                  color: AppColors.textPrimary,
+                ),
                 const SizedBox(width: 6),
                 const Text(
                   'Expand',
@@ -417,7 +424,9 @@ class _ExpandButton extends StatelessWidget {
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 1),
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.textPrimary.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(3),
@@ -502,32 +511,113 @@ class _CenterPlayButton extends StatelessWidget {
   }
 }
 
-class _VideoProgressBar extends StatelessWidget {
+class _VideoProgressBar extends StatefulWidget {
   const _VideoProgressBar({required this.controller});
   final MiniplayerController controller;
 
   @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final pos = controller.currentPosition.value.inMilliseconds;
-      final dur = controller.totalDuration.value.inMilliseconds;
-      final value = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
-      return SizedBox(
-        height: 3,
-        child: LinearProgressIndicator(
-          value: value,
-          minHeight: 3,
-          backgroundColor: AppColors.textPrimary.withValues(alpha: 0.18),
-          valueColor:
-              const AlwaysStoppedAnimation<Color>(AppColors.error),
-        ),
-      );
+  State<_VideoProgressBar> createState() => _VideoProgressBarState();
+}
+
+class _VideoProgressBarState extends State<_VideoProgressBar> {
+  bool _isDragging = false;
+  double? _dragRatio;
+
+  void _updateSeek(Offset localPosition, double width) {
+    if (width <= 0) return;
+    final ratio = (localPosition.dx / width).clamp(0.0, 1.0);
+    setState(() {
+      _dragRatio = ratio;
     });
+    widget.controller.seekToRatio(ratio);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) {
+            _updateSeek(details.localPosition, width);
+          },
+          onHorizontalDragStart: (details) {
+            setState(() {
+              _isDragging = true;
+            });
+            _updateSeek(details.localPosition, width);
+          },
+          onHorizontalDragUpdate: (details) {
+            _updateSeek(details.localPosition, width);
+          },
+          onHorizontalDragEnd: (details) {
+            setState(() {
+              _isDragging = false;
+              _dragRatio = null;
+            });
+          },
+          onHorizontalDragCancel: () {
+            setState(() {
+              _isDragging = false;
+              _dragRatio = null;
+            });
+          },
+          child: Container(
+            height: 18,
+            color: Colors.transparent,
+            alignment: Alignment.bottomCenter,
+            child: Obx(() {
+              final pos =
+                  widget.controller.currentPosition.value.inMilliseconds;
+              final dur = widget.controller.totalDuration.value.inMilliseconds;
+              final actualValue = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
+              final value = _isDragging && _dragRatio != null
+                  ? _dragRatio!
+                  : actualValue;
+              final barHeight = _isDragging ? 6.0 : 4.0;
+
+              return SizedBox(
+                height: barHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: width,
+                      height: barHeight,
+                      color: AppColors.textPrimary.withValues(alpha: 0.25),
+                    ),
+                    Container(
+                      width: width * value,
+                      height: barHeight,
+                      color: AppColors.error,
+                    ),
+                    if (_isDragging)
+                      Positioned(
+                        left: (width * value - 5).clamp(0.0, width - 10),
+                        top: -2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: const BoxDecoration(
+                            color: AppColors.textPrimary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Info bar beneath the video (title, channel + time, expand chevron)
+// Info bar beneath the video (title, channel + time, play/pause, close, expand)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _InfoBar extends StatelessWidget {
@@ -546,27 +636,49 @@ class _InfoBar extends StatelessWidget {
       height: MiniplayerConfig.infoBarHeight,
       child: Material(
         color: MiniplayerWidget._bg,
-        child: InkWell(
-          onTap: controller.openFullScreen,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onPanUpdate: (d) =>
-                controller.onPanCard(d.delta, cardSize, screenSize),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _TitleAndMeta(controller: controller),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanUpdate: (d) =>
+              controller.onPanCard(d.delta, cardSize, screenSize),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: controller.openFullScreen,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: _TitleAndMeta(controller: controller),
+                    ),
                   ),
-                  _OverlayIconButton(
-                    icon: Icons.keyboard_arrow_up_rounded,
-                    tooltip: 'Show more',
+                ),
+                Obx(() {
+                  final playing = controller.isPlaying.value;
+                  return _OverlayIconButton(
+                    icon: playing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    tooltip: playing ? 'Pause' : 'Play',
                     size: 20,
-                    onTap: controller.expand,
-                  ),
-                ],
-              ),
+                    onTap: controller.togglePlayPause,
+                  );
+                }),
+                const SizedBox(width: 4),
+                _OverlayIconButton(
+                  icon: Icons.close_rounded,
+                  tooltip: 'Close',
+                  onTap: controller.dismiss,
+                ),
+                const SizedBox(width: 4),
+                _OverlayIconButton(
+                  icon: Icons.open_in_full_rounded,
+                  tooltip: 'Expand',
+                  size: 18,
+                  onTap: controller.openFullScreen,
+                ),
+              ],
             ),
           ),
         ),
@@ -602,10 +714,10 @@ class _TitleAndMeta extends StatelessWidget {
         const SizedBox(height: 2),
         Obx(() {
           final info = controller.videoInfo.value;
-          final pos =
-              controller.formatDuration(controller.currentPosition.value);
-          final dur =
-              controller.formatDuration(controller.totalDuration.value);
+          final pos = controller.formatDuration(
+            controller.currentPosition.value,
+          );
+          final dur = controller.formatDuration(controller.totalDuration.value);
           return Text(
             '${info?.channelName ?? ''}  •  $pos / $dur',
             maxLines: 1,
@@ -638,8 +750,7 @@ class _ExpandedView extends StatelessWidget {
         autofocus: true,
         shortcuts: <ShortcutActivator, Intent>{
           LogicalKeySet(LogicalKeyboardKey.escape): const _CollapseIntent(),
-          LogicalKeySet(LogicalKeyboardKey.space):
-              const _TogglePlayIntent(),
+          LogicalKeySet(LogicalKeyboardKey.space): const _TogglePlayIntent(),
         },
         actions: <Type, Action<Intent>>{
           _CollapseIntent: CallbackAction<_CollapseIntent>(
@@ -693,8 +804,10 @@ class _ExpandedTopBar extends StatelessWidget {
           Tooltip(
             message: 'Minimize',
             child: IconButton(
-              icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                  color: MiniplayerWidget._textPrimary),
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: MiniplayerWidget._textPrimary,
+              ),
               onPressed: controller.collapse,
             ),
           ),
@@ -706,7 +819,7 @@ class _ExpandedTopBar extends StatelessWidget {
               child: IconButton(
                 icon: Icon(
                   enabled ? Icons.subtitles_rounded : Icons.subtitles_outlined,
-                  color: enabled ? MiniplayerWidget._brand : MiniplayerWidget._textPrimary,
+                  color: MiniplayerWidget._textPrimary,
                   size: 20,
                 ),
                 onPressed: controller.toggleSubtitles,
@@ -716,16 +829,21 @@ class _ExpandedTopBar extends StatelessWidget {
           Tooltip(
             message: 'Open full screen',
             child: IconButton(
-              icon: const Icon(Icons.open_in_full_rounded,
-                  color: MiniplayerWidget._textPrimary, size: 20),
+              icon: const Icon(
+                Icons.open_in_full_rounded,
+                color: MiniplayerWidget._textPrimary,
+                size: 20,
+              ),
               onPressed: controller.openFullScreen,
             ),
           ),
           Tooltip(
             message: 'Close',
             child: IconButton(
-              icon: const Icon(Icons.close_rounded,
-                  color: MiniplayerWidget._textPrimary),
+              icon: const Icon(
+                Icons.close_rounded,
+                color: MiniplayerWidget._textPrimary,
+              ),
               onPressed: controller.dismiss,
             ),
           ),
@@ -782,12 +900,16 @@ class _ExpandedVideo extends StatelessWidget {
             Obx(() {
               if (controller.isPlaying.value) return const SizedBox.shrink();
               return const Center(
-                child: Icon(Icons.play_circle_rounded,
-                    color: AppColors.textSecondary, size: 72),
+                child: Icon(
+                  Icons.play_circle_rounded,
+                  color: AppColors.textSecondary,
+                  size: 72,
+                ),
               );
             }),
             Obx(() {
-              if (!controller.subtitlesEnabled.value) return const SizedBox.shrink();
+              if (!controller.subtitlesEnabled.value)
+                return const SizedBox.shrink();
               final text = controller.currentSubtitle.value;
               if (text.isEmpty) return const SizedBox.shrink();
               return Positioned(
@@ -795,20 +917,27 @@ class _ExpandedVideo extends StatelessWidget {
                 left: 16,
                 right: 16,
                 child: IgnorePointer(
-                  child: Center(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: AppColors.bgPage.withValues(alpha: 0.7),
+                        color: AppColors.bgPage.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         text,
                         textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: 14,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
+                          height: 1.2,
                         ),
                       ),
                     ),
@@ -843,16 +972,14 @@ class _ExpandedDetails extends StatelessWidget {
             return SliderTheme(
               data: SliderThemeData(
                 trackHeight: 3,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 14),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                 activeTrackColor: AppColors.error,
-                inactiveTrackColor:
-                    MiniplayerWidget._border.withValues(alpha: 0.3),
+                inactiveTrackColor: MiniplayerWidget._border.withValues(
+                  alpha: 0.3,
+                ),
                 thumbColor: AppColors.error,
-                overlayColor:
-                    AppColors.error.withValues(alpha: 0.15),
+                overlayColor: AppColors.error.withValues(alpha: 0.15),
               ),
               child: Slider(
                 value: durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0,
@@ -863,23 +990,31 @@ class _ExpandedDetails extends StatelessWidget {
             );
           }),
           Obx(() {
-            final pos =
-                controller.formatDuration(controller.currentPosition.value);
-            final dur =
-                controller.formatDuration(controller.totalDuration.value);
+            final pos = controller.formatDuration(
+              controller.currentPosition.value,
+            );
+            final dur = controller.formatDuration(
+              controller.totalDuration.value,
+            );
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(pos,
-                      style: GoogleFonts.robotoMono(
-                          color: MiniplayerWidget._textSecondary,
-                          fontSize: 11)),
-                  Text(dur,
-                      style: GoogleFonts.robotoMono(
-                          color: MiniplayerWidget._textSecondary,
-                          fontSize: 11)),
+                  Text(
+                    pos,
+                    style: GoogleFonts.robotoMono(
+                      color: MiniplayerWidget._textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    dur,
+                    style: GoogleFonts.robotoMono(
+                      color: MiniplayerWidget._textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
                 ],
               ),
             );
@@ -890,8 +1025,11 @@ class _ExpandedDetails extends StatelessWidget {
             children: [
               IconButton(
                 tooltip: 'Rewind 10s',
-                icon: const Icon(Icons.replay_10_rounded,
-                    color: MiniplayerWidget._textPrimary, size: 28),
+                icon: const Icon(
+                  Icons.replay_10_rounded,
+                  color: MiniplayerWidget._textPrimary,
+                  size: 28,
+                ),
                 onPressed: controller.seekBackward,
               ),
               const SizedBox(width: 16),
@@ -919,8 +1057,11 @@ class _ExpandedDetails extends StatelessWidget {
               const SizedBox(width: 16),
               IconButton(
                 tooltip: 'Forward 10s',
-                icon: const Icon(Icons.forward_10_rounded,
-                    color: MiniplayerWidget._textPrimary, size: 28),
+                icon: const Icon(
+                  Icons.forward_10_rounded,
+                  color: MiniplayerWidget._textPrimary,
+                  size: 28,
+                ),
                 onPressed: controller.seekForward,
               ),
             ],

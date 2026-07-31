@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
+class TopicVideosPage {
+  final List<Video> videos;
+  final DocumentSnapshot? lastDoc;
+  const TopicVideosPage({required this.videos, required this.lastDoc});
+}
+
 /// Repository for Topic-related Firestore operations
 ///
 /// Optimized for:
@@ -10,9 +16,12 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// - Low Firestore read costs
 /// - Denormalized data access
 class TopicRepository {
+  static final Map<String, Topic> _topicCache = {};
+  static final Map<String, DateTime> _cacheTime = {};
+  static const Duration _cacheTtl = Duration(minutes: 5);
 
   TopicRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
   final FirebaseFirestore _firestore;
 
   // ==========================================================================
@@ -20,35 +29,52 @@ class TopicRepository {
   // ==========================================================================
 
   /// Get topic by slug or handle or document ID (for /topic/:slug or /T/:slug route)
+  /// Uses in-memory caching and parallel query execution for low latency
   Future<Topic?> getTopicBySlug(String slug) async {
     try {
-      // 1. Try slug first
-      var query = await _firestore
-          .collection('topics')
-          .where('slug', isEqualTo: slug)
-          .limit(1)
-          .get();
-
-      if (query.docs.isNotEmpty) {
-        return Topic.fromDocumentSnapshot(query.docs.first);
+      final key = slug.toLowerCase();
+      final now = DateTime.now();
+      if (_topicCache.containsKey(key) && _cacheTime.containsKey(key)) {
+        if (now.difference(_cacheTime[key]!) < _cacheTtl) {
+          return _topicCache[key];
+        }
       }
 
-      // 2. Try handleLowercase (e.g. t/slug)
+      // Parallel execution of lookups to cut network roundtrip latency in 3x
       final handleToQuery = 't/${slug.toLowerCase()}';
-      query = await _firestore
-          .collection('topics')
-          .where('handleLowercase', isEqualTo: handleToQuery)
-          .limit(1)
-          .get();
+      final results = await Future.wait([
+        _firestore
+            .collection('topics')
+            .where('slug', isEqualTo: slug)
+            .limit(1)
+            .get(),
+        _firestore
+            .collection('topics')
+            .where('handleLowercase', isEqualTo: handleToQuery)
+            .limit(1)
+            .get(),
+        _firestore.collection('topics').doc(slug).get(),
+      ]);
 
-      if (query.docs.isNotEmpty) {
-        return Topic.fromDocumentSnapshot(query.docs.first);
+      final slugSnap = results[0] as QuerySnapshot;
+      if (slugSnap.docs.isNotEmpty) {
+        final topic = Topic.fromDocumentSnapshot(slugSnap.docs.first);
+        _cacheTopic(key, topic);
+        return topic;
       }
 
-      // 3. Try Direct Document ID Lookup as fallback
-      final doc = await _firestore.collection('topics').doc(slug).get();
-      if (doc.exists) {
-        return Topic.fromDocumentSnapshot(doc);
+      final handleSnap = results[1] as QuerySnapshot;
+      if (handleSnap.docs.isNotEmpty) {
+        final topic = Topic.fromDocumentSnapshot(handleSnap.docs.first);
+        _cacheTopic(key, topic);
+        return topic;
+      }
+
+      final docSnap = results[2] as DocumentSnapshot;
+      if (docSnap.exists) {
+        final topic = Topic.fromDocumentSnapshot(docSnap);
+        _cacheTopic(key, topic);
+        return topic;
       }
 
       return null;
@@ -58,12 +84,27 @@ class TopicRepository {
     }
   }
 
+  void _cacheTopic(String key, Topic topic) {
+    _topicCache[key] = topic;
+    _cacheTime[key] = DateTime.now();
+  }
+
   /// Get topic by ID
   Future<Topic?> getTopicById(String topicId) async {
     try {
+      final key = topicId.toLowerCase();
+      final now = DateTime.now();
+      if (_topicCache.containsKey(key) && _cacheTime.containsKey(key)) {
+        if (now.difference(_cacheTime[key]!) < _cacheTtl) {
+          return _topicCache[key];
+        }
+      }
+
       final doc = await _firestore.collection('topics').doc(topicId).get();
       if (!doc.exists) return null;
-      return Topic.fromDocumentSnapshot(doc);
+      final topic = Topic.fromDocumentSnapshot(doc);
+      _cacheTopic(key, topic);
+      return topic;
     } catch (e) {
       debugPrint('Error fetching topic by ID: $e');
       return null;
@@ -76,25 +117,14 @@ class TopicRepository {
         .collection('topics')
         .where('slug', isEqualTo: slug)
         .snapshots()
-        .asyncMap((snapshot) async {
-      if (snapshot.docs.isNotEmpty) {
-        return Topic.fromDocumentSnapshot(snapshot.docs.first);
-      }
-      final handleToQuery = 't/${slug.toLowerCase()}';
-      final handleQuery = await _firestore
-          .collection('topics')
-          .where('handleLowercase', isEqualTo: handleToQuery)
-          .limit(1)
-          .get();
-      if (handleQuery.docs.isNotEmpty) {
-        return Topic.fromDocumentSnapshot(handleQuery.docs.first);
-      }
-      final doc = await _firestore.collection('topics').doc(slug).get();
-      if (doc.exists) {
-        return Topic.fromDocumentSnapshot(doc);
-      }
-      return null;
-    });
+        .map((snapshot) {
+          if (snapshot.docs.isNotEmpty) {
+            final topic = Topic.fromDocumentSnapshot(snapshot.docs.first);
+            _cacheTopic(slug.toLowerCase(), topic);
+            return topic;
+          }
+          return _topicCache[slug.toLowerCase()];
+        });
   }
 
   // ==========================================================================
@@ -104,6 +134,24 @@ class TopicRepository {
   /// Get videos by topic slug with pagination
   /// Uses denormalized topics array for O(1) query performance
   Future<List<Video>> getVideosByTopic(
+    String topicSlug, {
+    int limit = 12,
+    DocumentSnapshot? lastDoc,
+    String orderBy = 'uploadedAt',
+    bool descending = true,
+  }) async {
+    final page = await getVideosPageByTopic(
+      topicSlug,
+      limit: limit,
+      lastDoc: lastDoc,
+      orderBy: orderBy,
+      descending: descending,
+    );
+    return page.videos;
+  }
+
+  /// Get videos page with DocumentSnapshot cursor for pagination
+  Future<TopicVideosPage> getVideosPageByTopic(
     String topicSlug, {
     int limit = 12,
     DocumentSnapshot? lastDoc,
@@ -122,13 +170,15 @@ class TopicRepository {
       }
 
       final snapshot = await query.get();
-      return snapshot.docs
+      final videos = snapshot.docs
           .map(Video.fromDocumentSnapshot)
           .where((video) => video.visibility.toLowerCase() == 'public')
           .toList();
+      final newLastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+      return TopicVideosPage(videos: videos, lastDoc: newLastDoc);
     } catch (e) {
-      debugPrint('Error fetching videos by topic: $e');
-      return [];
+      debugPrint('Error fetching videos page by topic: $e');
+      return const TopicVideosPage(videos: [], lastDoc: null);
     }
   }
 
@@ -145,10 +195,12 @@ class TopicRepository {
         .orderBy(orderBy, descending: descending)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map(Video.fromDocumentSnapshot)
-            .where((video) => video.visibility.toLowerCase() == 'public')
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map(Video.fromDocumentSnapshot)
+              .where((video) => video.visibility.toLowerCase() == 'public')
+              .toList(),
+        );
   }
 
   /// Get featured videos for a topic
@@ -264,9 +316,7 @@ class TopicRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs
-          .map(Topic.fromDocumentSnapshot)
-          .toList();
+      return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
     } catch (e) {
       debugPrint('Error fetching popular topics: $e');
       return [];
@@ -286,9 +336,7 @@ class TopicRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs
-          .map(Topic.fromDocumentSnapshot)
-          .toList();
+      return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
     } catch (e) {
       debugPrint('Error searching topics: $e');
       return [];
@@ -313,7 +361,8 @@ class TopicRepository {
   }
 
   Future<List<Topic>> fetchTrendingTopics({
-    required String category, int limit = 20,
+    required String category,
+    int limit = 20,
     DocumentSnapshot? lastDoc,
   }) async {
     try {
@@ -334,7 +383,8 @@ class TopicRepository {
   }
 
   Future<List<Topic>> fetchTopics({
-    required String category, int limit = 20,
+    required String category,
+    int limit = 20,
     DocumentSnapshot? lastDoc,
   }) async {
     try {
@@ -394,18 +444,24 @@ class TopicRepository {
     if (ids.isEmpty) return [];
     try {
       const batchSize = 10;
-      final topics = <Topic>[];
+      final futures = <Future<List<Topic>>>[];
       for (var i = 0; i < ids.length; i += batchSize) {
         final batch = ids.skip(i).take(batchSize).toList();
-        final query = await _firestore
-            .collection('topics')
-            .where(FieldPath.documentId, whereIn: batch)
-            .get();
-        topics.addAll(
-          query.docs.map(Topic.fromDocumentSnapshot),
-        );
+        futures.add(() async {
+          try {
+            final query = await _firestore
+                .collection('topics')
+                .where(FieldPath.documentId, whereIn: batch)
+                .get();
+            return query.docs.map(Topic.fromDocumentSnapshot).toList();
+          } catch (e) {
+            debugPrint('Error batch fetching topics by IDs: $e');
+            return <Topic>[];
+          }
+        }());
       }
-      return topics;
+      final results = await Future.wait(futures);
+      return results.expand((t) => t).toList();
     } catch (e) {
       debugPrint('Error _fetchTopicsByIds: $e');
       return [];
@@ -455,7 +511,10 @@ class TopicRepository {
     }
   }
 
-  Future<String> getTopicNotificationSetting(String userId, String topicId) async {
+  Future<String> getTopicNotificationSetting(
+    String userId,
+    String topicId,
+  ) async {
     try {
       final doc = await _firestore
           .collection('users')
@@ -473,7 +532,11 @@ class TopicRepository {
     }
   }
 
-  Future<bool> updateTopicNotificationSetting(String userId, String topicId, String setting) async {
+  Future<bool> updateTopicNotificationSetting(
+    String userId,
+    String topicId,
+    String setting,
+  ) async {
     try {
       await _firestore
           .collection('users')
@@ -481,10 +544,10 @@ class TopicRepository {
           .collection('savedTopics')
           .doc(topicId)
           .set({
-        'topicId': topicId,
-        'notificationSetting': setting,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+            'topicId': topicId,
+            'notificationSetting': setting,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
       return true;
     } catch (e) {
       debugPrint('Error updateTopicNotificationSetting: $e');
@@ -516,8 +579,3 @@ class TopicRepository {
     }
   }
 }
-
-
-
-
-

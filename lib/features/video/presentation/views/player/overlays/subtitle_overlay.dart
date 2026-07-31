@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
 class SubtitleOverlay extends StatelessWidget {
   const SubtitleOverlay({required this.ctrl, super.key});
@@ -12,28 +11,72 @@ class SubtitleOverlay extends StatelessWidget {
     return Obx(() {
       final text = ctrl.currentSubtitle.value;
       if (text.isEmpty) return const SizedBox.shrink();
-      return Center(
+
+      final mediaQuery = MediaQuery.of(context);
+      final isMobile = mediaQuery.size.width < 600;
+
+      final fontSizeOpt =
+          TowerPlayerController.globalSubtitleFontSizeOption.value;
+      double baseFontSize = 16.0;
+      if (fontSizeOpt == 'Small') {
+        baseFontSize = 13.0;
+      } else if (fontSizeOpt == 'Large') {
+        baseFontSize = 19.0;
+      } else if (fontSizeOpt == 'Extra Large') {
+        baseFontSize = 23.0;
+      }
+      final fontSize = isMobile
+          ? (baseFontSize * 0.85).clamp(11.0, 22.0)
+          : baseFontSize;
+
+      final textColor = TowerPlayerController.globalSubtitleTextColor.value;
+      final bgColor = TowerPlayerController.globalSubtitleBgColor.value;
+      final bgOpacity = TowerPlayerController.globalSubtitleBgOpacity.value;
+      final edgeStyle = TowerPlayerController.globalSubtitleEdgeStyle.value;
+      final fontFamily = TowerPlayerController.globalSubtitleFontFamily.value;
+
+      List<Shadow> shadows = const [];
+      if (edgeStyle == 'Drop Shadow') {
+        shadows = const [
+          Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+        ];
+      } else if (edgeStyle == 'Raised') {
+        shadows = const [
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, -1)),
+          Shadow(blurRadius: 3, color: Colors.black, offset: Offset(2, 2)),
+        ];
+      } else if (edgeStyle == 'Outline') {
+        shadows = const [
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, -1)),
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, -1)),
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, 1)),
+          Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, 1)),
+        ];
+      }
+
+      return Align(
+        alignment: Alignment.bottomCenter,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 10 : 14,
+            vertical: isMobile ? 4 : 6,
+          ),
           decoration: BoxDecoration(
-            color: AppColors.bgPage.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(8),
+            color: bgColor.withValues(alpha: bgOpacity),
+            borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              
-              color: AppColors.textPrimary,
-              fontSize: 18,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TowerPlayerController.getSubtitleTextStyle(
+              fontFamily: fontFamily,
+              color: textColor,
+              fontSize: fontSize,
               fontWeight: FontWeight.w500,
-              shadows: [
-                Shadow(
-                  blurRadius: 4,
-                  color: AppColors.bgPage,
-                  offset: Offset(1, 1),
-                ),
-              ],
+              height: 1.2,
+              shadows: shadows,
             ),
           ),
         ),

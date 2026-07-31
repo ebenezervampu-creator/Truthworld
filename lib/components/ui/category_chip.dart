@@ -10,9 +10,11 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Performance optimized with @immutable
 @immutable
 class CategoryChip extends StatelessWidget {
-
   const CategoryChip({
-    required this.label, required this.isSelected, required this.onTap, super.key,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    super.key,
     this.selectedColor,
     this.unselectedColor,
   });
@@ -68,9 +70,7 @@ class CategoryChip extends StatelessWidget {
               child: Text(
                 label,
                 style: typography.label.copyWith(
-                  color: isSelected
-                      ? colors.textPrimary
-                      : colors.textSecondary,
+                  color: isSelected ? Colors.black : colors.textSecondary,
                   letterSpacing: 0.1,
                 ),
                 semanticsLabel: label,
@@ -82,9 +82,3 @@ class CategoryChip extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

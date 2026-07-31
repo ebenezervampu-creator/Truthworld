@@ -1,4 +1,3 @@
-
 /// Industry-standard input validation utilities
 /// Prevents injection attacks, validates formats, and ensures data integrity
 library;
@@ -27,7 +26,10 @@ class InputValidator {
   }
 
   /// Validate URL format and protocol
-  static bool isValidUrl(String url, {List<String> allowedProtocols = const ['https']}) {
+  static bool isValidUrl(
+    String url, {
+    List<String> allowedProtocols = const ['https'],
+  }) {
     if (!_urlRegex.hasMatch(url)) return false;
 
     for (final protocol in allowedProtocols) {
@@ -89,7 +91,8 @@ class InputValidator {
     if (!_alphanumeric.hasMatch(username)) {
       throw ValidationException(
         fieldName: 'username',
-        message: 'Username can only contain letters, numbers, hyphens, and underscores',
+        message:
+            'Username can only contain letters, numbers, hyphens, and underscores',
       );
     }
     return username;
@@ -169,7 +172,8 @@ class InputValidator {
     if (!RegExp(r'^[a-z0-9_-]+$').hasMatch(tag)) {
       throw ValidationException(
         fieldName: 'tag',
-        message: 'Tag can only contain lowercase letters, numbers, hyphens, and underscores',
+        message:
+            'Tag can only contain lowercase letters, numbers, hyphens, and underscores',
       );
     }
     return tag;
@@ -225,8 +229,3 @@ class InputValidator {
     return value;
   }
 }
-
-
-
-
-

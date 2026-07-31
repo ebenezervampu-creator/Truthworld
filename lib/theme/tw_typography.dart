@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic typography roles for TruthWorld.
 class TWTypography extends ThemeExtension<TWTypography> {
-
   const TWTypography({
     required this.logo,
     required this.hero,
@@ -136,7 +135,10 @@ class TWTypography extends ThemeExtension<TWTypography> {
   }
 
   @override
-  ThemeExtension<TWTypography> lerp(ThemeExtension<TWTypography>? other, double t) {
+  ThemeExtension<TWTypography> lerp(
+    ThemeExtension<TWTypography>? other,
+    double t,
+  ) {
     if (other is! TWTypography) return this;
     return TWTypography(
       logo: TextStyle.lerp(logo, other.logo, t)!,

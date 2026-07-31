@@ -21,7 +21,6 @@ class CommentReportController extends GetxController {
 
 /// Premium report dialog for comments and replies
 class CommentReportDialog extends StatelessWidget {
-
   const CommentReportDialog({
     required this.comment,
     required this.videoId,
@@ -50,7 +49,10 @@ class CommentReportDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(CommentReportController(), tag: 'comment_report_${comment.id}_$replyId');
+    final controller = Get.put(
+      CommentReportController(),
+      tag: 'comment_report_${comment.id}_$replyId',
+    );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final commentService = CommentService();
     final authService = FirebaseAuth.instance;
@@ -70,8 +72,11 @@ class CommentReportDialog extends StatelessWidget {
 
         final currentUser = authService.currentUser;
         if (currentUser == null) {
-          Get.snackbar('Error', 'You must be logged in to report',
-              snackPosition: SnackPosition.BOTTOM);
+          Get.snackbar(
+            'Error',
+            'You must be logged in to report',
+            snackPosition: SnackPosition.BOTTOM,
+          );
           return;
         }
 
@@ -136,7 +141,9 @@ class CommentReportDialog extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                        color: isDark
+                            ? AppColors.textPrimary
+                            : AppColors.bgPage,
                       ),
                     ),
                   ],
@@ -149,59 +156,75 @@ class CommentReportDialog extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                    color: isDark
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 16),
 
                 // Reason selection
-                Obx(() => Column(
-                  children: _buildReasonOptions(isDark, controller),
-                )),
+                Obx(
+                  () => Column(
+                    children: _buildReasonOptions(isDark, controller),
+                  ),
+                ),
 
                 const SizedBox(height: 16),
 
                 // Description field
-                Obx(() => TextField(
-                  controller: controller.descriptionController,
-                  maxLines: 3,
-                  maxLength: 200,
-                  enabled: !controller.isSubmitting.value,
-                  decoration: InputDecoration(
-                    hintText: 'Additional details (optional)',
-                    hintStyle: TextStyle(
-                      color: isDark ? AppColors.textTertiary : AppColors.textSecondary,
-                    ),
-                    filled: true,
-                    fillColor: isDark ? AppColors.bgSurface : AppColors.textSecondary,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: isDark ? AppColors.bgDivider : AppColors.textSecondary,
+                Obx(
+                  () => TextField(
+                    controller: controller.descriptionController,
+                    maxLines: 3,
+                    maxLength: 200,
+                    enabled: !controller.isSubmitting.value,
+                    decoration: InputDecoration(
+                      hintText: 'Additional details (optional)',
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? AppColors.textTertiary
+                            : AppColors.textSecondary,
+                      ),
+                      filled: true,
+                      fillColor: isDark
+                          ? AppColors.bgSurface
+                          : AppColors.textSecondary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? AppColors.bgDivider
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? AppColors.bgDivider
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(
+                          color: AppColors.brand,
+                          width: 2,
+                        ),
+                      ),
+                      counterStyle: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.textTertiary
+                            : AppColors.textSecondary,
                       ),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: isDark ? AppColors.bgDivider : AppColors.textSecondary,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(
-                        color: AppColors.brand,
-                        width: 2,
-                      ),
-                    ),
-                    counterStyle: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? AppColors.textTertiary : AppColors.textSecondary,
+                    style: TextStyle(
+                      color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                     ),
                   ),
-                  style: TextStyle(
-                    color: isDark ? AppColors.textPrimary : AppColors.bgPage,
-                  ),
-                )),
+                ),
                 const SizedBox(height: 20),
 
                 // Buttons
@@ -211,11 +234,15 @@ class CommentReportDialog extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                        onPressed: isSubmitting
+                            ? null
+                            : () => Navigator.pop(context),
                         child: Text(
                           'Cancel',
                           style: TextStyle(
-                            color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                            color: isDark
+                                ? AppColors.textSecondary
+                                : AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -260,7 +287,10 @@ class CommentReportDialog extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildReasonOptions(bool isDark, CommentReportController controller) {
+  List<Widget> _buildReasonOptions(
+    bool isDark,
+    CommentReportController controller,
+  ) {
     return ReportReason.values.map((reason) {
       final isSelected = controller.selectedReason.value == reason;
       return Padding(
@@ -273,14 +303,14 @@ class CommentReportDialog extends StatelessWidget {
               color: isSelected
                   ? AppColors.brand.withAlpha(30)
                   : isDark
-                      ? AppColors.bgSurface
-                      : AppColors.textSecondary,
+                  ? AppColors.bgSurface
+                  : AppColors.textSecondary,
               border: Border.all(
                 color: isSelected
                     ? AppColors.brand
                     : isDark
-                        ? AppColors.bgDivider
-                        : AppColors.textSecondary,
+                    ? AppColors.bgDivider
+                    : AppColors.textSecondary,
                 width: isSelected ? 2 : 1,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -293,7 +323,9 @@ class CommentReportDialog extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? AppColors.brand : AppColors.textSecondary,
+                      color: isSelected
+                          ? AppColors.brand
+                          : AppColors.textSecondary,
                       width: 2,
                     ),
                   ),
@@ -320,7 +352,9 @@ class CommentReportDialog extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : AppColors.bgPage,
                         ),
                       ),
                     ],
@@ -334,9 +368,3 @@ class CommentReportDialog extends StatelessWidget {
     }).toList();
   }
 }
-
-
-
-
-
-

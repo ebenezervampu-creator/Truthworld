@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/widgets/claim_source_submission_dialog.dart';
+import 'package:truthworld/features/video/presentation/widgets/fact_check_dispute_dialog.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class FactCheckReportWidget extends StatelessWidget {
-
   const FactCheckReportWidget({
-    required this.data, required this.video, super.key,
+    required this.data,
+    required this.video,
+    super.key,
   });
   final Map<String, dynamic> data;
   final Video video;
@@ -18,21 +21,30 @@ class FactCheckReportWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 🧠 Extract multi-dimensional data
-    final trustScore = ((data['trustScore'] ?? data['compositeRating'] ?? data['videoRating'] ?? 0.0) as num).toDouble();
+    final trustScore =
+        ((data['trustScore'] ??
+                    data['compositeRating'] ??
+                    data['videoRating'] ??
+                    0.0)
+                as num)
+            .toDouble();
     final truthScore = ((data['truthScore'] ?? trustScore) as num).toDouble();
     final honestyScore = ((data['honestyScore'] ?? 0.0) as num).toDouble();
-    final rationalityScore = ((data['rationalityScore'] ?? 0.0) as num).toDouble();
-    
+    final rationalityScore = ((data['rationalityScore'] ?? 0.0) as num)
+        .toDouble();
+
     final stats = data['factCheckStats'] as Map? ?? {};
     final claims = data['claims'] as List? ?? [];
     final diagnostics = data['diagnostics'] as List? ?? [];
     final deductions = data['deductions'] as List? ?? [];
     final factors = data['factors'] as Map? ?? {};
-    
+
     // 🏛 Extract UI Report fields if available
     final uiReport = data['uiReport'] as Map? ?? {};
-    final narrative = uiReport['narrative'] as String? ?? data['viewerNote'] as String? ?? '';
-    final sources = uiReport['sources'] as List? ?? data['richSources'] as List? ?? [];
+    final narrative =
+        uiReport['narrative'] as String? ?? data['viewerNote'] as String? ?? '';
+    final sources =
+        uiReport['sources'] as List? ?? data['richSources'] as List? ?? [];
     final conclusion = uiReport['conclusion'] as String? ?? '';
     final confidence = ((data['confidence'] ?? 0.5) as num).toDouble();
 
@@ -47,7 +59,7 @@ class FactCheckReportWidget extends StatelessWidget {
             color: AppColors.bgPage.withValues(alpha: 0.5),
             blurRadius: 40,
             spreadRadius: 10,
-          )
+          ),
         ],
       ),
       child: ClipRRect(
@@ -59,12 +71,15 @@ class FactCheckReportWidget extends StatelessWidget {
               _buildHeader(context),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   physics: const BouncingScrollPhysics(),
                   children: [
                     const SizedBox.shrink(),
                     const SizedBox(height: 24),
-                    
+
                     _buildMetricsRow(
                       truth: truthScore,
                       honesty: honestyScore,
@@ -73,7 +88,7 @@ class FactCheckReportWidget extends StatelessWidget {
                     const SizedBox(height: 24),
                     _buildConfidenceBar(confidence),
                     const SizedBox(height: 32),
-                    
+
                     _buildStatsRow(stats),
                     const SizedBox(height: 32),
 
@@ -91,8 +106,8 @@ class FactCheckReportWidget extends StatelessWidget {
                       const SizedBox.shrink(),
                       const SizedBox(height: 32),
                     ],
-                    
-                    _buildClaimsSection(claims),
+
+                    _buildClaimsSection(context, claims),
                     const SizedBox(height: 32),
 
                     if (sources.isNotEmpty) ...[
@@ -107,8 +122,8 @@ class FactCheckReportWidget extends StatelessWidget {
 
                     _buildDiagnosticsSection(diagnostics),
                     const SizedBox(height: 48),
-                    
-                    _buildFooter(),
+
+                    _buildFooter(context),
                     const SizedBox(height: 64),
                   ],
                 ),
@@ -152,7 +167,11 @@ class FactCheckReportWidget extends StatelessWidget {
                   ),
                   Row(
                     children: [
-                      const Icon(Icons.verified_user, size: 10, color: AppColors.success),
+                      const Icon(
+                        Icons.verified_user,
+                        size: 10,
+                        color: AppColors.success,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'CRYPTO-VERIFIED ANALYSIS',
@@ -192,7 +211,7 @@ class FactCheckReportWidget extends StatelessWidget {
             color: AppColors.bgPage.withValues(alpha: 0.2),
             blurRadius: 20,
             offset: const Offset(0, 10),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -203,23 +222,25 @@ class FactCheckReportWidget extends StatelessWidget {
               SizedBox(
                 width: 140,
                 height: 140,
-                child: CircularProgressIndicator(
-                  value: rating / 100,
-                  strokeWidth: 12,
-                  backgroundColor: AppColors.bgDivider,
-                  color: color,
-                  strokeCap: StrokeCap.round,
-                ).animate().custom(
-                  duration: 1500.ms,
-                  curve: Curves.easeOutBack,
-                  builder: (context, value, child) => CircularProgressIndicator(
-                    value: value * (rating / 100),
-                    strokeWidth: 12,
-                    backgroundColor: AppColors.bgDivider,
-                    color: color,
-                    strokeCap: StrokeCap.round,
-                  ),
-                ),
+                child:
+                    CircularProgressIndicator(
+                      value: rating / 100,
+                      strokeWidth: 12,
+                      backgroundColor: AppColors.bgDivider,
+                      color: color,
+                      strokeCap: StrokeCap.round,
+                    ).animate().custom(
+                      duration: 1500.ms,
+                      curve: Curves.easeOutBack,
+                      builder: (context, value, child) =>
+                          CircularProgressIndicator(
+                            value: value * (rating / 100),
+                            strokeWidth: 12,
+                            backgroundColor: AppColors.bgDivider,
+                            color: color,
+                            strokeCap: StrokeCap.round,
+                          ),
+                    ),
               ),
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -268,18 +289,42 @@ class FactCheckReportWidget extends StatelessWidget {
     ).animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.95, 0.95));
   }
 
-  Widget _buildMetricsRow({required double truth, required double honesty, required double rationality}) {
+  Widget _buildMetricsRow({
+    required double truth,
+    required double honesty,
+    required double rationality,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _buildMetricRing(label: 'TRUTH', score: truth, color: AppColors.success, icon: Icons.fact_check_outlined),
-        _buildMetricRing(label: 'HONESTY', score: honesty, color: AppColors.info, icon: Icons.face_outlined),
-        _buildMetricRing(label: 'LOGIC', score: rationality, color: AppColors.brandHover, icon: Icons.psychology_outlined),
+        _buildMetricRing(
+          label: 'TRUTH',
+          score: truth,
+          color: AppColors.success,
+          icon: Icons.fact_check_outlined,
+        ),
+        _buildMetricRing(
+          label: 'HONESTY',
+          score: honesty,
+          color: AppColors.info,
+          icon: Icons.face_outlined,
+        ),
+        _buildMetricRing(
+          label: 'LOGIC',
+          score: rationality,
+          color: AppColors.brandHover,
+          icon: Icons.psychology_outlined,
+        ),
       ],
     ).animate().fadeIn(delay: 300.ms);
   }
 
-  Widget _buildMetricRing({required String label, required double score, required Color color, required IconData icon}) {
+  Widget _buildMetricRing({
+    required String label,
+    required double score,
+    required Color color,
+    required IconData icon,
+  }) {
     return Column(
       children: [
         Stack(
@@ -302,11 +347,19 @@ class FactCheckReportWidget extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           '${score.toInt()}%',
-          style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          style: AppTextStyles.bodyMedium.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
         ),
         Text(
           label,
-          style: AppTextStyles.labelSmall.copyWith(fontSize: 8, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.5),
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 8,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTertiary,
+            letterSpacing: 0.5,
+          ),
         ),
       ],
     );
@@ -315,15 +368,32 @@ class FactCheckReportWidget extends StatelessWidget {
   Widget _buildConfidenceBar(double confidence) {
     // confidence is 0.0 to 1.0
     final value = confidence > 1.0 ? confidence / 100 : confidence;
-    final color = value >= 0.8 ? AppColors.success : (value >= 0.5 ? AppColors.warning : AppColors.error);
+    final color = value >= 0.8
+        ? AppColors.success
+        : (value >= 0.5 ? AppColors.warning : AppColors.error);
 
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('ANALYSIS CONFIDENCE', style: AppTextStyles.labelSmall.copyWith(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1)),
-            Text('${(value * 100).toInt()}%', style: AppTextStyles.bodyMedium.copyWith(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+            Text(
+              'ANALYSIS CONFIDENCE',
+              style: AppTextStyles.labelSmall.copyWith(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textTertiary,
+                letterSpacing: 1,
+              ),
+            ),
+            Text(
+              '${(value * 100).toInt()}%',
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -332,16 +402,23 @@ class FactCheckReportWidget extends StatelessWidget {
             Container(
               height: 6,
               width: double.infinity,
-              decoration: BoxDecoration(color: AppColors.bgDivider, borderRadius: BorderRadius.circular(3)),
+              decoration: BoxDecoration(
+                color: AppColors.bgDivider,
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
             AnimatedContainer(
               duration: 1000.ms,
               height: 6,
               width: (Get.width - 48) * value,
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color.withValues(alpha: 0.5), color]),
+                gradient: LinearGradient(
+                  colors: [color.withValues(alpha: 0.5), color],
+                ),
                 borderRadius: BorderRadius.circular(3),
-                boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8)],
+                boxShadow: [
+                  BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8),
+                ],
               ),
             ).animate().shimmer(delay: 500.ms, duration: 2000.ms),
           ],
@@ -353,14 +430,29 @@ class FactCheckReportWidget extends StatelessWidget {
   Widget _buildStatsRow(Map stats) {
     return Row(
       children: [
-        _buildStatCard('Total Claims', '${stats['totalClaims'] ?? 0}', Icons.article_outlined, AppColors.info),
+        _buildStatCard(
+          'Total Claims',
+          '${stats['totalClaims'] ?? 0}',
+          Icons.article_outlined,
+          AppColors.info,
+        ),
         const SizedBox(width: 12),
-        _buildStatCard('Verified', '${stats['correct'] ?? stats['verifiedClaims'] ?? 0}', Icons.check_circle_outlined, AppColors.success),
+        _buildStatCard(
+          'Verified',
+          '${stats['correct'] ?? stats['verifiedClaims'] ?? 0}',
+          Icons.check_circle_outlined,
+          AppColors.success,
+        ),
       ],
     ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1);
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -374,8 +466,22 @@ class FactCheckReportWidget extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(height: 12),
-            Text(value, style: AppTextStyles.titleLarge.copyWith(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            Text(label, style: AppTextStyles.labelSmall.copyWith(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.bold)),
+            Text(
+              value,
+              style: AppTextStyles.titleLarge.copyWith(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            Text(
+              label,
+              style: AppTextStyles.labelSmall.copyWith(
+                fontSize: 10,
+                color: AppColors.textTertiary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -386,7 +492,15 @@ class FactCheckReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('SUMMARY ANALYSIS', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.5)),
+        Text(
+          'SUMMARY ANALYSIS',
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTertiary,
+            letterSpacing: 1.5,
+          ),
+        ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(20),
@@ -395,7 +509,14 @@ class FactCheckReportWidget extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: AppColors.bgDivider),
           ),
-          child: Text(narrative, style: AppTextStyles.bodyMedium.copyWith(fontSize: 15, color: AppColors.textPrimary, height: 1.6)),
+          child: Text(
+            narrative,
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 15,
+              color: AppColors.textPrimary,
+              height: 1.6,
+            ),
+          ),
         ),
       ],
     );
@@ -405,12 +526,22 @@ class FactCheckReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('TRUST DRIVERS', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.5)),
+        Text(
+          'TRUST DRIVERS',
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTertiary,
+            letterSpacing: 1.5,
+          ),
+        ),
         const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: factors.entries.map((e) => _buildFactorChip(e.key as String, e.value)).toList(),
+          children: factors.entries
+              .map((e) => _buildFactorChip(e.key as String, e.value))
+              .toList(),
         ),
       ],
     );
@@ -429,9 +560,23 @@ class FactCheckReportWidget extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(key.toUpperCase(), style: AppTextStyles.labelSmall.copyWith(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
+          Text(
+            key.toUpperCase(),
+            style: AppTextStyles.labelSmall.copyWith(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
           const SizedBox(width: 6),
-          Text('${score.toInt()}', style: AppTextStyles.bodyMedium.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          Text(
+            '${score.toInt()}',
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
         ],
       ),
     );
@@ -441,7 +586,15 @@ class FactCheckReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('INSTITUTIONAL DEDUCTIONS', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.error, letterSpacing: 1.5)),
+        Text(
+          'INSTITUTIONAL DEDUCTIONS',
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.error,
+            letterSpacing: 1.5,
+          ),
+        ),
         const SizedBox(height: 16),
         ...deductions.map((e) => _buildDeductionItem(e as Map)),
       ],
@@ -459,34 +612,100 @@ class FactCheckReportWidget extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.remove_circle_outline, color: AppColors.error, size: 16),
+          const Icon(
+            Icons.remove_circle_outline,
+            color: AppColors.error,
+            size: 16,
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text((d['reason'] as String?) ?? '', style: AppTextStyles.bodyMedium.copyWith(fontSize: 13, color: AppColors.textSecondary)),
+            child: Text(
+              (d['reason'] as String?) ?? '',
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
-          Text('-${d['points']}', style: AppTextStyles.bodyMedium.copyWith(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.error)),
+          Text(
+            '-${d['points']}',
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.error,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildClaimsSection(List claims) {
+  Widget _buildClaimsSection(BuildContext context, List claims) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('CLAIM VERIFICATION', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.5)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'CLAIM VERIFICATION',
+              style: AppTextStyles.labelSmall.copyWith(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textTertiary,
+                letterSpacing: 1.5,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => ClaimSourceSubmissionDialog.show(
+                context: context,
+                video: video,
+                claims: claims,
+              ),
+              icon: const Icon(
+                Icons.add_link_rounded,
+                color: AppColors.textPrimary,
+                size: 14,
+              ),
+              label: const Text(
+                'Provide Evidence',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         if (claims.isEmpty)
           _buildEmptyBox('No specific claims extracted for this analysis.')
         else
-          ...claims.asMap().entries.map((entry) => _buildClaimItem(entry.value as Map, entry.key)),
+          ...claims.asMap().entries.map(
+            (entry) =>
+                _buildClaimItem(context, entry.value as Map, claims, entry.key),
+          ),
       ],
     );
   }
 
-  Widget _buildClaimItem(Map claim, int index) {
+  Widget _buildClaimItem(
+    BuildContext context,
+    Map claim,
+    List claims,
+    int index,
+  ) {
     final status = (claim['status'] ?? '').toString().toLowerCase();
-    final isVerified = status == 'correct' || status == 'mostly_correct' || claim['isVerified'] == true;
+    final isVerified =
+        status == 'correct' ||
+        status == 'mostly_correct' ||
+        claim['isVerified'] == true;
     final color = isVerified ? AppColors.success : AppColors.error;
 
     return Container(
@@ -497,21 +716,83 @@ class FactCheckReportWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.1)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(isVerified ? Icons.check_circle : Icons.cancel, color: color, size: 18),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text((claim['claim'] ?? claim['text'] ?? '').toString(), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w500, height: 1.4)),
-                if (claim['explanation'] != null || claim['reasoning'] != null) ...[
-                  const SizedBox(height: 8),
-                  Text((claim['explanation'] ?? claim['reasoning'])?.toString() ?? '', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 12, fontStyle: FontStyle.italic)),
-                ],
-              ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                isVerified ? Icons.check_circle : Icons.cancel,
+                color: color,
+                size: 18,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (claim['claim'] ?? claim['text'] ?? '').toString(),
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (claim['explanation'] != null ||
+                        claim['reasoning'] != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        (claim['explanation'] ?? claim['reasoning'])
+                                ?.toString() ??
+                            '',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => ClaimSourceSubmissionDialog.show(
+                context: context,
+                video: video,
+                claims: claims,
+                initialClaim: claim,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.add_link_rounded,
+                      size: 14,
+                      color: AppColors.textPrimary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Provide Source for Claim',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -523,13 +804,25 @@ class FactCheckReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('VERIFIED SOURCES', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.5)),
+        Text(
+          'VERIFIED SOURCES',
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTertiary,
+            letterSpacing: 1.5,
+          ),
+        ),
         const SizedBox(height: 16),
         Column(
-          children: sources.map((s) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildSourceCard(s as Map<dynamic, dynamic>),
-          )).toList(),
+          children: sources
+              .map(
+                (s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildSourceCard(s as Map<dynamic, dynamic>),
+                ),
+              )
+              .toList(),
         ),
       ],
     );
@@ -593,7 +886,7 @@ class FactCheckReportWidget extends StatelessWidget {
       if (domain != null) citationParts.add(domain);
     }
     if (yearPublished != null) citationParts.add(yearPublished.toString());
-    
+
     final citationText = '$prefix${citationParts.join(', ')}';
 
     var trustColor = AppColors.textTertiary;
@@ -629,13 +922,20 @@ class FactCheckReportWidget extends StatelessWidget {
                 children: [
                   Text(
                     author ?? title ?? 'Source',
-                    style: AppTextStyles.bodyMedium.copyWith(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   if (citationText.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       citationText,
-                      style: AppTextStyles.caption.copyWith(fontSize: 10, color: AppColors.textSecondary),
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                   if (snippet != null && snippet.isNotEmpty) ...[
@@ -644,7 +944,11 @@ class FactCheckReportWidget extends StatelessWidget {
                       '"$snippet"',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption.copyWith(fontSize: 10, fontStyle: FontStyle.italic, color: AppColors.textTertiary),
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10,
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -654,12 +958,19 @@ class FactCheckReportWidget extends StatelessWidget {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: BoxDecoration(color: trustColor, shape: BoxShape.circle),
+                          decoration: BoxDecoration(
+                            color: trustColor,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           trustLevel.toUpperCase(),
-                          style: AppTextStyles.labelSmall.copyWith(fontSize: 8, color: trustColor, fontWeight: FontWeight.bold),
+                          style: AppTextStyles.labelSmall.copyWith(
+                            fontSize: 8,
+                            color: trustColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(width: 8),
                       ],
@@ -669,7 +980,10 @@ class FactCheckReportWidget extends StatelessWidget {
                             domain,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.caption.copyWith(fontSize: 10, color: AppColors.textTertiary),
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 10,
+                              color: AppColors.textTertiary,
+                            ),
                           ),
                         ),
                     ],
@@ -678,7 +992,11 @@ class FactCheckReportWidget extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textTertiary,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -695,11 +1013,32 @@ class FactCheckReportWidget extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.verified_user_outlined, color: Colors.white, size: 32),
+          const Icon(
+            Icons.verified_user_outlined,
+            color: Colors.white,
+            size: 32,
+          ),
           const SizedBox(height: 16),
-          Text('CONCLUSION', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.brand, letterSpacing: 2)),
+          Text(
+            'CONCLUSION',
+            style: AppTextStyles.labelSmall.copyWith(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brand,
+              letterSpacing: 2,
+            ),
+          ),
           const SizedBox(height: 12),
-          Text(conclusion, textAlign: TextAlign.center, style: AppTextStyles.bodyMedium.copyWith(fontSize: 14, color: AppColors.textPrimary, height: 1.5, fontWeight: FontWeight.w500)),
+          Text(
+            conclusion,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 14,
+              color: AppColors.textPrimary,
+              height: 1.5,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -709,7 +1048,15 @@ class FactCheckReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ANALYSIS DIAGNOSTICS', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.5)),
+        Text(
+          'ANALYSIS DIAGNOSTICS',
+          style: AppTextStyles.labelSmall.copyWith(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textTertiary,
+            letterSpacing: 1.5,
+          ),
+        ),
         const SizedBox(height: 16),
         if (diagnostics.isEmpty)
           _buildEmptyBox('No additional diagnostic data recorded.')
@@ -722,16 +1069,35 @@ class FactCheckReportWidget extends StatelessWidget {
               border: Border.all(color: AppColors.bgDivider),
             ),
             child: Column(
-              children: diagnostics.map((d) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('• ', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
-                    Expanded(child: Text(d.toString(), style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13, height: 1.5))),
-                  ],
-                ),
-              )).toList(),
+              children: diagnostics
+                  .map(
+                    (d) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '• ',
+                            style: TextStyle(
+                              color: AppColors.brand,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              d.toString(),
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
       ],
@@ -747,19 +1113,55 @@ class FactCheckReportWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.bgDivider),
       ),
-      child: Text(text, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 13, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+      child: Text(
+        text,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.textTertiary,
+          fontSize: 13,
+          fontStyle: FontStyle.italic,
+        ),
+        textAlign: TextAlign.center,
+      ),
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(BuildContext context) {
     return Column(
       children: [
         const Divider(color: AppColors.bgDivider),
         const SizedBox(height: 16),
         Text(
           'TruthWorld employs multi-stage AI verification using institutional-grade data sources. This report represents a point-in-time analysis of the audio-visual content provided.',
-          style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10, height: 1.5),
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textTertiary,
+            fontSize: 10,
+            height: 1.5,
+          ),
           textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () => FactCheckDisputeDialog.show(context, video),
+          icon: const Icon(
+            Icons.gavel_rounded,
+            color: AppColors.textPrimary,
+            size: 16,
+          ),
+          label: const Text(
+            'Report Incorrect? Dispute & Provide Sources',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFFF59E0B)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
         ),
       ],
     );
@@ -768,7 +1170,7 @@ class FactCheckReportWidget extends StatelessWidget {
   Color _getScoreColor(double score) {
     if (score >= 90) return AppColors.success;
     if (score >= 75) return const Color(0xFFA3E635);
-    if (score >= 60) return Colors.yellowAccent;
+    if (score >= 60) return AppColors.brandHover;
     if (score >= 45) return AppColors.warning;
     if (score >= 30) return AppColors.error;
     return const Color(0xFF991B1B);
@@ -783,8 +1185,3 @@ class FactCheckReportWidget extends StatelessWidget {
     return 'UNRELIABLE';
   }
 }
-
-
-
-
-

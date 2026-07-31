@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/bindings/initial_binding.dart';
+import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
@@ -35,185 +36,210 @@ void _handleFlutterError(FlutterErrorDetails details) {
     );
   } else {
     // Production: send to Crashlytics
-    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    unawaited(FirebaseCrashlytics.instance.recordFlutterFatalError(details));
   }
 }
 
 /// Initialize and run the application with proper error handling
 void main() {
   // Catch errors outside of Flutter's error handling
-  runZonedGuarded(
-    () async {
-      // Use path strategy for clean URLs (removes # from URLs)
-      setPathUrlStrategy();
+  unawaited(
+    runZonedGuarded(
+      () async {
+        // Use path strategy for clean URLs (removes # from URLs)
+        setPathUrlStrategy();
 
-      // CRITICAL: Initialize Flutter bindings first inside the zone!
-      // This must be the very first line to avoid "Binding has not yet been initialized" on Web
-      // and "Zone mismatch" error when using runZonedGuarded.
-      WidgetsFlutterBinding.ensureInitialized();
+        // CRITICAL: Initialize Flutter bindings first inside the zone!
+        // This must be the very first line to avoid "Binding has not yet been initialized" on Web
+        // and "Zone mismatch" error when using runZonedGuarded.
+        WidgetsFlutterBinding.ensureInitialized();
 
-      // Initialize logger first - before anything else
-      logger.init(
-        minLogLevel: kDebugMode ? 2 : 4, // Verbose in debug, Info in production
-      );
-
-      FlutterError.onError = _handleFlutterError;
-
-      try {
-        // Initialize Firebase with error handling
-        try {
-          await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform,
-          );
-          logger.info('Firebase initialized successfully', tag: 'Startup');
-
-          // Enable Firestore offline cache/persistence bounded to 100 MB
-          FirebaseFirestore.instance.settings = const Settings(
-            persistenceEnabled: true,
-            cacheSizeBytes: 100 * 1024 * 1024,
-          );
-          // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
-          try {
-            await FirebaseAppCheck.instance.activate(
-              webProvider: ReCaptchaEnterpriseProvider(
-                '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
-              ),
-              androidProvider: kDebugMode 
-                  ? AndroidProvider.debug 
-                  : AndroidProvider.playIntegrity,
-              appleProvider: kDebugMode 
-                  ? AppleProvider.debug 
-                  : AppleProvider.deviceCheck,
-            );
-            await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
-            logger.info('Firebase App Check initialized successfully', tag: 'Startup');
-          } catch (e) {
-            logger.error('Firebase App Check initialization error: $e', tag: 'Startup');
-          }
-
-
-        } on FirebaseException catch (e) {
-          logger.error(
-            'Firebase initialization error: ${e.code} - ${e.message}',
-            tag: 'Firebase',
-            error: e,
-          );
-          rethrow;
-        } catch (e) {
-          logger.error(
-            'Firebase initialization unknown error',
-            tag: 'Firebase',
-            error: e,
-          );
-          rethrow;
-        }
-
-        // Initialize Crashlytics (disabled in debug to avoid noise)
-        if (!kIsWeb) {
-          await FirebaseCrashlytics.instance
-              .setCrashlyticsCollectionEnabled(!kDebugMode);
-          FirebaseCrashlytics.instance
-              .setCustomKey('platform', defaultTargetPlatform.name);
-        }
-
-        // Initialize Firebase Performance Monitoring
-        if (!kIsWeb) {
-          await FirebasePerformance.instance
-              .setPerformanceCollectionEnabled(!kDebugMode);
-        }
-
-        // Initialize critical services BEFORE running the app
-        await GetStorage.init().catchError((e) {
-          logger.warning('GetStorage error: $e');
-          return false;
-        });
-
-        final authService = Get.put(AuthService(), permanent: true);
-        Get.put(AppService(), permanent: true);
-        Get.put(ConnectivityService(), permanent: true);
-        Get.put(PushNotificationService(), permanent: true);
-        Get.put(UserPreferencesService(), permanent: true);
-
-        // Auth MUST complete before app renders auth-dependent UI
-        await authService.init();
-
-        // Set Crashlytics user identifier after auth (non-PII)
-        if (!kIsWeb) {
-          final uid = authService.user?.uid;
-          if (uid != null) {
-            FirebaseCrashlytics.instance.setUserIdentifier(uid);
-          }
-        }
-
-        // Run the app after critical services are ready
-        runApp(const Truthworld());
-
-        // Non-critical service init in background
-        Future.wait([
-          Get.find<AppService>().init(),
-          Get.find<ConnectivityService>().init(),
-          Get.find<PushNotificationService>().init(),
-        ]).then((_) {
-          logger.info('All background services initialized', tag: 'Startup');
-        });
-      } catch (error, stackTrace) {
-        logger.wtf(
-          'Fatal error during initialization',
-          error: error,
-          stackTrace: stackTrace,
-          tag: 'Startup',
+        // Initialize logger first - before anything else
+        logger.init(
+          minLogLevel: kDebugMode
+              ? 2
+              : 4, // Verbose in debug, Info in production
         );
-        _notifyAppError('Initialization failed: $error');
 
-        // Show error UI
-        runApp(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: AppColors.error,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Application Error',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+        FlutterError.onError = _handleFlutterError;
+
+        try {
+          // Initialize Firebase with error handling
+          try {
+            await Firebase.initializeApp(
+              options: DefaultFirebaseOptions.currentPlatform,
+            );
+            logger.info('Firebase initialized successfully', tag: 'Startup');
+
+            // Enable Firestore offline cache/persistence bounded to 100 MB
+            FirebaseFirestore.instance.settings = const Settings(
+              persistenceEnabled: true,
+              cacheSizeBytes: 100 * 1024 * 1024,
+            );
+            // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
+            try {
+              await FirebaseAppCheck.instance.activate(
+                webProvider: ReCaptchaEnterpriseProvider(
+                  '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
+                ),
+                androidProvider: AndroidProvider.debug,
+                appleProvider: kDebugMode
+                    ? AppleProvider.debug
+                    : AppleProvider.deviceCheck,
+              );
+              await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+              if (kDebugMode) {
+                try {
+                  final token = await FirebaseAppCheck.instance.getToken();
+                  logger.info(
+                    'Firebase App Check Debug Token: $token',
+                    tag: 'Startup',
+                  );
+                } catch (e) {
+                  logger.warning(
+                    'Could not retrieve App Check debug token: $e',
+                    tag: 'Startup',
+                  );
+                }
+              }
+              logger.info(
+                'Firebase App Check initialized successfully',
+                tag: 'Startup',
+              );
+            } catch (e) {
+              logger.error(
+                'Firebase App Check initialization error: $e',
+                tag: 'Startup',
+              );
+            }
+          } on FirebaseException catch (e) {
+            logger.error(
+              'Firebase initialization error: ${e.code} - ${e.message}',
+              tag: 'Firebase',
+              error: e,
+            );
+            rethrow;
+          } catch (e) {
+            logger.error(
+              'Firebase initialization unknown error',
+              tag: 'Firebase',
+              error: e,
+            );
+            rethrow;
+          }
+
+          // Initialize Crashlytics (disabled in debug to avoid noise)
+          if (!kIsWeb) {
+            await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+              !kDebugMode,
+            );
+            FirebaseCrashlytics.instance.setCustomKey(
+              'platform',
+              defaultTargetPlatform.name,
+            );
+          }
+
+          // Initialize Firebase Performance Monitoring
+          if (!kIsWeb) {
+            await FirebasePerformance.instance.setPerformanceCollectionEnabled(
+              !kDebugMode,
+            );
+          }
+
+          // Initialize critical services BEFORE running the app
+          await GetStorage.init().catchError((e) {
+            logger.warning('GetStorage error: $e');
+            return false;
+          });
+
+          final authService = Get.put(AuthService(), permanent: true);
+          Get.put(AppService(), permanent: true);
+          Get.put(ConnectivityService(), permanent: true);
+          Get.put(PushNotificationService(), permanent: true);
+          Get.put(UserPreferencesService(), permanent: true);
+          Get.put(AdService(), permanent: true);
+
+          // Auth MUST complete before app renders auth-dependent UI
+          await authService.init();
+
+          // Set Crashlytics user identifier after auth (non-PII)
+          if (!kIsWeb) {
+            final uid = authService.user?.uid;
+            if (uid != null) {
+              FirebaseCrashlytics.instance.setUserIdentifier(uid);
+            }
+          }
+
+          // Run the app after critical services are ready
+          runApp(const Truthworld());
+
+          // Non-critical service init in background
+          Future.wait([
+            Get.find<AppService>().init(),
+            Get.find<ConnectivityService>().init(),
+            Get.find<PushNotificationService>().init(),
+          ]).then((_) {
+            logger.info('All background services initialized', tag: 'Startup');
+          });
+        } catch (error, stackTrace) {
+          logger.wtf(
+            'Fatal error during initialization',
+            error: error,
+            stackTrace: stackTrace,
+            tag: 'Startup',
+          );
+          _notifyAppError('Initialization failed: $error');
+
+          // Show error UI
+          runApp(
+            MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: AppColors.error,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Failed to initialize: $error',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 30),
-                    ElevatedButton(
-                      onPressed: () {
-                        // Restart the app
-                        runApp(const Truthworld());
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Application Error',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Failed to initialize: $error',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Restart the app
+                          runApp(const Truthworld());
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      }
-    },
-    (error, stackTrace) {
-      // Catch ALL errors outside of Flutter's zone
-      debugPrint('Zone error caught: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      _notifyAppError('Unhandled error: $error');
-    },
+          );
+        }
+      },
+      (error, stackTrace) {
+        // Catch ALL errors outside of Flutter's zone
+        debugPrint('Zone error caught: $error');
+        debugPrintStack(stackTrace: stackTrace);
+        _notifyAppError('Unhandled error: $error');
+      },
+    ),
   );
 }
 
@@ -269,7 +295,9 @@ class Truthworld extends StatelessWidget {
       darkTheme: buildAppTheme(),
       themeMode: ThemeMode.dark,
       defaultTransition: kIsWeb ? Transition.noTransition : Transition.native,
-      transitionDuration: kIsWeb ? Duration.zero : const Duration(milliseconds: 250),
+      transitionDuration: kIsWeb
+          ? Duration.zero
+          : const Duration(milliseconds: 250),
       initialRoute: _getInitialRoute(),
       initialBinding: InitialBinding(),
       getPages: AppPages.routes,
@@ -294,7 +322,3 @@ class Truthworld extends StatelessWidget {
     );
   }
 }
-
-
-
-

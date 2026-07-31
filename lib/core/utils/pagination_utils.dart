@@ -170,9 +170,10 @@ mixin InfiniteScrollMixin on State {
 ///
 /// Combines pagination controller with ListView/SliverList
 class InfiniteList<T> extends StatelessWidget {
-
   const InfiniteList({
-    required this.controller, required this.itemBuilder, super.key,
+    required this.controller,
+    required this.itemBuilder,
+    super.key,
     this.loadingBuilder,
     this.emptyBuilder,
     this.errorBuilder,
@@ -256,9 +257,10 @@ class InfiniteList<T> extends StatelessWidget {
 ///
 /// For use in CustomScrollView
 class InfiniteSliverList<T> extends StatelessWidget {
-
   const InfiniteSliverList({
-    required this.controller, required this.itemBuilder, super.key,
+    required this.controller,
+    required this.itemBuilder,
+    super.key,
     this.loadingBuilder,
     this.emptyBuilder,
     this.addAutomaticKeepAlives = false,
@@ -326,9 +328,11 @@ class InfiniteSliverList<T> extends StatelessWidget {
 ///
 /// For use in CustomScrollView with SliverGrid
 class InfiniteSliverGrid<T> extends StatelessWidget {
-
   const InfiniteSliverGrid({
-    required this.controller, required this.itemBuilder, required this.gridDelegate, super.key,
+    required this.controller,
+    required this.itemBuilder,
+    required this.gridDelegate,
+    super.key,
     this.loadingBuilder,
     this.addAutomaticKeepAlives = false,
   });
@@ -414,8 +418,3 @@ class InfiniteSliverGrid<T> extends StatelessWidget {
 ///   }
 /// }
 /// ```
-
-
-
-
-

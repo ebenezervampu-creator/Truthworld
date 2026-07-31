@@ -48,7 +48,8 @@ class AppSnackbar {
     final titleLower = title.toLowerCase().trim();
     final messageLower = message.toLowerCase().trim();
 
-    final isError = titleLower.contains('error') ||
+    final isError =
+        titleLower.contains('error') ||
         titleLower.contains('fail') ||
         titleLower.contains('cannot') ||
         titleLower.contains('rejected') ||
@@ -60,11 +61,12 @@ class AppSnackbar {
         messageLower.contains('invalid') ||
         (backgroundColor != null &&
             (backgroundColor.toARGB32() == 0xFFEF4444 ||
-             backgroundColor.toARGB32() == 0xFFCF6679 ||
-             backgroundColor == AppColors.error ||
-             backgroundColor == AppColors.error));
+                backgroundColor.toARGB32() == 0xFFCF6679 ||
+                backgroundColor == AppColors.error ||
+                backgroundColor == AppColors.error));
 
-    final isSuccess = titleLower.contains('success') ||
+    final isSuccess =
+        titleLower.contains('success') ||
         titleLower.contains('complete') ||
         titleLower.contains('saved') ||
         titleLower.contains('uploaded') ||
@@ -73,11 +75,12 @@ class AppSnackbar {
         messageLower.contains('completed') ||
         (backgroundColor != null &&
             (backgroundColor.toARGB32() == 0xFF2BA640 ||
-             backgroundColor.toARGB32() == 0xFF10B981 ||
-             backgroundColor == AppColors.success ||
-             backgroundColor == AppColors.success));
+                backgroundColor.toARGB32() == 0xFF10B981 ||
+                backgroundColor == AppColors.success ||
+                backgroundColor == AppColors.success));
 
-    final isWarning = titleLower.contains('warning') ||
+    final isWarning =
+        titleLower.contains('warning') ||
         titleLower.contains('alert') ||
         titleLower.contains('caution') ||
         titleLower.contains('pending') ||
@@ -85,9 +88,9 @@ class AppSnackbar {
         messageLower.contains('warning') ||
         (backgroundColor != null &&
             (backgroundColor.toARGB32() == 0xFFF59E0B ||
-             backgroundColor.toARGB32() == 0xFFF9BF05 ||
-             backgroundColor == AppColors.warning ||
-             backgroundColor == AppColors.warning));
+                backgroundColor.toARGB32() == 0xFFF9BF05 ||
+                backgroundColor == AppColors.warning ||
+                backgroundColor == AppColors.warning));
 
     if (isError) {
       AppToast.error(message, title: title);

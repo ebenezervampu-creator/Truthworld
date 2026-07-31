@@ -14,8 +14,13 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart'
@@ -200,7 +205,10 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       letterSpacing: 0.15,
     ),
     iconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
-    actionsIconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
+    actionsIconTheme: const IconThemeData(
+      color: darkOnSurfaceVariant,
+      size: 24,
+    ),
   ),
   // Enhanced Card Theme
   cardTheme: CardThemeData(
@@ -301,7 +309,10 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       letterSpacing: 0.5,
     ),
     selectedIconTheme: const IconThemeData(color: primaryAccent, size: 24),
-    unselectedIconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
+    unselectedIconTheme: const IconThemeData(
+      color: darkOnSurfaceVariant,
+      size: 24,
+    ),
   ),
   // Enhanced Chip Theme
   chipTheme: ChipThemeData(
@@ -443,9 +454,15 @@ class Home extends GetView<HomeController> {
   const Home({super.key});
 
   void _preloadDeferredLibraries() {
-    subscriptions.loadLibrary().catchError((e) => debugPrint('Preload subscriptions error: $e'));
-    lib_feature.loadLibrary().catchError((e) => debugPrint('Preload library error: $e'));
-    explore_topics.loadLibrary().catchError((e) => debugPrint('Preload explore_topics error: $e'));
+    subscriptions.loadLibrary().catchError(
+      (e) => debugPrint('Preload subscriptions error: $e'),
+    );
+    lib_feature.loadLibrary().catchError(
+      (e) => debugPrint('Preload library error: $e'),
+    );
+    explore_topics.loadLibrary().catchError(
+      (e) => debugPrint('Preload explore_topics error: $e'),
+    );
   }
 
   @override
@@ -509,7 +526,8 @@ class Home extends GetView<HomeController> {
             ),
           ),
           bottomNavigationBar: isMobile || isTablet
-              ? Obx(() => AnimatedSlide(
+              ? Obx(
+                  () => AnimatedSlide(
                     offset: controller.showBottomNav.value
                         ? Offset.zero
                         : const Offset(0, 1),
@@ -519,7 +537,8 @@ class Home extends GetView<HomeController> {
                       opacity: controller.showBottomNav.value ? 1 : 0,
                       child: _buildBottomNavigation(context),
                     ),
-                  ))
+                  ),
+                )
               : null,
         );
       },
@@ -681,7 +700,8 @@ class Home extends GetView<HomeController> {
       case HomeController.indexFollowingTopics:
         return DeferredWidget(
           loader: following_topics.loadLibrary,
-          builder: () => following_topics.FollowingTopicsPage(isDashboard: true),
+          builder: () =>
+              following_topics.FollowingTopicsPage(isDashboard: true),
         );
       case HomeController.indexClips:
         return DeferredWidget(
@@ -935,7 +955,25 @@ class Home extends GetView<HomeController> {
   }
 
   List<Widget> _buildAppBarActions(BuildContext context, bool isMobile) {
+    final flipService = Get.isRegistered<FlipCoinService>()
+        ? Get.find<FlipCoinService>()
+        : Get.put(FlipCoinService());
+
     return [
+      // 🪙 TRUTHWORLD FLIP COIN ("THE OTHER SIDE") BUTTON
+      Obx(
+        () => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FlipCoinWidget(
+            isFlipped: flipService.isHomeFlipped.value,
+            showLabel: !isMobile,
+            onTap: () {
+              flipService.toggleHomeFlip();
+              controller.fetchInitialVideos();
+            },
+          ),
+        ),
+      ),
       if (isMobile)
         Container(
           margin: const EdgeInsets.only(right: 8),
@@ -1034,7 +1072,10 @@ class Home extends GetView<HomeController> {
           ),
           label: Text(
             controller.isLoadingAuth.value ? 'Signing In...' : 'Sign In',
-            style: const TextStyle(color: primaryAccent, fontWeight: FontWeight.w500),
+            style: const TextStyle(
+              color: primaryAccent,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           onPressed: controller.isLoadingAuth.value
               ? null
@@ -1069,7 +1110,7 @@ class Home extends GetView<HomeController> {
           switch (value) {
             case 'studio':
               if (AuthService.to.hasChannel.value) {
-                Get.toNamed('/studio');
+                StudioLauncher.openStudio();
               } else {
                 Get.toNamed('/channelscreen');
               }
@@ -1114,7 +1155,8 @@ class Home extends GetView<HomeController> {
                 ),
                 Obx(
                   () => Text(
-                    AuthService.to.hasChannel.value && AuthService.to.userChannel != null
+                    AuthService.to.hasChannel.value &&
+                            AuthService.to.userChannel != null
                         ? AuthService.to.activeHandle
                         : (controller.currentUser.value?.email ?? ''),
                     style: modernDarkProfessionalTheme.textTheme.bodySmall
@@ -1125,6 +1167,49 @@ class Home extends GetView<HomeController> {
                         ),
                     overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Builder(
+                  builder: (context) {
+                    if (Get.isRegistered<UserInterestProfileService>()) {
+                      final profileService =
+                          Get.find<UserInterestProfileService>();
+                      return Obx(() {
+                        final profile = profileService.profile.value;
+                        final score =
+                            profile?.echoChamberBreakScore.toStringAsFixed(0) ??
+                            '0';
+                        final badge =
+                            profile?.perspectiveBadge ?? 'Curious Mind';
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF9C27B0,
+                            ).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(
+                                0xFF9C27B0,
+                              ).withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: Text(
+                            '🪙 $score% $badge',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      });
+                    }
+                    return const SizedBox.shrink();
+                  },
                 ),
               ],
             ),
@@ -1200,97 +1285,88 @@ class Home extends GetView<HomeController> {
         ],
       ),
       child: Theme(
-          data: Theme.of(context).copyWith(
-            navigationBarTheme: modernDarkProfessionalTheme.navigationBarTheme
-                .copyWith(
-                  iconTheme: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return const IconThemeData(color: Colors.grey, size: 24);
-                    }
-                    return const IconThemeData(color: darkOnSurfaceVariant, size: 24);
-                  }),
-                  labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                    final style = GoogleFonts.roboto(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.5,
-                    );
-                    if (states.contains(WidgetState.selected)) {
-                      return style.copyWith(color: Colors.grey);
-                    }
-                    return style.copyWith(color: darkOnSurfaceVariant);
-                  }),
-                ),
-          ),
-          child: NavigationBar(
-            selectedIndex: controller.bottomNavSelectedIndex.value,
-            onDestinationSelected: controller.onBottomNavItemTapped,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            height: kBottomNavBarHeight,
-            indicatorColor: Colors.grey.withValues(alpha: 0.15),
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.interests_outlined),
-                selectedIcon: Icon(Icons.interests),
-                label: ' Topics',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.subscriptions_outlined),
-                selectedIcon: Icon(Icons.subscriptions),
-                label: 'Subscriptions',
-              ),
-              NavigationDestination(
-                icon: (() {
-                  final user = controller.currentUser.value;
-                  if (user == null) return const Icon(Icons.account_circle_outlined);
-                  final photoUrl = AuthService.to.activePhotoUrl;
-                  if (photoUrl.isNotEmpty) {
-                    return CircleAvatar(
-                      radius: 12,
-                      backgroundImage: NetworkImage(photoUrl),
-                    );
+        data: Theme.of(context).copyWith(
+          navigationBarTheme: modernDarkProfessionalTheme.navigationBarTheme
+              .copyWith(
+                iconTheme: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const IconThemeData(color: Colors.grey, size: 24);
                   }
-                  final initial = AuthService.to.activeDisplayName.isNotEmpty
-                      ? AuthService.to.activeDisplayName[0].toUpperCase()
-                      : 'U';
+                  return const IconThemeData(
+                    color: darkOnSurfaceVariant,
+                    size: 24,
+                  );
+                }),
+                labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                  final style = GoogleFonts.roboto(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  );
+                  if (states.contains(WidgetState.selected)) {
+                    return style.copyWith(color: Colors.grey);
+                  }
+                  return style.copyWith(color: darkOnSurfaceVariant);
+                }),
+              ),
+        ),
+        child: NavigationBar(
+          selectedIndex: controller.bottomNavSelectedIndex.value,
+          onDestinationSelected: controller.onBottomNavItemTapped,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          height: kBottomNavBarHeight,
+          indicatorColor: Colors.grey.withValues(alpha: 0.15),
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.interests_outlined),
+              selectedIcon: Icon(Icons.interests),
+              label: ' Topics',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.subscriptions_outlined),
+              selectedIcon: Icon(Icons.subscriptions),
+              label: 'Subscriptions',
+            ),
+            NavigationDestination(
+              icon: (() {
+                final user = controller.currentUser.value;
+                if (user == null)
+                  return const Icon(Icons.account_circle_outlined);
+                final photoUrl = AuthService.to.activePhotoUrl;
+                if (photoUrl.isNotEmpty) {
                   return CircleAvatar(
                     radius: 12,
-                    backgroundColor: Colors.blue,
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    backgroundImage: NetworkImage(photoUrl),
                   );
-                })(),
-                selectedIcon: (() {
-                  final user = controller.currentUser.value;
-                  if (user == null) return const Icon(Icons.account_circle_rounded);
-                  final photoUrl = AuthService.to.activePhotoUrl;
-                  if (photoUrl.isNotEmpty) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: CircleAvatar(
-                        radius: 11,
-                        backgroundImage: NetworkImage(photoUrl),
-                      ),
-                    );
-                  }
-                  final initial = AuthService.to.activeDisplayName.isNotEmpty
-                      ? AuthService.to.activeDisplayName[0].toUpperCase()
-                      : 'U';
+                }
+                final initial = AuthService.to.activeDisplayName.isNotEmpty
+                    ? AuthService.to.activeDisplayName[0].toUpperCase()
+                    : 'U';
+                return CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Colors.blue,
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              })(),
+              selectedIcon: (() {
+                final user = controller.currentUser.value;
+                if (user == null)
+                  return const Icon(Icons.account_circle_rounded);
+                final photoUrl = AuthService.to.activePhotoUrl;
+                if (photoUrl.isNotEmpty) {
                   return Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -1298,24 +1374,38 @@ class Home extends GetView<HomeController> {
                     ),
                     child: CircleAvatar(
                       radius: 11,
-                      backgroundColor: Colors.blue,
-                      child: Text(
-                        initial,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      backgroundImage: NetworkImage(photoUrl),
                     ),
                   );
-                })(),
-                label: 'You',
-              ),
-            ],
-          ),
+                }
+                final initial = AuthService.to.activeDisplayName.isNotEmpty
+                    ? AuthService.to.activeDisplayName[0].toUpperCase()
+                    : 'U';
+                return Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                  child: CircleAvatar(
+                    radius: 11,
+                    backgroundColor: Colors.blue,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              })(),
+              label: 'You',
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 }
 
@@ -1328,7 +1418,8 @@ class _ModernSideNavigationRail extends StatelessWidget {
     required this.onSelectItem,
     required this.onShowSignInSnackbar,
     required this.currentUser,
-    required this.homeController, this.isCompact = false,
+    required this.homeController,
+    this.isCompact = false,
   });
   final int selectedIndex;
   final Function(int) onSelectItem;
@@ -1367,7 +1458,8 @@ class _ModernSideNavigationRail extends StatelessWidget {
       final visibleEntries = HomeSidebarVisibility.getVisibleEntries(
         isAuthenticated: isAuthenticated,
       );
-      final shouldShowPersonalSection = visibleEntries.contains('Your channel') ||
+      final shouldShowPersonalSection =
+          visibleEntries.contains('Your channel') ||
           visibleEntries.contains('History');
 
       return ListView(
@@ -1430,6 +1522,14 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   HomeController.indexExploreTopics,
                   route: '/explore-topics',
                 ),
+                _buildNavItem(
+                  context,
+                  Icons.workspace_premium_rounded,
+                  Icons.workspace_premium_outlined,
+                  'Truthworld Premium',
+                  997,
+                  route: '/premium',
+                ),
               ],
             ),
           ),
@@ -1451,7 +1551,11 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     children: [
                       if (!isCompact)
                         Padding(
-                          padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                          padding: const EdgeInsets.only(
+                            left: 4,
+                            bottom: 8,
+                            top: 4,
+                          ),
                           child: Text(
                             'YOU',
                             style: GoogleFonts.roboto(
@@ -1696,23 +1800,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   'Truthworld Studio',
                   998,
                   route: '/studio',
-                  onTap: () async {
-                    final origin = html.window.location.origin;
-                    final studioUrl = kIsWeb && '$origin'.contains('localhost')
-                        ? '$origin/studio'
-                        : 'https://truthworld-1-studio.web.app/';
-                    final studioUri = Uri.parse(studioUrl);
-                    if (await canLaunchUrl(studioUri)) {
-                      await launchUrl(studioUri, mode: LaunchMode.externalApplication);
-                    } else {
-                      Get.snackbar(
-                        'Error',
-                        'Could not launch Truthworld Studio.',
-                        backgroundColor: const Color(0xFFCF6679),
-                        colorText: Colors.white,
-                      );
-                    }
-                  },
+                  onTap: () => StudioLauncher.openStudio(),
                 ),
                 _buildNavItem(
                   context,
@@ -1743,7 +1831,10 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 // Footer
                 if (!isCompact)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 4,
+                    ),
                     child: Column(
                       children: [
                         Text(
@@ -2238,7 +2329,12 @@ class _ModernChannelListItem extends StatelessWidget {
 // ==========================================================================
 class _ModernMainContent extends StatelessWidget {
   const _ModernMainContent({
-    required this.isMobile, required this.isTablet, required this.isDesktop, required this.homeController, required this.appBarActionsBuilder, super.key,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    required this.homeController,
+    required this.appBarActionsBuilder,
+    super.key,
   });
   final bool isMobile;
   final bool isTablet;
@@ -2392,49 +2488,214 @@ class _ModernMainContent extends StatelessWidget {
           ),
         ),
         padding: const EdgeInsets.symmetric(vertical: 6),
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: categories.length,
-          itemBuilder: (context, index) {
-            final category = categories[index];
-            return Obx(() {
-              final isSelected =
-                  homeController.selectedCategory.value == category;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () {
-                    homeController.selectCategory(category);
-                    HapticFeedback.selectionClick();
-                    Get.toNamed(
-                      '/category',
-                      arguments: {'category': category},
+        child: Row(
+          children: [
+            // 📦 ALL CATEGORIES POPUP ICON BUTTON
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 4),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.grid_view_rounded,
+                  color: Colors.white, // RULE ENFORCEMENT: White icon
+                  size: 20,
+                ),
+                tooltip: 'All Categories',
+                onPressed: () => _showAllCategoriesPopup(context, categories),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(right: 16),
+                itemCount: categories.length,
+                itemBuilder: (context, index) {
+                  final category = categories[index];
+                  return Obx(() {
+                    final isSelected =
+                        homeController.selectedCategory.value == category;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          homeController.selectCategory(category);
+                          HapticFeedback.selectionClick();
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF272727),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            category,
+                            style: GoogleFonts.roboto(
+                              fontSize: 14,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                              color: isSelected ? Colors.black : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                     );
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white : const Color(0xFF272727),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      category,
-                      style: GoogleFonts.roboto(
-                        fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isSelected ? Colors.black : Colors.white,
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAllCategoriesPopup(BuildContext context, List<String> categories) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        String searchQuery = '';
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = categories
+                .where(
+                  (c) => c.toLowerCase().contains(searchQuery.toLowerCase()),
+                )
+                .toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: const BoxDecoration(
+                color: Color(0xFF14141F),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                ),
-              );
-            });
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.grid_view_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'All Categories (Personalized)',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search categories...',
+                      hintStyle: const TextStyle(color: Colors.white54),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Colors.white70,
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFF232333),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setModalState(() {
+                        searchQuery = val;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 2.8,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, idx) {
+                        final cat = filtered[idx];
+                        return Obx(() {
+                          final isSelected =
+                              homeController.selectedCategory.value == cat;
+                          return InkWell(
+                            onTap: () {
+                              homeController.selectCategory(cat);
+                              Navigator.pop(context);
+                            },
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF232333),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.white12,
+                                ),
+                              ),
+                              child: Text(
+                                cat,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.black
+                                      : Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          );
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -2490,7 +2751,10 @@ class _ModernVideoGridSection extends StatelessWidget {
             if (index + 2 < videos.length) {
               final nextItem = videos[index + 2];
               if (nextItem is Video && nextItem.thumbnailUrl.isNotEmpty) {
-                precacheImage(CachedNetworkImageProvider(nextItem.thumbnailUrl), context);
+                precacheImage(
+                  CachedNetworkImageProvider(nextItem.thumbnailUrl),
+                  context,
+                );
               }
             }
             return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
@@ -2779,10 +3043,12 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                             }
 
                             // Awesome transition effects
-                            final scale = (1 - (pageOffset.abs() * 0.3))
-                                .clamp(0.7, 1.0);
-                            final opacity =
-                                (1 - (pageOffset.abs() * 0.5)).clamp(0.0, 1.0);
+                            final scale = (1 - (pageOffset.abs() * 0.3)).clamp(
+                              0.7,
+                              1.0,
+                            );
+                            final opacity = (1 - (pageOffset.abs() * 0.5))
+                                .clamp(0.0, 1.0);
 
                             return Opacity(
                               opacity: opacity,
@@ -2828,8 +3094,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(itemsCount, (index) {
                           return Obx(() {
-                            final isSelected =
-                                _currentIndex.value == index;
+                            final isSelected = _currentIndex.value == index;
                             return AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
                               width: isSelected ? 32 : 8,
@@ -3014,7 +3279,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                       Text(
                         'TOPIC',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Colors.black,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -3094,7 +3359,9 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                   runSpacing: 8,
                   children: [
                     Obx(() {
-                      final isFollowed = followingController.isTopicFollowed(topic.id);
+                      final isFollowed = followingController.isTopicFollowed(
+                        topic.id,
+                      );
                       return ElevatedButton.icon(
                         onPressed: () {
                           followingController.toggleFollowTopic(topic);
@@ -3141,8 +3408,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                       onPressed: () {
                         final slug = topic.slug;
                         final title = topic.title;
-                        final imageUrl =
-                            topic.coverImage ?? topic.thumbnailUrl;
+                        final imageUrl = topic.coverImage ?? topic.thumbnailUrl;
                         final topicUrl = DeepLinkService.topicUrl(slug);
                         ShareBottomSheet.show(
                           title: title,
@@ -3238,94 +3504,687 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
 // ==========================================================================
 // PERSONALIZED PLAYLISTS SECTION
 // ==========================================================================
+// ==========================================================================
+// REALTIME TAGS & TOPICS ROW
+// ==========================================================================
+// ==========================================================================
+// REALTIME PERSONALIZED TAGS & TOPICS ROW
+// ==========================================================================
 class _PersonalizedPlaylistsSection extends StatelessWidget {
   const _PersonalizedPlaylistsSection({required this.horizontalPadding});
   final double horizontalPadding;
 
+  static final Map<String, List<Topic>> _categoryFallbackMap = {
+    'all': [
+      Topic(
+        id: 'ai-tech',
+        title: 'AI & Tech',
+        slug: 'ai-tech',
+        handle: 'T/ai-tech',
+        handleLowercase: 't/ai-tech',
+        description: 'Latest artificial intelligence and technology insights',
+        category: 'Technology',
+        coverImage:
+            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
+        thumbnailUrl:
+            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 24,
+      ),
+      Topic(
+        id: 'deep-research',
+        title: 'Deep Research',
+        slug: 'deep-research',
+        handle: 'T/deep-research',
+        handleLowercase: 't/deep-research',
+        description: 'In-depth investigative reports and deep research',
+        category: 'Research',
+        coverImage:
+            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
+        thumbnailUrl:
+            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 18,
+      ),
+      Topic(
+        id: 'verified-truths',
+        title: 'Verified Truths',
+        slug: 'verified-truths',
+        handle: 'T/verified-truths',
+        handleLowercase: 't/verified-truths',
+        description: 'Fact-checked claims and verified truths',
+        category: 'Truth',
+        coverImage:
+            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
+        thumbnailUrl:
+            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 32,
+      ),
+      Topic(
+        id: 'geopolitics',
+        title: 'Geopolitics',
+        slug: 'geopolitics',
+        handle: 'T/geopolitics',
+        handleLowercase: 't/geopolitics',
+        description: 'Global geopolitical analysis and strategic affairs',
+        category: 'World',
+        coverImage:
+            'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=1000&auto=format&fit=crop',
+        thumbnailUrl:
+            'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 15,
+      ),
+      Topic(
+        id: 'economics',
+        title: 'Economics',
+        slug: 'economics',
+        handle: 'T/economics',
+        handleLowercase: 't/economics',
+        description: 'Macroeconomics, markets, and financial insights',
+        category: 'Finance',
+        coverImage:
+            'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
+        thumbnailUrl:
+            'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 29,
+      ),
+    ],
+    'technology': [
+      Topic(
+        id: 'ai-tech',
+        title: 'AI & Tech',
+        slug: 'ai-tech',
+        handle: 'T/ai-tech',
+        handleLowercase: 't/ai-tech',
+        description: 'Artificial intelligence and modern tech innovation',
+        category: 'Technology',
+        coverImage:
+            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 42,
+      ),
+      Topic(
+        id: 'machine-learning',
+        title: 'Machine Learning',
+        slug: 'machine-learning',
+        handle: 'T/machine-learning',
+        handleLowercase: 't/machine-learning',
+        description: 'Deep neural networks, LLMs, and ML architectures',
+        category: 'Technology',
+        coverImage:
+            'https://images.unsplash.com/photo-1555255707-c07966088b7b?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 27,
+      ),
+      Topic(
+        id: 'robotics',
+        title: 'Robotics & Automation',
+        slug: 'robotics',
+        handle: 'T/robotics',
+        handleLowercase: 't/robotics',
+        description: 'Humanoid robotics, autonomous systems, and hardware',
+        category: 'Technology',
+        coverImage:
+            'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 19,
+      ),
+      Topic(
+        id: 'cyber-security',
+        title: 'Cyber Security',
+        slug: 'cyber-security',
+        handle: 'T/cyber-security',
+        handleLowercase: 't/cyber-security',
+        description: 'Encryption, threat analysis, and digital defense',
+        category: 'Technology',
+        coverImage:
+            'https://images.unsplash.com/photo-1563986768609-322da13575f3?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 31,
+      ),
+    ],
+    'research': [
+      Topic(
+        id: 'deep-research',
+        title: 'Deep Research',
+        slug: 'deep-research',
+        handle: 'T/deep-research',
+        handleLowercase: 't/deep-research',
+        description: 'In-depth investigative reports and empirical studies',
+        category: 'Research',
+        coverImage:
+            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 28,
+      ),
+      Topic(
+        id: 'data-science',
+        title: 'Data Science & Analysis',
+        slug: 'data-science',
+        handle: 'T/data-science',
+        handleLowercase: 't/data-science',
+        description: 'Statistical modeling and data-driven insights',
+        category: 'Research',
+        coverImage:
+            'https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 22,
+      ),
+      Topic(
+        id: 'investigative',
+        title: 'Investigative Reports',
+        slug: 'investigative',
+        handle: 'T/investigative',
+        handleLowercase: 't/investigative',
+        description: 'Fact-based investigative journalism and research',
+        category: 'Research',
+        coverImage:
+            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 35,
+      ),
+    ],
+    'truth': [
+      Topic(
+        id: 'verified-truths',
+        title: 'Verified Truths',
+        slug: 'verified-truths',
+        handle: 'T/verified-truths',
+        handleLowercase: 't/verified-truths',
+        description: 'Fact-checked claims and verified truths',
+        category: 'Truth',
+        coverImage:
+            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 45,
+      ),
+      Topic(
+        id: 'fact-checks',
+        title: 'Fact Checks',
+        slug: 'fact-checks',
+        handle: 'T/fact-checks',
+        handleLowercase: 't/fact-checks',
+        description: 'Debunking viral myths with verifiable sources',
+        category: 'Truth',
+        coverImage:
+            'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 38,
+      ),
+    ],
+    'gaming': [
+      Topic(
+        id: 'esports',
+        title: 'Esports & Competitive',
+        slug: 'esports',
+        handle: 'T/esports',
+        handleLowercase: 't/esports',
+        description: 'Pro tournaments, rankings, and game strategy',
+        category: 'Gaming',
+        coverImage:
+            'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 50,
+      ),
+      Topic(
+        id: 'game-dev',
+        title: 'Game Development',
+        slug: 'game-dev',
+        handle: 'T/game-dev',
+        handleLowercase: 't/game-dev',
+        description: 'Unreal Engine, Unity, and game design breakdowns',
+        category: 'Gaming',
+        coverImage:
+            'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 26,
+      ),
+    ],
+    'music': [
+      Topic(
+        id: 'soundtracks',
+        title: 'Soundtracks & Beats',
+        slug: 'soundtracks',
+        handle: 'T/soundtracks',
+        handleLowercase: 't/soundtracks',
+        description: 'Original compositions, beats, and audio production',
+        category: 'Music',
+        coverImage:
+            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 39,
+      ),
+      Topic(
+        id: 'live-performances',
+        title: 'Live Performances',
+        slug: 'live-performances',
+        handle: 'T/live-performances',
+        handleLowercase: 't/live-performances',
+        description: 'Concerts, studio sessions, and live music jams',
+        category: 'Music',
+        coverImage:
+            'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1000&auto=format&fit=crop',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        videoCount: 33,
+      ),
+    ],
+  };
+
+  void _navigateToTagPage(BuildContext context, Topic topic) {
+    if (Get.isRegistered<TopicController>()) {
+      Get.find<TopicController>().topic.value = topic;
+    } else {
+      Get.put(TopicController()).topic.value = topic;
+    }
+
+    unawaited(
+      Get.toNamed(
+        topic.topicRoute,
+        arguments: {'slug': topic.slug, 'fromCard': true, 'topic': topic},
+      ),
+    );
+  }
+
+  double _calculatePersonalizationScore(
+    Topic topic,
+    UserInterestProfile? profile,
+  ) {
+    var score = topic.trendingScore > 0
+        ? topic.trendingScore
+        : (topic.videoCount.toDouble());
+
+    if (profile != null) {
+      final slug = topic.slug.toLowerCase();
+      if (profile.followedTopicSlugs.contains(slug) ||
+          profile.followedTopicSlugs.contains(topic.id)) {
+        score += 100.0;
+      }
+      final topicAffinity =
+          profile.topicAffinities[slug] ??
+          profile.topicAffinities['topic:$slug'] ??
+          0.0;
+      score += topicAffinity * 50.0;
+
+      final catAffinity =
+          profile.categoryAffinities[topic.category] ??
+          profile.categoryAffinities[topic.category.toLowerCase()] ??
+          0.0;
+      score += catAffinity * 30.0;
+    }
+
+    return score;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final playlists = [
-      {
-        'title': 'AI & Tech',
-        'image':
-            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
-      },
-      {
-        'title': 'Deep Research',
-        'image':
-            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
-      },
-      {
-        'title': 'Verified Truths',
-        'image':
-            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-      },
-      {
-        'title': 'Geopolitics',
-        'image':
-            'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=1000&auto=format&fit=crop',
-      },
-      {
-        'title': 'Economics',
-        'image':
-            'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
-      },
-    ];
+    final homeController = Get.isRegistered<HomeController>()
+        ? Get.find<HomeController>()
+        : null;
+    final profileService = Get.isRegistered<UserInterestProfileService>()
+        ? Get.find<UserInterestProfileService>()
+        : null;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          height: 180,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            itemCount: playlists.length,
-            itemBuilder: (context, index) {
-              final playlist = playlists[index];
-              return Container(
-                width: 240,
-                margin: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  image: DecorationImage(
-                    image: NetworkImage(playlist['image']!),
-                    fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: 0.3),
-                      BlendMode.darken,
+    return Obx(() {
+      final selectedCategory = homeController?.selectedCategory.value ?? 'All';
+      final isAll =
+          selectedCategory == 'All' || selectedCategory == '🪙 Flip Coin';
+
+      final userProfile = profileService?.profile.value;
+
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('topics')
+            .limit(30)
+            .snapshots(),
+        builder: (context, snapshot) {
+          var fetchedTopics = <Topic>[];
+
+          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+            fetchedTopics = snapshot.data!.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) => t.status == 'active')
+                .toList();
+          }
+
+          // 1. Filter by category if a specific category is selected
+          var topicsList = <Topic>[];
+          if (!isAll) {
+            final catLower = selectedCategory.toLowerCase().trim();
+            topicsList = fetchedTopics.where((t) {
+              final tCat = t.category.toLowerCase().trim();
+              final tSlug = t.slug.toLowerCase().trim();
+              final tTitle = t.title.toLowerCase().trim();
+              return tCat == catLower ||
+                  tCat.contains(catLower) ||
+                  catLower.contains(tCat) ||
+                  tSlug.contains(catLower) ||
+                  tTitle.contains(catLower);
+            }).toList();
+
+            // Use category fallbacks if fetched list has few matching topics
+            final categoryKey = _categoryFallbackMap.keys.firstWhere(
+              (k) => catLower.contains(k) || k.contains(catLower),
+              orElse: () => '',
+            );
+            final fallbacks =
+                _categoryFallbackMap[categoryKey] ??
+                _categoryFallbackMap['all']!;
+
+            final existingSlugs = topicsList
+                .map((t) => t.slug.toLowerCase())
+                .toSet();
+            for (final fb in fallbacks) {
+              if (!existingSlugs.contains(fb.slug.toLowerCase())) {
+                topicsList.add(fb);
+              }
+            }
+          } else {
+            topicsList = List<Topic>.from(fetchedTopics);
+            final fallbacks = _categoryFallbackMap['all']!;
+            final existingSlugs = topicsList
+                .map((t) => t.slug.toLowerCase())
+                .toSet();
+            for (final fb in fallbacks) {
+              if (!existingSlugs.contains(fb.slug.toLowerCase())) {
+                topicsList.add(fb);
+              }
+            }
+          }
+
+          // 2. Personalize and sort by user interest score
+          topicsList.sort((a, b) {
+            final scoreA = _calculatePersonalizationScore(a, userProfile);
+            final scoreB = _calculatePersonalizationScore(b, userProfile);
+            return scoreB.compareTo(scoreA);
+          });
+
+          final sectionTitle = isAll
+              ? 'Personalized Realtime Tags'
+              : 'Top $selectedCategory Tags';
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.local_offer_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        sectionTitle,
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00E676).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF00E676).withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF00E676),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'LIVE',
+                            style: GoogleFonts.roboto(
+                              color: const Color(0xFF00E676),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.8),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  alignment: Alignment.bottomLeft,
-                  child: Text(
-                    playlist['title']!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 175,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  itemCount: topicsList.length,
+                  itemBuilder: (context, index) {
+                    final topic = topicsList[index];
+                    final imageUrl = (topic.coverImage?.isNotEmpty ?? false)
+                        ? topic.coverImage!
+                        : ((topic.thumbnailUrl?.isNotEmpty ?? false)
+                              ? topic.thumbnailUrl!
+                              : 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop');
+
+                    return Container(
+                      width: 240,
+                      margin: const EdgeInsets.only(right: 16),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(16),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => _navigateToTagPage(context, topic),
+                          splashColor: Colors.white.withValues(alpha: 0.2),
+                          highlightColor: Colors.white.withValues(alpha: 0.1),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              image: DecorationImage(
+                                image: NetworkImage(imageUrl),
+                                fit: BoxFit.cover,
+                                colorFilter: ColorFilter.mode(
+                                  Colors.black.withValues(alpha: 0.35),
+                                  BlendMode.darken,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Colors.black.withValues(alpha: 0.85),
+                                    Colors.black.withValues(alpha: 0.2),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Top Tag pill badge
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.6,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.2,
+                                            ),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                              '#',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              topic.category.isNotEmpty
+                                                  ? topic.category
+                                                  : 'Tag',
+                                              style: GoogleFonts.roboto(
+                                                color: Colors.white70,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (topic.videoCount > 0)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.15,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${topic.videoCount} videos',
+                                            style: GoogleFonts.roboto(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+
+                                  // Bottom Title & Arrow indicator
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          topic.title,
+                                          style: GoogleFonts.roboto(
+                                            color: Colors.white,
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            height: 1.2,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.arrow_forward_ios_rounded,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 }
 
@@ -3333,9 +4192,9 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
 // REUSABLE MODERN AVATAR WIDGET
 // ==========================================================================
 class _ModernAvatar extends StatelessWidget {
-
   const _ModernAvatar({
-    required this.radius, this.imageUrl,
+    required this.radius,
+    this.imageUrl,
     this.placeholderText,
   });
   final String? imageUrl;
@@ -3472,10 +4331,11 @@ class SubscriptionsShimmerPlaceholder extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               // Chips Shimmer
-              Padding(
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
-                  children: List.generate(4, (index) {
+                  children: List.generate(6, (index) {
                     return Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: Shimmer.fromColors(

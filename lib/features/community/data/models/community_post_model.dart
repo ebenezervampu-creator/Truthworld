@@ -3,7 +3,6 @@ import 'package:truthworld/features/community/data/models/poll_model.dart';
 
 /// Data model for a community post with multi-image and optional poll support.
 class CommunityPostModel {
-
   const CommunityPostModel({
     required this.id,
     required this.title,
@@ -12,7 +11,8 @@ class CommunityPostModel {
     required this.channelId,
     required this.channelName,
     required this.channelImage,
-    required this.uploadedAt, this.selectedCategory = 'General',
+    required this.uploadedAt,
+    this.selectedCategory = 'General',
     this.visibility = 'Public',
     this.images = const [],
     this.tags = const [],
@@ -30,6 +30,7 @@ class CommunityPostModel {
     this.isKidFriendly = false,
     this.processed = false,
     this.isLikeEnabled = true,
+    this.showLikeCount = true,
     this.isDislikeEnabled = true,
     this.showDislikeCount = true,
     this.isCommentsEnabled = true,
@@ -77,8 +78,10 @@ class CommunityPostModel {
       isKidFriendly: map['isKidFriendly'] ?? false,
       processed: map['processed'] ?? false,
       isLikeEnabled: map['isLikeEnabled'] ?? true,
+      showLikeCount: map['showLikeCount'] ?? map['showLikesCount'] ?? true,
       isDislikeEnabled: map['isDislikeEnabled'] ?? true,
-      showDislikeCount: map['showDislikeCount'] ?? true,
+      showDislikeCount:
+          map['showDislikeCount'] ?? map['showDislikesCount'] ?? true,
       isCommentsEnabled: map['isCommentsEnabled'] ?? true,
     );
   }
@@ -108,6 +111,7 @@ class CommunityPostModel {
   final bool isKidFriendly;
   final bool processed;
   final bool isLikeEnabled;
+  final bool showLikeCount;
   final bool isDislikeEnabled;
   final bool showDislikeCount;
   final bool isCommentsEnabled;
@@ -142,6 +146,7 @@ class CommunityPostModel {
     'isKidFriendly': isKidFriendly,
     'processed': processed,
     'isLikeEnabled': isLikeEnabled,
+    'showLikeCount': showLikeCount,
     'isDislikeEnabled': isDislikeEnabled,
     'showDislikeCount': showDislikeCount,
     'isCommentsEnabled': isCommentsEnabled,

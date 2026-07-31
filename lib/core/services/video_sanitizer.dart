@@ -33,7 +33,8 @@ class VideoSanitizer {
       }
 
       // 3. Filter explicit parameter blocked channels
-      if (blockedChannelIds != null && blockedChannelIds.contains(video.channelId)) {
+      if (blockedChannelIds != null &&
+          blockedChannelIds.contains(video.channelId)) {
         continue;
       }
 
@@ -48,7 +49,10 @@ class VideoSanitizer {
   }
 
   /// Convenience method for Home, Trending, and Category feeds
-  static List<Video> sanitizeForFeed(List<Video> videos, {List<String>? blockedChannelIds}) {
+  static List<Video> sanitizeForFeed(
+    List<Video> videos, {
+    List<String>? blockedChannelIds,
+  }) {
     return sanitize(
       videos,
       policyCheck: VideoVisibilityPolicy.isVisibleForFeed,
@@ -57,7 +61,10 @@ class VideoSanitizer {
   }
 
   /// Convenience method for Search results
-  static List<Video> sanitizeForSearch(List<Video> videos, {List<String>? blockedChannelIds}) {
+  static List<Video> sanitizeForSearch(
+    List<Video> videos, {
+    List<String>? blockedChannelIds,
+  }) {
     return sanitize(
       videos,
       policyCheck: VideoVisibilityPolicy.isVisibleForSearch,
@@ -66,7 +73,10 @@ class VideoSanitizer {
   }
 
   /// Convenience method for Recommendations
-  static List<Video> sanitizeForRecommendation(List<Video> videos, {List<String>? blockedChannelIds}) {
+  static List<Video> sanitizeForRecommendation(
+    List<Video> videos, {
+    List<String>? blockedChannelIds,
+  }) {
     return sanitize(
       videos,
       policyCheck: VideoVisibilityPolicy.isVisibleForRecommendation,
@@ -86,14 +96,23 @@ class VideoSanitizer {
 /// Extension on List<Video> for clean inline filtering in controllers
 extension VideoListSanitizerExtension on List<Video> {
   List<Video> sanitizeForFeed({List<String>? blockedChannelIds}) {
-    return VideoSanitizer.sanitizeForFeed(this, blockedChannelIds: blockedChannelIds);
+    return VideoSanitizer.sanitizeForFeed(
+      this,
+      blockedChannelIds: blockedChannelIds,
+    );
   }
 
   List<Video> sanitizeForSearch({List<String>? blockedChannelIds}) {
-    return VideoSanitizer.sanitizeForSearch(this, blockedChannelIds: blockedChannelIds);
+    return VideoSanitizer.sanitizeForSearch(
+      this,
+      blockedChannelIds: blockedChannelIds,
+    );
   }
 
   List<Video> sanitizeForRecommendation({List<String>? blockedChannelIds}) {
-    return VideoSanitizer.sanitizeForRecommendation(this, blockedChannelIds: blockedChannelIds);
+    return VideoSanitizer.sanitizeForRecommendation(
+      this,
+      blockedChannelIds: blockedChannelIds,
+    );
   }
 }

@@ -1,7 +1,8 @@
 //lib/features/presentation/views/home/slivertabbardelegate.dart
 import 'package:flutter/material.dart';
 
-class SliverTabBarDelegate extends SliverPersistentHeaderDelegate { // Optional: For handling taps (e.g., category change)
+class SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  // Optional: For handling taps (e.g., category change)
 
   SliverTabBarDelegate(
     this.tabBar, {
@@ -10,8 +11,7 @@ class SliverTabBarDelegate extends SliverPersistentHeaderDelegate { // Optional:
   });
   final TabBar tabBar;
   final Color backgroundColor;
-  final Function(int)?
-  onTabTap;
+  final Function(int)? onTabTap;
 
   @override
   Widget build(
@@ -74,8 +74,3 @@ class SliverTabBarDelegate extends SliverPersistentHeaderDelegate { // Optional:
         backgroundColor != oldDelegate.backgroundColor;
   }
 }
-
-
-
-
-

@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 /// entries (Least Recently Used based on insertion/access order) when it exceeds [maxEntries].
 /// Fully compatible drop-in replacement for GetX [RxMap].
 class EvictingRxMap<K, V> extends RxMap<K, V> {
-
   EvictingRxMap({this.maxEntries = 1000}) : super(<K, V>{});
   final int maxEntries;
 

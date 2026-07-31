@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class NotificationModel {
-
   NotificationModel({
     required this.id,
     required this.title,
@@ -22,7 +21,8 @@ class NotificationModel {
       title: data['title'] ?? '',
       message: data['message'] ?? '',
       type: data['type'] ?? 'general',
-      timestamp: TimestampUtils.parseToDateTime(data['timestamp']) ?? DateTime.now(),
+      timestamp:
+          TimestampUtils.parseToDateTime(data['timestamp']) ?? DateTime.now(),
       isRead: data['isRead'] ?? false,
       imageUrl: data['imageUrl'],
       actionUrl: data['actionUrl'],
@@ -39,8 +39,3 @@ class NotificationModel {
   final String? actionUrl;
   final Map<String, dynamic>? metadata;
 }
-
-
-
-
-

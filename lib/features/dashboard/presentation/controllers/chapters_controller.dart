@@ -26,6 +26,9 @@ class ChaptersController extends BaseController {
   final searchQuery = ''.obs;
   final filterType = 'all'.obs; // 'all', 'has_chapters', 'no_chapters'
   StreamSubscription<QuerySnapshot>? _videosSubscription;
+  StreamSubscription<QuerySnapshot>? _channelVideosSubscription;
+  final Map<String, Video> _ownerVideosMap = {};
+  final Map<String, Video> _channelVideosMap = {};
 
   // Selected video and chapters editing state
   final selectedVideo = Rxn<Video>();
@@ -43,6 +46,7 @@ class ChaptersController extends BaseController {
   @override
   void onClose() {
     _videosSubscription?.cancel();
+    _channelVideosSubscription?.cancel();
     super.onClose();
   }
 
@@ -97,51 +101,98 @@ class ChaptersController extends BaseController {
   }
 
   void _listenToChannelVideos() {
-    if (channelId.value.isEmpty) {
-      setError('Channel ID is missing');
+    final currentUser = _auth.currentUser;
+    final targetOwnerId = currentUser?.uid ?? '';
+    final targetChannelId = channelId.value;
+
+    if (targetOwnerId.isEmpty && targetChannelId.isEmpty) {
+      setError('User not authenticated and Channel ID is missing');
       return;
     }
 
     _videosSubscription?.cancel();
-    _videosSubscription = _firestore
-        .collection('videos')
-        .where('channelId', isEqualTo: channelId.value)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final loadedVideos = snapshot.docs
-                .map(Video.fromDocumentSnapshot)
-                .toList();
-            // Client-side sort to ensure consistent chronological ordering
-            loadedVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            videos.value = loadedVideos;
-            _applyFilters();
+    _channelVideosSubscription?.cancel();
+    _ownerVideosMap.clear();
+    _channelVideosMap.clear();
 
-            setViewState(
-              loadedVideos.isEmpty ? ViewState.empty : ViewState.success,
-            );
+    void updateVideosList() {
+      final combinedMap = <String, Video>{
+        ..._ownerVideosMap,
+        ..._channelVideosMap,
+      };
+      final loadedVideos = combinedMap.values.toList();
+      // Client-side sort to ensure consistent chronological ordering
+      loadedVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      videos.value = loadedVideos;
+      _applyFilters();
 
-            // Preserve or auto-select a video
-            if (selectedVideo.value != null) {
-              final updatedVideo = loadedVideos.firstWhereOrNull(
-                (v) => v.id == selectedVideo.value!.id,
-              );
-              if (updatedVideo != null) {
-                selectedVideo.value = updatedVideo;
-              } else {
-                selectVideo(
-                  loadedVideos.isNotEmpty ? loadedVideos.first : null,
-                );
-              }
-            } else if (loadedVideos.isNotEmpty) {
-              selectVideo(loadedVideos.first);
-            }
-          },
-          onError: (e) {
-            logger.error('Error streaming channel videos', error: e, tag: _tag);
-            setError('Failed to fetch videos');
-          },
+      setViewState(
+        loadedVideos.isEmpty ? ViewState.empty : ViewState.success,
+      );
+
+      // Preserve or auto-select a video
+      if (selectedVideo.value != null) {
+        final updatedVideo = loadedVideos.firstWhereOrNull(
+          (v) => v.id == selectedVideo.value!.id,
         );
+        if (updatedVideo != null) {
+          selectedVideo.value = updatedVideo;
+        } else {
+          selectVideo(
+            loadedVideos.isNotEmpty ? loadedVideos.first : null,
+          );
+        }
+      } else if (loadedVideos.isNotEmpty) {
+        selectVideo(loadedVideos.first);
+      }
+    }
+
+    if (targetOwnerId.isNotEmpty) {
+      _videosSubscription = _firestore
+          .collection('videos')
+          .where('ownerId', isEqualTo: targetOwnerId)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _ownerVideosMap.clear();
+              for (final doc in snapshot.docs) {
+                final video = Video.fromDocumentSnapshot(doc);
+                _ownerVideosMap[video.id] = video;
+              }
+              updateVideosList();
+            },
+            onError: (e) {
+              logger.error('Error streaming owner videos', error: e, tag: _tag);
+              if (_channelVideosMap.isEmpty) {
+                setError('Failed to fetch videos');
+              }
+            },
+          );
+    }
+
+    if (targetChannelId.isNotEmpty && targetChannelId != targetOwnerId) {
+      _channelVideosSubscription = _firestore
+          .collection('videos')
+          .where('channelId', isEqualTo: targetChannelId)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _channelVideosMap.clear();
+              for (final doc in snapshot.docs) {
+                final video = Video.fromDocumentSnapshot(doc);
+                _channelVideosMap[video.id] = video;
+              }
+              updateVideosList();
+            },
+            onError: (e) {
+              logger.error(
+                'Error streaming channel videos',
+                error: e,
+                tag: _tag,
+              );
+            },
+          );
+    }
   }
 
   void setSearchQuery(String query) {

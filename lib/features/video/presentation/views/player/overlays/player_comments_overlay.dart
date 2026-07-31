@@ -34,17 +34,20 @@ class CommentsOverlay extends StatelessWidget {
         ),
         child: Column(
           children: [
-            PanelHeader(
-              title: 'Comments',
-              onBack: null,
-              onClose: () {
-                ctrl.showCommentsPopup.value = false;
-                ctrl.startHideTimer();
-              },
-              onContinue: () {
-                ctrl.showCommentsPopup.value = false;
-                ctrl.startHideTimer();
-              },
+            Obx(
+              () => PanelHeader(
+                title: 'Comments',
+                onBack: null,
+                onClose: () {
+                  ctrl.showCommentsPopup.value = false;
+                  ctrl.startHideTimer();
+                },
+                onContinue: () {
+                  ctrl.toggleCommentsAutoPlay();
+                  ctrl.startHideTimer();
+                },
+                continueLabel: ctrl.isCommentsAutoPlay.value ? 'Pause' : 'Play',
+              ),
             ),
             Expanded(
               child: Obx(() {
@@ -88,7 +91,10 @@ class CommentsOverlay extends StatelessWidget {
                   return const Center(
                     child: Text(
                       'No comments yet. Be the first to comment!',
-                      style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                      style: TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 13,
+                      ),
                     ),
                   );
                 }
@@ -119,7 +125,9 @@ class CommentsOverlay extends StatelessWidget {
 
 class FullscreenCommentItem extends StatelessWidget {
   const FullscreenCommentItem({
-    required this.comment, required this.controller, super.key,
+    required this.comment,
+    required this.controller,
+    super.key,
   });
   final Comment comment;
   final CommentsController controller;
@@ -256,7 +264,9 @@ class FullscreenCommentItem extends StatelessWidget {
                                   ? Icons.thumb_up_rounded
                                   : Icons.thumb_up_outlined,
                               size: 14,
-                              color: isLiked ? PT.primary : AppColors.textSecondary,
+                              color: isLiked
+                                  ? PT.primary
+                                  : AppColors.textSecondary,
                             ),
                             if (comment.likeCount > 0) ...[
                               const SizedBox(width: 4),
@@ -287,7 +297,9 @@ class FullscreenCommentItem extends StatelessWidget {
                               ? Icons.thumb_down_rounded
                               : Icons.thumb_down_outlined,
                           size: 14,
-                          color: isDisliked ? PT.primary : AppColors.textSecondary,
+                          color: isDisliked
+                              ? PT.primary
+                              : AppColors.textSecondary,
                         ),
                       ),
                     ),
@@ -337,8 +349,14 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
 
       final shouldPostAsChannel = hasChannel;
       final targetChannelId = shouldPostAsChannel ? channel?.id : null;
-      final targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
-      final targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
+      final targetChannelName = shouldPostAsChannel
+          ? (channel?.handle.isNotEmpty ?? false
+                ? channel?.handle
+                : channel?.name)
+          : null;
+      final targetChannelAvatar = shouldPostAsChannel
+          ? channel?.avatarUrl
+          : null;
       final targetUserAvatar = AuthService.to.activePhotoUrl;
 
       await widget.commentsController.submitComment(
@@ -387,14 +405,15 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
         decoration: BoxDecoration(
           color: AppColors.bgPage.withValues(alpha: 0.3),
           border: Border(
-            top: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+            top: BorderSide(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+            ),
           ),
         ),
         child: Row(
           children: [
             ClipOval(
-              child:
-                  photoUrl.isNotEmpty
+              child: photoUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: photoUrl,
                       width: 28,
@@ -417,11 +436,17 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
               child: TextField(
                 controller: _textCtrl,
                 focusNode: _focusNode,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
                 maxLines: null,
                 decoration: const InputDecoration(
                   hintText: 'Add a comment...',
-                  hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                  hintStyle: TextStyle(
+                    color: AppColors.textTertiary,
+                    fontSize: 13,
+                  ),
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(vertical: 6),
@@ -458,6 +483,123 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
               }
             }),
           ],
+        ),
+      );
+    });
+  }
+}
+
+class FloatingAutoPlayCommentOverlay extends StatelessWidget {
+  const FloatingAutoPlayCommentOverlay({required this.ctrl, super.key});
+  final TowerPlayerController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (!ctrl.isCommentsAutoPlay.value) return const SizedBox.shrink();
+      final comment = ctrl.currentAutoPlayComment.value;
+      if (comment == null) return const SizedBox.shrink();
+
+      final hasChannel =
+          comment.channelName != null && comment.channelName!.trim().isNotEmpty;
+      final authorHandle = hasChannel
+          ? (comment.channelName!.startsWith('@')
+                ? comment.channelName!
+                : '@${comment.channelName}')
+          : comment.userName;
+
+      return Positioned(
+        top: ctrl.isFullScreen.value ? 48 : 16,
+        left: 20,
+        right: 20,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: GestureDetector(
+            onTap: () {
+              // Tap floating comment opens comments section
+              ctrl.showCommentsPopup.value = true;
+              ctrl.startHideTimer();
+            },
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 440),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.bgPage.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.textPrimary.withValues(alpha: 0.2),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Author avatar
+                  ClipOval(
+                    child: comment.avatarUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: comment.avatarUrl,
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            width: 28,
+                            height: 28,
+                            color: AppColors.textSecondary,
+                            child: const Icon(
+                              Icons.person,
+                              size: 16,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Comment text & author
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          authorHandle,
+                          style: TextStyle(
+                            color: hasChannel
+                                ? AppColors.brandHover
+                                : AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          comment.text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 12,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 16,
+                    color: AppColors.textPrimary,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     });

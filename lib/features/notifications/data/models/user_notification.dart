@@ -74,7 +74,6 @@ enum NotificationLifecycle {
 }
 
 class NotificationActionItem {
-
   NotificationActionItem({
     required this.id,
     required this.label,
@@ -96,15 +95,14 @@ class NotificationActionItem {
   final Map<String, dynamic>? payload;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'type': type,
-        'payload': payload,
-      };
+    'id': id,
+    'label': label,
+    'type': type,
+    'payload': payload,
+  };
 }
 
 class AnalyticsSnapshotData {
-
   AnalyticsSnapshotData({
     required this.views,
     required this.subscribers,
@@ -151,27 +149,30 @@ class AnalyticsSnapshotData {
   final DateTime snapshotAt;
 
   Map<String, dynamic> toJson() => {
-        'views': views,
-        'subscribers': subscribers,
-        'likes': likes,
-        'comments': comments,
-        'shares': shares,
-        'watchHours': watchHours,
-        'ctr': ctr,
-        'avd': avd,
-        'subscriberDelta': subscriberDelta,
-        'snapshotAt': snapshotAt.millisecondsSinceEpoch,
-      };
+    'views': views,
+    'subscribers': subscribers,
+    'likes': likes,
+    'comments': comments,
+    'shares': shares,
+    'watchHours': watchHours,
+    'ctr': ctr,
+    'avd': avd,
+    'subscriberDelta': subscriberDelta,
+    'snapshotAt': snapshotAt.millisecondsSinceEpoch,
+  };
 }
 
 class UserNotification {
-
   UserNotification({
     required this.id,
     required this.userId,
     required this.type,
     required this.severity,
-    required this.title, required this.message, required this.read, required this.createdAt, this.priority = NotificationPriority.low,
+    required this.title,
+    required this.message,
+    required this.read,
+    required this.createdAt,
+    this.priority = NotificationPriority.low,
     this.status = NotificationLifecycle.unread,
     this.category = 'system',
     this.rankingScore = 0.0,
@@ -211,13 +212,19 @@ class UserNotification {
     var actionItems = <NotificationActionItem>[];
     if (json['actions'] is List) {
       actionItems = (json['actions'] as List)
-          .map((a) => NotificationActionItem.fromJson(Map<String, dynamic>.from(a as Map)))
+          .map(
+            (a) => NotificationActionItem.fromJson(
+              Map<String, dynamic>.from(a as Map),
+            ),
+          )
           .toList();
     }
 
     AnalyticsSnapshotData? snapData;
     if (json['analyticsSnapshot'] is Map) {
-      snapData = AnalyticsSnapshotData.fromJson(Map<String, dynamic>.from(json['analyticsSnapshot'] as Map));
+      snapData = AnalyticsSnapshotData.fromJson(
+        Map<String, dynamic>.from(json['analyticsSnapshot'] as Map),
+      );
     }
 
     final isRead = json['read'] as bool? ?? (json['status'] == 'read');
@@ -226,7 +233,9 @@ class UserNotification {
       id: docId.isNotEmpty ? docId : (json['id'] as String? ?? ''),
       userId: json['userId'] as String? ?? json['creatorId'] as String? ?? '',
       type: json['type'] as String? ?? 'system_announcement',
-      severity: NotificationSeverity.fromString(json['severity'] as String? ?? json['priority'] as String?),
+      severity: NotificationSeverity.fromString(
+        json['severity'] as String? ?? json['priority'] as String?,
+      ),
       priority: NotificationPriority.fromString(json['priority'] as String?),
       status: NotificationLifecycle.fromString(json['status'] as String?),
       category: json['category'] as String? ?? 'system',
@@ -336,12 +345,16 @@ class UserNotification {
 
   bool get isToday {
     final now = DateTime.now();
-    return createdAt.year == now.year && createdAt.month == now.month && createdAt.day == now.day;
+    return createdAt.year == now.year &&
+        createdAt.month == now.month &&
+        createdAt.day == now.day;
   }
 
   bool get isYesterday {
     final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    return createdAt.year == yesterday.year && createdAt.month == yesterday.month && createdAt.day == yesterday.day;
+    return createdAt.year == yesterday.year &&
+        createdAt.month == yesterday.month &&
+        createdAt.day == yesterday.day;
   }
 
   bool get isThisWeek {

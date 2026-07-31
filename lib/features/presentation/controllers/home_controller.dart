@@ -319,9 +319,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
       if (results.docs.isNotEmpty) {
         _lastDocument = results.docs.last;
-        final newVideos = results.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList();
+        final newVideos = results.docs.map(Video.fromDocumentSnapshot).toList();
         videos.assignAll(newVideos);
 
         // Check if we got fewer items than page size (no more pages)
@@ -379,9 +377,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
       if (results.docs.isNotEmpty) {
         _lastDocument = results.docs.last;
-        final newVideos = results.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList();
+        final newVideos = results.docs.map(Video.fromDocumentSnapshot).toList();
         videos.addAll(newVideos);
 
         // Stop pagination if fewer items than page size
@@ -454,8 +450,6 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
     return results.docs.map(Video.fromDocumentSnapshot).toList();
   }
-
-
 
   /// Sign out current user
   Future<void> signOut() async {
@@ -618,9 +612,3 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   /// Get current user display name
   String? get userName => currentUser.value?.displayName;
 }
-
-
-
-
-
-

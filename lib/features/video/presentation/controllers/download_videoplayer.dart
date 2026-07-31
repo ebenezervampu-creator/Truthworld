@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
-import 'package:truthworld/features/video/presentation/controllers/register_stub.dart' if (dart.library.html) 'register_web.dart';
+import 'package:truthworld/features/video/presentation/controllers/register_stub.dart'
+    if (dart.library.html) 'register_web.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
 
@@ -30,9 +31,3 @@ class OfflineVideoController extends GetxController {
     super.onClose();
   }
 }
-
-
-
-
-
-

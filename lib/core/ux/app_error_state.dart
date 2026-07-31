@@ -55,7 +55,6 @@ class RetryButtonController extends GetxController {
 
 /// Premium error state widget with retry support.
 class AppErrorState extends StatelessWidget {
-
   const AppErrorState({
     super.key,
     this.title,
@@ -129,7 +128,6 @@ class AppErrorState extends StatelessWidget {
                     title ?? 'Something went wrong',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: twColors.textPrimary,
@@ -146,7 +144,6 @@ class AppErrorState extends StatelessWidget {
                         subtitle!,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          
                           fontSize: 14,
                           color: twColors.textSecondary,
                           height: 1.5,
@@ -171,7 +168,6 @@ class AppErrorState extends StatelessWidget {
 }
 
 class _RetryButton extends StatelessWidget {
-
   const _RetryButton({required this.label, required this.onPressed});
   final String label;
   final VoidCallback onPressed;
@@ -209,7 +205,6 @@ class _RetryButton extends StatelessWidget {
               label: Text(
                 label,
                 style: TextStyle(
-                  
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: controller.isHovered

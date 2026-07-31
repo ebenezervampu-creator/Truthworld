@@ -7,7 +7,6 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 
 class NetworkStatusController extends GetxController {
-
   NetworkStatusController({
     this.debounceDuration = const Duration(milliseconds: 500),
   });
@@ -70,9 +69,9 @@ class NetworkStatusController extends GetxController {
 /// Network Status Banner
 /// ---------------------------
 class NetworkStatusListener extends StatelessWidget {
-
   const NetworkStatusListener({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.onlineMessage,
     this.offlineMessage,
     this.onlineColor,
@@ -131,7 +130,3 @@ class NetworkStatusListener extends StatelessWidget {
     );
   }
 }
-
-
-
-

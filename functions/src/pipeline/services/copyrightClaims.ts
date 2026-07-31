@@ -10,6 +10,7 @@
 
 import * as admin from "firebase-admin";
 import { logger } from "../utils/logger";
+import { getVertexAI } from "../utils/ai-client";
 import {
   CopyrightClaim,
   CopyrightMatch,
@@ -323,8 +324,7 @@ export class CopyrightClaimsService {
       const origTranscript = origVideoSnap.data()?.transcript?.text || "";
 
       // Re-run fair use analysis considering uploader's reason/appeal details
-      const { VertexAI } = require("@google-cloud/vertexai");
-      const vertexAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+      const vertexAI = getVertexAI();
       const model = vertexAI.getGenerativeModel({
         model: GEMINI_MODEL,
         generationConfig: { responseMimeType: "application/json", temperature: 0.1 },

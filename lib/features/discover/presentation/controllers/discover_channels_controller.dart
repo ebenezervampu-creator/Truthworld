@@ -79,11 +79,15 @@ class DiscoverChannelsController extends GetxController {
   Future<void> loadChannels() async {
     isLoading.value = true;
     try {
-      Query query = _firestore.collection('channels')
+      Query query = _firestore
+          .collection('channels')
           .where('status', isEqualTo: 'active');
 
       if (selectedCategory.value != 'All') {
-        query = query.where('category', isEqualTo: selectedCategory.value.toLowerCase());
+        query = query.where(
+          'category',
+          isEqualTo: selectedCategory.value.toLowerCase(),
+        );
       }
 
       if (searchQuery.value.isNotEmpty) {
@@ -107,13 +111,17 @@ class DiscoverChannelsController extends GetxController {
       }
 
       final snapshot = await query.limit(50).get();
-      var loadedChannels = snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
+      var loadedChannels = snapshot.docs
+          .map(Channel.fromDocumentSnapshot)
+          .toList();
 
       // Apply client-side sorting when search query is active
       if (searchQuery.value.isNotEmpty) {
         switch (selectedFilter.value) {
           case 'Top Channels':
-            loadedChannels.sort((a, b) => b.subscriberCount.compareTo(a.subscriberCount));
+            loadedChannels.sort(
+              (a, b) => b.subscriberCount.compareTo(a.subscriberCount),
+            );
           case 'Emerging':
             loadedChannels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           case 'Verified Only':
@@ -138,7 +146,3 @@ class DiscoverChannelsController extends GetxController {
     super.onClose();
   }
 }
-
-
-
-

@@ -6,7 +6,6 @@ import 'package:truthworld/theme/app_theme.dart';
 // Replaces the old monolithic EnhancedUploadScreen
 // =============================================================================
 
-
 class CreateContentScreen extends StatelessWidget {
   const CreateContentScreen({super.key});
 
@@ -17,9 +16,7 @@ class CreateContentScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? AppColors.bgPage
-          : AppColors.textPrimary,
+      backgroundColor: isDark ? AppColors.bgPage : AppColors.textPrimary,
       body: SafeArea(
         child: _isMobile(context)
             ? _buildMobileLayout(context, isDark)
@@ -91,14 +88,10 @@ class CreateContentScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.bgPage
-            : AppColors.textPrimary,
+        color: isDark ? AppColors.bgPage : AppColors.textPrimary,
         border: Border(
           bottom: BorderSide(
-            color: isDark
-                ? AppColors.bgSurface
-                : AppColors.textSecondary,
+            color: isDark ? AppColors.bgSurface : AppColors.textSecondary,
           ),
         ),
       ),
@@ -114,16 +107,14 @@ class CreateContentScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: isDark
-                  ? AppColors.textPrimary
-                  : AppColors.bgPage,
+              color: isDark ? AppColors.textPrimary : AppColors.bgPage,
             ),
           ),
         ],
       ),
     );
   }
-  
+
   Widget _buildHeader(bool isDark, {bool compact = false}) {
     return Row(
       children: [
@@ -163,9 +154,7 @@ class CreateContentScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: compact ? 22 : 28,
                   fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : AppColors.bgPage,
+                  color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                   letterSpacing: -0.8,
                 ),
               ),
@@ -222,14 +211,10 @@ class CreateContentScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.bgSurface
-                : AppColors.textPrimary,
+            color: isDark ? AppColors.bgSurface : AppColors.textPrimary,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isDark
-                  ? AppColors.bgSurface
-                  : AppColors.textSecondary,
+              color: isDark ? AppColors.bgSurface : AppColors.textSecondary,
             ),
             boxShadow: [
               BoxShadow(
@@ -255,7 +240,11 @@ class CreateContentScreen extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(item.icon, color: AppColors.textPrimary, size: 28),
+                    child: Icon(
+                      item.icon,
+                      color: AppColors.textPrimary,
+                      size: 28,
+                    ),
                   ),
                   if (item.badge.isNotEmpty)
                     Container(
@@ -307,7 +296,6 @@ class CreateContentScreen extends StatelessWidget {
 
 /// Internal data class for content type card rendering.
 class _ContentType {
-
   const _ContentType({
     required this.icon,
     required this.title,
@@ -323,10 +311,3 @@ class _ContentType {
   final String route;
   final String badge;
 }
-
-
-
-
-
-
-

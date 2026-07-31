@@ -245,9 +245,7 @@ class LibraryController extends GetxController
         .snapshots()
         .listen(
           (snapshot) {
-            final list = snapshot.docs
-                .map(Video.fromDocumentSnapshot)
-                .toList();
+            final list = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
             // Sort in-memory to prevent missing composite index errors
             list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
             yourVideos.value = list.take(10).toList();

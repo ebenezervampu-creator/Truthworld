@@ -1,11 +1,10 @@
 /// 🎯 CREDIBILITY REPORT MODELS (v8.0 — Epistemic Trust Engine)
-/// 
+///
 /// Maps the multidimensional credibility data from the backend to Flutter.
 /// Used for the "Credibility Nutrition Label" UI.
 library;
 
 class ScoringFactors {
-
   ScoringFactors({
     required this.accuracy,
     required this.evidence,
@@ -55,7 +54,6 @@ class ScoringFactors {
 }
 
 class HonestyBreakdown {
-
   HonestyBreakdown({
     required this.score,
     required this.opinionLabeledOpinion,
@@ -74,7 +72,8 @@ class HonestyBreakdown {
       beliefPresentedAsFact: map['beliefPresentedAsFact'] ?? 0,
       opinionPresentedAsFact: map['opinionPresentedAsFact'] ?? 0,
       speculationLabeledSpeculation: map['speculationLabeledSpeculation'] ?? 0,
-      assertivenessMismatchPenalty: (map['assertivenessMismatchPenalty'] ?? 0).toDouble(),
+      assertivenessMismatchPenalty: (map['assertivenessMismatchPenalty'] ?? 0)
+          .toDouble(),
     );
   }
   final double score;
@@ -97,7 +96,6 @@ class HonestyBreakdown {
 }
 
 class ContextualFlag {
-
   ContextualFlag({
     required this.topic,
     required this.claimText,
@@ -129,7 +127,6 @@ class ContextualFlag {
 }
 
 class Perspective {
-
   Perspective({
     required this.label,
     required this.explanation,
@@ -155,7 +152,6 @@ class Perspective {
 }
 
 class TrustDeduction {
-
   TrustDeduction({
     required this.factor,
     required this.points,
@@ -181,7 +177,6 @@ class TrustDeduction {
 }
 
 class FactCheckStats {
-
   FactCheckStats({
     required this.totalClaims,
     required this.correct,
@@ -211,10 +206,13 @@ class FactCheckStats {
 }
 
 class HardeningMetadata {
-
   HardeningMetadata({
     required this.truthFloorApplied,
-    required this.consensusGateTriggered, required this.intentToMisleadScore, required this.penalties, required this.auditTimestamp, this.truthFloorReason,
+    required this.consensusGateTriggered,
+    required this.intentToMisleadScore,
+    required this.penalties,
+    required this.auditTimestamp,
+    this.truthFloorReason,
     this.domainOverride,
   });
 
@@ -222,7 +220,9 @@ class HardeningMetadata {
     return HardeningMetadata(
       truthFloorApplied: map['truthFloorApplied'] ?? false,
       truthFloorReason: map['truthFloorReason'],
-      domainOverride: map['domainOverride'] != null ? DomainOverride.fromMap(map['domainOverride']) : null,
+      domainOverride: map['domainOverride'] != null
+          ? DomainOverride.fromMap(map['domainOverride'])
+          : null,
       consensusGateTriggered: map['consensusGateTriggered'] ?? false,
       intentToMisleadScore: (map['intentToMisleadScore'] ?? 0).toDouble(),
       penalties: List<Map<String, dynamic>>.from(map['penalties'] ?? []),
@@ -249,10 +249,11 @@ class HardeningMetadata {
 }
 
 class DomainOverride {
-
   DomainOverride({
     required this.triggered,
-    required this.penalty, required this.riskDelta, this.from,
+    required this.penalty,
+    required this.riskDelta,
+    this.from,
     this.to,
   });
 
@@ -280,8 +281,8 @@ class DomainOverride {
   };
 }
 
-
-class UIDriver { // 'high' | 'medium'
+class UIDriver {
+  // 'high' | 'medium'
 
   UIDriver({required this.text, required this.impact});
 
@@ -301,10 +302,11 @@ class UIDriver { // 'high' | 'medium'
 }
 
 class UISource {
-
   UISource({
     required this.title,
-    required this.trustLevel, required this.type, this.url,
+    required this.trustLevel,
+    required this.type,
+    this.url,
     this.domain,
     this.citationCount = 0,
     this.snippet,
@@ -345,7 +347,6 @@ class UISource {
 }
 
 class UIEvidence {
-
   UIEvidence({required this.type, required this.strength});
 
   factory UIEvidence.fromMap(Map<String, dynamic> map) => UIEvidence(
@@ -362,7 +363,6 @@ class UIEvidence {
 }
 
 class UIConsensus {
-
   UIConsensus({required this.domain, required this.level});
 
   factory UIConsensus.fromMap(Map<String, dynamic> map) => UIConsensus(
@@ -379,7 +379,6 @@ class UIConsensus {
 }
 
 class ClaimResult {
-
   ClaimResult({
     required this.text,
     required this.verdict,
@@ -408,8 +407,10 @@ class ClaimResult {
       effectiveSources: (map['effectiveSources'] as List? ?? [])
           .map((s) => UISource.fromMap(Map<String, dynamic>.from(s)))
           .toList(),
-      classificationConfidence: (map['classificationConfidence'] as num?)?.toDouble(),
-      historicalEvidenceConfidence: (map['historicalEvidenceConfidence'] as num?)?.toDouble(),
+      classificationConfidence: (map['classificationConfidence'] as num?)
+          ?.toDouble(),
+      historicalEvidenceConfidence:
+          (map['historicalEvidenceConfidence'] as num?)?.toDouble(),
       evidenceDetails: map['evidenceDetails'] != null
           ? Map<String, String>.from(map['evidenceDetails'])
           : null,
@@ -435,8 +436,10 @@ class ClaimResult {
   final double? end;
   final bool? isLowRiskTrivia;
   final List<UISource> effectiveSources;
+
   /// Confidence in the categorization of the claim nature (e.g. 1.0 = 100% sure this is a RELIGIOUS_CLAIM).
   final double? classificationConfidence;
+
   /// Confidence in the historical/empirical evidence backing the claim (e.g. 0.9 = 90% sure Siddhartha Gautama existed historically).
   final double? historicalEvidenceConfidence;
   final Map<String, String>? evidenceDetails;
@@ -467,9 +470,10 @@ class ClaimResult {
 }
 
 class UISummary {
-
   UISummary({
-    required this.label, required this.confidence, this.rating,
+    required this.label,
+    required this.confidence,
+    this.rating,
     this.truthScore,
     this.honestyScore,
     this.rationalityScore,
@@ -480,9 +484,15 @@ class UISummary {
   factory UISummary.fromMap(Map<String, dynamic> map) {
     return UISummary(
       rating: map['rating'] != null ? (map['rating'] as num).toDouble() : null,
-      truthScore: map['truthScore'] != null ? (map['truthScore'] as num).toDouble() : null,
-      honestyScore: map['honestyScore'] != null ? (map['honestyScore'] as num).toDouble() : null,
-      rationalityScore: map['rationalityScore'] != null ? (map['rationalityScore'] as num).toDouble() : null,
+      truthScore: map['truthScore'] != null
+          ? (map['truthScore'] as num).toDouble()
+          : null,
+      honestyScore: map['honestyScore'] != null
+          ? (map['honestyScore'] as num).toDouble()
+          : null,
+      rationalityScore: map['rationalityScore'] != null
+          ? (map['rationalityScore'] as num).toDouble()
+          : null,
       label: map['label'] ?? '',
       confidence: map['confidence'] ?? 'low',
       confidenceInterpretation: map['confidenceInterpretation'],
@@ -511,7 +521,6 @@ class UISummary {
 }
 
 class UIReport {
-
   UIReport({
     required this.summary,
     required this.quickVerdict,
@@ -585,7 +594,3 @@ class UIReport {
   String get confidence => summary.confidence;
   String? get analysisState => summary.analysisState;
 }
-
-
-
-

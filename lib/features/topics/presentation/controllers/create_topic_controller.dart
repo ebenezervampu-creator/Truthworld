@@ -19,10 +19,13 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
   final TextEditingController handleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController accessCodeController = TextEditingController();
-  final TextEditingController categoryController = TextEditingController(text: 'Technology');
+  final TextEditingController categoryController = TextEditingController(
+    text: 'Technology',
+  );
 
   // Form State
-  final Rx<TopicVisibilityType> selectedVisibility = TopicVisibilityType.public.obs;
+  final Rx<TopicVisibilityType> selectedVisibility =
+      TopicVisibilityType.public.obs;
   final RxBool obscureAccessCode = true.obs;
   final RxString thumbnailSource = 'video'.obs; // 'video' | 'custom'
 
@@ -106,7 +109,12 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
         await verifyCustomThumbnail(bytes, fileName);
       }
     } catch (e, stack) {
-      logger.error('Failed to pick thumbnail image: $e', error: e, stackTrace: stack, tag: 'CREATE_TOPIC');
+      logger.error(
+        'Failed to pick thumbnail image: $e',
+        error: e,
+        stackTrace: stack,
+        tag: 'CREATE_TOPIC',
+      );
       visionError.value = 'Failed to pick image file. Please try again.';
       isVisionApproved.value = false;
     }
@@ -216,9 +224,11 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
       }
       if (!isVisionApproved.value) {
         if (isVisionScanning.value) {
-          visionError.value = 'Please wait for Google Cloud Vision AI scan to finish.';
+          visionError.value =
+              'Please wait for Google Cloud Vision AI scan to finish.';
         } else if (visionError.value.isEmpty) {
-          visionError.value = 'Custom thumbnail failed Vision AI safety verification.';
+          visionError.value =
+              'Custom thumbnail failed Vision AI safety verification.';
         }
         return false;
       }
@@ -236,7 +246,8 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
       }
     } else {
       selectedVideoIds.add(videoId);
-      if (chosenVideoThumbnailUrl.value.isEmpty && videoThumbnailUrl.isNotEmpty) {
+      if (chosenVideoThumbnailUrl.value.isEmpty &&
+          videoThumbnailUrl.isNotEmpty) {
         chosenVideoThumbnailUrl.value = videoThumbnailUrl;
       }
     }

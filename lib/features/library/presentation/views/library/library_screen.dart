@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -190,7 +191,9 @@ class LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: !widget.isDashboard ? _buildModernAppBar(context, isTablet: true) : null,
+      appBar: !widget.isDashboard
+          ? _buildModernAppBar(context, isTablet: true)
+          : null,
       body: SafeArea(child: _buildMainContent(context, userId, isTablet: true)),
     );
   }
@@ -222,7 +225,10 @@ class LibraryScreenState extends State<LibraryScreen>
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.textPrimary, AppColors.textPrimary.withValues(alpha: 0.5)],
+                colors: [
+                  AppColors.textPrimary,
+                  AppColors.textPrimary.withValues(alpha: 0.5),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -408,7 +414,8 @@ class LibraryScreenState extends State<LibraryScreen>
             final authService = AuthService.to;
             final hasChannel = authService.hasChannel.value;
 
-            final isLibraryEmpty = !homeController.hasWatchHistory.value &&
+            final isLibraryEmpty =
+                !homeController.hasWatchHistory.value &&
                 !homeController.hasPlaylists.value &&
                 !homeController.hasFollowedTopics.value &&
                 !homeController.hasLikedVideos.value &&
@@ -421,7 +428,10 @@ class LibraryScreenState extends State<LibraryScreen>
             if (isLibraryEmpty) {
               items.add(
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 32,
+                    horizontal: 20,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -459,7 +469,11 @@ class LibraryScreenState extends State<LibraryScreen>
                                 HapticFeedback.lightImpact();
                                 Get.toNamed('/settings');
                               },
-                              icon: const Icon(Icons.settings_outlined, size: 18, color: primaryText),
+                              icon: const Icon(
+                                Icons.settings_outlined,
+                                size: 18,
+                                color: primaryText,
+                              ),
                               label: const Text(
                                 'Settings',
                                 style: TextStyle(
@@ -470,8 +484,14 @@ class LibraryScreenState extends State<LibraryScreen>
                               ),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: buttonBg,
-                                side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(
+                                  color: AppColors.textPrimary.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -486,7 +506,11 @@ class LibraryScreenState extends State<LibraryScreen>
                                   HapticFeedback.lightImpact();
                                   Get.toNamed('/channelscreen');
                                 },
-                                icon: const Icon(Icons.add_circle_outline, size: 18, color: primaryText),
+                                icon: const Icon(
+                                  Icons.add_circle_outline,
+                                  size: 18,
+                                  color: primaryText,
+                                ),
                                 label: const Text(
                                   'Create Channel',
                                   style: TextStyle(
@@ -497,8 +521,14 @@ class LibraryScreenState extends State<LibraryScreen>
                                 ),
                                 style: OutlinedButton.styleFrom(
                                   backgroundColor: buttonBg,
-                                  side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side: BorderSide(
+                                    color: AppColors.textPrimary.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(20),
                                   ),
@@ -562,7 +592,9 @@ class LibraryScreenState extends State<LibraryScreen>
                 ),
                 onTap: () {
                   if (Get.isRegistered<HomeController>()) {
-                    Get.find<HomeController>().onSideNavItemSelect(HomeController.indexDownloads);
+                    Get.find<HomeController>().onSideNavItemSelect(
+                      HomeController.indexDownloads,
+                    );
                   } else {
                     Get.toNamed('/downloads');
                   }
@@ -573,7 +605,9 @@ class LibraryScreenState extends State<LibraryScreen>
                 title: 'Settings',
                 onTap: () {
                   if (Get.isRegistered<HomeController>()) {
-                    Get.find<HomeController>().onSideNavItemSelect(HomeController.indexSettings);
+                    Get.find<HomeController>().onSideNavItemSelect(
+                      HomeController.indexSettings,
+                    );
                   } else {
                     Get.toNamed('/settings');
                   }
@@ -622,7 +656,7 @@ class LibraryScreenState extends State<LibraryScreen>
           children: [
             InkWell(
               onTap: (hasChannel && channel != null)
-                  ? () => Get.toNamed('/studio')
+                  ? () => StudioLauncher.openStudio()
                   : null,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
@@ -674,7 +708,8 @@ class LibraryScreenState extends State<LibraryScreen>
   Widget _buildLibraryListTile({
     required IconData icon,
     required String title,
-    required VoidCallback onTap, Widget? trailing,
+    required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return Material(
       color: Colors.transparent,
@@ -710,11 +745,6 @@ class LibraryScreenState extends State<LibraryScreen>
       ),
     );
   }
-
-
-
-
-
 
   // Dialog Methods (Preserved and enhanced)
   void _showSearchDialog(BuildContext context) {
@@ -755,8 +785,13 @@ class LibraryScreenState extends State<LibraryScreen>
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.textPrimary),
-            child: const Text('Search', style: TextStyle(color: AppColors.textPrimary)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.textPrimary,
+            ),
+            child: const Text(
+              'Search',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
@@ -771,7 +806,9 @@ class LibraryScreenState extends State<LibraryScreen>
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: surfaceColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text(
             'Create Playlist',
             style: TextStyle(
@@ -992,7 +1029,8 @@ class LibraryScreenState extends State<LibraryScreen>
   Widget _buildSidebarHeader() {
     final authService = AuthService.to;
     final displayName = authService.activeDisplayName;
-    final handleOrEmail = authService.hasChannel.value && authService.userChannel != null
+    final handleOrEmail =
+        authService.hasChannel.value && authService.userChannel != null
         ? authService.activeHandle
         : (authService.user?.email ?? '');
 
@@ -1000,7 +1038,11 @@ class LibraryScreenState extends State<LibraryScreen>
       children: [
         InkWell(
           onTap: () {
-            Get.toNamed('/studio');
+            if (authService.hasChannel.value) {
+              StudioLauncher.openStudio();
+            } else {
+              Get.toNamed('/channelscreen');
+            }
           },
           child: UserAvatar(
             radius: 24,
@@ -1205,7 +1247,11 @@ class LibraryScreenState extends State<LibraryScreen>
               : null,
         ),
         child: playlist.thumbnailUrl.isEmpty
-            ? const Icon(Icons.playlist_play, color: AppColors.textPrimary, size: 16)
+            ? const Icon(
+                Icons.playlist_play,
+                color: AppColors.textPrimary,
+                size: 16,
+              )
             : null,
       ),
       title: Text(
@@ -1231,9 +1277,3 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 }
-
-
-
-
-
-

@@ -136,7 +136,8 @@ class SeoHelper {
 
   /// Update or create a meta tag
   static void _updateOrCreateMeta({
-    required String content, String? name,
+    required String content,
+    String? name,
     String? property,
   }) {
     final head = html.document.head;
@@ -177,8 +178,7 @@ class SeoHelper {
     final head = html.document.head;
     if (head == null) return;
 
-    var link =
-        head.querySelector('link[rel="canonical"]') as html.LinkElement?;
+    var link = head.querySelector('link[rel="canonical"]') as html.LinkElement?;
 
     if (link != null) {
       link.href = url;
@@ -234,7 +234,8 @@ class SeoHelper {
     required String title,
     required String description,
     required String url,
-    required DateTime publishedDate, String? image,
+    required DateTime publishedDate,
+    String? image,
     DateTime? modifiedDate,
     List<String>? authors,
     List<String>? keywords,
@@ -278,7 +279,8 @@ class SeoHelper {
     required String description,
     required String url,
     required String videoUrl,
-    required Duration duration, String? thumbnailUrl,
+    required Duration duration,
+    String? thumbnailUrl,
     DateTime? uploadDate,
   }) {
     // Validate and convert video URL to absolute
@@ -331,7 +333,3 @@ class SeoHelper {
     );
   }
 }
-
-
-
-

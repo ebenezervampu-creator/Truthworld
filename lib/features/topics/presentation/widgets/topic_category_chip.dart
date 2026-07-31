@@ -3,9 +3,9 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Reusable Topic Category Capsule Chip Widget
 class TopicCategoryChip extends StatelessWidget {
-
   const TopicCategoryChip({
-    required this.category, super.key,
+    required this.category,
+    super.key,
     this.isCompact = false,
   });
   final String category;

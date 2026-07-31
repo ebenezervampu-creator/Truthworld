@@ -4,9 +4,10 @@ import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class TermsAndConditionsWidget extends StatefulWidget {
-
   const TermsAndConditionsWidget({
-    required this.isDarkMode, required this.value, super.key,
+    required this.isDarkMode,
+    required this.value,
+    super.key,
     this.onChanged,
   });
   final bool isDarkMode;
@@ -255,7 +256,9 @@ class _TermsAndConditionsWidgetState extends State<TermsAndConditionsWidget> {
             content,
             style: TextStyle(
               fontSize: 14,
-              color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
+              color: widget.isDarkMode
+                  ? AppColors.textSecondary
+                  : AppColors.bgPage,
               height: 1.6,
             ),
           ),
@@ -264,9 +267,3 @@ class _TermsAndConditionsWidgetState extends State<TermsAndConditionsWidget> {
     );
   }
 }
-
-
-
-
-
-

@@ -30,14 +30,15 @@ enum VerificationStatus {
 }
 
 class ContentVerification {
-
   ContentVerification({
     required this.id,
     required this.videoId,
     required this.userId,
     required this.level,
     required this.status,
-    required this.createdAt, required this.updatedAt, this.audioQualityScore,
+    required this.createdAt,
+    required this.updatedAt,
+    this.audioQualityScore,
     this.videoQualityScore,
     this.safetyScore,
     this.profanityCheck,
@@ -107,6 +108,7 @@ class ContentVerification {
           : null,
     );
   }
+
   /// Verification ID
   final String id;
 
@@ -237,7 +239,6 @@ class ContentVerification {
 // Verification check result types
 
 class ProfanityCheckResult {
-
   ProfanityCheckResult({
     required this.hasProfanity,
     required this.severity,
@@ -269,7 +270,6 @@ class ProfanityCheckResult {
 }
 
 class ContentSafetyCheckResult {
-
   ContentSafetyCheckResult({
     required this.safetyScore,
     required this.flaggedCategories,
@@ -299,7 +299,6 @@ class ContentSafetyCheckResult {
 }
 
 class PlagiarismCheckResult {
-
   PlagiarismCheckResult({
     required this.similarityScore,
     required this.matchingSegments,
@@ -327,7 +326,6 @@ class PlagiarismCheckResult {
 }
 
 class CopyrightCheckResult {
-
   CopyrightCheckResult({
     required this.hasNoViolations,
     required this.flaggedSegments,
@@ -355,7 +353,6 @@ class CopyrightCheckResult {
 }
 
 class TranscriptQualityCheckResult {
-
   TranscriptQualityCheckResult({
     required this.accuracy,
     required this.wordCount,
@@ -379,7 +376,6 @@ class TranscriptQualityCheckResult {
 }
 
 class DubbingQualityCheckResult {
-
   DubbingQualityCheckResult({
     required this.languageScores,
     required this.languagesWithIssues,
@@ -409,7 +405,6 @@ class DubbingQualityCheckResult {
 }
 
 class FaceQualityCheckResult {
-
   FaceQualityCheckResult({
     required this.detectedFaces,
     required this.clarity,
@@ -437,7 +432,6 @@ class FaceQualityCheckResult {
 }
 
 class VerificationChecklistItem {
-
   VerificationChecklistItem({
     required this.name,
     required this.description,
@@ -471,8 +465,3 @@ class VerificationChecklistItem {
     };
   }
 }
-
-
-
-
-

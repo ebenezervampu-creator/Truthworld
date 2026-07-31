@@ -15,9 +15,8 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// - Related topics
 /// - UI state (loading, error, empty)
 class TopicController extends GetxController {
-
   TopicController({TopicRepository? repository})
-      : _repository = repository ?? TopicRepository();
+    : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
 
   // ==========================================================================
@@ -82,15 +81,20 @@ class TopicController extends GetxController {
     // 1. Filter by search query if any
     final query = searchQuery.value.trim().toLowerCase();
     if (query.isNotEmpty) {
-      list = list.where((v) =>
-        v.title.toLowerCase().contains(query) ||
-        v.channelName.toLowerCase().contains(query)
-      ).toList();
+      list = list
+          .where(
+            (v) =>
+                v.title.toLowerCase().contains(query) ||
+                v.channelName.toLowerCase().contains(query),
+          )
+          .toList();
     }
 
     // 2. Apply active tab filter
     if (selectedTab.value == 'From Subscribed channels') {
-      list = list.where((v) => subscribedChannelIds.contains(v.channelId)).toList();
+      list = list
+          .where((v) => subscribedChannelIds.contains(v.channelId))
+          .toList();
     } else if (selectedTab.value == 'Fact checked') {
       list = list.where((v) => v.factCheckUrl.isNotEmpty).toList();
     }
@@ -106,7 +110,9 @@ class TopicController extends GetxController {
         channelMap[video.channelId] = {
           'id': video.channelId,
           'name': cached?.name ?? video.channelName,
-          'avatarUrl': (cached?.avatarUrl.isNotEmpty ?? false) ? cached!.avatarUrl : video.channelAvatarUrl,
+          'avatarUrl': (cached?.avatarUrl.isNotEmpty ?? false)
+              ? cached!.avatarUrl
+              : video.channelAvatarUrl,
         };
       }
     }
@@ -116,7 +122,9 @@ class TopicController extends GetxController {
         channelMap[video.channelId] = {
           'id': video.channelId,
           'name': cached?.name ?? video.channelName,
-          'avatarUrl': (cached?.avatarUrl.isNotEmpty ?? false) ? cached!.avatarUrl : video.channelAvatarUrl,
+          'avatarUrl': (cached?.avatarUrl.isNotEmpty ?? false)
+              ? cached!.avatarUrl
+              : video.channelAvatarUrl,
         };
       }
     }
@@ -247,15 +255,17 @@ class TopicController extends GetxController {
 
       // Load featured videos
       if (topicData.featuredVideoIds.isNotEmpty) {
-        featuredVideos.value =
-            await _repository.getFeaturedVideos(topicData.featuredVideoIds);
+        featuredVideos.value = await _repository.getFeaturedVideos(
+          topicData.featuredVideoIds,
+        );
         _fetchChannelsForVideos(featuredVideos);
       }
 
       // Load related topics
       if (topicData.relatedTopics.isNotEmpty) {
-        relatedTopics.value =
-            await _repository.getRelatedTopics(topicData.relatedTopics);
+        relatedTopics.value = await _repository.getRelatedTopics(
+          topicData.relatedTopics,
+        );
       } else {
         // Fallback: get similar topics by category
         relatedTopics.value = await _repository.getSimilarTopics(
@@ -299,31 +309,20 @@ class TopicController extends GetxController {
     isLoadingMore.value = true;
 
     try {
-      final newVideos = await _repository.getVideosByTopic(
+      final page = await _repository.getVideosPageByTopic(
         topicSlug,
         lastDoc: _lastVideoDoc,
         orderBy: sortBy.value,
       );
+
+      final newVideos = page.videos;
+      _lastVideoDoc = page.lastDoc;
 
       if (newVideos.isEmpty) {
         hasMoreVideos.value = false;
       } else {
         videos.addAll(newVideos);
         _fetchChannelsForVideos(newVideos);
-
-        // Store last document for next pagination
-        // Note: We need to fetch the raw snapshot to get the DocumentSnapshot
-        final snapshot = await FirebaseFirestore.instance
-            .collection('videos')
-            .where('topics', arrayContains: topicSlug)
-            .orderBy(sortBy.value, descending: true)
-            .startAfter([newVideos.last.toMap()[sortBy.value]])
-            .limit(1)
-            .get();
-
-        if (snapshot.docs.isNotEmpty) {
-          _lastVideoDoc = snapshot.docs.first;
-        }
 
         if (newVideos.length < _videosPerPage) {
           hasMoreVideos.value = false;
@@ -367,7 +366,3 @@ class TopicController extends GetxController {
     return topic.value?.featuredVideoIds.contains(video.id) ?? false;
   }
 }
-
-
-
-

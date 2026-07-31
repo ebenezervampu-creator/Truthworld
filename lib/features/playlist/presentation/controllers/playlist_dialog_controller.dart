@@ -35,8 +35,3 @@ class PlaylistDialogController extends GetxController {
     isAddingToPlaylist.value = false;
   }
 }
-
-
-
-
-

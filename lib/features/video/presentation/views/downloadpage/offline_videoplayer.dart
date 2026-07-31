@@ -5,9 +5,11 @@ import 'package:truthworld/features/video/presentation/controllers/download_vide
 import 'package:truthworld/theme/app_theme.dart';
 
 class OfflineVideoPlayerPage extends StatelessWidget {
-
   const OfflineVideoPlayerPage({
-    required this.videoId, required this.title, required this.video, super.key,
+    required this.videoId,
+    required this.title,
+    required this.video,
+    super.key,
   });
   final String videoId;
   final String title;
@@ -91,7 +93,10 @@ class OfflineVideoPlayerPage extends StatelessWidget {
                     // Views
                     Text(
                       '${video.views} views',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -165,17 +170,13 @@ class OfflineVideoPlayerPage extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               label,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+              ),
             ),
           ),
       ],
     );
   }
 }
-
-
-
-
-
-
-

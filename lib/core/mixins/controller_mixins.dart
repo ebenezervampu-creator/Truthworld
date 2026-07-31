@@ -152,8 +152,3 @@ mixin SelectionMixin on GetxController {
   /// Check if item is selected
   bool isItemSelected(String itemId) => selectedItems.contains(itemId);
 }
-
-
-
-
-

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide SearchBar, SearchController;
 import 'package:get/get.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
@@ -62,17 +63,19 @@ class _SearchPageState extends State<SearchPage> {
           },
         ),
         titleSpacing: 0,
-        title: Obx(() => SearchBar(
-          controller: _searchController,
-          isLoading: _searchCtrl.isLoading.value,
-          onChanged: _searchCtrl.onSearchChanged,
-          onClear: _searchCtrl.clearSearch,
-          onSearchSubmitted: () {
-            if (_searchController.text.isNotEmpty) {
-              _searchCtrl.performSearch(_searchController.text);
-            }
-          },
-        )),
+        title: Obx(
+          () => SearchBar(
+            controller: _searchController,
+            isLoading: _searchCtrl.isLoading.value,
+            onChanged: _searchCtrl.onSearchChanged,
+            onClear: _searchCtrl.clearSearch,
+            onSearchSubmitted: () {
+              if (_searchController.text.isNotEmpty) {
+                _searchCtrl.performSearch(_searchController.text);
+              }
+            },
+          ),
+        ),
       ),
       body: SafeArea(
         child: Stack(
@@ -109,7 +112,9 @@ class _SearchPageState extends State<SearchPage> {
                             label: Text(
                               filter,
                               style: typography.label.copyWith(
-                                color: isSelected ? colors.background : colors.textPrimary,
+                                color: isSelected
+                                    ? colors.background
+                                    : colors.textPrimary,
                                 fontWeight: isSelected
                                     ? FontWeight.bold
                                     : FontWeight.normal,
@@ -173,7 +178,9 @@ class _SearchPageState extends State<SearchPage> {
                             const SizedBox(height: 16),
                             Text(
                               errorMsg,
-                              style: const TextStyle(color: AppColors.textSecondary),
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
@@ -253,7 +260,12 @@ class _SearchPageState extends State<SearchPage> {
   Widget _buildEmptyState() {
     final trendingList = _searchCtrl.filteredRealtimeTrending;
     final filter = _searchCtrl.selectedFilter.value;
-    final isTypeFilter = ['Videos', 'Topics', 'Playlists', 'Channels'].contains(filter);
+    final isTypeFilter = [
+      'Videos',
+      'Topics',
+      'Playlists',
+      'Channels',
+    ].contains(filter);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 32),
@@ -279,11 +291,16 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.error.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.error.withValues(alpha: 0.6)),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.6),
+                        ),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -308,14 +325,20 @@ class _SearchPageState extends State<SearchPage> {
                   isTypeFilter
                       ? 'Popular trending $filter right now'
                       : 'Top real-time searches & content across TruthWorld',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 if (_searchCtrl.isRealtimeTrendingLoading.value)
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator(color: AppColors.error, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: AppColors.error,
+                        strokeWidth: 2,
+                      ),
                     ),
                   )
                 else if (trendingList.isEmpty)
@@ -335,7 +358,8 @@ class _SearchPageState extends State<SearchPage> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: trendingList.length,
-                    separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+                    separatorBuilder: (context, index) =>
+                        const Divider(color: AppColors.bgDivider, height: 1),
                     itemBuilder: (context, index) {
                       final item = trendingList[index];
                       return _buildRealtimeTrendingTile(item);
@@ -450,7 +474,7 @@ class _SearchPageState extends State<SearchPage> {
         categoryColor = AppColors.brandHover;
       case 'playlist':
         categoryIcon = Icons.playlist_play_rounded;
-        categoryColor = Colors.amberAccent;
+        categoryColor = AppColors.brand;
       case 'channel':
         categoryIcon = Icons.account_circle_rounded;
         categoryColor = Colors.cyanAccent;
@@ -488,7 +512,9 @@ class _SearchPageState extends State<SearchPage> {
                   Text(
                     '#${item.rank}',
                     style: TextStyle(
-                      color: item.rank <= 3 ? AppColors.warning : AppColors.textSecondary,
+                      color: item.rank <= 3
+                          ? AppColors.warning
+                          : AppColors.textSecondary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -519,7 +545,8 @@ class _SearchPageState extends State<SearchPage> {
                   child: CachedNetworkImage(
                     imageUrl: item.imageUrl!,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                    placeholder: (context, url) =>
+                        Container(color: AppColors.bgDivider),
                     errorWidget: (context, url, err) => ColoredBox(
                       color: categoryColor.withValues(alpha: 0.2),
                       child: Icon(categoryIcon, color: categoryColor, size: 20),
@@ -568,7 +595,13 @@ class _SearchPageState extends State<SearchPage> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const Text(' • ', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+                        const Text(
+                          ' • ',
+                          style: TextStyle(
+                            color: AppColors.textTertiary,
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                       if (item.subtitle != null)
                         Expanded(
@@ -606,14 +639,20 @@ class _SearchPageState extends State<SearchPage> {
               child: Text(
                 item.badge,
                 style: TextStyle(
-                  color: item.badge.contains('🔥') ? AppColors.error : AppColors.textSecondary,
+                  color: item.badge.contains('🔥')
+                      ? AppColors.error
+                      : AppColors.textSecondary,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(Icons.north_west_rounded, color: AppColors.textTertiary, size: 16),
+            const Icon(
+              Icons.north_west_rounded,
+              color: AppColors.textTertiary,
+              size: 16,
+            ),
           ],
         ),
       ),
@@ -639,7 +678,7 @@ class _SearchPageState extends State<SearchPage> {
               children: [
                 const Icon(
                   Icons.info_outline_rounded,
-                  color: Color(0xFF9B30FF),
+                  color: AppColors.textPrimary,
                   size: 18,
                 ),
                 const SizedBox(width: 10),
@@ -668,7 +707,7 @@ class _SearchPageState extends State<SearchPage> {
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: CircularProgressIndicator(
-                color: Color(0xFF9B30FF),
+                color: AppColors.brand,
                 strokeWidth: 2,
               ),
             ),
@@ -767,7 +806,10 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   Container(
                     margin: const EdgeInsets.only(bottom: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.brandHover.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
@@ -794,8 +836,11 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.views} views • ${video.channelName}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                    '${FormatUtils.formatCount(video.views)} views • ${video.channelName}',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),

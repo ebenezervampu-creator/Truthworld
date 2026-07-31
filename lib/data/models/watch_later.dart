@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class WatchLater {
-
   WatchLater({
     required this.id,
     required this.userId,
@@ -66,8 +65,3 @@ class WatchLater {
     };
   }
 }
-
-
-
-
-

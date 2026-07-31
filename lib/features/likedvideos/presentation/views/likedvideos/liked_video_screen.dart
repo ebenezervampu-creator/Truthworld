@@ -55,18 +55,22 @@ class LikedVideoScreen extends StatefulWidget {
   State<LikedVideoScreen> createState() => _LikedVideoScreenState();
 }
 
-class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProviderStateMixin {
+class _LikedVideoScreenState extends State<LikedVideoScreen>
+    with TickerProviderStateMixin {
   final controller = Get.put(LikedVideosController());
 
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
-    
+
     if (currentUser == null) {
       return const Scaffold(
         backgroundColor: AppColors.bgPage,
         body: Center(
-          child: Text('Please login to see liked videos', style: TextStyle(color: AppColors.textPrimary)),
+          child: Text(
+            'Please login to see liked videos',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
         ),
       );
     }
@@ -144,10 +148,16 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                       : Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                              icon: const Icon(
+                                Icons.arrow_back,
+                                color: AppColors.textPrimary,
+                              ),
                               onPressed: () {
                                 if (widget.isDashboard) {
-                                  Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                                  Get.find<HomeController>()
+                                          .sideNavSelectedIndex
+                                          .value =
+                                      HomeController.indexLibrary;
                                 } else {
                                   Get.back();
                                 }
@@ -180,10 +190,14 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                           : const SizedBox.shrink(),
                     ),
                     IconButton(
-                      icon: Obx(() => Icon(
-                        controller.isListView.value ? Icons.grid_view_rounded : Icons.view_list_rounded,
-                        color: AppColors.textPrimary,
-                      )),
+                      icon: Obx(
+                        () => Icon(
+                          controller.isListView.value
+                              ? Icons.grid_view_rounded
+                              : Icons.view_list_rounded,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       onPressed: controller.toggleView,
                     ),
                   ],
@@ -253,8 +267,10 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                     ),
                   ),
                   ...dateVideos.map(
-                    (video) =>
-                        _LikedVideoListCard(video: video, controller: controller),
+                    (video) => _LikedVideoListCard(
+                      video: video,
+                      controller: controller,
+                    ),
                   ),
                 ],
               );
@@ -312,7 +328,8 @@ class _LikedVideoListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => Get.toNamed('/watch?v=${video.id}', arguments: {'video': video}),
+      onTap: () =>
+          Get.toNamed('/watch?v=${video.id}', arguments: {'video': video}),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
@@ -532,9 +549,3 @@ class _LikedVideoListCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

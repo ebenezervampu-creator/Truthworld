@@ -5,9 +5,10 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class WatchtimeDetailsPage extends StatelessWidget {
-
   const WatchtimeDetailsPage({
-    required this.channelId, required this.isDarkMode, super.key,
+    required this.channelId,
+    required this.isDarkMode,
+    super.key,
     this.video,
   });
   final String channelId;
@@ -20,7 +21,9 @@ class WatchtimeDetailsPage extends StatelessWidget {
       backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.bgPage,
       appBar: AppBar(
         title: const Text('Watchtime Details'),
-        backgroundColor: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+        backgroundColor: isDarkMode
+            ? AppColors.textPrimary
+            : AppColors.textPrimary,
         iconTheme: IconThemeData(
           color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
         ),
@@ -52,11 +55,17 @@ class WatchtimeDetailsPage extends StatelessWidget {
                     .get(),
                 builder: (context, statsSnapshot) {
                   if (!statsSnapshot.hasData) {
-                    return ListTile(title: Text((video['title'] as String?) ?? 'Untitled'));
+                    return ListTile(
+                      title: Text((video['title'] as String?) ?? 'Untitled'),
+                    );
                   }
-                  final stats = statsSnapshot.data?.data() as Map<String, dynamic>?;
+                  final stats =
+                      statsSnapshot.data?.data() as Map<String, dynamic>?;
                   return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: ListTile(
                       title: Text((video['title'] as String?) ?? 'Untitled'),
                       subtitle: stats == null
@@ -64,14 +73,30 @@ class WatchtimeDetailsPage extends StatelessWidget {
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Total Views: \\${stats['totalViews'] ?? 0}'),
-                                Text('Unique Users: \\${stats['uniqueUsers'] ?? 0}'),
-                                Text('Total Watch Seconds: \\${stats['totalWatchSeconds'] ?? 0}'),
-                                Text('Avg Watch Seconds: \\${stats['avgWatchSeconds'] ?? 0}'),
-                                Text('Completion Rate: \\${stats['completionRate'] ?? 0}%'),
-                                Text('Full Watched: \\${stats['fullWatched'] ?? 0}'),
-                                Text('Half Watched: \\${stats['halfWatched'] ?? 0}'),
-                                Text('Under 20 Sec: \\${stats['under20Sec'] ?? 0}'),
+                                Text(
+                                  'Total Views: \\${stats['totalViews'] ?? 0}',
+                                ),
+                                Text(
+                                  'Unique Users: \\${stats['uniqueUsers'] ?? 0}',
+                                ),
+                                Text(
+                                  'Total Watch Seconds: \\${stats['totalWatchSeconds'] ?? 0}',
+                                ),
+                                Text(
+                                  'Avg Watch Seconds: \\${stats['avgWatchSeconds'] ?? 0}',
+                                ),
+                                Text(
+                                  'Completion Rate: \\${stats['completionRate'] ?? 0}%',
+                                ),
+                                Text(
+                                  'Full Watched: \\${stats['fullWatched'] ?? 0}',
+                                ),
+                                Text(
+                                  'Half Watched: \\${stats['halfWatched'] ?? 0}',
+                                ),
+                                Text(
+                                  'Under 20 Sec: \\${stats['under20Sec'] ?? 0}',
+                                ),
                               ],
                             ),
                     ),
@@ -85,9 +110,3 @@ class WatchtimeDetailsPage extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

@@ -21,9 +21,9 @@ import 'package:truthworld/theme/app_theme.dart';
 /// )
 /// ```
 class ResponsivePageWrapper extends StatelessWidget {
-
   const ResponsivePageWrapper({
-    required this.body, super.key,
+    required this.body,
+    super.key,
     this.padding,
     this.backgroundColor,
     this.scrollController,
@@ -92,9 +92,9 @@ class ResponsivePageWrapper extends StatelessWidget {
 /// )
 /// ```
 class ResponsiveSection extends StatelessWidget {
-
   const ResponsiveSection({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.title,
     this.padding,
     this.bottomSpacing,
@@ -144,9 +144,9 @@ class ResponsiveSection extends StatelessWidget {
 /// )
 /// ```
 class ResponsiveGridWrapper extends StatelessWidget {
-
   const ResponsiveGridWrapper({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.columnsDesktop,
     this.columnsTablet,
     this.columnsMobile,
@@ -201,9 +201,9 @@ class ResponsiveGridWrapper extends StatelessWidget {
 /// )
 /// ```
 class ResponsiveListWrapper extends StatelessWidget {
-
   const ResponsiveListWrapper({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.spacing,
   });
   final List<Widget> children;
@@ -222,8 +222,3 @@ class ResponsiveListWrapper extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

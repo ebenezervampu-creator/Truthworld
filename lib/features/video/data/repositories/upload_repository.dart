@@ -16,7 +16,9 @@ class UploadRepository {
   }
 
   /// Listen to a document for server-side processing updates
-  Stream<DocumentSnapshot<Map<String, dynamic>>> listenToVideoDocument(String docId) {
+  Stream<DocumentSnapshot<Map<String, dynamic>>> listenToVideoDocument(
+    String docId,
+  ) {
     return _firestore.collection('videos').doc(docId).snapshots();
   }
 
@@ -48,7 +50,9 @@ class UploadRepository {
     required String uniqueId,
   }) async {
     final sampleExt = voiceSampleFile.extension ?? 'wav';
-    final sampleRef = _storage.ref().child('voices/$userId/$uniqueId.$sampleExt');
+    final sampleRef = _storage.ref().child(
+      'voices/$userId/$uniqueId.$sampleExt',
+    );
     final sampleMeta = SettableMetadata(contentType: 'audio/$sampleExt');
     final sampleBytes = await voiceSampleFile.xFile.readAsBytes();
     await sampleRef.putData(sampleBytes, sampleMeta);

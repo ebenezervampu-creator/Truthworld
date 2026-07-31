@@ -7,7 +7,6 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 import 'package:truthworld/theme/app_theme.dart';
 
 class ReplyInputController extends BaseController {
-
   ReplyInputController({
     required this.videoId,
     required this.commentId,
@@ -101,8 +100,3 @@ class ReplyInputController extends BaseController {
     textController.clear();
   }
 }
-
-
-
-
-

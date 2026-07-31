@@ -9,9 +9,9 @@ import 'package:truthworld/theme/app_theme.dart';
 /// using its name. When tapped, it navigates to the channel's details page.
 /// Includes an optimized static cache to prevent redundant Firestore lookups.
 class ChannelAvatarByName extends StatefulWidget {
-
   const ChannelAvatarByName({
-    required this.channelName, super.key,
+    required this.channelName,
+    super.key,
     this.radius = 20,
     this.showName = false,
     this.nameStyle,
@@ -142,7 +142,6 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
                 style:
                     widget.nameStyle ??
                     const TextStyle(
-                      
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,

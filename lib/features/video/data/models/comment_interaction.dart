@@ -2,11 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Tracks a user's interaction state with a comment (or reply)
 class CommentInteraction {
-
   CommentInteraction({
     required this.id,
     required this.commentId,
-    required this.videoId, required this.userId, required this.isLiked, required this.isDisliked, required this.likeAsChannel, required this.createdAt, this.replyId,
+    required this.videoId,
+    required this.userId,
+    required this.isLiked,
+    required this.isDisliked,
+    required this.likeAsChannel,
+    required this.createdAt,
+    this.replyId,
     this.updatedAt,
   });
 
@@ -32,7 +37,8 @@ class CommentInteraction {
   final String userId;
   final bool isLiked;
   final bool isDisliked;
-  final bool likeAsChannel; // True if liking as channel, false if liking as self
+  final bool
+  likeAsChannel; // True if liking as channel, false if liking as self
   final Timestamp createdAt;
   final Timestamp? updatedAt;
 
@@ -77,8 +83,3 @@ class CommentInteraction {
     );
   }
 }
-
-
-
-
-

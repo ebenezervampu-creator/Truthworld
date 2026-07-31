@@ -1,5 +1,4 @@
 class TopicCategory {
-
   const TopicCategory({
     required this.id,
     required this.title,

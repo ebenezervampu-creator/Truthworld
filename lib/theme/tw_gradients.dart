@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Centralized gradients for the application.
 class TWGradients extends ThemeExtension<TWGradients> {
-
   const TWGradients({
     required this.primary,
     required this.brand,
@@ -19,7 +18,7 @@ class TWGradients extends ThemeExtension<TWGradients> {
         end: Alignment.bottomRight,
       ),
       brand: LinearGradient(
-        colors: [Color(0xFF9B30FF), Color(0xFF8B5CF6)],
+        colors: [Color(0xFFFFFFFF), Color(0xFFE0E0E0)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
@@ -64,7 +63,10 @@ class TWGradients extends ThemeExtension<TWGradients> {
   }
 
   @override
-  ThemeExtension<TWGradients> lerp(ThemeExtension<TWGradients>? other, double t) {
+  ThemeExtension<TWGradients> lerp(
+    ThemeExtension<TWGradients>? other,
+    double t,
+  ) {
     if (other is! TWGradients) return this;
     return TWGradients(
       primary: LinearGradient.lerp(primary, other.primary, t)!,

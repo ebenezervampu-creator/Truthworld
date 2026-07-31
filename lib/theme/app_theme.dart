@@ -26,13 +26,13 @@ export 'tw_typography.dart';
 ThemeData buildAppTheme({DeviceState? device}) {
   return ThemeData(
     useMaterial3: true,
-    
+
     brightness: Brightness.dark,
     primaryColor: AppColors.brand,
     scaffoldBackgroundColor: AppColors.bgPage,
     cardColor: AppColors.bgSurface,
     dividerColor: AppColors.bgDivider,
-    
+
     extensions: [
       const TWColors(
         brand: AppColors.brand,
@@ -69,16 +69,25 @@ ThemeData buildAppTheme({DeviceState? device}) {
       TWMotion.defaults(),
       TWShadows.defaults(),
       TWGradients.defaults(),
-      if (device != null) TWLayoutTokens.fromDevice(device)
-      else TWLayoutTokens.fromDevice(const DeviceState(width: 375, height: 812, type: DeviceType.mobile, fontScale: 1)),
+      if (device != null)
+        TWLayoutTokens.fromDevice(device)
+      else
+        TWLayoutTokens.fromDevice(
+          const DeviceState(
+            width: 375,
+            height: 812,
+            type: DeviceType.mobile,
+            fontScale: 1,
+          ),
+        ),
     ],
-    
+
     colorScheme: const ColorScheme.dark(
       primary: AppColors.brand,
       secondary: AppColors.brand,
       surface: AppColors.bgSurface,
       error: AppColors.error,
-      onPrimary: Colors.white,
+      onPrimary: Colors.black,
       onSurface: AppColors.textPrimary,
       onError: Colors.white,
       surfaceContainer: AppColors.bgSurfaceHover,
@@ -88,21 +97,39 @@ ThemeData buildAppTheme({DeviceState? device}) {
     ),
 
     textTheme: const TextTheme(
-      displayLarge: TextStyle( color: AppColors.textPrimary),
-      displayMedium: TextStyle( color: AppColors.textPrimary),
-      displaySmall: TextStyle( color: AppColors.textPrimary),
-      headlineLarge: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      headlineMedium: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      headlineSmall: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      titleLarge: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      titleMedium: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      titleSmall: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      bodyLarge: TextStyle( color: AppColors.textPrimary),
-      bodyMedium: TextStyle( color: AppColors.textPrimary),
-      bodySmall: TextStyle( color: AppColors.textSecondary),
-      labelLarge: TextStyle( color: AppColors.textPrimary),
-      labelMedium: TextStyle( color: AppColors.textSecondary),
-      labelSmall: TextStyle( color: AppColors.textTertiary),
+      displayLarge: TextStyle(color: AppColors.textPrimary),
+      displayMedium: TextStyle(color: AppColors.textPrimary),
+      displaySmall: TextStyle(color: AppColors.textPrimary),
+      headlineLarge: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.bold,
+      ),
+      headlineMedium: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.bold,
+      ),
+      headlineSmall: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.bold,
+      ),
+      titleLarge: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.w500,
+      ),
+      titleMedium: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.w500,
+      ),
+      titleSmall: TextStyle(
+        color: AppColors.textPrimary,
+        fontWeight: FontWeight.w500,
+      ),
+      bodyLarge: TextStyle(color: AppColors.textPrimary),
+      bodyMedium: TextStyle(color: AppColors.textPrimary),
+      bodySmall: TextStyle(color: AppColors.textSecondary),
+      labelLarge: TextStyle(color: AppColors.textPrimary),
+      labelMedium: TextStyle(color: AppColors.textSecondary),
+      labelSmall: TextStyle(color: AppColors.textTertiary),
     ),
 
     iconTheme: const IconThemeData(color: AppColors.iconDefault),
@@ -150,7 +177,7 @@ ThemeData buildAppTheme({DeviceState? device}) {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.brand,
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         textStyle: const TextStyle(fontWeight: FontWeight.bold),
@@ -172,7 +199,7 @@ ThemeData buildAppTheme({DeviceState? device}) {
       secondarySelectedColor: AppColors.brand,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       labelStyle: const TextStyle(color: AppColors.textPrimary),
-      secondaryLabelStyle: const TextStyle(color: Colors.white),
+      secondaryLabelStyle: const TextStyle(color: Colors.black),
       brightness: Brightness.dark,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),

@@ -24,7 +24,7 @@ class AppealsTab extends StatelessWidget {
                 flex: 2,
                 child: _buildAppealDetail(),
               ),
-            ]
+            ],
           ],
         );
       },
@@ -40,29 +40,49 @@ class AppealsTab extends StatelessWidget {
       ),
       child: ListView.separated(
         itemCount: 5,
-        separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+        separatorBuilder: (context, index) =>
+            const Divider(color: AppColors.bgDivider, height: 1),
         itemBuilder: (context, index) {
           return Material(
             color: Colors.transparent,
             child: ListTile(
               contentPadding: const EdgeInsets.all(16),
-              title: Text('Appeal #${1042 + index}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+              title: Text(
+                'Appeal #${1042 + index}',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 4),
-                  Text('User: user${index}@example.com', style: const TextStyle(color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                  Text(
+                    'User: user${index}@example.com',
+                    style: const TextStyle(color: AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
                       const Icon(Icons.timer, size: 14, color: Colors.amber),
                       const SizedBox(width: 4),
-                      Text('${index + 1}h ago', style: const TextStyle(color: Colors.amber, fontSize: 12)),
+                      Text(
+                        '${index + 1}h ago',
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
-                  )
+                  ),
                 ],
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textPrimary,
+              ),
               onTap: () {},
             ),
           );
@@ -89,16 +109,32 @@ class AppealsTab extends StatelessWidget {
               spacing: 12,
               runSpacing: 12,
               children: [
-                const Text('Appeal Details', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Appeal Details',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.amber.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.amber),
                   ),
-                  child: const Text('SLA: 12h remaining', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-                )
+                  child: const Text(
+                    'SLA: 12h remaining',
+                    style: TextStyle(
+                      color: Colors.amber,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -110,13 +146,15 @@ class AppealsTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: _buildCard('Original Content & AI Analysis', 
+                            child: _buildCard(
+                              'Original Content & AI Analysis',
                               'Image containing inappropriate material.\n\nAI Confidence: 98%\nCategory: Nudity',
                             ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: _buildCard('Creator\'s Appeal Statement', 
+                            child: _buildCard(
+                              'Creator\'s Appeal Statement',
                               '"This is a classical painting from a museum, not explicit content. Please review." - User',
                             ),
                           ),
@@ -124,11 +162,13 @@ class AppealsTab extends StatelessWidget {
                       )
                     : Column(
                         children: [
-                          _buildCard('Original Content & AI Analysis', 
+                          _buildCard(
+                            'Original Content & AI Analysis',
                             'Image containing inappropriate material.\n\nAI Confidence: 98%\nCategory: Nudity',
                           ),
                           const SizedBox(height: 16),
-                          _buildCard('Creator\'s Appeal Statement', 
+                          _buildCard(
+                            'Creator\'s Appeal Statement',
                             '"This is a classical painting from a museum, not explicit content. Please review." - User',
                           ),
                         ],
@@ -136,7 +176,10 @@ class AppealsTab extends StatelessWidget {
               },
             ),
             const SizedBox(height: 32),
-            const Text('Resolution Reason', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+            const Text(
+              'Resolution Reason',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            ),
             const SizedBox(height: 8),
             TextField(
               style: const TextStyle(color: AppColors.textPrimary),
@@ -146,7 +189,10 @@ class AppealsTab extends StatelessWidget {
                 hintStyle: const TextStyle(color: AppColors.textTertiary),
                 filled: true,
                 fillColor: AppColors.bgInput,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -155,22 +201,35 @@ class AppealsTab extends StatelessWidget {
               runSpacing: 12,
               children: [
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                  ),
                   onPressed: () {},
-                  child: const Text('Uphold Rejection', style: TextStyle(color: AppColors.textPrimary)),
+                  child: const Text(
+                    'Uphold Rejection',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
                   onPressed: () {},
-                  child: const Text('Overturn (Restore)', style: TextStyle(color: AppColors.textPrimary)),
+                  child: const Text(
+                    'Overturn (Restore)',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
                 ),
                 OutlinedButton(
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.orange, side: const BorderSide(color: Colors.orange)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    side: const BorderSide(color: Colors.orange),
+                  ),
                   onPressed: () {},
                   child: const Text('Escalate to Senior'),
                 ),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -188,7 +247,13 @@ class AppealsTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 12),
           Text(content, style: const TextStyle(color: AppColors.textSecondary)),
         ],

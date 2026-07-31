@@ -8,7 +8,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CredibilityLabelWidget extends StatelessWidget {
-
   const CredibilityLabelWidget({required this.video, super.key});
   final Video video;
 
@@ -30,7 +29,10 @@ class CredibilityLabelWidget extends StatelessWidget {
               _buildHeader(context),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
                   children: [
                     if (video.harmCapApplied) _buildHarmCapAlert(),
                     const SizedBox.shrink(),
@@ -41,7 +43,8 @@ class CredibilityLabelWidget extends StatelessWidget {
                     const SizedBox.shrink(),
                     const Divider(color: AppColors.bgDivider, height: 40),
                     if (video.honestyBreakdown != null) _buildHonestySection(),
-                    if (video.contextualFlags.isNotEmpty) _buildContextualFlagsSection(),
+                    if (video.contextualFlags.isNotEmpty)
+                      _buildContextualFlagsSection(),
                     _buildStatsSection(),
                     if (video.deductions.isNotEmpty) const SizedBox.shrink(),
                     const SizedBox(height: 40),
@@ -61,7 +64,11 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.05))),
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+          ),
+        ),
       ),
       child: Column(
         children: [
@@ -137,8 +144,12 @@ class CredibilityLabelWidget extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  video.harmCapReason ?? 'Dangerous misinformation detected. Score capped to protect viewers.',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  video.harmCapReason ??
+                      'Dangerous misinformation detected. Score capped to protect viewers.',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -152,9 +163,10 @@ class CredibilityLabelWidget extends StatelessWidget {
     final metadata = video.hardeningMetadata;
     if (metadata == null) return const SizedBox.shrink();
 
-    final hasHardening = metadata.truthFloorApplied || 
-                        (metadata.domainOverride?.triggered ?? false) || 
-                        metadata.consensusGateTriggered;
+    final hasHardening =
+        metadata.truthFloorApplied ||
+        (metadata.domainOverride?.triggered ?? false) ||
+        metadata.consensusGateTriggered;
 
     if (!hasHardening) return const SizedBox.shrink();
 
@@ -209,7 +221,12 @@ class CredibilityLabelWidget extends StatelessWidget {
     ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1);
   }
 
-  Widget _buildHardeningItem(IconData icon, String title, String description, {String? penalty}) {
+  Widget _buildHardeningItem(
+    IconData icon,
+    String title,
+    String description, {
+    String? penalty,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -234,7 +251,10 @@ class CredibilityLabelWidget extends StatelessWidget {
                     if (penalty != null) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.error.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(4),
@@ -269,7 +289,7 @@ class CredibilityLabelWidget extends StatelessWidget {
   Widget _buildTrustIndexSection() {
     final score = video.trustScore;
     final color = _getScoreColor(score);
-    
+
     return Row(
       children: [
         Expanded(
@@ -330,7 +350,9 @@ class CredibilityLabelWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.05),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,7 +369,11 @@ class CredibilityLabelWidget extends StatelessWidget {
           const SizedBox(height: 20),
           _buildPath1Row('TRUTH', report.truthScore, AppColors.success),
           _buildPath1Row('HONESTY', report.honestyScore, AppColors.info),
-          _buildPath1Row('RATIONALITY', report.rationalityScore, AppColors.brandHover),
+          _buildPath1Row(
+            'RATIONALITY',
+            report.rationalityScore,
+            AppColors.brandHover,
+          ),
         ],
       ),
     );
@@ -363,7 +389,11 @@ class CredibilityLabelWidget extends StatelessWidget {
             width: 80,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           Expanded(
@@ -379,7 +409,11 @@ class CredibilityLabelWidget extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             score?.toStringAsFixed(1) ?? 'N/A',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
         ],
       ),
@@ -403,27 +437,73 @@ class CredibilityLabelWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        _buildDimensionRow('FACTUAL ACCURACY', factors.accuracy, Icons.check_circle_outline),
-        _buildDimensionRow('SOURCE EVIDENCE', factors.evidence, Icons.menu_book_outlined),
-        _buildDimensionRow('EXPERT CONSENSUS', factors.consensus, Icons.people_outline),
-        _buildDimensionRow('LOGICAL CONSISTENCY', factors.consistency, Icons.account_tree_outlined),
-        _buildDimensionRow('FRAMING INTEGRITY', factors.integrity, Icons.balance_outlined),
-        _buildDimensionRow('CREATOR EXPERTISE', factors.expertise, Icons.workspace_premium_outlined),
-        _buildDimensionRow('INFO FRESHNESS', factors.freshness, Icons.update_outlined),
-        _buildDimensionRow('PUBLIC SAFETY', factors.safety, Icons.security_outlined),
-        _buildDimensionRow('EPISTEMIC HONESTY', factors.honesty, Icons.visibility_outlined, isSpecial: true),
+        _buildDimensionRow(
+          'FACTUAL ACCURACY',
+          factors.accuracy,
+          Icons.check_circle_outline,
+        ),
+        _buildDimensionRow(
+          'SOURCE EVIDENCE',
+          factors.evidence,
+          Icons.menu_book_outlined,
+        ),
+        _buildDimensionRow(
+          'EXPERT CONSENSUS',
+          factors.consensus,
+          Icons.people_outline,
+        ),
+        _buildDimensionRow(
+          'LOGICAL CONSISTENCY',
+          factors.consistency,
+          Icons.account_tree_outlined,
+        ),
+        _buildDimensionRow(
+          'FRAMING INTEGRITY',
+          factors.integrity,
+          Icons.balance_outlined,
+        ),
+        _buildDimensionRow(
+          'CREATOR EXPERTISE',
+          factors.expertise,
+          Icons.workspace_premium_outlined,
+        ),
+        _buildDimensionRow(
+          'INFO FRESHNESS',
+          factors.freshness,
+          Icons.update_outlined,
+        ),
+        _buildDimensionRow(
+          'PUBLIC SAFETY',
+          factors.safety,
+          Icons.security_outlined,
+        ),
+        _buildDimensionRow(
+          'EPISTEMIC HONESTY',
+          factors.honesty,
+          Icons.visibility_outlined,
+          isSpecial: true,
+        ),
       ],
     );
   }
 
-  Widget _buildDimensionRow(String label, double score, IconData icon, {bool isSpecial = false}) {
+  Widget _buildDimensionRow(
+    String label,
+    double score,
+    IconData icon, {
+    bool isSpecial = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: isSpecial ? AppColors.info : AppColors.textSecondary),
+              Icon(
+                icon,
+                size: 16,
+                color: isSpecial ? AppColors.info : AppColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               Text(
                 label,
@@ -449,7 +529,9 @@ class CredibilityLabelWidget extends StatelessWidget {
             lineHeight: 4,
             percent: score / 100,
             backgroundColor: AppColors.bgDivider,
-            progressColor: isSpecial ? AppColors.info : _getScoreColor(score).withValues(alpha: 0.8),
+            progressColor: isSpecial
+                ? AppColors.info
+                : _getScoreColor(score).withValues(alpha: 0.8),
             barRadius: const Radius.circular(2),
             padding: EdgeInsets.zero,
             animation: true,
@@ -484,40 +566,76 @@ class CredibilityLabelWidget extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _buildHonestyMetric('Opinions Framed as Opinions', hb.opinionLabeledOpinion, Icons.comment_bank_outlined),
-              _buildHonestyMetric('Beliefs Framed as Beliefs', hb.beliefLabeledBelief, Icons.auto_awesome_outlined),
-              _buildHonestyMetric('Beliefs Presented as Fact', hb.beliefPresentedAsFact, Icons.warning_amber_rounded, isNegative: true),
-              _buildHonestyMetric('Opinions Presented as Fact', hb.opinionPresentedAsFact, Icons.report_problem_outlined, isNegative: true),
+              _buildHonestyMetric(
+                'Opinions Framed as Opinions',
+                hb.opinionLabeledOpinion,
+                Icons.comment_bank_outlined,
+              ),
+              _buildHonestyMetric(
+                'Beliefs Framed as Beliefs',
+                hb.beliefLabeledBelief,
+                Icons.auto_awesome_outlined,
+              ),
+              _buildHonestyMetric(
+                'Beliefs Presented as Fact',
+                hb.beliefPresentedAsFact,
+                Icons.warning_amber_rounded,
+                isNegative: true,
+              ),
+              _buildHonestyMetric(
+                'Opinions Presented as Fact',
+                hb.opinionPresentedAsFact,
+                Icons.report_problem_outlined,
+                isNegative: true,
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         const Text(
           'How it works: We reward creators who use "I believe" or "In my opinion" for non-empirical claims, and penalize those who present subjective views as authoritative facts.',
-          style: TextStyle(fontSize: 11, color: AppColors.textTertiary, fontStyle: FontStyle.italic),
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.textTertiary,
+            fontStyle: FontStyle.italic,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildHonestyMetric(String label, int count, IconData icon, {bool isNegative = false}) {
+  Widget _buildHonestyMetric(
+    String label,
+    int count,
+    IconData icon, {
+    bool isNegative = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: isNegative ? AppColors.warning : AppColors.success),
+          Icon(
+            icon,
+            size: 14,
+            color: isNegative ? AppColors.warning : AppColors.success,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           Text(
             count.toString(),
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isNegative && count > 0 ? AppColors.warning : AppColors.textPrimary,
+              color: isNegative && count > 0
+                  ? AppColors.warning
+                  : AppColors.textPrimary,
             ),
           ),
         ],
@@ -563,37 +681,52 @@ class CredibilityLabelWidget extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 flag.topic,
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          ...flag.perspectives.map((p) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgDivider,
-                    borderRadius: BorderRadius.circular(4),
+          ...flag.perspectives.map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgDivider,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      p.label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    p.label,
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      p.explanation,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    p.explanation,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -621,21 +754,41 @@ class CredibilityLabelWidget extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildStatBox('Claims', stats.totalClaims.toString()),
-            _buildStatBox('Correct', stats.correct.toString(), color: AppColors.success),
-            _buildStatBox('Incorrect', stats.incorrect.toString(), color: AppColors.error),
-            _buildStatBox('Unverified', stats.unverifiable.toString(), color: AppColors.warning),
+            _buildStatBox(
+              'Correct',
+              stats.correct.toString(),
+              color: AppColors.success,
+            ),
+            _buildStatBox(
+              'Incorrect',
+              stats.incorrect.toString(),
+              color: AppColors.error,
+            ),
+            _buildStatBox(
+              'Unverified',
+              stats.unverifiable.toString(),
+              color: AppColors.warning,
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildStatBox(String label, String value, {Color color = AppColors.textPrimary}) {
+  Widget _buildStatBox(
+    String label,
+    String value, {
+    Color color = AppColors.textPrimary,
+  }) {
     return Column(
       children: [
         Text(
           value,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
         Text(
           label,
@@ -660,34 +813,46 @@ class CredibilityLabelWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        ...video.deductions.map((d) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '-${d.points}',
-                style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      d.factor.toUpperCase(),
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textTertiary),
-                    ),
-                    Text(
-                      d.reason,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
+        ...video.deductions.map(
+          (d) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '-${d.points}',
+                  style: const TextStyle(
+                    color: AppColors.warning,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        d.factor.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      Text(
+                        d.reason,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        )),
+        ),
       ],
     );
   }
@@ -721,15 +886,9 @@ class CredibilityLabelWidget extends StatelessWidget {
   Color _getScoreColor(double score) {
     if (score >= 90) return AppColors.success;
     if (score >= 75) return const Color(0xFFA3E635);
-    if (score >= 60) return Colors.yellowAccent;
+    if (score >= 60) return AppColors.brandHover;
     if (score >= 45) return AppColors.warning;
     if (score >= 30) return AppColors.error;
     return const Color(0xFF991B1B);
   }
 }
-
-
-
-
-
-

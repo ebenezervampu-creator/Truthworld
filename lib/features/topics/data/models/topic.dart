@@ -15,7 +15,6 @@ enum TopicVisibilityType {
 ///
 /// Stored in Firestore at: topics/{topicId}
 class Topic {
-
   const Topic({
     required this.id,
     required this.title,
@@ -24,7 +23,9 @@ class Topic {
     required this.handleLowercase,
     required this.description,
     required this.category,
-    required this.createdAt, required this.updatedAt, this.thumbnailUrl,
+    required this.createdAt,
+    required this.updatedAt,
+    this.thumbnailUrl,
     this.coverImage,
     this.videoCount = 0,
     this.featuredVideoIds = const [],
@@ -60,15 +61,19 @@ class Topic {
       videoCount: data['videoCount'] ?? 0,
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(data['relatedTopics'] ?? []),
-      createdAt: TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
-      updatedAt: TimestampUtils.parseToDateTime(data['updatedAt']) ?? DateTime.now(),
+      createdAt:
+          TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
+      updatedAt:
+          TimestampUtils.parseToDateTime(data['updatedAt']) ?? DateTime.now(),
       likeCount: data['likeCount'] ?? 0,
       commentCount: data['commentCount'] ?? 0,
       views: data['views'] ?? 0,
       trendingScore: (data['trendingScore'] as num?)?.toDouble() ?? 0.0,
       channelId: data['channelId'],
       creatorId: data['creatorId'],
-      visibilityType: TopicVisibilityType.fromJson(data['visibilityType'] ?? 'public'),
+      visibilityType: TopicVisibilityType.fromJson(
+        data['visibilityType'] ?? 'public',
+      ),
       accessCode: data['accessCode'],
       followerCount: data['followerCount'] ?? 0,
       status: data['status'] ?? 'active',
@@ -93,15 +98,19 @@ class Topic {
       videoCount: map['videoCount'] ?? 0,
       featuredVideoIds: List<String>.from(map['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(map['relatedTopics'] ?? []),
-      createdAt: TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
-      updatedAt: TimestampUtils.parseToDateTime(map['updatedAt']) ?? DateTime.now(),
+      createdAt:
+          TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
+      updatedAt:
+          TimestampUtils.parseToDateTime(map['updatedAt']) ?? DateTime.now(),
       likeCount: map['likeCount'] ?? 0,
       commentCount: map['commentCount'] ?? 0,
       views: map['views'] ?? 0,
       trendingScore: (map['trendingScore'] as num?)?.toDouble() ?? 0.0,
       channelId: map['channelId'],
       creatorId: map['creatorId'],
-      visibilityType: TopicVisibilityType.fromJson(map['visibilityType'] ?? 'public'),
+      visibilityType: TopicVisibilityType.fromJson(
+        map['visibilityType'] ?? 'public',
+      ),
       accessCode: map['accessCode'],
       followerCount: map['followerCount'] ?? 0,
       status: map['status'] ?? 'active',
@@ -278,7 +287,6 @@ class Topic {
 
 /// Lightweight topic reference for related topics list
 class TopicRef {
-
   const TopicRef({
     required this.id,
     required this.title,
@@ -312,7 +320,3 @@ class TopicRef {
     };
   }
 }
-
-
-
-

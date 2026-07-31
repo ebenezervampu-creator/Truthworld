@@ -43,7 +43,8 @@ class WatchTimePage extends StatelessWidget {
         ),
       ),
       body: Obx(() {
-        final isLoading = controller.isLoadingVideoAnalytics.value ||
+        final isLoading =
+            controller.isLoadingVideoAnalytics.value ||
             controller.isLoadingChannelAnalytics.value;
 
         if (isLoading) {
@@ -82,7 +83,10 @@ class WatchTimePage extends StatelessWidget {
     );
   }
 
-  Widget _buildMainMetric(CreatorAnalyticsController controller, Map<String, dynamic> args) {
+  Widget _buildMainMetric(
+    CreatorAnalyticsController controller,
+    Map<String, dynamic> args,
+  ) {
     final watchTimeChange = args['watchTimeChange'] as String? ?? '+0%';
     final isPositive = watchTimeChange.startsWith('+');
 
@@ -113,15 +117,20 @@ class WatchTimePage extends StatelessWidget {
             children: [
               Icon(
                 isPositive ? Icons.trending_up : Icons.trending_down,
-                color: isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                color: isPositive
+                    ? const Color(0xFF22C55E)
+                    : const Color(0xFFEF4444),
                 size: 16,
               ),
               const SizedBox(width: 4),
               Text(
                 '$watchTimeChange in last 28 days',
                 style: TextStyle(
-                  color: (isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444))
-                      .withValues(alpha: 0.8),
+                  color:
+                      (isPositive
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444))
+                          .withValues(alpha: 0.8),
                   fontSize: 12,
                 ),
               ),
@@ -150,7 +159,10 @@ class WatchTimePage extends StatelessWidget {
               color: AppColors.textPrimary.withValues(alpha: 0.05),
               dashArray: const [5, 5],
             ),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            labelStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
             axisLine: const AxisLine(width: 0),
             labelFormat: '{value}h',
           ),
@@ -159,7 +171,8 @@ class WatchTimePage extends StatelessWidget {
             SplineAreaSeries<WatchTimeTrendModel, DateTime>(
               dataSource: controller.watchTimeTrendData,
               xValueMapper: (WatchTimeTrendModel data, _) => data.date,
-              yValueMapper: (WatchTimeTrendModel data, _) => data.watchTimeHours,
+              yValueMapper: (WatchTimeTrendModel data, _) =>
+                  data.watchTimeHours,
               gradient: LinearGradient(
                 colors: [
                   const Color(0xFF3B82F6).withValues(alpha: 0.3),
@@ -202,7 +215,12 @@ class WatchTimePage extends StatelessWidget {
     );
   }
 
-  Widget _buildInsightItem(String label, String value, IconData icon, Color color) {
+  Widget _buildInsightItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,7 +279,9 @@ class _GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: child,
     );
@@ -283,7 +303,10 @@ class _WatchtimeRetentionCard extends StatelessWidget {
               final data = controller.watchtimeChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No data', style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text(
+                    'No data',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
                 );
               }
 
@@ -318,7 +341,8 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                 return _LegendItem(
                   color: Color(d.color),
                   label: d.title,
-                  value: '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)',
+                  value:
+                      '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)',
                 );
               }).toList(),
             );
@@ -330,7 +354,6 @@ class _WatchtimeRetentionCard extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-
   const _LegendItem({
     required this.color,
     required this.label,

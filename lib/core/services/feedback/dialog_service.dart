@@ -14,7 +14,6 @@ import 'package:truthworld/theme/app_theme.dart';
 class DialogService {
   DialogService._();
 
-
   /// Show success dialog
   static Future<bool?> success({
     required String title,
@@ -234,15 +233,24 @@ class DialogService {
                     ),
                   ),
                 ),
-              
+
               Padding(
-                padding: EdgeInsets.fromLTRB(24, title == null ? 24 : 0, 24, 24),
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  title == null ? 24 : 0,
+                  24,
+                  24,
+                ),
                 child: content,
               ),
 
               if (confirmLabel != null || cancelLabel != null)
                 Padding(
-                  padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                  padding: const EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    bottom: 20,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -253,7 +261,10 @@ class DialogService {
                             onCancel?.call();
                           },
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -276,8 +287,11 @@ class DialogService {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: AppColors.textPrimary,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -457,7 +471,7 @@ class DialogService {
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brand,
-                          foregroundColor: AppColors.textPrimary,
+                          foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -485,9 +499,3 @@ class DialogService {
     );
   }
 }
-
-
-
-
-
-

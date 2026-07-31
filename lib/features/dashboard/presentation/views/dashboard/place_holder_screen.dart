@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PlaceholderScreen extends StatelessWidget {
-
   const PlaceholderScreen({
-    required this.icon, required this.featureName, required this.isDarkMode, super.key,
+    required this.icon,
+    required this.featureName,
+    required this.isDarkMode,
+    super.key,
   });
   final IconData icon;
   final String featureName;
@@ -65,8 +67,3 @@ class PlaceholderScreen extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

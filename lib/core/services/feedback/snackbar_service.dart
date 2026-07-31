@@ -20,7 +20,6 @@ class SnackbarService {
   static const Duration _defaultDuration = Duration(seconds: 3);
   static const Duration _longDuration = Duration(seconds: 5);
 
-
   /// Show success snackbar
   ///
   /// Green accent with Crimson Noir harmony
@@ -125,7 +124,8 @@ class SnackbarService {
   /// For advanced customization beyond standard types
   static void custom({
     required String message,
-    required Color backgroundColor, String? title,
+    required Color backgroundColor,
+    String? title,
     Color? borderColor,
     Color? textColor,
     IconData? icon,
@@ -173,7 +173,9 @@ class SnackbarService {
   /// Internal method to show snackbar with consistent styling
   static void _show({
     required String message,
-    required Duration duration, required Color backgroundColor, String? title,
+    required Duration duration,
+    required Color backgroundColor,
+    String? title,
     VoidCallback? onTap,
     String? actionLabel,
     VoidCallback? onAction,
@@ -194,21 +196,21 @@ class SnackbarService {
 
     final isMobile = Get.width < 600;
     final actualMaxWidth = isMobile ? Get.width * 0.9 : 450.0;
-    
+
     Get.snackbar(
       title ?? '',
       message,
-      titleText: title != null 
-        ? Text(
-            title,
-            style: TextStyle(
-              color: textColor ?? AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              letterSpacing: 0.2,
-            ),
-          )
-        : const SizedBox.shrink(),
+      titleText: title != null
+          ? Text(
+              title,
+              style: TextStyle(
+                color: textColor ?? AppColors.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                letterSpacing: 0.2,
+              ),
+            )
+          : const SizedBox.shrink(),
       messageText: Text(
         message,
         style: TextStyle(
@@ -264,11 +266,16 @@ class SnackbarService {
                 onAction?.call();
               },
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                backgroundColor: (borderColor ?? AppColors.brand).withValues(alpha: 0.15),
+                backgroundColor: (borderColor ?? AppColors.brand).withValues(
+                  alpha: 0.15,
+                ),
               ),
               child: Text(
                 actionLabel,
@@ -295,9 +302,9 @@ class SnackbarService {
 ///
 /// For more complex snackbar UI beyond text
 class SnackbarContent extends StatelessWidget {
-
   const SnackbarContent({
-    required this.message, super.key,
+    required this.message,
+    super.key,
     this.icon,
     this.title,
     this.iconColor,
@@ -394,9 +401,3 @@ class SnackbarContent extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

@@ -27,8 +27,3 @@ class VideoFeatureBinding extends Bindings {
     Get.lazyPut<DownloadsController>(DownloadsController.new);
   }
 }
-
-
-
-
-

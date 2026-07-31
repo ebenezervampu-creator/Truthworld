@@ -63,7 +63,8 @@ enum AccountStatus {
 /// - `metadata` as extensible Map for future fields without schema migration
 /// - Server timestamps for consistency across clients
 /// - Immutable fields (`uid`, `email`, `provider`, `createdAt`) enforced by rules
-class UserModel { // Primary channel ID
+class UserModel {
+  // Primary channel ID
 
   const UserModel({
     required this.uid,
@@ -77,6 +78,13 @@ class UserModel { // Primary channel ID
     this.fcmTokens = const {},
     this.metadata = const {},
     this.channelId,
+    this.gender,
+    this.age,
+    this.birthdate,
+    this.location,
+    this.city,
+    this.state,
+    this.country,
   });
 
   /// Create from Firestore document snapshot
@@ -91,9 +99,21 @@ class UserModel { // Primary channel ID
       status: AccountStatus.fromString(data['status'] as String? ?? 'active'),
       createdAt: _toDateTime(data['createdAt']),
       lastLoginAt: _toDateTime(data['lastLoginAt']),
-      fcmTokens: Map<String, String>.from(data['fcmTokens'] as Map? ?? {}),
+      fcmTokens: (data['fcmTokens'] as Map? ?? {}).map(
+        (key, value) => MapEntry(
+          key.toString(),
+          value is Map ? (value['token'] as String? ?? '') : value.toString(),
+        ),
+      ),
       metadata: Map<String, dynamic>.from(data['metadata'] as Map? ?? {}),
       channelId: data['channelId'] as String?,
+      gender: data['gender'] as String?,
+      age: (data['age'] as num?)?.toInt(),
+      birthdate: data['birthdate'] as String?,
+      location: data['location'] as String?,
+      city: data['city'] as String?,
+      state: data['state'] as String?,
+      country: data['country'] as String?,
     );
   }
 
@@ -124,6 +144,13 @@ class UserModel { // Primary channel ID
   final Map<String, String> fcmTokens; // deviceId → token
   final Map<String, dynamic> metadata; // extensible key-value store
   final String? channelId;
+  final String? gender;
+  final int? age;
+  final String? birthdate;
+  final String? location;
+  final String? city;
+  final String? state;
+  final String? country;
 
   /// Serialize for Firestore document creation
   /// Uses `FieldValue.serverTimestamp()` for consistent timestamps
@@ -142,6 +169,13 @@ class UserModel { // Primary channel ID
       'fcmTokens': fcmTokens,
       'metadata': metadata,
       'channelId': channelId,
+      if (gender != null) 'gender': gender,
+      if (age != null) 'age': age,
+      if (birthdate != null) 'birthdate': birthdate,
+      if (location != null) 'location': location,
+      if (city != null) 'city': city,
+      if (state != null) 'state': state,
+      if (country != null) 'country': country,
     };
   }
 
@@ -155,6 +189,13 @@ class UserModel { // Primary channel ID
       'lastLoginAt': FieldValue.serverTimestamp(),
       'status': status.value,
       'channelId': channelId,
+      if (gender != null) 'gender': gender,
+      if (age != null) 'age': age,
+      if (birthdate != null) 'birthdate': birthdate,
+      if (location != null) 'location': location,
+      if (city != null) 'city': city,
+      if (state != null) 'state': state,
+      if (country != null) 'country': country,
     };
   }
 
@@ -167,6 +208,13 @@ class UserModel { // Primary channel ID
     Map<String, String>? fcmTokens,
     Map<String, dynamic>? metadata,
     String? channelId,
+    String? gender,
+    int? age,
+    String? birthdate,
+    String? location,
+    String? city,
+    String? state,
+    String? country,
   }) {
     return UserModel(
       uid: uid,
@@ -180,6 +228,13 @@ class UserModel { // Primary channel ID
       fcmTokens: fcmTokens ?? this.fcmTokens,
       metadata: metadata ?? this.metadata,
       channelId: channelId ?? this.channelId,
+      gender: gender ?? this.gender,
+      age: age ?? this.age,
+      birthdate: birthdate ?? this.birthdate,
+      location: location ?? this.location,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      country: country ?? this.country,
     );
   }
 
@@ -204,8 +259,3 @@ class UserModel { // Primary channel ID
   @override
   int get hashCode => uid.hashCode;
 }
-
-
-
-
-

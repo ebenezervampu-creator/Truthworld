@@ -23,7 +23,7 @@ class AlertsConfigTab extends StatelessWidget {
             ],
           ),
         );
-      }
+      },
     );
   }
 
@@ -38,7 +38,14 @@ class AlertsConfigTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Active Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Active Alerts',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           ListView.builder(
             shrinkWrap: true,
@@ -54,12 +61,23 @@ class AlertsConfigTab extends StatelessWidget {
                   color: Colors.transparent,
                   child: ListTile(
                     leading: Icon(Icons.warning, color: colors[index]),
-                    title: Text('Spam Spike Detected in Region ${index + 1}', style: const TextStyle(color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                    subtitle: Text('Threshold exceeded by ${(index + 1) * 15}%', style: const TextStyle(color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                    title: Text(
+                      'Spam Spike Detected in Region ${index + 1}',
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      'Threshold exceeded by ${(index + 1) * 15}%',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     trailing: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Chip(
-                        label: Text(severities[index], style: TextStyle(color: colors[index])),
+                        label: Text(
+                          severities[index],
+                          style: TextStyle(color: colors[index]),
+                        ),
                         backgroundColor: colors[index].withOpacity(0.1),
                         side: BorderSide(color: colors[index]),
                       ),
@@ -68,7 +86,7 @@ class AlertsConfigTab extends StatelessWidget {
                 ),
               );
             },
-          )
+          ),
         ],
       ),
     );
@@ -85,7 +103,14 @@ class AlertsConfigTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Alert Rules Configuration', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Alert Rules Configuration',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           _buildAlertRuleItem('Queue Backlog Alert', '500 items', true),
           const Divider(color: AppColors.bgDivider),
@@ -110,23 +135,41 @@ class AlertsConfigTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(ruleName, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+              Text(
+                ruleName,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Threshold: ', style: TextStyle(color: AppColors.textSecondary)),
+                  const Text(
+                    'Threshold: ',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
                   SizedBox(
                     width: 120,
                     height: 32,
                     child: TextField(
                       controller: TextEditingController(text: threshold),
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                      ),
                       decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                        ),
                         filled: true,
                         fillColor: AppColors.bgInput,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
                     ),
                   ),
@@ -140,9 +183,35 @@ class AlertsConfigTab extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 children: [
-                  FilterChip(label: const Text('Push', style: TextStyle(color: AppColors.textPrimary)), onSelected: (_) {}, selected: true, selectedColor: AppColors.brand.withOpacity(0.3), backgroundColor: AppColors.bgElevated),
-                  FilterChip(label: const Text('Email', style: TextStyle(color: AppColors.textPrimary)), onSelected: (_) {}, selected: false, backgroundColor: AppColors.bgElevated),
-                  FilterChip(label: const Text('Slack', style: TextStyle(color: AppColors.textPrimary)), onSelected: (_) {}, selected: true, selectedColor: AppColors.brand.withOpacity(0.3), backgroundColor: AppColors.bgElevated),
+                  FilterChip(
+                    label: const Text(
+                      'Push',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
+                    onSelected: (_) {},
+                    selected: true,
+                    selectedColor: AppColors.brand.withOpacity(0.3),
+                    backgroundColor: AppColors.bgElevated,
+                  ),
+                  FilterChip(
+                    label: const Text(
+                      'Email',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
+                    onSelected: (_) {},
+                    selected: false,
+                    backgroundColor: AppColors.bgElevated,
+                  ),
+                  FilterChip(
+                    label: const Text(
+                      'Slack',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
+                    onSelected: (_) {},
+                    selected: true,
+                    selectedColor: AppColors.brand.withOpacity(0.3),
+                    backgroundColor: AppColors.bgElevated,
+                  ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -169,12 +238,31 @@ class AlertsConfigTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Escalation Tiers', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Escalation Tiers',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
-          _buildTierItem('Tier 1: Automated', 'Handled by AI model, auto-approved/rejected based on clear guidelines.'),
-          _buildTierItem('Tier 2: Junior Mod', 'Appeals and borderline cases requiring human review.'),
-          _buildTierItem('Tier 3: Senior Mod', 'Complex cases, VIP accounts, and high-severity violations.'),
-          _buildTierItem('Tier 4: Admin/Legal', 'Law enforcement requests, severe illegal content, platform-wide threats.'),
+          _buildTierItem(
+            'Tier 1: Automated',
+            'Handled by AI model, auto-approved/rejected based on clear guidelines.',
+          ),
+          _buildTierItem(
+            'Tier 2: Junior Mod',
+            'Appeals and borderline cases requiring human review.',
+          ),
+          _buildTierItem(
+            'Tier 3: Senior Mod',
+            'Complex cases, VIP accounts, and high-severity violations.',
+          ),
+          _buildTierItem(
+            'Tier 4: Admin/Legal',
+            'Law enforcement requests, severe illegal content, platform-wide threats.',
+          ),
         ],
       ),
     );
@@ -186,9 +274,18 @@ class AlertsConfigTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(description, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(
+            description,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
         ],
       ),
     );

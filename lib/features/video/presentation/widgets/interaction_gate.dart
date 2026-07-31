@@ -10,9 +10,10 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Root Interaction Gate that intercepts all gesture recognizers when screen is locked
 class InteractionGate extends StatelessWidget {
-
   const InteractionGate({
-    required this.child, required this.lockController, super.key,
+    required this.child,
+    required this.lockController,
+    super.key,
   });
   final Widget child;
   final PlayerLockController lockController;
@@ -48,7 +49,8 @@ class InteractionGate extends StatelessWidget {
             lockController.isLocked.value;
             lockController.pillState.value;
             final pillVisible =
-                locked && lockController.pillState.value == UnlockPillState.visible;
+                locked &&
+                lockController.pillState.value == UnlockPillState.visible;
 
             return AnimatedOpacity(
               opacity: pillVisible ? 1.0 : 0.0,
@@ -73,7 +75,9 @@ class InteractionGate extends StatelessWidget {
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.bgSurface.withValues(alpha: 0.92),
+                              color: AppColors.bgSurface.withValues(
+                                alpha: 0.92,
+                              ),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
                                 color: AppColors.brand.withValues(alpha: 0.6),

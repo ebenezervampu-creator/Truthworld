@@ -14,9 +14,9 @@ import 'package:truthworld/features/search/data/models/search_result.dart'; // C
 import 'package:truthworld/features/search/data/services/search_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 
 class SearchSuggestion {
-
   SearchSuggestion({
     required this.text,
     this.subtitle,
@@ -56,7 +56,6 @@ class SearchSuggestion {
 /// 8. ✅ Analytics tracking
 /// 9. ✅ Memory optimization
 class TrendingItem {
-
   TrendingItem({
     required this.id,
     required this.rank,
@@ -120,6 +119,7 @@ class SearchController extends GetxController {
   final RxBool isShowingFallback = false.obs;
   final RxString selectedFilter = 'All'.obs;
   final RxSet<String> watchedVideoIds = <String>{}.obs;
+
   /// Cache statistics (for debugging)
   final RxMap<String, dynamic> cacheStats = <String, dynamic>{}.obs;
 
@@ -196,12 +196,12 @@ class SearchController extends GetxController {
   void onInit() {
     super.onInit();
     _initializeFilters();
-    _loadPersistentCache();
-    _loadRecentSearches();
-    fetchTrendingSuggestions();
-    _fetchWatchedVideoIds();
+    unawaited(_loadPersistentCache());
+    unawaited(_loadRecentSearches());
+    unawaited(fetchTrendingSuggestions());
+    unawaited(_fetchWatchedVideoIds());
     _initRealtimeTrendingSubscription();
-    _fetchRecommended();
+    unawaited(_fetchRecommended());
   }
 
   @override
@@ -227,42 +227,58 @@ class SearchController extends GetxController {
 
       _trendingSubscription = FirebaseFirestore.instance
           .collection('trending_searches')
-          .orderBy('count', descending: true)
           .limit(10)
           .snapshots()
-          .listen((snapshot) {
-        if (snapshot.docs.isNotEmpty) {
-          final items = <TrendingItem>[];
-          var rank = 1;
-          for (final doc in snapshot.docs) {
-            final data = doc.data();
-            final queryStr = data['query'] as String? ?? doc.id;
-            final count = (data['count'] as num?)?.toInt() ?? (1000 - rank * 50);
-            final typeStr = data['type'] as String? ?? 'video';
-            final movementStr = data['movement'] as String? ?? (rank == 1 ? '▲ Up 2' : (rank == 2 ? 'NEW' : (rank == 3 ? '▲ Up 4' : '▼ Down 1')));
-            items.add(TrendingItem(
-              id: doc.id,
-              rank: rank,
-              title: queryStr,
-              category: typeStr,
-              volume: count,
-              badge: rank <= 3 ? '🔥 REALTIME' : 'RISING',
-              movement: movementStr,
-              subtitle: '${_formatVolume(count)} searches today',
-              imageUrl: data['thumbnailUrl'] as String?,
-              creator: data['creatorName'] as String? ?? data['channelName'] as String?,
-            ));
-            rank++;
-          }
-          realtimeTrendingItems.assignAll(items);
-          isRealtimeTrendingLoading.value = false;
-        } else {
-          _fallbackRealtimeTrending();
-        }
-      }, onError: (e) {
-        debugPrint('⚠️ [Search] Realtime trending stream error: $e');
-        _fallbackRealtimeTrending();
-      });
+          .listen(
+            (snapshot) {
+              if (snapshot.docs.isNotEmpty) {
+                final items = <TrendingItem>[];
+                var rank = 1;
+                for (final doc in snapshot.docs) {
+                  final data = doc.data();
+                  final queryStr = (data['term'] ?? data['query'] ?? doc.id)
+                      .toString();
+                  final count =
+                      (data['searchCount'] as num?)?.toInt() ??
+                      (data['count'] as num?)?.toInt() ??
+                      (1000 - rank * 50);
+                  final typeStr = data['type'] as String? ?? 'video';
+                  final movementStr =
+                      data['movement'] as String? ??
+                      (rank == 1
+                          ? '▲ Up 2'
+                          : (rank == 2
+                                ? 'NEW'
+                                : (rank == 3 ? '▲ Up 4' : '▼ Down 1')));
+                  items.add(
+                    TrendingItem(
+                      id: doc.id,
+                      rank: rank,
+                      title: queryStr,
+                      category: typeStr,
+                      volume: count,
+                      badge: rank <= 3 ? '🔥 REALTIME' : 'RISING',
+                      movement: movementStr,
+                      subtitle: '${_formatVolume(count)} searches today',
+                      imageUrl: data['thumbnailUrl'] as String?,
+                      creator:
+                          data['creatorName'] as String? ??
+                          data['channelName'] as String?,
+                    ),
+                  );
+                  rank++;
+                }
+                realtimeTrendingItems.assignAll(items);
+                isRealtimeTrendingLoading.value = false;
+              } else {
+                _fallbackRealtimeTrending();
+              }
+            },
+            onError: (e) {
+              debugPrint('⚠️ [Search] Realtime trending stream error: $e');
+              _fallbackRealtimeTrending();
+            },
+          );
     } catch (e) {
       debugPrint('⚠️ [Search] Realtime trending setup failed: $e');
       _fallbackRealtimeTrending();
@@ -273,64 +289,139 @@ class SearchController extends GetxController {
     try {
       final items = <TrendingItem>[];
 
-      final videosSnap = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('status', whereIn: const ['processed', 'published'])
-          .orderBy('views', descending: true)
-          .limit(5)
-          .get();
+      QuerySnapshot<Map<String, dynamic>>? videosSnap;
+      try {
+        videosSnap = await FirebaseFirestore.instance
+            .collection('videos')
+            .where('status', whereIn: const ['processed', 'published'])
+            .orderBy('views', descending: true)
+            .limit(5)
+            .get();
+      } catch (_) {
+        try {
+          videosSnap = await FirebaseFirestore.instance
+              .collection('videos')
+              .limit(5)
+              .get();
+        } catch (_) {}
+      }
 
       var rank = 1;
       final movements = ['▲ Up 3', 'NEW', '▲ Up 5', '▼ Down 1', '▲ Up 2'];
       final badges = ['🔥 #1 TODAY', '🔥 HOT', 'RISING', 'POPULAR', 'TRENDING'];
 
-      for (final doc in videosSnap.docs) {
-        final data = doc.data();
-        final title = data['title'] as String? ?? 'Trending Video';
-        final views = (data['views'] as num?)?.toInt() ?? 1200;
-        final idx = (rank - 1) % movements.length;
-        items.add(TrendingItem(
-          id: doc.id,
-          rank: rank,
-          title: title,
-          category: 'video',
-          volume: views,
-          badge: badges[idx],
-          movement: movements[idx],
-          subtitle: '${_formatVolume(views)} views today',
-          imageUrl: data['thumbnailUrl'] as String?,
-          creator: data['channelName'] as String? ?? 'Creator',
-        ));
-        rank++;
+      if (videosSnap != null && videosSnap.docs.isNotEmpty) {
+        for (final doc in videosSnap.docs) {
+          final data = doc.data();
+          final title = data['title'] as String? ?? 'Trending Video';
+          final views =
+              (data['viewCount'] as num?)?.toInt() ??
+              (data['views'] as num?)?.toInt() ??
+              (data['stats'] is Map
+                  ? (data['stats']['views'] as num?)?.toInt()
+                  : null) ??
+              0;
+          final idx = (rank - 1) % movements.length;
+          items.add(
+            TrendingItem(
+              id: doc.id,
+              rank: rank,
+              title: title,
+              category: 'video',
+              volume: views,
+              badge: badges[idx],
+              movement: movements[idx],
+              subtitle: '${_formatVolume(views)} views today',
+              imageUrl: data['thumbnailUrl'] as String?,
+              creator: data['channelName'] as String? ?? 'Creator',
+            ),
+          );
+          rank++;
+        }
       }
 
       try {
-        final topicsSnap = await FirebaseFirestore.instance.collection('topics').limit(3).get();
+        final topicsSnap = await FirebaseFirestore.instance
+            .collection('topics')
+            .limit(3)
+            .get();
         for (final doc in topicsSnap.docs) {
           final data = doc.data();
           final title = data['title'] as String? ?? 'Trending Topic';
-          items.add(TrendingItem(
-            id: doc.id,
-            rank: rank,
-            title: title,
-            category: 'topic',
-            volume: 850 + rank * 40,
-            badge: 'RISING',
-            movement: '▲ Up 2',
-            subtitle: 'Trending Topic',
-            imageUrl: data['thumbnailUrl'] as String?,
-          ));
+          items.add(
+            TrendingItem(
+              id: doc.id,
+              rank: rank,
+              title: title,
+              category: 'topic',
+              volume: 850 + rank * 40,
+              badge: 'RISING',
+              movement: '▲ Up 2',
+              subtitle: 'Trending Topic',
+              imageUrl: data['thumbnailUrl'] as String?,
+            ),
+          );
           rank++;
         }
       } catch (_) {}
 
       if (items.length < 5) {
         final defaultTrends = [
-          TrendingItem(id: 't1', rank: 1, title: 'Flutter Web Development', category: 'video', volume: 15400, badge: '🔥 #1 TODAY', movement: '▲ Up 3', subtitle: '15.4k searches today', creator: 'Flutter Team'),
-          TrendingItem(id: 't2', rank: 2, title: 'AI & Autonomous Agents', category: 'topic', volume: 12100, badge: '🔥 HOT', movement: 'NEW', subtitle: '12.1k searches today', creator: 'TruthWorld AI'),
-          TrendingItem(id: 't3', rank: 3, title: 'Fullstack Next.js 15', category: 'playlist', volume: 9800, badge: 'RISING', movement: '▲ Up 5', subtitle: '9.8k searches today', creator: 'Dev Master'),
-          TrendingItem(id: 't4', rank: 4, title: 'TruthWorld Tech Channel', category: 'channel', volume: 8400, badge: 'POPULAR', movement: '▼ Down 1', subtitle: '8.4k searches today', creator: 'TruthWorld Studio'),
-          TrendingItem(id: 't5', rank: 5, title: 'Dart 3.6 Deep Dive', category: 'video', volume: 7200, badge: 'TRENDING', movement: '▲ Up 2', subtitle: '7.2k searches today', creator: 'Dart Eng'),
+          TrendingItem(
+            id: 't1',
+            rank: 1,
+            title: 'Flutter Web Development',
+            category: 'video',
+            volume: 15400,
+            badge: '🔥 #1 TODAY',
+            movement: '▲ Up 3',
+            subtitle: '15.4k searches today',
+            creator: 'Flutter Team',
+          ),
+          TrendingItem(
+            id: 't2',
+            rank: 2,
+            title: 'AI & Autonomous Agents',
+            category: 'topic',
+            volume: 12100,
+            badge: '🔥 HOT',
+            movement: 'NEW',
+            subtitle: '12.1k searches today',
+            creator: 'TruthWorld AI',
+          ),
+          TrendingItem(
+            id: 't3',
+            rank: 3,
+            title: 'Fullstack Next.js 15',
+            category: 'playlist',
+            volume: 9800,
+            badge: 'RISING',
+            movement: '▲ Up 5',
+            subtitle: '9.8k searches today',
+            creator: 'Dev Master',
+          ),
+          TrendingItem(
+            id: 't4',
+            rank: 4,
+            title: 'TruthWorld Tech Channel',
+            category: 'channel',
+            volume: 8400,
+            badge: 'POPULAR',
+            movement: '▼ Down 1',
+            subtitle: '8.4k searches today',
+            creator: 'TruthWorld Studio',
+          ),
+          TrendingItem(
+            id: 't5',
+            rank: 5,
+            title: 'Dart 3.6 Deep Dive',
+            category: 'video',
+            volume: 7200,
+            badge: 'TRENDING',
+            movement: '▲ Up 2',
+            subtitle: '7.2k searches today',
+            creator: 'Dart Eng',
+          ),
         ];
         items.addAll(defaultTrends);
       }
@@ -359,9 +450,13 @@ class SearchController extends GetxController {
     } else if (filter == 'Topics') {
       return realtimeTrendingItems.where((t) => t.category == 'topic').toList();
     } else if (filter == 'Playlists') {
-      return realtimeTrendingItems.where((t) => t.category == 'playlist').toList();
+      return realtimeTrendingItems
+          .where((t) => t.category == 'playlist')
+          .toList();
     } else if (filter == 'Channels') {
-      return realtimeTrendingItems.where((t) => t.category == 'channel').toList();
+      return realtimeTrendingItems
+          .where((t) => t.category == 'channel')
+          .toList();
     }
     return realtimeTrendingItems;
   }
@@ -376,7 +471,9 @@ class SearchController extends GetxController {
       final cached = GetStorage().read(_cacheStorageKey);
       if (cached != null && cached is String) {
         final List<dynamic> decoded = jsonDecode(cached);
-        _allResults = decoded.map((item) => SearchResult.fromMap(item as Map<String, dynamic>)).toList();
+        _allResults = decoded
+            .map((item) => SearchResult.fromMap(item as Map<String, dynamic>))
+            .toList();
       }
       debugPrint('💾 [Search] Persistent cache loaded');
     } catch (e) {
@@ -623,10 +720,12 @@ class SearchController extends GetxController {
       final key = text.toLowerCase();
       if (!seenTexts.contains(key)) {
         seenTexts.add(key);
-        newSuggestions.add(SearchSuggestion(
-          text: text,
-          icon: Icons.history,
-        ));
+        newSuggestions.add(
+          SearchSuggestion(
+            text: text,
+            icon: Icons.history,
+          ),
+        );
       }
     }
 
@@ -644,20 +743,22 @@ class SearchController extends GetxController {
           if (!seenIds.contains(v.id) && !seenTexts.contains(key)) {
             seenIds.add(v.id);
             seenTexts.add(key);
-            newSuggestions.add(SearchSuggestion(
-              text: v.title,
-              imageUrl: v.thumbnailUrl,
-              matchedResult: SearchResult(
-                id: v.id,
-                title: v.title,
-                thumbnail: v.thumbnailUrl,
-                views: v.viewCount,
-                channelName: v.channelName,
-                channelImage: v.channelAvatarUrl,
-                createdAt: v.createdAt,
-                durationMs: v.durationValue.inMilliseconds,
+            newSuggestions.add(
+              SearchSuggestion(
+                text: v.title,
+                imageUrl: v.thumbnailUrl,
+                matchedResult: SearchResult(
+                  id: v.id,
+                  title: v.title,
+                  thumbnail: v.thumbnailUrl,
+                  views: v.viewCount,
+                  channelName: v.channelName,
+                  channelImage: v.channelAvatarUrl,
+                  createdAt: v.createdAt,
+                  durationMs: v.durationValue.inMilliseconds,
+                ),
               ),
-            ));
+            );
           }
         }
       }
@@ -689,11 +790,13 @@ class SearchController extends GetxController {
           if (!seenIds.contains(doc.id) && !seenTexts.contains(key)) {
             seenIds.add(doc.id);
             seenTexts.add(key);
-            newSuggestions.add(SearchSuggestion(
-              text: title,
-              imageUrl: data['thumbnailUrl'] as String? ?? '',
-              matchedResult: SearchResult.fromFirestore(doc),
-            ));
+            newSuggestions.add(
+              SearchSuggestion(
+                text: title,
+                imageUrl: data['thumbnailUrl'] as String? ?? '',
+                matchedResult: SearchResult.fromFirestore(doc),
+              ),
+            );
           }
         }
       } catch (e) {
@@ -754,20 +857,41 @@ class SearchController extends GetxController {
 
     // 2. Filter by watched / unwatched
     if (filter == 'Watched') {
-      list = list.where((r) => r.type != ResultType.video || watchedVideoIds.contains(r.id)).toList();
+      list = list
+          .where(
+            (r) => r.type != ResultType.video || watchedVideoIds.contains(r.id),
+          )
+          .toList();
     } else if (filter == 'Unwatched') {
-      list = list.where((r) => r.type != ResultType.video || !watchedVideoIds.contains(r.id)).toList();
+      list = list
+          .where(
+            (r) =>
+                r.type != ResultType.video || !watchedVideoIds.contains(r.id),
+          )
+          .toList();
     }
 
     // 3. Filter by recently uploaded (in the last 7 days)
     if (filter == 'Recently uploaded') {
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-      list = list.where((r) => r.type != ResultType.video || r.uploadedAt.isAfter(sevenDaysAgo)).toList();
+      list = list
+          .where(
+            (r) =>
+                r.type != ResultType.video ||
+                r.uploadedAt.isAfter(sevenDaysAgo),
+          )
+          .toList();
     }
 
     // 4. Live (contains 'live' in title)
     if (filter == 'Live') {
-      list = list.where((r) => r.type != ResultType.video || r.title.toLowerCase().contains('live')).toList();
+      list = list
+          .where(
+            (r) =>
+                r.type != ResultType.video ||
+                r.title.toLowerCase().contains('live'),
+          )
+          .toList();
     }
 
     return list;
@@ -788,7 +912,9 @@ class SearchController extends GetxController {
 
     // Avoid duplicate queries if the results are already loaded
     if (normalized == _lastSearchQuery && searchResults.isNotEmpty) {
-      debugPrint('🔍 [Search] Query is identical to last search; skipping Firestore request');
+      debugPrint(
+        '🔍 [Search] Query is identical to last search; skipping Firestore request',
+      );
       showSuggestions.value = false;
       return;
     }
@@ -805,9 +931,9 @@ class SearchController extends GetxController {
       errorMessage.value =
           'Too many searches. Please slow down and try again in a moment.';
       Get.snackbar(
-          'Rate Limited',
-          'Please wait a moment before searching again',
-          snackPosition: SnackPosition.BOTTOM,
+        'Rate Limited',
+        'Please wait a moment before searching again',
+        snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
@@ -842,7 +968,9 @@ class SearchController extends GetxController {
       // If empty, let's load recommended/fallback videos so we "show what we have"
       var fellBack = false;
       if (results.isEmpty) {
-        debugPrint('⚠️ [Search] No results found for: "$normalized". Falling back to recommended/popular videos.');
+        debugPrint(
+          '⚠️ [Search] No results found for: "$normalized". Falling back to recommended/popular videos.',
+        );
         results = await _searchService.getRecommended();
         fellBack = results.isNotEmpty;
       }
@@ -857,6 +985,11 @@ class SearchController extends GetxController {
 
       // Add to recent searches (Problem 3: Persistent)
       _addToRecentSearches(normalized);
+
+      // Track signal in personalization engine
+      if (Get.isRegistered<UserSignalTracker>()) {
+        Get.find<UserSignalTracker>().trackSearch(query: normalized);
+      }
 
       // Update cache stats for debugging
       cacheStats.value = _searchService.getCacheStats();
@@ -877,7 +1010,9 @@ class SearchController extends GetxController {
         debugPrint('⚠️ [Search] No results found for: "$normalized"');
         errorMessage.value = 'No results found for "$normalized"';
       } else {
-        debugPrint('✅ [Search] Found ${results.length} results ${isShowingFallback.value ? "(fallback)" : ""}');
+        debugPrint(
+          '✅ [Search] Found ${results.length} results ${isShowingFallback.value ? "(fallback)" : ""}',
+        );
       }
     } catch (e) {
       if (token != _searchToken) return;
@@ -948,9 +1083,7 @@ class SearchController extends GetxController {
       return;
     }
 
-    final endIndexCapped = endIndex > items.length
-        ? items.length
-        : endIndex;
+    final endIndexCapped = endIndex > items.length ? items.length : endIndex;
 
     searchResults.value = items.sublist(startIndex, endIndexCapped);
     hasMoreResults.value = endIndexCapped < items.length;
@@ -970,7 +1103,9 @@ class SearchController extends GetxController {
     }
 
     isLoadingMore.value = true;
-    await Future.delayed(const Duration(milliseconds: 300)); // Simulate load time
+    await Future.delayed(
+      const Duration(milliseconds: 300),
+    ); // Simulate load time
 
     _loadPage(currentPage.value + 1);
     currentPage.value++;
@@ -1075,8 +1210,10 @@ class SearchController extends GetxController {
       final collection = result.type == ResultType.video
           ? 'videos'
           : (result.type == ResultType.channel
-              ? 'channels'
-              : (result.type == ResultType.playlist ? 'playlists' : 'topics'));
+                ? 'channels'
+                : (result.type == ResultType.playlist
+                      ? 'playlists'
+                      : 'topics'));
 
       final doc = await FirebaseFirestore.instance
           .collection(collection)
@@ -1134,8 +1271,3 @@ class SearchController extends GetxController {
     }
   }
 }
-
-
-
-
-

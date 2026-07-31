@@ -60,10 +60,10 @@ class SearchService {
   /// 🎬 VIDEO SEARCH (PUBLIC API - for enhanced search)
   Future<List<SearchResult>> searchVideos(String query) async {
     if (query.isEmpty) return [];
-    
+
     final normalized = query.toLowerCase().trim();
     final cacheKey = 'videos:$normalized';
-    
+
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
@@ -83,7 +83,10 @@ class SearchService {
 
   /// 🎬 VIDEO SEARCH (INTERNAL - with fallback strategy, cost-effective)
   Future<List<SearchResult>> _searchVideos(String query) async {
-    final tokens = query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final tokens = query
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     // 1. Try keywords (fast, indexed query)
     var results = await _firestore
@@ -93,9 +96,7 @@ class SearchService {
         .limit(20)
         .get()
         .then(
-          (s) => s.docs
-              .map(SearchResult.fromFirestore)
-              .toList(),
+          (s) => s.docs.map(SearchResult.fromFirestore).toList(),
         );
 
     // 2. Fallback to prefix search (title)
@@ -127,20 +128,24 @@ class SearchService {
                 final c = v.channelName.toLowerCase();
                 if (t.contains(query) || c.contains(query)) return true;
                 if (tokens.isNotEmpty) {
-                  return tokens.every((token) => t.contains(token) || c.contains(token));
+                  return tokens.every(
+                    (token) => t.contains(token) || c.contains(token),
+                  );
                 }
                 return false;
               })
-              .map((v) => SearchResult(
-                    id: v.id,
-                    title: v.title,
-                    thumbnail: v.thumbnailUrl,
-                    views: v.viewCount,
-                    channelName: v.channelName,
-                    channelImage: v.channelAvatarUrl,
-                    createdAt: v.createdAt,
-                    durationMs: v.durationValue.inMilliseconds,
-                  ));
+              .map(
+                (v) => SearchResult(
+                  id: v.id,
+                  title: v.title,
+                  thumbnail: v.thumbnailUrl,
+                  views: v.viewCount,
+                  channelName: v.channelName,
+                  channelImage: v.channelAvatarUrl,
+                  createdAt: v.createdAt,
+                  durationMs: v.durationValue.inMilliseconds,
+                ),
+              );
           results.addAll(localMatches);
         }
       } catch (e) {
@@ -156,10 +161,10 @@ class SearchService {
     if (query.isEmpty) {
       return [];
     }
-    
+
     final normalized = query.toLowerCase().trim();
     final cacheKey = 'channels:$normalized';
-    
+
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
@@ -190,7 +195,8 @@ class SearchService {
           .then(
             (s) => s.docs
                 .map(
-                  (d) => SearchResult.fromFirestore(d, type: ResultType.channel),
+                  (d) =>
+                      SearchResult.fromFirestore(d, type: ResultType.channel),
                 )
                 .toList(),
           );
@@ -206,7 +212,8 @@ class SearchService {
             .then(
               (s) => s.docs
                   .map(
-                    (d) => SearchResult.fromFirestore(d, type: ResultType.channel),
+                    (d) =>
+                        SearchResult.fromFirestore(d, type: ResultType.channel),
                   )
                   .toList(),
             );
@@ -223,10 +230,10 @@ class SearchService {
     if (query.isEmpty) {
       return [];
     }
-    
+
     final normalized = query.toLowerCase().trim();
     final cacheKey = 'playlists:$normalized';
-    
+
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
@@ -273,10 +280,10 @@ class SearchService {
     if (query.isEmpty) {
       return [];
     }
-    
+
     final normalized = query.toLowerCase().trim();
     final cacheKey = 'topics:$normalized';
-    
+
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
@@ -323,7 +330,8 @@ class SearchService {
             .then(
               (s) => s.docs
                   .map(
-                    (d) => SearchResult.fromFirestore(d, type: ResultType.topic),
+                    (d) =>
+                        SearchResult.fromFirestore(d, type: ResultType.topic),
                   )
                   .toList(),
             );
@@ -342,23 +350,19 @@ class SearchService {
       final snapshot = await _firestore
           .collection('videos')
           .where('status', whereIn: const ['processed', 'published'])
-          .where('visibility', isEqualTo: 'Public')
           .orderBy('views', descending: true)
           .limit(5)
           .get();
 
-      return snapshot.docs
-          .map(SearchResult.fromFirestore)
-          .toList();
+      return snapshot.docs.map(SearchResult.fromFirestore).toList();
     } catch (e) {
       debugPrint('⚠️ [Search] Recommended fetch failed: $e');
-      // Final fallback: just get any 5 videos if views-ordering requires an index
+      // Secondary fallback: query without ordering if index is missing
       try {
         final snapshot = await _firestore.collection('videos').limit(5).get();
-        return snapshot.docs
-            .map(SearchResult.fromFirestore)
-            .toList();
-      } catch (_) {
+        return snapshot.docs.map(SearchResult.fromFirestore).toList();
+      } catch (err) {
+        debugPrint('⚠️ [Search] Fallback recommended fetch failed: $err');
         return [];
       }
     }
@@ -367,14 +371,30 @@ class SearchService {
   /// Fetch trending search queries from Firestore
   Future<List<String>> getTrendingSuggestions() async {
     try {
-      final snapshot = await _firestore
-          .collection('trending_searches')
-          .orderBy('count', descending: true)
-          .limit(10)
-          .get();
+      QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await _firestore
+            .collection('trending_searches')
+            .orderBy('searchCount', descending: true)
+            .limit(10)
+            .get();
+      } catch (_) {
+        try {
+          snapshot = await _firestore
+              .collection('trending_searches')
+              .orderBy('count', descending: true)
+              .limit(10)
+              .get();
+        } catch (_) {
+          snapshot = await _firestore
+              .collection('trending_searches')
+              .limit(10)
+              .get();
+        }
+      }
 
       if (snapshot.docs.isEmpty) {
-        return [
+        return const [
           'Flutter Tutorial',
           'Web Development',
           'Mobile Apps',
@@ -383,10 +403,13 @@ class SearchService {
         ];
       }
 
-      return snapshot.docs.map((doc) => doc.get('query') as String).toList();
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return (data['term'] ?? data['query'] ?? doc.id).toString();
+      }).toList();
     } catch (e) {
       debugPrint('⚠️ [Search] Trending fetch failed: $e');
-      return [
+      return const [
         'Flutter Tutorial',
         'Web Development',
         'Mobile Apps',
@@ -397,11 +420,17 @@ class SearchService {
   }
 
   /// Sort results locally using Industry Standard multi-factor relevance ranking
-  List<SearchResult> _rankAndSortResults(List<SearchResult> results, String rawQuery) {
+  List<SearchResult> _rankAndSortResults(
+    List<SearchResult> results,
+    String rawQuery,
+  ) {
     final query = rawQuery.toLowerCase().trim();
     if (query.isEmpty) return results;
 
-    final tokens = query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final tokens = query
+        .split(RegExp(r'\s+'))
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     for (final item in results) {
       var score = 0.0;
@@ -508,8 +537,3 @@ class SearchService {
     debugPrint('✅ [Search] Cache warmup complete');
   }
 }
-
-
-
-
-

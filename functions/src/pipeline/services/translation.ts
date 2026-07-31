@@ -16,6 +16,7 @@ import { TranslationResult, TranslatedSegment, CreatorDNA } from "../types";
 import { SpeakerProfile } from "./speaker-profiling";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
+import { getVertexAI } from "../utils/ai-client";
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
 
@@ -63,7 +64,7 @@ export class TranslationService {
     }
 
     // ── Premium: Gemini 2.0 Flash ───────────────────────────────────────────
-    this.gemini = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+    this.gemini = getVertexAI();
   }
 
   // ─── Single text translation ───────────────────────────────────────────────

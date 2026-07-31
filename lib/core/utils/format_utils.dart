@@ -40,8 +40,3 @@ class FormatUtils {
     }
   }
 }
-
-
-
-
-

@@ -86,7 +86,9 @@ class VideoManagementController extends GetxController {
       final imageUrl = await imageSnapshot.ref.getDownloadURL();
 
       final collectionName = isShort ? 'shorts' : 'videos';
-      final DocumentReference docRef = _firestore.collection(collectionName).doc();
+      final DocumentReference docRef = _firestore
+          .collection(collectionName)
+          .doc();
 
       final newVideo = Video(
         id: docRef.id,
@@ -130,9 +132,7 @@ class VideoManagementController extends GetxController {
         //  .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
-              .map(Video.fromDocumentSnapshot)
-              .toList();
+          return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
         })
         .handleError((error) {
           Get.snackbar('Error', 'Failed to fetch videos: $error');
@@ -221,7 +221,10 @@ class VideoManagementController extends GetxController {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
-        Get.snackbar('Auth Error', 'You must be logged in to generate AI features.');
+        Get.snackbar(
+          'Auth Error',
+          'You must be logged in to generate AI features.',
+        );
         return;
       }
 
@@ -271,8 +274,10 @@ class VideoManagementController extends GetxController {
             'languages': targetLanguages,
             'generateSubtitles': features.contains('subtitles'),
             'generateDubbing': features.contains('dubbing'),
-            'enablePath1': features.contains('factcheck') || features.contains('summary'),
-            'enablePath2': features.contains('dubbing') || features.contains('subtitles'),
+            'enablePath1':
+                features.contains('factcheck') || features.contains('summary'),
+            'enablePath2':
+                features.contains('dubbing') || features.contains('subtitles'),
             'autoChapters': autoChapters,
             'priorityMode': priorityMode,
           },
@@ -284,8 +289,8 @@ class VideoManagementController extends GetxController {
               'requestedFeatures': features,
               'requestedLanguages': targetLanguages,
               'startedAt': DateTime.now().millisecondsSinceEpoch,
-            }
-          }
+            },
+          },
         }, SetOptions(merge: true));
 
         await _firestore.collection('videos').doc(videoId).update({
@@ -306,9 +311,3 @@ class VideoManagementController extends GetxController {
     }
   }
 }
-
-
-
-
-
-

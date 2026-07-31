@@ -40,7 +40,7 @@ class ContentScreen extends StatelessWidget {
           elevation: 0,
           toolbarHeight: 0, // Hide the app bar title portion, only keep TabBar
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(48),
+            preferredSize: const Size.fromHeight(52),
             child: Align(
               alignment: Alignment.centerLeft,
               child: TabBar(
@@ -257,8 +257,6 @@ class ContentScreen extends StatelessWidget {
     );
   }
 
-
-
   Widget _buildNoPostsYetWidget({bool isSearchFiltered = false}) {
     return Center(
       child: Column(
@@ -415,7 +413,9 @@ class ContentScreen extends StatelessWidget {
                 ),
                 onSelected: (value) {
                   if (value == 'watch') {
-                    MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
+                    MiniplayerNavigationHelper.navigateToVideoScreen(
+                      video: video,
+                    );
                   } else if (value == 'content_details') {
                     Get.to<dynamic>(
                       () => VideoContentDetailsScreen(
@@ -425,14 +425,19 @@ class ContentScreen extends StatelessWidget {
                     );
                   } else if (value == 'edit') {
                     Get.to<dynamic>(() => EditVideoScreen(video: video));
+                  } else if (value == 'reactions_settings') {
+                    _showVideoReactionsSettingsDialog(
+                      context,
+                      video,
+                      controller,
+                    );
                   } else if (value == 'ai_features') {
                     _showGenerateAIFeaturesDialog(context, video, controller);
                   } else if (value == 'delete') {
                     _showDeleteVideoDialog(context, video, controller);
                   }
                 },
-                itemBuilder: (BuildContext context) =>
-                    <PopupMenuEntry<String>>[
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                   PopupMenuItem<String>(
                     value: 'watch',
                     child: Row(
@@ -440,14 +445,14 @@ class ContentScreen extends StatelessWidget {
                         const Icon(
                           Icons.play_circle_outline_rounded,
                           size: 18,
-                          color: AppColors.brand,
+                          color: AppColors.textPrimary,
                         ),
                         const SizedBox(width: 10),
                         Text(
                           'Watch Video',
                           style: AppTextStyles.bodyMedium.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.brand,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ],
@@ -485,19 +490,36 @@ class ContentScreen extends StatelessWidget {
                     ),
                   ),
                   PopupMenuItem<String>(
+                    value: 'reactions_settings',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.thumbs_up_down_outlined,
+                          size: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Like / Dislike Counts',
+                          style: AppTextStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
                     value: 'ai_features',
                     child: Row(
                       children: [
                         const Icon(
                           Icons.auto_awesome_rounded,
                           size: 18,
-                          color: AppColors.brand,
+                          color: AppColors.textPrimary,
                         ),
                         const SizedBox(width: 10),
                         Text(
                           'Generate AI Features',
                           style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.brand,
+                            color: AppColors.textPrimary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -572,7 +594,11 @@ class ContentScreen extends StatelessWidget {
                       fit: BoxFit.cover,
                       errorWidget: (context, url, err) => const ColoredBox(
                         color: AppColors.bgInput,
-                        child: Icon(Icons.movie_outlined, size: 16, color: AppColors.textTertiary),
+                        child: Icon(
+                          Icons.movie_outlined,
+                          size: 16,
+                          color: AppColors.textTertiary,
+                        ),
                       ),
                     ),
                   ),
@@ -601,7 +627,7 @@ class ContentScreen extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.play_arrow_rounded,
-                  color: AppColors.brand,
+                  color: AppColors.textPrimary,
                   size: 24,
                 ),
               ),
@@ -669,7 +695,121 @@ class ContentScreen extends StatelessWidget {
     );
   }
 
+  void _showVideoReactionsSettingsDialog(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller,
+  ) {
+    final showLikeCount = video.showLikeCount.obs;
+    final showDislikeCount = video.showDislikeCount.obs;
 
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Obx(
+            () => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.thumbs_up_down_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Like & Dislike Counts',
+                        style: AppTextStyles.titleLarge.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  title: Text(
+                    'Show Like Count',
+                    style: AppTextStyles.bodyMedium,
+                  ),
+                  subtitle: Text(
+                    'Display how many viewers liked this video',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  value: showLikeCount.value,
+                  onChanged: (v) => showLikeCount.value = v,
+                  activeTrackColor: AppColors.brand,
+                  tileColor: AppColors.bgSurface,
+                ),
+                SwitchListTile(
+                  title: Text(
+                    'Show Dislike Count',
+                    style: AppTextStyles.bodyMedium,
+                  ),
+                  subtitle: Text(
+                    'Display how many viewers disliked this video',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  value: showDislikeCount.value,
+                  onChanged: (v) => showDislikeCount.value = v,
+                  activeTrackColor: AppColors.brand,
+                  tileColor: AppColors.bgSurface,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: Get.back<void>,
+                      child: Text(
+                        'Cancel',
+                        style: AppTextStyles.buttonText.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        controller.updateVideo(video.id, {
+                          'showLikeCount': showLikeCount.value,
+                          'showDislikeCount': showDislikeCount.value,
+                        });
+                        Get.back<void>();
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showDeleteVideoDialog(
     BuildContext context,
@@ -740,15 +880,19 @@ class ContentScreen extends StatelessWidget {
     );
   }
 
-
-
   void _showGenerateAIFeaturesDialog(
     BuildContext context,
     Video video,
     VideoManagementController controller,
   ) {
     final selectedLangs = <String>{'te', 'hi'}.obs;
-    final selectedFeatures = <String>{'subtitles', 'dubbing', 'factcheck', 'summary', 'chapters'}.obs;
+    final selectedFeatures = <String>{
+      'subtitles',
+      'dubbing',
+      'factcheck',
+      'summary',
+      'chapters',
+    }.obs;
     final isAccuracyMode = true.obs;
     final showAdvanced = false.obs;
 
@@ -783,7 +927,7 @@ class ContentScreen extends StatelessWidget {
                       children: [
                         const Icon(
                           Icons.auto_awesome_rounded,
-                          color: AppColors.brand,
+                          color: AppColors.textPrimary,
                           size: 24,
                         ),
                         const SizedBox(width: 10),
@@ -798,7 +942,11 @@ class ContentScreen extends StatelessWidget {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.textSecondary,
+                            size: 20,
+                          ),
                           onPressed: Get.back<void>,
                         ),
                       ],
@@ -836,8 +984,12 @@ class ContentScreen extends StatelessWidget {
                           checkmarkColor: AppColors.brand,
                           labelStyle: AppTextStyles.labelMedium.copyWith(
                             fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: isSelected
+                                ? AppColors.brand
+                                : AppColors.textPrimary,
                           ),
                           onSelected: (val) {
                             if (val) {
@@ -865,7 +1017,8 @@ class ContentScreen extends StatelessWidget {
 
                     _buildFeatureCheckbox(
                       title: 'Subtitles & Closed Captions (SRT/VTT)',
-                      subtitle: 'Generate native subtitles in selected target languages',
+                      subtitle:
+                          'Generate native subtitles in selected target languages',
                       icon: Icons.subtitles_outlined,
                       value: selectedFeatures.contains('subtitles'),
                       onChanged: (val) {
@@ -878,7 +1031,8 @@ class ContentScreen extends StatelessWidget {
                     ),
                     _buildFeatureCheckbox(
                       title: 'AI Audio Dubbing Tracks',
-                      subtitle: 'Generate natural AI voice tracks in Telugu, Hindi, etc.',
+                      subtitle:
+                          'Generate natural AI voice tracks in Telugu, Hindi, etc.',
                       icon: Icons.record_voice_over_outlined,
                       value: selectedFeatures.contains('dubbing'),
                       onChanged: (val) {
@@ -891,7 +1045,8 @@ class ContentScreen extends StatelessWidget {
                     ),
                     _buildFeatureCheckbox(
                       title: 'Fact-Checking & Truth Score Report',
-                      subtitle: 'Extract claims & verify truthfulness with citations',
+                      subtitle:
+                          'Extract claims & verify truthfulness with citations',
                       icon: Icons.fact_check_outlined,
                       value: selectedFeatures.contains('factcheck'),
                       onChanged: (val) {
@@ -937,7 +1092,11 @@ class ContentScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(
                           children: [
-                            const Icon(Icons.settings_outlined, size: 18, color: AppColors.textSecondary),
+                            const Icon(
+                              Icons.settings_outlined,
+                              size: 18,
+                              color: AppColors.textSecondary,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Advanced Settings',
@@ -948,7 +1107,9 @@ class ContentScreen extends StatelessWidget {
                             ),
                             const Spacer(),
                             Icon(
-                              showAdvanced.value ? Icons.expand_less : Icons.expand_more,
+                              showAdvanced.value
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
                               color: AppColors.textSecondary,
                               size: 20,
                             ),
@@ -984,14 +1145,17 @@ class ContentScreen extends StatelessWidget {
                                       isAccuracyMode.value
                                           ? 'Accuracy Mode (Universal-3 Pro + Grounding)'
                                           : 'Fast Mode (Draft)',
-                                      style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.textTertiary,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 Switch(
                                   value: isAccuracyMode.value,
                                   activeTrackColor: AppColors.brand,
-                                  onChanged: (val) => isAccuracyMode.value = val,
+                                  onChanged: (val) =>
+                                      isAccuracyMode.value = val,
                                 ),
                               ],
                             ),
@@ -1017,8 +1181,11 @@ class ContentScreen extends StatelessWidget {
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: AppColors.textPrimary,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -1038,8 +1205,12 @@ class ContentScreen extends StatelessWidget {
                                     videoId: video.id,
                                     features: selectedFeatures.toList(),
                                     targetLanguages: selectedLangs.toList(),
-                                    priorityMode: isAccuracyMode.value ? 'accuracy' : 'speed',
-                                    autoChapters: selectedFeatures.contains('chapters'),
+                                    priorityMode: isAccuracyMode.value
+                                        ? 'accuracy'
+                                        : 'speed',
+                                    autoChapters: selectedFeatures.contains(
+                                      'chapters',
+                                    ),
                                   );
                                 },
                         ),
@@ -1068,7 +1239,11 @@ class ContentScreen extends StatelessWidget {
       activeColor: AppColors.brand,
       dense: true,
       contentPadding: EdgeInsets.zero,
-      secondary: Icon(icon, color: value ? Colors.white : AppColors.textTertiary, size: 22),
+      secondary: Icon(
+        icon,
+        color: value ? Colors.white : AppColors.textTertiary,
+        size: 22,
+      ),
       title: Text(
         title,
         style: AppTextStyles.bodyMedium.copyWith(

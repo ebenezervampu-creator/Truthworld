@@ -8,12 +8,16 @@ import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart';
-import 'package:truthworld/features/admin/presentation/views/admin_dashboard_screen.dart' deferred as admin_dashboard;
-import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart' deferred as admin_login;
-import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart' deferred as advertiser_portal;
+import 'package:truthworld/features/admin/presentation/views/admin_dashboard_screen.dart'
+    deferred as admin_dashboard;
+import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart'
+    deferred as admin_login;
+import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart'
+    deferred as advertiser_portal;
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart' deferred as channel_details;
+import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
+    deferred as channel_details;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channelloader_screen.dart';
 import 'package:truthworld/features/community/presentation/bindings/saved_comments_binding.dart';
@@ -23,38 +27,50 @@ import 'package:truthworld/features/community/presentation/views/saved_community
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart' deferred as dashboard;
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart'
+    deferred as dashboard;
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart';
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/features/library/presentation/views/library/library_screen.dart';
-import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart' deferred as liked_video;
-import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart' deferred as my_videos;
+import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart'
+    deferred as liked_video;
+import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
+    deferred as my_videos;
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_loader_screen.dart';
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart' deferred as playlist_screen;
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
+    deferred as playlist_screen;
+import 'package:truthworld/features/premium/presentation/views/premium_plans_screen.dart'
+    deferred as premium_plans;
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as app;
 import 'package:truthworld/features/search/presentation/pages/search_page.dart';
-import 'package:truthworld/features/settings/presentation/views/settings/settings.dart' deferred as settings;
-import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart' deferred as subscriptions;
-import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart' deferred as following_topics;
+import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
+    deferred as settings;
+import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart'
+    deferred as subscriptions;
+import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart'
+    deferred as following_topics;
 import 'package:truthworld/features/topics/presentation/pages/topic_page.dart';
 import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart';
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
-import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart' deferred as downloads;
+import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
+    deferred as downloads;
 import 'package:truthworld/features/video/presentation/views/upload/create_content_screen.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
 import 'package:truthworld/features/video/presentation/views/upload/upload_selection_screen.dart';
-import 'package:truthworld/features/video/presentation/views/video_screen.dart' deferred as video_screen;
+import 'package:truthworld/features/video/presentation/views/video_screen.dart'
+    deferred as video_screen;
 import 'package:truthworld/features/video/presentation/views/videoloader_screen.dart';
-import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart' deferred as history;
+import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
+    deferred as history;
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
 
 class AppPages {
-  static final routes = [
+  static final List<GetPage> routes = [
     GetPage(
       name: '/',
       page: () {
@@ -156,7 +172,8 @@ class AppPages {
         final video = Get.arguments?['video'];
         return DeferredWidget(
           loader: video_screen.loadLibrary,
-          builder: () => video_screen.VideoScreen(videoTag: video?.id as String?),
+          builder: () =>
+              video_screen.VideoScreen(videoTag: video?.id as String?),
         );
       },
       preventDuplicates: false,
@@ -170,7 +187,8 @@ class AppPages {
         if (video != null) {
           return DeferredWidget(
             loader: video_screen.loadLibrary,
-            builder: () => video_screen.VideoScreen(videoTag: video.id as String?),
+            builder: () =>
+                video_screen.VideoScreen(videoTag: video.id as String?),
           );
         } else {
           return const VideoLoaderScreen();
@@ -214,6 +232,13 @@ class AppPages {
     ),
     GetPage(name: '/library', page: () => const LibraryScreen()),
     GetPage(
+      name: '/premium',
+      page: () => DeferredWidget(
+        loader: premium_plans.loadLibrary,
+        builder: () => premium_plans.PremiumPlansScreen(),
+      ),
+    ),
+    GetPage(
       name: '/saved-community-posts',
       page: () => const SavedCommunityPostsScreen(),
       binding: SavedCommunityPostsBinding(),
@@ -234,6 +259,14 @@ class AppPages {
       page: PlaylistLoaderScreen.new,
     ),
     GetPage(
+      name: '/post/:postId',
+      page: Home.new,
+    ),
+    GetPage(
+      name: '/community/:postId',
+      page: Home.new,
+    ),
+    GetPage(
       name: '/playlist-detail',
       page: () => const PlaylistDetailScreen(),
       binding: BindingsBuilder(() {
@@ -247,7 +280,9 @@ class AppPages {
         if (channel != null) {
           return DeferredWidget(
             loader: channel_details.loadLibrary,
-            builder: () => channel_details.ChannelDetailsPage(channel: channel as Channel?),
+            builder: () => channel_details.ChannelDetailsPage(
+              channel: channel as Channel?,
+            ),
           );
         } else {
           return const ChannelLoaderScreen();
@@ -380,13 +415,29 @@ class AppPages {
       ),
     ),
     GetPage(
+      name: '/advertisements',
+      page: () => DeferredWidget(
+        loader: advertiser_portal.loadLibrary,
+        builder: () => advertiser_portal.AdvertiserPortalScreen(),
+      ),
+    ),
+    GetPage(
+      name: '/ads',
+      page: () => DeferredWidget(
+        loader: advertiser_portal.loadLibrary,
+        builder: () => advertiser_portal.AdvertiserPortalScreen(),
+      ),
+    ),
+    GetPage(
       name: '/:handle',
       page: () {
         final channel = Get.arguments?['channel'];
         if (channel != null) {
           return DeferredWidget(
             loader: channel_details.loadLibrary,
-            builder: () => channel_details.ChannelDetailsPage(channel: channel as Channel?),
+            builder: () => channel_details.ChannelDetailsPage(
+              channel: channel as Channel?,
+            ),
           );
         } else {
           return const ChannelLoaderScreen();

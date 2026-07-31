@@ -27,11 +27,11 @@ class AnalyticsTab extends StatelessWidget {
                   const SizedBox(width: 24),
                   Expanded(flex: 1, child: _buildTopOffendersList()),
                 ],
-              )
+              ),
             ],
           ),
         );
-      }
+      },
     );
   }
 
@@ -41,47 +41,78 @@ class AnalyticsTab extends StatelessWidget {
       children: [
         const Text(
           'Platform Safety Analytics',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        Obx(() => DropdownButton<String>(
-          value: controller.analyticsTimeRange.value,
-          dropdownColor: AppColors.bgSurface,
-          style: const TextStyle(color: AppColors.textPrimary),
-          items: const [
-            DropdownMenuItem(value: '7d', child: Text('Last 7 Days')),
-            DropdownMenuItem(value: '30d', child: Text('Last 30 Days')),
-            DropdownMenuItem(value: '90d', child: Text('Last 90 Days')),
-          ],
-          onChanged: (value) {
-            if (value != null) {
-              controller.analyticsTimeRange.value = value;
-              controller.fetchAnalytics();
-            }
-          },
-        )),
+        Obx(
+          () => DropdownButton<String>(
+            value: controller.analyticsTimeRange.value,
+            dropdownColor: AppColors.bgSurface,
+            style: const TextStyle(color: AppColors.textPrimary),
+            items: const [
+              DropdownMenuItem(value: '7d', child: Text('Last 7 Days')),
+              DropdownMenuItem(value: '30d', child: Text('Last 30 Days')),
+              DropdownMenuItem(value: '90d', child: Text('Last 90 Days')),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                controller.analyticsTimeRange.value = value;
+                controller.fetchAnalytics();
+              }
+            },
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildMetricsCards(BoxConstraints constraints) {
     final bool isSmall = constraints.maxWidth < 800;
-    
+
     return Obx(() {
       final data = controller.analyticsData;
       return Wrap(
         spacing: 16,
         runSpacing: 16,
         children: [
-          _buildMetricCard('Platform Safety Score', '${data['safetyScore'] ?? 92}/100', Colors.green, isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16),
-          _buildMetricCard('Total Moderated (24h)', '${data['moderated24h'] ?? 1420}', AppColors.textPrimary, isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16),
-          _buildMetricCard('Auto-Approved Rate', '${data['autoApproveRate'] ?? 87}%', Colors.blue, isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16),
-          _buildMetricCard('Active Violations', '${data['activeViolations'] ?? 34}', AppColors.error, isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16),
+          _buildMetricCard(
+            'Platform Safety Score',
+            '${data['safetyScore'] ?? 92}/100',
+            Colors.green,
+            isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
+          ),
+          _buildMetricCard(
+            'Total Moderated (24h)',
+            '${data['moderated24h'] ?? 1420}',
+            AppColors.textPrimary,
+            isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
+          ),
+          _buildMetricCard(
+            'Auto-Approved Rate',
+            '${data['autoApproveRate'] ?? 87}%',
+            Colors.blue,
+            isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
+          ),
+          _buildMetricCard(
+            'Active Violations',
+            '${data['activeViolations'] ?? 34}',
+            AppColors.error,
+            isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
+          ),
         ],
       );
     });
   }
 
-  Widget _buildMetricCard(String title, String value, Color color, double width) {
+  Widget _buildMetricCard(
+    String title,
+    String value,
+    Color color,
+    double width,
+  ) {
     return Container(
       width: width,
       padding: const EdgeInsets.all(24),
@@ -93,9 +124,22 @@ class AnalyticsTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+          Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(color: color, fontSize: 28, fontWeight: FontWeight.bold)),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -112,7 +156,14 @@ class AnalyticsTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Violation Category Distribution', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Violation Category Distribution',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 24),
           _buildBarChartRow('Hate Speech', 85, Colors.red),
           _buildBarChartRow('Spam', 45, Colors.orange),
@@ -130,7 +181,10 @@ class AnalyticsTab extends StatelessWidget {
         children: [
           SizedBox(
             width: 120,
-            child: Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+            child: Text(
+              label,
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           Expanded(
             child: Stack(
@@ -158,8 +212,11 @@ class AnalyticsTab extends StatelessWidget {
           const SizedBox(width: 16),
           SizedBox(
             width: 40,
-            child: Text('${percentage.toInt()}%', style: const TextStyle(color: AppColors.textPrimary)),
-          )
+            child: Text(
+              '${percentage.toInt()}%',
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+          ),
         ],
       ),
     );
@@ -176,7 +233,14 @@ class AnalyticsTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Top Offenders', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Top Offenders',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           ListView.builder(
             shrinkWrap: true,
@@ -191,12 +255,18 @@ class AnalyticsTab extends StatelessWidget {
                     backgroundColor: AppColors.bgElevated,
                     child: Icon(Icons.person, color: AppColors.textPrimary),
                   ),
-                  title: Text('User ${index + 1}', style: const TextStyle(color: AppColors.textPrimary)),
-                  trailing: Text('${(90 - index * 5)}% rej', style: const TextStyle(color: AppColors.error)),
+                  title: Text(
+                    'User ${index + 1}',
+                    style: const TextStyle(color: AppColors.textPrimary),
+                  ),
+                  trailing: Text(
+                    '${(90 - index * 5)}% rej',
+                    style: const TextStyle(color: AppColors.error),
+                  ),
                 ),
               );
             },
-          )
+          ),
         ],
       ),
     );

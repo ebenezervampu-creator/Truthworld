@@ -5,7 +5,6 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
 class UserAvatar extends StatelessWidget {
-
   const UserAvatar({
     super.key,
     this.photoUrl,
@@ -29,7 +28,8 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final effectiveBackgroundColor = backgroundColor ?? theme.colorScheme.primary.withValues(alpha: 0.1);
+    final effectiveBackgroundColor =
+        backgroundColor ?? theme.colorScheme.primary.withValues(alpha: 0.1);
     final effectiveTextColor = textColor ?? theme.colorScheme.primary;
     final effectiveFontSize = fontSize ?? (radius * 0.8);
 
@@ -44,11 +44,12 @@ class UserAvatar extends StatelessWidget {
           final userPhoto = currentUser.photoURL;
           final userName = currentUser.displayName;
 
-          final isCurrentUserDetails = (photoUrl == userPhoto) ||
-                                       (displayName == userName) ||
-                                       (displayName == 'User') ||
-                                       (displayName == 'Anonymous User') ||
-                                       (photoUrl == null && displayName == null);
+          final isCurrentUserDetails =
+              (photoUrl == userPhoto) ||
+              (displayName == userName) ||
+              (displayName == 'User') ||
+              (displayName == 'Anonymous User') ||
+              (photoUrl == null && displayName == null);
 
           if (isCurrentUserDetails) {
             if (authService.activePhotoUrl.isNotEmpty) {
@@ -74,7 +75,9 @@ class UserAvatar extends StatelessWidget {
         color: effectiveBackgroundColor,
         border: showBorder
             ? Border.all(
-                color: borderColor ?? theme.colorScheme.primary.withValues(alpha: 0.2),
+                color:
+                    borderColor ??
+                    theme.colorScheme.primary.withValues(alpha: 0.2),
                 width: 0.5,
               )
             : null,
@@ -86,16 +89,27 @@ class UserAvatar extends StatelessWidget {
                 width: radius * 2,
                 height: radius * 2,
                 fit: BoxFit.cover,
-                memCacheWidth: (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
-                memCacheHeight: (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
-                placeholder: (context, url) => _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
-                errorWidget: (context, url, error) => _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
+                memCacheWidth:
+                    (radius * 2 * MediaQuery.of(context).devicePixelRatio)
+                        .toInt(),
+                memCacheHeight:
+                    (radius * 2 * MediaQuery.of(context).devicePixelRatio)
+                        .toInt(),
+                placeholder: (context, url) => _buildPlaceholder(
+                  initial,
+                  effectiveTextColor,
+                  effectiveFontSize,
+                ),
+                errorWidget: (context, url, error) => _buildPlaceholder(
+                  initial,
+                  effectiveTextColor,
+                  effectiveFontSize,
+                ),
               )
             : _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
       ),
     );
   }
-
 
   Widget _buildPlaceholder(String initial, Color textColor, double fontSize) {
     return Center(
@@ -110,7 +124,3 @@ class UserAvatar extends StatelessWidget {
     );
   }
 }
-
-
-
-

@@ -40,12 +40,6 @@ const BASE_STAGE_WEIGHTS: Record<string, number> = {
 
 const LOCALIZATION_TOTAL_WEIGHT = 0.25;
 
-/** Hard cost limits per channel type (USD). */
-const TYPE_COST_BUDGETS: Record<string, number> = {
-  standard: 0.50, // Platform managed
-  custom: 100.0,  // Creator managed (high ceiling)
-};
-
 export class EdgeLayer {
   private readonly inputLayer: InputLayer;
   private readonly distribution: DistributionLayer;
@@ -82,19 +76,6 @@ export class EdgeLayer {
       // ── 2. Pre-flight cost estimate ───────────────────────────────────────────
       const executionPlan = this.inputLayer.createExecutionPlan("__pre__", config);
       const estimatedCost = this.inputLayer.estimateJobCost(executionPlan);
-      const typeBudget = TYPE_COST_BUDGETS[config.channelType] ?? 0.50;
-
-      if (estimatedCost > typeBudget) {
-        logger.warn("[Edge] Job rejected — over budget", {
-          userId,
-          estimatedCost,
-          typeBudget,
-        });
-        return this.rejected(
-          `Estimated cost $${estimatedCost.toFixed(3)} exceeds ${config.channelType} ` +
-          `channel budget $${typeBudget.toFixed(2)}. Reduce languages or disable features.`
-        );
-      }
 
       // ── 3. Quota gate (Optional/Simplified for new model) ────────────────────
       const estimatedMinutes = 10;

@@ -29,7 +29,9 @@ class SwitchingResolutionOverlay extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.textPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: AppColors.textPrimary.withValues(alpha: 0.1),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -53,7 +55,10 @@ class SwitchingResolutionOverlay extends StatelessWidget {
                     style: TS.title.copyWith(letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 4),
-                  const Text('Switching to a better resolution', style: TS.bodySm),
+                  const Text(
+                    'Switching to a better resolution',
+                    style: TS.bodySm,
+                  ),
                 ],
               ),
             ),
@@ -317,7 +322,10 @@ class DoubleTapRipple extends StatelessWidget {
               ),
               Text(
                 '10 seconds',
-                style: TS.bodySm.copyWith(color: AppColors.textSecondary, fontSize: 12),
+                style: TS.bodySm.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -354,7 +362,7 @@ class SeekPreviewTooltip extends StatelessWidget {
       case 'inconclusive':
       case 'limited_support':
       case 'verification_timeout':
-        return Colors.amberAccent;
+        return AppColors.brandHover;
       default:
         return AppColors.info;
     }
@@ -375,8 +383,7 @@ class SeekPreviewTooltip extends StatelessWidget {
       if (vc != null) {
         final claims = vc.video.uiReport?.keyClaims;
         if (claims != null && claims.isNotEmpty && dur.inMilliseconds > 0) {
-          final thresholdMs =
-              dur.inMilliseconds * 0.015; // 1.5% hover snap
+          final thresholdMs = dur.inMilliseconds * 0.015; // 1.5% hover snap
           for (final claim in claims) {
             if (claim.start != null) {
               final claimMs = claim.start! * 1000.0;
@@ -419,104 +426,128 @@ class SeekPreviewTooltip extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: Builder(builder: (context) {
-                      final thumbUrl = ctrl.videoController?.video.thumbnailUrl;
-                      final Widget thumbWidget = Container(
-                        width: hoveredClaim != null ? 120 : 144,
-                        height: hoveredClaim != null ? 68 : 81,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.bgDivider),
-                          color: Colors.black45,
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: thumbUrl != null && thumbUrl.isNotEmpty
-                              ? Image.network(
-                                  thumbUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => const Center(
-                                    child: Icon(Icons.movie_creation_rounded, color: AppColors.textTertiary, size: 24),
+                    child: Builder(
+                      builder: (context) {
+                        final thumbUrl =
+                            ctrl.videoController?.video.thumbnailUrl;
+                        final Widget thumbWidget = Container(
+                          width: hoveredClaim != null ? 120 : 144,
+                          height: hoveredClaim != null ? 68 : 81,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.bgDivider),
+                            color: Colors.black45,
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: thumbUrl != null && thumbUrl.isNotEmpty
+                                ? Image.network(
+                                    thumbUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Center(
+                                              child: Icon(
+                                                Icons.movie_creation_rounded,
+                                                color: AppColors.textTertiary,
+                                                size: 24,
+                                              ),
+                                            ),
+                                  )
+                                : const Center(
+                                    child: Icon(
+                                      Icons.movie_creation_rounded,
+                                      color: AppColors.textTertiary,
+                                      size: 24,
+                                    ),
                                   ),
-                                )
-                              : const Center(
-                                  child: Icon(Icons.movie_creation_rounded, color: AppColors.textTertiary, size: 24),
-                                ),
-                        ),
-                      );
+                          ),
+                        );
 
-                      if (hoveredClaim != null) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                thumbWidget,
-                                const SizedBox(height: 6),
-                                Text(
-                                  _fmt(pos),
-                                  style: TS.time.copyWith(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        if (hoveredClaim != null) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    hoveredClaim.text,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      
-                                      color: AppColors.textPrimary,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.3,
-                                    ),
-                                  ),
+                                  thumbWidget,
                                   const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _getVerdictColor(hoveredClaim.verdict).withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: _getVerdictColor(hoveredClaim.verdict).withValues(alpha: 0.4)),
-                                    ),
-                                    child: Text(
-                                      hoveredClaim.verdict.toUpperCase().replaceAll('_', ' '),
-                                      style: TextStyle(
-                                        
-                                        color: _getVerdictColor(hoveredClaim.verdict),
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
+                                  Text(
+                                    _fmt(pos),
+                                    style: TS.time.copyWith(fontSize: 12),
                                   ),
                                 ],
                               ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      hoveredClaim.text,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _getVerdictColor(
+                                          hoveredClaim.verdict,
+                                        ).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: _getVerdictColor(
+                                            hoveredClaim.verdict,
+                                          ).withValues(alpha: 0.4),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        hoveredClaim.verdict
+                                            .toUpperCase()
+                                            .replaceAll('_', ' '),
+                                        style: TextStyle(
+                                          color: _getVerdictColor(
+                                            hoveredClaim.verdict,
+                                          ),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+
+                        // Default (no claim hovered)
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            thumbWidget,
+                            const SizedBox(height: 6),
+                            Text(
+                              _fmt(pos),
+                              style: TS.time,
                             ),
                           ],
                         );
-                      }
-
-                      // Default (no claim hovered)
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          thumbWidget,
-                          const SizedBox(height: 6),
-                          Text(
-                            _fmt(pos),
-                            style: TS.time,
-                          ),
-                        ],
-                      );
-                    }),
+                      },
+                    ),
                   ),
                 ),
               ],

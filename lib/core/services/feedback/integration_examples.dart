@@ -1,4 +1,3 @@
-
 /// Integration Examples: Premium Feedback UI across Tower VSP
 ///
 /// This file demonstrates how to use SnackbarService, DialogService,
@@ -529,7 +528,3 @@ Future<void> showAdvancedConfirmation() async {
 //    - Dialog: No timeout (requires user action)
 //
 // ============================================================================
-
-
-
-

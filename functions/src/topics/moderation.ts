@@ -1,6 +1,8 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
+import { getVertexAI } from "../pipeline/utils/ai-client";
+import { MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
 
 const db = () => admin.firestore();
 
@@ -140,13 +142,13 @@ export const onTopicWritten = onDocumentWritten(
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        const { VertexAI } = require("@google-cloud/vertexai");
-        const genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+        const genAI = getVertexAI();
         const model = genAI.getGenerativeModel({
           model: "gemini-2.5-flash",
           systemInstruction: TOPIC_MODERATION_SYSTEM_PROMPT,
           generationConfig: {
             responseMimeType: "application/json",
+            responseSchema: MODERATION_RESPONSE_SCHEMA,
             temperature: 0.1,
           },
         });

@@ -14,11 +14,11 @@ class FeedbacksTab extends StatefulWidget {
 }
 
 class _FeedbacksTabState extends State<FeedbacksTab> {
-  List<Map<String, dynamic>> feedbacks = [];
-  Map<String, dynamic>? selectedFeedback;
-  bool isLoading = true;
-  String filterType = 'All';
-  String filterStatus = 'All';
+  final RxList<Map<String, dynamic>> feedbacks = <Map<String, dynamic>>[].obs;
+  final Rxn<Map<String, dynamic>> selectedFeedback = Rxn<Map<String, dynamic>>();
+  final RxBool isLoading = true.obs;
+  final RxString filterType = 'All'.obs;
+  final RxString filterStatus = 'All'.obs;
 
   @override
   void initState() {
@@ -27,27 +27,25 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
   }
 
   Future<void> _loadFeedbacks() async {
-    setState(() => isLoading = true);
+    isLoading.value = true;
     try {
       final snap = await FirebaseFirestore.instance
           .collection('feedback')
           .orderBy('timestamp', descending: true)
           .limit(200)
           .get();
-      setState(() {
-        feedbacks = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-        isLoading = false;
-      });
+      feedbacks.value = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      isLoading.value = false;
     } catch (e) {
       debugPrint('Error loading feedbacks: $e');
-      setState(() => isLoading = false);
+      isLoading.value = false;
     }
   }
 
   List<Map<String, dynamic>> get filteredFeedbacks {
     return feedbacks.where((fb) {
-      if (filterType != 'All' && fb['feedbackType'] != filterType) return false;
-      if (filterStatus != 'All' && fb['status'] != filterStatus) return false;
+      if (filterType.value != 'All' && fb['feedbackType'] != filterType.value) return false;
+      if (filterStatus.value != 'All' && fb['status'] != filterStatus.value) return false;
       return true;
     }).toList();
   }
@@ -71,10 +69,8 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         'reviewedAt': FieldValue.serverTimestamp(),
       });
       await _loadFeedbacks();
-      if (selectedFeedback != null && selectedFeedback!['id'] == id) {
-        setState(() {
-          selectedFeedback = feedbacks.firstWhere((f) => f['id'] == id, orElse: () => selectedFeedback!);
-        });
+      if (selectedFeedback.value != null && selectedFeedback.value!['id'] == id) {
+        selectedFeedback.value = feedbacks.firstWhere((f) => f['id'] == id, orElse: () => selectedFeedback.value!);
       }
     } catch (e) {
       debugPrint('Error updating feedback status: $e');
@@ -92,21 +88,26 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         const Divider(color: AppColors.bgDivider, height: 1),
         // Content
         Expanded(
-          child: isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.textPrimary))
-              : isDesktop
-                  ? Row(
-                      children: [
-                        Expanded(flex: 2, child: _buildFeedbackList()),
-                        if (selectedFeedback != null) ...[
-                          const VerticalDivider(color: AppColors.bgDivider, width: 1),
-                          Expanded(flex: 3, child: _buildFeedbackDetail()),
-                        ],
+          child: Obx(() {
+            final loading = isLoading.value;
+            final selected = selectedFeedback.value;
+            if (loading) {
+              return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
+            }
+            return isDesktop
+                ? Row(
+                    children: [
+                      Expanded(flex: 2, child: _buildFeedbackList()),
+                      if (selected != null) ...[
+                        const VerticalDivider(color: AppColors.bgDivider, width: 1),
+                        Expanded(flex: 3, child: _buildFeedbackDetail()),
                       ],
-                    )
-                  : selectedFeedback != null
-                      ? _buildFeedbackDetail()
-                      : _buildFeedbackList(),
+                    ],
+                  )
+                : selected != null
+                    ? _buildFeedbackDetail()
+                    : _buildFeedbackList();
+          }),
         ),
       ],
     );
@@ -133,13 +134,13 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: filterType,
+                child: Obx(() => DropdownButton<String>(
+                  value: filterType.value,
                   dropdownColor: AppColors.bgElevated,
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                   items: types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) => setState(() => filterType = v ?? 'All'),
-                ),
+                  onChanged: (v) => filterType.value = v ?? 'All',
+                )),
               ),
             ),
             const SizedBox(width: 12),
@@ -151,13 +152,13 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: filterStatus,
+                child: Obx(() => DropdownButton<String>(
+                  value: filterStatus.value,
                   dropdownColor: AppColors.bgElevated,
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                   items: statuses.map((s) => DropdownMenuItem(value: s, child: Text(s == 'new' ? 'New' : s[0].toUpperCase() + s.substring(1)))).toList(),
-                  onChanged: (v) => setState(() => filterStatus = v ?? 'All'),
-                ),
+                  onChanged: (v) => filterStatus.value = v ?? 'All',
+                )),
               ),
             ),
             const SizedBox(width: 20),
@@ -179,27 +180,28 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
   }
 
   Widget _buildFeedbackList() {
-    final items = filteredFeedbacks;
-    if (items.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.feedback_outlined, color: AppColors.textTertiary, size: 48),
-            SizedBox(height: 16),
-            Text('No feedback found', style: TextStyle(color: AppColors.textTertiary, fontSize: 15)),
-          ],
-        ),
-      );
-    }
+    return Obx(() {
+      final items = filteredFeedbacks;
+      if (items.isEmpty) {
+        return const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.feedback_outlined, color: AppColors.textTertiary, size: 48),
+              SizedBox(height: 16),
+              Text('No feedback found', style: TextStyle(color: AppColors.textTertiary, fontSize: 15)),
+            ],
+          ),
+        );
+      }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(0),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(color: AppColors.bgDivider, height: 1),
+      return ListView.separated(
+        padding: const EdgeInsets.all(0),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const Divider(color: AppColors.bgDivider, height: 1),
       itemBuilder: (context, index) {
         final fb = items[index];
-        final isSelected = selectedFeedback?['id'] == fb['id'];
+        final isSelected = selectedFeedback.value?['id'] == fb['id'];
         final type = fb['feedbackType'] ?? 'General';
         final status = fb['status'] ?? 'new';
         final rating = (fb['rating'] as num?)?.toInt() ?? 0;
@@ -207,7 +209,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         return Material(
           color: isSelected ? AppColors.bgElevated : Colors.transparent,
           child: InkWell(
-            onTap: () => setState(() => selectedFeedback = fb),
+            onTap: () => selectedFeedback.value = fb,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(
@@ -279,13 +281,13 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
               ),
             ),
           ),
-        );
       },
     );
+    });
   }
 
   Widget _buildFeedbackDetail() {
-    final fb = selectedFeedback!;
+    final fb = selectedFeedback.value!;
     final type = fb['feedbackType'] ?? 'General';
     final status = fb['status'] ?? 'new';
     final rating = (fb['rating'] as num?)?.toInt() ?? 0;
@@ -302,7 +304,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: TextButton.icon(
-                onPressed: () => setState(() => selectedFeedback = null),
+                onPressed: () => selectedFeedback.value = null,
                 icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 18),
                 label: const Text('Back to list', style: TextStyle(color: AppColors.textSecondary)),
               ),

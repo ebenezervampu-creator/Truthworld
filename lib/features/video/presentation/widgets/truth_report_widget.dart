@@ -8,7 +8,6 @@ import 'package:truthworld/features/video/presentation/widgets/credibility_label
 import 'package:truthworld/theme/app_theme.dart';
 
 class TruthReportWidget extends StatelessWidget {
-
   const TruthReportWidget({required this.video, super.key});
   final Video video;
 
@@ -126,7 +125,9 @@ class TruthReportWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+          bottom: BorderSide(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+          ),
         ),
       ),
       child: Column(
@@ -222,7 +223,9 @@ class TruthReportWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.05),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.bgPage.withValues(alpha: 0.2),
@@ -688,7 +691,9 @@ class TruthReportWidget extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.textPrimary.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+            ),
           ),
           child: Text(
             report.narrative,
@@ -835,7 +840,9 @@ class TruthReportWidget extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1095,8 +1102,3 @@ class DashedBarPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
-
-
-
-

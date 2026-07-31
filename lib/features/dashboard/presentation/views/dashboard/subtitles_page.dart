@@ -49,10 +49,18 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
   @override
   Widget build(BuildContext context) {
     final bgColor = widget.isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
-    final textColor = widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage;
-    final textSecondaryColor = widget.isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
-    final borderColor = widget.isDarkMode ? AppColors.bgDivider : AppColors.bgDivider;
+    final surfaceColor = widget.isDarkMode
+        ? AppColors.bgSurface
+        : AppColors.textPrimary;
+    final textColor = widget.isDarkMode
+        ? AppColors.textPrimary
+        : AppColors.bgPage;
+    final textSecondaryColor = widget.isDarkMode
+        ? AppColors.textSecondary
+        : AppColors.textSecondary;
+    final borderColor = widget.isDarkMode
+        ? AppColors.bgDivider
+        : AppColors.bgDivider;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -94,11 +102,13 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     onPressed: () => controller.onInit(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.black,
                     ),
                     child: Text(
                       'Retry',
-                      style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+                      style: AppTextStyles.buttonText.copyWith(
+                        color: Colors.black,
+                      ),
                     ),
                   ),
                 ],
@@ -190,10 +200,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     vertical: 12,
                   ),
                   itemCount: controller.filteredVideos.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final video = controller.filteredVideos[index];
-                    final isSelected = controller.selectedVideo.value?.id == video.id;
+                    final isSelected =
+                        controller.selectedVideo.value?.id == video.id;
                     return _buildVideoSelectorCard(
                       video: video,
                       isSelected: isSelected,
@@ -211,7 +223,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
         // Right Column: Active Video Subtitle Editor
         Expanded(
           child: ColoredBox(
-            color: widget.isDarkMode ? AppColors.bgPage : const Color(0xFFF1F5F9),
+            color: widget.isDarkMode
+                ? AppColors.bgPage
+                : const Color(0xFFF1F5F9),
             child: controller.selectedVideo.value == null
                 ? _buildEmptySelectionState(textColor, textSecondaryColor)
                 : _buildSubtitleWorkspace(
@@ -244,7 +258,8 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 child: ListView.separated(
                   padding: const EdgeInsets.all(12),
                   itemCount: controller.filteredVideos.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final video = controller.filteredVideos[index];
                     return _buildVideoSelectorCard(
@@ -343,22 +358,31 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           Container(
             height: 40,
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? const Color(0xFF242424) : const Color(0xFFF1F5F9),
+              color: widget.isDarkMode
+                  ? const Color(0xFF242424)
+                  : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: borderColor),
             ),
             child: TextField(
-              style: AppTextStyles.bodyMedium.copyWith(fontSize: 14, color: textColor),
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontSize: 14,
+                color: textColor,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search videos...',
                 hintStyle: AppTextStyles.bodySmall.copyWith(
                   fontSize: 14,
-                  color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF94A3B8),
+                  color: widget.isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF94A3B8),
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 18,
-                  color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF94A3B8),
+                  color: widget.isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF94A3B8),
                 ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
@@ -392,7 +416,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.brand.withValues(alpha: 0.1) : Colors.transparent,
+          color: isSelected
+              ? AppColors.brand.withValues(alpha: 0.1)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
@@ -413,10 +439,14 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     height: 60,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: widget.isDarkMode ? const Color(0xFF2A2A2A) : AppColors.bgDivider,
+                      color: widget.isDarkMode
+                          ? const Color(0xFF2A2A2A)
+                          : AppColors.bgDivider,
                     ),
                     errorWidget: (context, url, error) => ColoredBox(
-                      color: widget.isDarkMode ? const Color(0xFF2A2A2A) : AppColors.bgDivider,
+                      color: widget.isDarkMode
+                          ? const Color(0xFF2A2A2A)
+                          : AppColors.bgDivider,
                       child: const Icon(
                         Icons.video_file_rounded,
                         size: 20,
@@ -460,7 +490,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.titleMedium.copyWith(
                       fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
                       color: isSelected ? AppColors.brand : textColor,
                     ),
                   ),
@@ -468,7 +500,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   Row(
                     children: [
                       Text(
-                        DateFormat('MMM d, yyyy').format(video.uploadedAt.toDate()),
+                        DateFormat(
+                          'MMM d, yyyy',
+                        ).format(video.uploadedAt.toDate()),
                         style: AppTextStyles.caption.copyWith(
                           fontSize: 11,
                           color: textSecondaryColor,
@@ -608,13 +642,23 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           ),
                         ),
                         Obx(() {
-                          if (!controller.hasUnsavedChanges.value) return const SizedBox.shrink();
+                          if (!controller.hasUnsavedChanges.value)
+                            return const SizedBox.shrink();
                           return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              color: const Color(
+                                0xFFF59E0B,
+                              ).withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFFF59E0B,
+                                ).withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               'Unsaved',
@@ -673,14 +717,27 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 ),
                               ),
                               Obx(() {
-                                if (!controller.hasUnsavedChanges.value) return const SizedBox.shrink();
+                                if (!controller.hasUnsavedChanges.value)
+                                  return const SizedBox.shrink();
                                 return Container(
-                                  margin: const EdgeInsets.only(left: 8, right: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  margin: const EdgeInsets.only(
+                                    left: 8,
+                                    right: 8,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                                    color: const Color(
+                                      0xFFF59E0B,
+                                    ).withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFFF59E0B,
+                                      ).withValues(alpha: 0.3),
+                                    ),
                                   ),
                                   child: Text(
                                     'Unsaved',
@@ -718,7 +775,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: widget.isDarkMode ? const Color(0xFF141414) : AppColors.bgDivider,
+            color: widget.isDarkMode
+                ? const Color(0xFF141414)
+                : AppColors.bgDivider,
             border: Border(bottom: BorderSide(color: borderColor)),
           ),
           child: Row(
@@ -739,16 +798,21 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     itemCount: controller.availableLanguages.length,
                     itemBuilder: (context, index) {
                       final code = controller.availableLanguages[index];
-                      final isSelected = controller.selectedLanguage.value == code;
+                      final isSelected =
+                          controller.selectedLanguage.value == code;
                       final langName = controller.getLanguageName(code);
 
                       return Padding(
-                        padding: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
+                        padding: const EdgeInsets.only(
+                          right: 8,
+                          top: 8,
+                          bottom: 8,
+                        ),
                         child: ChoiceChip(
                           label: Text(
                             langName,
                             style: AppTextStyles.labelMedium.copyWith(
-                              color: isSelected ? AppColors.textPrimary : textColor,
+                              color: isSelected ? Colors.black : textColor,
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
@@ -787,19 +851,40 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           child: isMobile
               ? Obx(() {
                   if (controller.showRequestsPanel.value) {
-                    return _buildRequestsPanel(surfaceColor, textColor, textSecondaryColor, borderColor);
+                    return _buildRequestsPanel(
+                      surfaceColor,
+                      textColor,
+                      textSecondaryColor,
+                      borderColor,
+                    );
                   }
-                  return _buildMainCuesEditor(surfaceColor, textColor, textSecondaryColor, borderColor);
+                  return _buildMainCuesEditor(
+                    surfaceColor,
+                    textColor,
+                    textSecondaryColor,
+                    borderColor,
+                  );
                 })
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: _buildMainCuesEditor(surfaceColor, textColor, textSecondaryColor, borderColor),
+                      child: _buildMainCuesEditor(
+                        surfaceColor,
+                        textColor,
+                        textSecondaryColor,
+                        borderColor,
+                      ),
                     ),
                     Obx(() {
-                      if (!controller.showRequestsPanel.value) return const SizedBox.shrink();
-                      return _buildRequestsPanel(surfaceColor, textColor, textSecondaryColor, borderColor);
+                      if (!controller.showRequestsPanel.value)
+                        return const SizedBox.shrink();
+                      return _buildRequestsPanel(
+                        surfaceColor,
+                        textColor,
+                        textSecondaryColor,
+                        borderColor,
+                      );
                     }),
                   ],
                 ),
@@ -810,11 +895,19 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
 
   Widget _buildRequestsButton() {
     return Obx(() {
-      final hasReqs = controller.languageRequests.where((r) => r.type == 'subtitle').isNotEmpty;
+      final hasReqs = controller.languageRequests
+          .where((r) => r.type == 'subtitle')
+          .isNotEmpty;
       final showRequests = controller.showRequestsPanel.value;
       return Badge(
         isLabelVisible: hasReqs && !showRequests,
-        label: Text('${controller.languageRequests.where((r) => r.type == 'subtitle').length}'),
+        label: Text(
+          '${controller.languageRequests.where((r) => r.type == 'subtitle').length}',
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: AppColors.brand,
         child: OutlinedButton.icon(
           onPressed: () => controller.toggleRequestsPanel(),
@@ -850,7 +943,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
       icon: const Icon(Icons.copy_all_rounded, size: 16),
       label: Text(
         'Export VTT',
-        style: AppTextStyles.buttonText.copyWith(fontSize: 12, color: textColor),
+        style: AppTextStyles.buttonText.copyWith(
+          fontSize: 12,
+          color: textColor,
+        ),
       ),
       style: OutlinedButton.styleFrom(
         foregroundColor: textColor,
@@ -863,20 +959,27 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
   Widget _buildSaveButton() {
     return Obx(() {
       return ElevatedButton.icon(
-        onPressed: controller.isSaving.value ? null : () => controller.saveCurrentSubtitles(),
+        onPressed: controller.isSaving.value
+            ? null
+            : () => controller.saveCurrentSubtitles(),
         icon: controller.isSaving.value
             ? const SizedBox(
                 width: 14,
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.textPrimary,
+                  ),
                 ),
               )
             : const Icon(Icons.save_rounded, size: 16),
         label: Text(
           controller.isSaving.value ? 'Saving...' : 'Save Changes',
-          style: AppTextStyles.buttonText.copyWith(fontSize: 12, color: AppColors.textPrimary),
+          style: AppTextStyles.buttonText.copyWith(
+            fontSize: 12,
+            color: AppColors.textPrimary,
+          ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.brand,
@@ -918,7 +1021,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 icon: const Icon(Icons.add_rounded, size: 18),
                 label: Text(
                   'Add First Cue',
-                  style: AppTextStyles.buttonText.copyWith(color: AppColors.brand),
+                  style: AppTextStyles.buttonText.copyWith(
+                    color: AppColors.brand,
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.brand,
@@ -1001,7 +1106,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: Text(
                     'Add Subtitle Segment',
-                    style: AppTextStyles.buttonText.copyWith(color: AppColors.brand),
+                    style: AppTextStyles.buttonText.copyWith(
+                      color: AppColors.brand,
+                    ),
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.brand,
@@ -1048,7 +1155,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
             ),
             const SizedBox(height: 8),
             TextFormField(
-              key: ValueKey('${controller.selectedLanguage.value}_${cue.id}_$index'),
+              key: ValueKey(
+                '${controller.selectedLanguage.value}_${cue.id}_$index',
+              ),
               initialValue: cue.text,
               maxLines: null,
               style: AppTextStyles.bodyMedium.copyWith(
@@ -1058,7 +1167,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               ),
               decoration: InputDecoration(
                 hintText: 'Enter subtitle text...',
-                hintStyle: AppTextStyles.bodySmall.copyWith(color: textSecondaryColor),
+                hintStyle: AppTextStyles.bodySmall.copyWith(
+                  color: textSecondaryColor,
+                ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
@@ -1093,7 +1204,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           const SizedBox(width: 16),
           Expanded(
             child: TextFormField(
-              key: ValueKey('${controller.selectedLanguage.value}_${cue.id}_$index'),
+              key: ValueKey(
+                '${controller.selectedLanguage.value}_${cue.id}_$index',
+              ),
               initialValue: cue.text,
               maxLines: null,
               style: AppTextStyles.bodyMedium.copyWith(
@@ -1103,7 +1216,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               ),
               decoration: InputDecoration(
                 hintText: 'Enter subtitle text...',
-                hintStyle: AppTextStyles.bodySmall.copyWith(color: textSecondaryColor),
+                hintStyle: AppTextStyles.bodySmall.copyWith(
+                  color: textSecondaryColor,
+                ),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
@@ -1133,7 +1248,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
       width: 175,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: widget.isDarkMode ? const Color(0xFF242424) : const Color(0xFFF1F5F9),
+        color: widget.isDarkMode
+            ? const Color(0xFF242424)
+            : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -1142,12 +1259,21 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               InkWell(
-                onTap: () => controller.shiftCueTiming(index, shiftMilliseconds: -500),
-                child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
+                onTap: () =>
+                    controller.shiftCueTiming(index, shiftMilliseconds: -500),
+                child: Icon(
+                  Icons.remove_circle_outline,
+                  size: 14,
+                  color: textSecondaryColor,
+                ),
               ),
               Row(
                 children: [
-                  const Icon(Icons.timer_outlined, size: 12, color: Colors.white),
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 12,
+                    color: Colors.white,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     cue.startTime.split('.').first,
@@ -1161,19 +1287,35 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               ),
               InkWell(
                 onTap: () => controller.shiftCueTiming(index),
-                child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
+                child: Icon(
+                  Icons.add_circle_outline,
+                  size: 14,
+                  color: textSecondaryColor,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Icon(Icons.arrow_downward_rounded, size: 12, color: textSecondaryColor),
+          Icon(
+            Icons.arrow_downward_rounded,
+            size: 12,
+            color: textSecondaryColor,
+          ),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               InkWell(
-                onTap: () => controller.shiftCueTiming(index, isStart: false, shiftMilliseconds: -500),
-                child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
+                onTap: () => controller.shiftCueTiming(
+                  index,
+                  isStart: false,
+                  shiftMilliseconds: -500,
+                ),
+                child: Icon(
+                  Icons.remove_circle_outline,
+                  size: 14,
+                  color: textSecondaryColor,
+                ),
               ),
               Text(
                 cue.endTime.split('.').first,
@@ -1185,7 +1327,11 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               ),
               InkWell(
                 onTap: () => controller.shiftCueTiming(index, isStart: false),
-                child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
+                child: Icon(
+                  Icons.add_circle_outline,
+                  size: 14,
+                  color: textSecondaryColor,
+                ),
               ),
             ],
           ),
@@ -1229,10 +1375,15 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 ),
                 const Spacer(),
                 Obx(() {
-                  final reqs = controller.languageRequests.where((r) => r.type == 'subtitle').toList();
+                  final reqs = controller.languageRequests
+                      .where((r) => r.type == 'subtitle')
+                      .toList();
                   if (reqs.isEmpty) return const SizedBox.shrink();
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.brand.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -1253,9 +1404,13 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           Divider(height: 1, color: borderColor),
           Expanded(
             child: Obx(() {
-              final reqs = controller.languageRequests.where((r) => r.type == 'subtitle').toList();
+              final reqs = controller.languageRequests
+                  .where((r) => r.type == 'subtitle')
+                  .toList();
               if (controller.isLoadingRequests.value) {
-                return const Center(child: CircularProgressIndicator(color: AppColors.brand));
+                return const Center(
+                  child: CircularProgressIndicator(color: AppColors.brand),
+                );
               }
               if (reqs.isEmpty) {
                 return Center(
@@ -1282,19 +1437,24 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               return ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: reqs.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final r = reqs[index];
                   final matchingLanguage = supportedLanguages.firstWhereOrNull(
                     (l) => l.name.toLowerCase() == r.language.toLowerCase(),
                   );
                   final langCode = matchingLanguage?.code ?? r.language;
-                  final isAlreadyAdded = controller.availableLanguages.contains(langCode);
+                  final isAlreadyAdded = controller.availableLanguages.contains(
+                    langCode,
+                  );
 
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: widget.isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF8FAFC),
+                      color: widget.isDarkMode
+                          ? const Color(0xFF1E1E1E)
+                          : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: borderColor),
                     ),
@@ -1329,7 +1489,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.brand.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
@@ -1361,14 +1524,23 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           child: isAlreadyAdded
                               ? OutlinedButton.icon(
                                   onPressed: null,
-                                  icon: const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
+                                  icon: const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 14,
+                                    color: AppColors.success,
+                                  ),
                                   label: Text(
                                     'Provisioned',
-                                    style: AppTextStyles.buttonText.copyWith(fontSize: 12, color: AppColors.success),
+                                    style: AppTextStyles.buttonText.copyWith(
+                                      fontSize: 12,
+                                      color: AppColors.success,
+                                    ),
                                   ),
                                   style: OutlinedButton.styleFrom(
                                     disabledForegroundColor: AppColors.success,
-                                    side: const BorderSide(color: AppColors.success),
+                                    side: const BorderSide(
+                                      color: AppColors.success,
+                                    ),
                                   ),
                                 )
                               : ElevatedButton.icon(
@@ -1378,7 +1550,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                   icon: const Icon(Icons.add_rounded, size: 14),
                                   label: Text(
                                     'Add Track',
-                                    style: AppTextStyles.buttonText.copyWith(fontSize: 12, color: AppColors.textPrimary),
+                                    style: AppTextStyles.buttonText.copyWith(
+                                      fontSize: 12,
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.brand,
@@ -1431,7 +1606,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 const SizedBox(height: 16),
                 Container(
                   decoration: BoxDecoration(
-                    color: widget.isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF1F5F9),
+                    color: widget.isDarkMode
+                        ? const Color(0xFF1E1E1E)
+                        : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(4),
@@ -1445,7 +1622,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 0
-                                  ? (widget.isDarkMode ? Colors.black45 : AppColors.textPrimary)
+                                  ? (widget.isDarkMode
+                                        ? Colors.black45
+                                        : AppColors.textPrimary)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                             ),
@@ -1453,11 +1632,15 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             child: Text(
                               'Create Manually',
                               style: AppTextStyles.buttonText.copyWith(
-                                fontWeight: dialogActiveTab.value == 0 ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: dialogActiveTab.value == 0
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 0
                                     ? AppColors.brand
-                                    : (widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage),
+                                    : (widget.isDarkMode
+                                          ? AppColors.textSecondary
+                                          : AppColors.bgPage),
                               ),
                             ),
                           ),
@@ -1471,7 +1654,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 1
-                                  ? (widget.isDarkMode ? Colors.black45 : AppColors.textPrimary)
+                                  ? (widget.isDarkMode
+                                        ? Colors.black45
+                                        : AppColors.textPrimary)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                             ),
@@ -1479,11 +1664,15 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             child: Text(
                               'Upload File',
                               style: AppTextStyles.buttonText.copyWith(
-                                fontWeight: dialogActiveTab.value == 1 ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: dialogActiveTab.value == 1
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 1
                                     ? AppColors.brand
-                                    : (widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage),
+                                    : (widget.isDarkMode
+                                          ? AppColors.textSecondary
+                                          : AppColors.bgPage),
                               ),
                             ),
                           ),
@@ -1497,7 +1686,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 if (dialogActiveTab.value == 0) ...[
                   Text(
                     'Select a target language to prepare empty localized cue timings.',
-                    style: AppTextStyles.bodySmall.copyWith(fontSize: 13, color: AppColors.textSecondary),
+                    style: AppTextStyles.bodySmall.copyWith(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Flexible(
@@ -1505,26 +1697,37 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       constraints: const BoxConstraints(maxHeight: 250),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: widget.isDarkMode ? AppColors.bgDivider : Colors.black12,
+                          color: widget.isDarkMode
+                              ? AppColors.bgDivider
+                              : Colors.black12,
                         ),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: ListView.separated(
                         shrinkWrap: true,
                         itemCount: availableToAdd.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final lang = availableToAdd[index];
                           return ListTile(
                             title: Text(
                               lang.name,
-                              style: AppTextStyles.bodyMedium.copyWith(fontSize: 14),
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                fontSize: 14,
+                              ),
                             ),
                             subtitle: Text(
                               lang.nativeName,
-                              style: AppTextStyles.bodySmall.copyWith(fontSize: 12, color: AppColors.textSecondary),
+                              style: AppTextStyles.bodySmall.copyWith(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                            trailing: const Icon(Icons.add_circle_outline_rounded, size: 20),
+                            trailing: const Icon(
+                              Icons.add_circle_outline_rounded,
+                              size: 20,
+                            ),
                             onTap: () {
                               Get.back<void>();
                               controller.addLanguageTrack(lang.code);
@@ -1539,7 +1742,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () => Get.back<void>(),
-                      child: Text('Cancel', style: AppTextStyles.buttonText.copyWith(color: AppColors.brand)),
+                      child: Text(
+                        'Cancel',
+                        style: AppTextStyles.buttonText.copyWith(
+                          color: AppColors.brand,
+                        ),
+                      ),
                     ),
                   ),
                 ] else ...[
@@ -1549,26 +1757,34 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       'Select target language',
                       style: AppTextStyles.bodySmall.copyWith(fontSize: 13),
                     ),
-                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+                    dropdownColor: widget.isDarkMode
+                        ? const Color(0xFF1E1E1E)
+                        : AppColors.textPrimary,
                     items: supportedLanguages.map((lang) {
                       return DropdownMenuItem<TranslationLanguage>(
                         value: lang,
                         child: Text(
                           '${lang.name} (${lang.nativeName})',
-                          style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontSize: 13,
+                          ),
                         ),
                       );
                     }).toList(),
                     onChanged: (val) {
                       dialogSelectedLang.value = val;
-                      if (val != null && dialogTitleController.text.trim().isEmpty) {
+                      if (val != null &&
+                          dialogTitleController.text.trim().isEmpty) {
                         dialogTitleController.text = val.name;
                       }
                     },
                     decoration: const InputDecoration(
                       labelText: 'Language',
                       labelStyle: TextStyle(fontSize: 13),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -1581,13 +1797,17 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       hintText: 'e.g., Spanish (Latin America)',
                       errorText: dialogTitleError.value,
                       labelStyle: const TextStyle(fontSize: 13),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                     onChanged: (val) {
                       if (val.trim().isNotEmpty) {
                         if (controller.profanityFilter.hasProfanity(val)) {
-                          dialogTitleError.value = 'Title contains inappropriate language.';
+                          dialogTitleError.value =
+                              'Title contains inappropriate language.';
                         } else {
                           dialogTitleError.value = null;
                         }
@@ -1601,7 +1821,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: widget.isDarkMode ? AppColors.textDisabled : AppColors.textSecondary,
+                        color: widget.isDarkMode
+                            ? AppColors.textDisabled
+                            : AppColors.textSecondary,
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -1614,7 +1836,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 : 'No subtitle file selected (.vtt, .srt)',
                             style: AppTextStyles.bodySmall.copyWith(
                               color: dialogPickedFile.value != null
-                                  ? (widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage)
+                                  ? (widget.isDarkMode
+                                        ? AppColors.textPrimary
+                                        : AppColors.bgPage)
                                   : AppColors.textSecondary,
                               fontSize: 13,
                             ),
@@ -1638,11 +1862,20 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             }
                           },
                           icon: const Icon(Icons.file_open_rounded, size: 14),
-                          label: Text('Choose', style: AppTextStyles.buttonText.copyWith(fontSize: 12, color: AppColors.textPrimary)),
+                          label: Text(
+                            'Choose',
+                            style: AppTextStyles.buttonText.copyWith(
+                              fontSize: 12,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
                             foregroundColor: AppColors.textPrimary,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                           ),
                         ),
                       ],
@@ -1654,7 +1887,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     children: [
                       TextButton(
                         onPressed: () => Get.back<void>(),
-                        child: Text('Cancel', style: AppTextStyles.buttonText.copyWith(color: AppColors.brand)),
+                        child: Text(
+                          'Cancel',
+                          style: AppTextStyles.buttonText.copyWith(
+                            color: AppColors.brand,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       ElevatedButton(
@@ -1662,20 +1900,29 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             ? null
                             : () async {
                                 if (dialogSelectedLang.value == null) {
-                                  controller.showError('Please select a language.');
+                                  controller.showError(
+                                    'Please select a language.',
+                                  );
                                   return;
                                 }
                                 final title = dialogTitleController.text.trim();
                                 if (title.isEmpty) {
-                                  controller.showError('Please enter a track title.');
+                                  controller.showError(
+                                    'Please enter a track title.',
+                                  );
                                   return;
                                 }
                                 if (dialogPickedFile.value == null) {
-                                  controller.showError('Please select a subtitle file.');
+                                  controller.showError(
+                                    'Please select a subtitle file.',
+                                  );
                                   return;
                                 }
 
-                                final check = await controller.validateContent(title, fieldName: 'Track Title');
+                                final check = await controller.validateContent(
+                                  title,
+                                  fieldName: 'Track Title',
+                                );
                                 if (!check.isValid) {
                                   dialogTitleError.value = check.message;
                                   controller.showError(check.message);
@@ -1702,10 +1949,17 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.textPrimary,
+                                  ),
                                 ),
                               )
-                            : Text('Upload & Save', style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary)),
+                            : Text(
+                                'Upload & Save',
+                                style: AppTextStyles.buttonText.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
                       ),
                     ],
                   ),

@@ -19,9 +19,10 @@ import 'package:truthworld/theme/app_theme.dart';
 /// )
 /// ```
 class VideoPlayerWithAudioTracks extends StatefulWidget {
-
   const VideoPlayerWithAudioTracks({
-    required this.videoUrl, required this.tracks, super.key,
+    required this.videoUrl,
+    required this.tracks,
+    super.key,
     this.preferredTrackCode,
     this.autoPlay = true,
     this.aspectRatio = 16 / 9,
@@ -97,7 +98,6 @@ class _VideoPlayerWithAudioTracksState
                   Text(
                     'Could not load video',
                     style: TextStyle(
-                      
                       color: AppColors.textSecondary,
                       fontSize: 14,
                     ),
@@ -146,7 +146,6 @@ class _VideoPlayerWithAudioTracksState
                         Text(
                           'Switching audio track…',
                           style: TextStyle(
-                            
                             color: AppColors.textPrimary,
                             fontSize: 13,
                           ),
@@ -177,7 +176,6 @@ class _VideoPlayerWithAudioTracksState
 // Controls layer
 // ─────────────────────────────────────────────────────────────────────────────
 class _PlayerControls extends StatelessWidget {
-
   const _PlayerControls({required this.ctrl, super.key});
   final MultiAudioPlayerController ctrl;
 
@@ -253,7 +251,6 @@ class _TopBar extends StatelessWidget {
                     Text(
                       track.label,
                       style: const TextStyle(
-                        
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -288,7 +285,6 @@ class _TopBar extends StatelessWidget {
                 child: Text(
                   '${speed == 1.0 ? '1' : speed}x',
                   style: const TextStyle(
-                    
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -412,7 +408,6 @@ class _BottomBar extends StatelessWidget {
                 Text(
                   _formatDuration(ctrl.position.value),
                   style: const TextStyle(
-                    
                     fontSize: 12,
                     color: AppColors.textPrimary,
                   ),
@@ -420,7 +415,6 @@ class _BottomBar extends StatelessWidget {
                 Text(
                   ' / ${_formatDuration(ctrl.duration.value)}',
                   style: const TextStyle(
-                    
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
@@ -465,7 +459,6 @@ class _BottomBar extends StatelessWidget {
                           Text(
                             ctrl.selectedTrack.value?.label ?? '',
                             style: const TextStyle(
-                              
                               fontSize: 11,
                               color: AppColors.textSecondary,
                             ),
@@ -528,7 +521,7 @@ class _AudioTrackSheet extends StatelessWidget {
                   ),
                   child: const Icon(
                     Icons.spatial_audio_rounded,
-                    color: AppColors.brand,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
                 ),
@@ -539,7 +532,6 @@ class _AudioTrackSheet extends StatelessWidget {
                     Text(
                       'Audio Track',
                       style: TextStyle(
-                        
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: textColor,
@@ -548,9 +540,10 @@ class _AudioTrackSheet extends StatelessWidget {
                     Text(
                       'Select dubbed language for playback',
                       style: TextStyle(
-                        
                         fontSize: 12,
-                        color: isDark ? AppColors.textSecondary : Colors.black45,
+                        color: isDark
+                            ? AppColors.textSecondary
+                            : Colors.black45,
                       ),
                     ),
                   ],
@@ -614,7 +607,6 @@ class _AudioTrackSheet extends StatelessWidget {
                                   ? track.code.substring(0, 2).toUpperCase()
                                   : track.code.toUpperCase(),
                               style: TextStyle(
-                                
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: isSelected
@@ -635,7 +627,6 @@ class _AudioTrackSheet extends StatelessWidget {
                               Text(
                                 track.label,
                                 style: TextStyle(
-                                  
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: isSelected
@@ -649,7 +640,6 @@ class _AudioTrackSheet extends StatelessWidget {
                                     ? 'Original audio track'
                                     : 'Dubbed audio track',
                                 style: TextStyle(
-                                  
                                   fontSize: 11,
                                   color: isDark
                                       ? AppColors.textTertiary
@@ -681,7 +671,9 @@ class _AudioTrackSheet extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isDark ? AppColors.textDisabled : Colors.black26,
+                                color: isDark
+                                    ? AppColors.textDisabled
+                                    : Colors.black26,
                               ),
                             ),
                           ),
@@ -741,7 +733,6 @@ class _SpeedSheet extends StatelessWidget {
                 Text(
                   'Playback Speed',
                   style: TextStyle(
-                    
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -780,12 +771,13 @@ class _SpeedSheet extends StatelessWidget {
                       child: Text(
                         speed == 1.0 ? 'Normal' : '${speed}x',
                         style: TextStyle(
-                          
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: isSelected
                               ? AppColors.textPrimary
-                              : (isDark ? AppColors.textSecondary : AppColors.bgPage54),
+                              : (isDark
+                                    ? AppColors.textSecondary
+                                    : AppColors.bgPage54),
                         ),
                       ),
                     ),

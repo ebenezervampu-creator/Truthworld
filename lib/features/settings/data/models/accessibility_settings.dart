@@ -1,5 +1,4 @@
 class AccessibilitySettings {
-
   const AccessibilitySettings({
     this.reduceMotion = false,
     this.disableAnimations = false,
@@ -24,7 +23,8 @@ class AccessibilitySettings {
       largeText: json['largeText'] as bool? ?? false,
       boldText: json['boldText'] as bool? ?? false,
       highContrastSubtitles: json['highContrastSubtitles'] as bool? ?? false,
-      screenReaderOptimization: json['screenReaderOptimization'] as bool? ?? false,
+      screenReaderOptimization:
+          json['screenReaderOptimization'] as bool? ?? false,
       captionsAlwaysOn: json['captionsAlwaysOn'] as bool? ?? false,
       captionSize: json['captionSize'] as String? ?? 'Medium',
       captionBackground: json['captionBackground'] as String? ?? 'Black Box',
@@ -47,7 +47,8 @@ class AccessibilitySettings {
   final double captionOpacity; // 0.0 to 1.0
   final String captionFont; // 'Sans-Serif', 'Monospace', 'Serif'
   final bool hapticFeedback;
-  final String colorBlindSupport; // 'Off', 'Protanopia', 'Deuteranopia', 'Tritanopia'
+  final String
+  colorBlindSupport; // 'Off', 'Protanopia', 'Deuteranopia', 'Tritanopia'
   final bool focusIndicators;
 
   AccessibilitySettings copyWith({
@@ -71,8 +72,10 @@ class AccessibilitySettings {
       disableAnimations: disableAnimations ?? this.disableAnimations,
       largeText: largeText ?? this.largeText,
       boldText: boldText ?? this.boldText,
-      highContrastSubtitles: highContrastSubtitles ?? this.highContrastSubtitles,
-      screenReaderOptimization: screenReaderOptimization ?? this.screenReaderOptimization,
+      highContrastSubtitles:
+          highContrastSubtitles ?? this.highContrastSubtitles,
+      screenReaderOptimization:
+          screenReaderOptimization ?? this.screenReaderOptimization,
       captionsAlwaysOn: captionsAlwaysOn ?? this.captionsAlwaysOn,
       captionSize: captionSize ?? this.captionSize,
       captionBackground: captionBackground ?? this.captionBackground,

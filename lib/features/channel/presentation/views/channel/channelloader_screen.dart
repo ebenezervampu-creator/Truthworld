@@ -16,23 +16,38 @@ class ChannelLoaderController extends GetxController {
     final channelId = Get.parameters['channelId'];
     final handle = Get.parameters['handle'];
 
-    if (channelId == null && (handle == null || !handle.startsWith('@'))) {
-      Get.offAllNamed('/');
+    if (channelId == null && handle == null) {
+      Get.back();
       return;
     }
 
     try {
       DocumentSnapshot? doc;
-      if (channelId != null) {
+      final isHandleInChannelId =
+          channelId != null && channelId.startsWith('@');
+
+      if (channelId != null && !isHandleInChannelId) {
         doc = await FirebaseFirestore.instance
             .collection('channels')
             .doc(channelId)
             .get();
-      } else if (handle != null) {
-        var cleanHandle = handle;
+      }
+
+      if ((doc == null || !doc.exists) &&
+          (handle != null || isHandleInChannelId)) {
+        var cleanHandle = handle ?? channelId!;
         if (cleanHandle.startsWith('@')) {
           cleanHandle = cleanHandle.substring(1);
         }
+        while (cleanHandle.endsWith('.') ||
+            cleanHandle.endsWith(',') ||
+            cleanHandle.endsWith(')') ||
+            cleanHandle.endsWith(']') ||
+            cleanHandle.endsWith('!') ||
+            cleanHandle.endsWith('?')) {
+          cleanHandle = cleanHandle.substring(0, cleanHandle.length - 1);
+        }
+
         final query = await FirebaseFirestore.instance
             .collection('channels')
             .where('handleLowercase', isEqualTo: cleanHandle.toLowerCase())
@@ -44,18 +59,21 @@ class ChannelLoaderController extends GetxController {
       }
 
       if (doc == null || !doc.exists) {
-        Get.snackbar('Error', 'Channel not found');
-        Get.offAllNamed('/');
+        final displayHandle = handle ?? channelId;
+        Get.snackbar(
+          'Channel Not Found',
+          'No channel found for $displayHandle',
+        );
+        Get.back();
         return;
       }
 
       final channel = Channel.fromDocumentSnapshot(doc);
-
       Get.offNamed(channel.channelRoute, arguments: {'channel': channel});
-      debugPrint('🧭 All route params: ${Get.parameters}');
+      debugPrint('🧭 Channel loaded successfully: ${channel.channelName}');
     } catch (e) {
-      Get.snackbar('Error', 'Something went wrong: $e');
-      Get.offAllNamed('/');
+      Get.snackbar('Error', 'Failed to load channel: $e');
+      Get.back();
     }
   }
 }
@@ -69,8 +87,3 @@ class ChannelLoaderScreen extends StatelessWidget {
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
-
-
-
-
-

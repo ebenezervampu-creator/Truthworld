@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_widget.dart';
 
 /// Renders the miniplayer overlay on top of the app content.
-/// 
+///
 /// This widget should be placed as the second child in a Stack that has the app
 /// content as the first child. It will render the floating miniplayer above all
 /// other content.
-/// 
+///
 /// Usage:
 /// ```dart
 /// Stack(
@@ -30,8 +30,3 @@ class MiniplayerOverlayManager extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

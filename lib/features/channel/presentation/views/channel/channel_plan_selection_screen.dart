@@ -38,16 +38,27 @@ class ChannelPlanSelectionController extends GetxController
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
         if (doc.exists) {
           final data = doc.data()!;
-          final rejectionCount = (data['channelRejectionCount'] as num?)?.toInt() ?? 0;
-          final lastRejectedAt = (data['channelLastRejectedAt'] as num?)?.toInt();
+          final rejectionCount =
+              (data['channelRejectionCount'] as num?)?.toInt() ?? 0;
+          final lastRejectedAt = (data['channelLastRejectedAt'] as num?)
+              ?.toInt();
           if (rejectionCount >= 2 && lastRejectedAt != null) {
-            final lastRejectedDateTime = DateTime.fromMillisecondsSinceEpoch(lastRejectedAt);
-            final unlockDateTime = lastRejectedDateTime.add(const Duration(days: 30));
+            final lastRejectedDateTime = DateTime.fromMillisecondsSinceEpoch(
+              lastRejectedAt,
+            );
+            final unlockDateTime = lastRejectedDateTime.add(
+              const Duration(days: 30),
+            );
             if (DateTime.now().isBefore(unlockDateTime)) {
-              final unlockDateStr = unlockDateTime.toLocal().toString().split(' ')[0];
+              final unlockDateStr = unlockDateTime.toLocal().toString().split(
+                ' ',
+              )[0];
               AppSnackbar.show(
                 'Locked',
                 'Channel creation is locked until $unlockDateStr due to multiple moderation failures.',
@@ -94,7 +105,9 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+          icon: Icon(
+            Icons.arrow_back,
+            color: isDark ? AppColors.textPrimary : AppColors.bgPage,
           ),
           onPressed: Get.back,
         ),
@@ -114,10 +127,11 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                   'Choose Your Creator Path',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    
                     fontSize: isDesktop ? 48 : 32,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF1A202C),
+                    color: isDark
+                        ? AppColors.textPrimary
+                        : const Color(0xFF1A202C),
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -126,9 +140,10 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                   'Select the monetization plan that aligns with your goals.\nYou can choose standard YouTube-like sharing or our unique Custom plan.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    
                     fontSize: 16,
-                    color: isDark ? AppColors.textSecondary : const Color(0xFF1E293B),
+                    color: isDark
+                        ? AppColors.textSecondary
+                        : const Color(0xFF1E293B),
                     height: 1.5,
                   ),
                 ),
@@ -204,12 +219,13 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                       child: Text(
                         'Continue',
                         style: TextStyle(
-                          
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           color: controller.selectedPlan.value != null
                               ? AppColors.textPrimary
-                              : (isDark ? AppColors.textTertiary : Colors.black26),
+                              : (isDark
+                                    ? AppColors.textTertiary
+                                    : Colors.black26),
                         ),
                       ),
                     ),
@@ -252,8 +268,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
           return AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
-            transform: Matrix4.identity()
-              ..scaleByDouble(scale, scale, 1, 1),
+            transform: Matrix4.identity()..scaleByDouble(scale, scale, 1, 1),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color: isDark
@@ -264,7 +279,9 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                               : const Color(0xFF111827)))
                   : (isSelected
                         ? AppColors.textPrimary
-                        : (isHovered ? AppColors.textPrimary : const Color(0xFFF8FAFC))),
+                        : (isHovered
+                              ? AppColors.textPrimary
+                              : const Color(0xFFF8FAFC))),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isSelected
@@ -326,7 +343,6 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                           Text(
                             isStandard ? 'Standard Plan' : 'Custom Plan',
                             style: TextStyle(
-                              
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: isDark
@@ -339,7 +355,6 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                                 ? 'YouTube-style Model'
                                 : 'Maximum Revenue',
                             style: TextStyle(
-                              
                               fontSize: 14,
                               color: primaryColor,
                               fontWeight: FontWeight.w600,
@@ -357,7 +372,9 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                         border: Border.all(
                           color: isSelected
                               ? primaryColor
-                              : (isDark ? AppColors.textTertiary : Colors.black26),
+                              : (isDark
+                                    ? AppColors.textTertiary
+                                    : Colors.black26),
                           width: 2,
                         ),
                         color: isSelected ? primaryColor : Colors.transparent,
@@ -392,26 +409,112 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
 
-                const Divider(color: AppColors.textSecondary, height: 1, thickness: 0.3),
+                const Divider(
+                  color: AppColors.textSecondary,
+                  height: 1,
+                  thickness: 0.3,
+                ),
                 const SizedBox(height: 24),
 
-                // Features List
+                // Features List & How It Works
                 if (isStandard) ...[
-                  _buildFeatureRow('Fully managed infrastructure', isDark),
-                  _buildFeatureRow('No out-of-pocket costs', isDark),
-                  _buildFeatureRow('Similar to traditional platforms', isDark),
-                ] else ...[
                   _buildFeatureRow(
-                    'Creator pays for infrastructure used',
+                    'Fully managed platform infrastructure (\$0 hosting fees)',
                     isDark,
                   ),
-                  _buildFeatureRow('Maximum ad revenue potential', isDark),
-                  _buildFeatureRow('Full control over economics', isDark),
+                  _buildFeatureRow(
+                    'Up to 5 Videos upload limit (Max 10 mins total cumulative duration)',
+                    isDark,
+                  ),
+                  _buildFeatureRow('55% Net Revenue Share from Day 1', isDark),
+                  _buildFeatureRow(
+                    '10 Hours watch-time cash-out threshold per video',
+                    isDark,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildHowItWorksBox(
+                    'How Standard Channel Works:',
+                    'Standard channels require zero upfront costs or technical management. '
+                        'Truthworld hosts your video and handles infrastructure. Ad & viewer revenue accumulates immediately from Day 1, '
+                        'and cash out unlocks per video once that video crosses 10 hours of watch time.',
+                    primaryColor,
+                    isDark,
+                  ),
+                ] else ...[
+                  _buildFeatureRow(
+                    '100% Gross Revenue Share (minus raw infrastructure usage)',
+                    isDark,
+                  ),
+                  _buildFeatureRow(
+                    'Unlimited video uploads & up to 24-hour video length',
+                    isDark,
+                  ),
+                  _buildFeatureRow(
+                    'Instant cash withdrawals on all accumulated revenue',
+                    isDark,
+                  ),
+                  _buildFeatureRow(
+                    'Full control over media storage and streaming economics',
+                    isDark,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildHowItWorksBox(
+                    'How Custom Channel Works:',
+                    'Custom channels operate on a direct infrastructure cost model. '
+                        'You retain 100% of all ad, tip, and subscription revenue, paying only for the actual bandwidth & storage consumed. '
+                        'Earnings are available for instant cash-out without watch-time restrictions.',
+                    primaryColor,
+                    isDark,
+                  ),
                 ],
               ],
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _buildHowItWorksBox(
+    String title,
+    String description,
+    Color color,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? AppColors.textSecondary : const Color(0xFF475569),
+              height: 1.45,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -426,7 +529,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.monetization_on_rounded, color: color, size: 24),
+          Icon(Icons.monetization_on_rounded, color: Colors.white, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -435,7 +538,6 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 Text(
                   mainText,
                   style: TextStyle(
-                    
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -444,7 +546,6 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 Text(
                   subText,
                   style: TextStyle(
-                    
                     fontSize: 13,
                     color: color.withValues(alpha: 0.8),
                   ),
@@ -476,9 +577,10 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                
                 fontSize: 15,
-                color: isDark ? AppColors.textSecondary : const Color(0xFF334155),
+                color: isDark
+                    ? AppColors.textSecondary
+                    : const Color(0xFF334155),
                 height: 1.4,
               ),
             ),
@@ -491,3 +593,438 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
 
 enum ChannelPlanType { standard, custom }
 
+/// Reusable Modal / Sheet for selecting Channel Type anywhere in the app
+class ChannelTypeSelectorModal extends StatefulWidget {
+  const ChannelTypeSelectorModal({
+    this.initialPlan = ChannelPlanType.standard,
+    this.onSelect,
+    super.key,
+  });
+
+  final ChannelPlanType initialPlan;
+  final ValueChanged<ChannelPlanType>? onSelect;
+
+  static Future<ChannelPlanType?> show(
+    BuildContext context, {
+    ChannelPlanType initialPlan = ChannelPlanType.standard,
+  }) {
+    return showModalBottomSheet<ChannelPlanType>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: ChannelTypeSelectorModal(
+          initialPlan: initialPlan,
+          onSelect: (selected) => Navigator.of(ctx).pop(selected),
+        ),
+      ),
+    );
+  }
+
+  @override
+  State<ChannelTypeSelectorModal> createState() =>
+      _ChannelTypeSelectorModalState();
+}
+
+class _ChannelTypeSelectorModalState extends State<ChannelTypeSelectorModal> {
+  late ChannelPlanType _selectedPlan;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPlan = widget.initialPlan;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isStandard = _selectedPlan == ChannelPlanType.standard;
+    final primaryColor = isStandard
+        ? const Color(0xFF3B82F6)
+        : const Color(0xFF8B5CF6);
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.bgSurface : AppColors.textPrimary,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle & Header
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select Channel Type',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: isDark
+                            ? AppColors.textPrimary
+                            : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Choose your channel monetization & infrastructure plan',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.textSecondary
+                            : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: isDark
+                        ? AppColors.textSecondary
+                        : const Color(0xFF64748B),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.bgDivider),
+
+          // Scrollable Cards
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Standard Card
+                  _buildOptionCard(
+                    type: ChannelPlanType.standard,
+                    title: 'Standard Channel',
+                    subtitle: 'Zero upfront costs • 55% Net Revenue Share',
+                    icon: Icons.play_circle_filled,
+                    primaryColor: const Color(0xFF3B82F6),
+                    gradientStart: const Color(0xFF60A5FA),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 16),
+                  // Custom Card
+                  _buildOptionCard(
+                    type: ChannelPlanType.custom,
+                    title: 'Custom Channel',
+                    subtitle:
+                        '100% Gross Revenue Share - Infra • Unlimited Uploads',
+                    icon: Icons.rocket_launch,
+                    primaryColor: const Color(0xFF8B5CF6),
+                    gradientStart: const Color(0xFFA78BFA),
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Benefits & How It Works breakdown for selected option
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: primaryColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.stars_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isStandard
+                                  ? 'Standard Channel Benefits'
+                                  : 'Custom Channel Benefits',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (isStandard) ...[
+                          _buildBulletPoint(
+                            'Revenue Share: 55% Net Creator Share (\$0 Platform Fee)',
+                          ),
+                          _buildBulletPoint(
+                            'Upload Limit: Up to 5 Videos (Min 2 min per video, 10 min total duration)',
+                          ),
+                          _buildBulletPoint(
+                            'Infrastructure: 100% Free platform hosting & streaming',
+                          ),
+                          _buildBulletPoint(
+                            'Cash-Out Rule: Earnings unlocked after 10 Hours watch time per video',
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1, color: AppColors.bgDivider),
+                          const SizedBox(height: 12),
+                          Text(
+                            'How it Works:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? AppColors.textPrimary
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Standard channels require zero technical setup or infrastructure charges. Truthworld manages video transcoding, streaming, and storage. Day-1 ad revenue accumulates automatically.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.textSecondary
+                                  : const Color(0xFF475569),
+                              height: 1.4,
+                            ),
+                          ),
+                        ] else ...[
+                          _buildBulletPoint(
+                            'Revenue Share: 100% Gross Creator Revenue Share (minus raw infra)',
+                          ),
+                          _buildBulletPoint(
+                            'Upload Limit: Unlimited Videos (up to 24 Hours duration)',
+                          ),
+                          _buildBulletPoint(
+                            'Infrastructure: Custom bandwidth, storage & transcoding control',
+                          ),
+                          _buildBulletPoint(
+                            'Cash-Out Rule: Direct & instant cash withdrawals on all earnings',
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1, color: AppColors.bgDivider),
+                          const SizedBox(height: 12),
+                          Text(
+                            'How it Works:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? AppColors.textPrimary
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Custom channels give you maximum economic leverage. You retain 100% of all ad & subscription gross earnings, paying only for the exact cloud bandwidth and storage consumed.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.textSecondary
+                                  : const Color(0xFF475569),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Bottom Continue Action Dock
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.bgPage : const Color(0xFFF8FAFC),
+              border: const Border(top: BorderSide(color: AppColors.bgDivider)),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (widget.onSelect != null) {
+                    widget.onSelect!(_selectedPlan);
+                  } else {
+                    Navigator.of(context).pop(_selectedPlan);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 4,
+                ),
+                child: Text(
+                  'Continue with ${isStandard ? 'Standard Channel' : 'Custom Channel'}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionCard({
+    required ChannelPlanType type,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color primaryColor,
+    required Color gradientStart,
+    required bool isDark,
+  }) {
+    final isSelected = _selectedPlan == type;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedPlan = type),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: isDark
+              ? (isSelected ? const Color(0xFF1E293B) : AppColors.bgInput)
+              : (isSelected
+                    ? const Color(0xFFF1F5F9)
+                    : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: primaryColor.withValues(alpha: 0.18),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [gradientStart, primaryColor],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDark
+                          ? AppColors.textPrimary
+                          : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.textSecondary
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected ? primaryColor : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? primaryColor
+                      : (isDark ? AppColors.textTertiary : Colors.black26),
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 16, color: Colors.white)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '• ',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

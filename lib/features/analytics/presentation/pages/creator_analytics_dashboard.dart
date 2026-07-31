@@ -45,7 +45,10 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
         backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Get.back<void>(),
         ),
         actions: [
@@ -54,11 +57,16 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
             if (count > 0) {
               return Container(
                 margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.brand.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+                  border: Border.all(
+                    color: AppColors.brand.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -80,13 +88,17 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
             return const SizedBox.shrink();
           }),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
+            icon: const Icon(
+              Icons.refresh_rounded,
+              color: AppColors.textSecondary,
+            ),
             onPressed: controller.refreshAnalytics,
           ),
         ],
       ),
       body: Obx(() {
-        final isLoading = controller.isLoadingVideoAnalytics.value ||
+        final isLoading =
+            controller.isLoadingVideoAnalytics.value ||
             controller.isLoadingChannelAnalytics.value;
 
         if (isLoading) {
@@ -106,7 +118,10 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
               children: [
                 // Header video / channel title badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(12),
@@ -115,7 +130,9 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                   child: Row(
                     children: [
                       Icon(
-                        videoId.isNotEmpty ? Icons.play_circle_fill_rounded : Icons.sensors_rounded,
+                        videoId.isNotEmpty
+                            ? Icons.play_circle_fill_rounded
+                            : Icons.sensors_rounded,
                         color: AppColors.brand,
                         size: 20,
                       ),
@@ -156,16 +173,25 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.warningContainer,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: AppColors.warning.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: AppColors.warning,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             error,
-                            style: const TextStyle(color: AppColors.warning, fontSize: 13),
+                            style: const TextStyle(
+                              color: AppColors.warning,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ],
@@ -253,43 +279,55 @@ class _DateRangeFilterPills extends StatelessWidget {
           children: AnalyticsDateRange.values
               .where((r) => r != AnalyticsDateRange.custom)
               .map((range) {
-            final isSelected = controller.selectedDateRange.value == range;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: InkWell(
-                onTap: () => controller.setDateRange(range),
-                borderRadius: BorderRadius.circular(20),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.brand : AppColors.bgSurface,
+                final isSelected = controller.selectedDateRange.value == range;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () => controller.setDateRange(range),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? AppColors.brand : AppColors.bgDivider,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.brand
+                            : AppColors.bgSurface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.brand
+                              : AppColors.bgDivider,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.brand.withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        range.label,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.black
+                              : AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                        ),
+                      ),
                     ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: AppColors.brand.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            )
-                          ]
-                        : null,
                   ),
-                  child: Text(
-                    range.label,
-                    style: TextStyle(
-                      color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
+                );
+              })
+              .toList(),
         ),
       );
     });
@@ -311,7 +349,8 @@ class _SummaryCardsGrid extends StatelessWidget {
       final ca = controller.channelAnalytics.value;
 
       final views = va?.totalViews ?? ca?.totalVideoWatches ?? 0;
-      final uniqueViewers = va?.totalUniqueViewers ?? ca?.totalUniqueViewers ?? 0;
+      final uniqueViewers =
+          va?.totalUniqueViewers ?? ca?.totalUniqueViewers ?? 0;
 
       return Wrap(
         spacing: 12,
@@ -333,7 +372,8 @@ class _SummaryCardsGrid extends StatelessWidget {
             icon: Icons.trending_up_rounded,
             title: 'Engagement',
             value: '${controller.engagementScore.value.toStringAsFixed(1)}%',
-            subtitle: '${controller.completionRate.value.toStringAsFixed(1)}% completion',
+            subtitle:
+                '${controller.completionRate.value.toStringAsFixed(1)}% completion',
           ),
           _MetricCard(
             icon: Icons.touch_app_rounded,
@@ -350,7 +390,8 @@ class _SummaryCardsGrid extends StatelessWidget {
           _MetricCard(
             icon: Icons.person_add_alt_1_rounded,
             title: 'Sub Conv.',
-            value: '${controller.subscriberConversionRate.value.toStringAsFixed(2)}%',
+            value:
+                '${controller.subscriberConversionRate.value.toStringAsFixed(2)}%',
             subtitle: 'Views → Subscribers',
           ),
         ],
@@ -462,7 +503,10 @@ class _WatchtimeRetentionCard extends StatelessWidget {
               final data = controller.watchtimeChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No retention data', style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text(
+                    'No retention data',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
                 );
               }
 
@@ -498,7 +542,8 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                 return _LegendItem(
                   color: Color(d.color),
                   label: d.title,
-                  value: '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)',
+                  value:
+                      '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)',
                 );
               }).toList(),
             );
@@ -528,7 +573,10 @@ class _TrafficSourceCard extends StatelessWidget {
               final data = controller.trafficSourceChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No traffic data', style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text(
+                    'No traffic data',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
                 );
               }
 
@@ -538,7 +586,9 @@ class _TrafficSourceCard extends StatelessWidget {
                     return PieChartSectionData(
                       value: d.value,
                       color: Color(d.color),
-                      title: d.percentage >= 5 ? '${d.percentage.toStringAsFixed(0)}%' : '',
+                      title: d.percentage >= 5
+                          ? '${d.percentage.toStringAsFixed(0)}%'
+                          : '',
                       titleStyle: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 10,
@@ -561,25 +611,37 @@ class _TrafficSourceCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      Icon(_getTrafficSourceIcon(s.sourceKey), color: Colors.white, size: 16),
+                      Icon(
+                        _getTrafficSourceIcon(s.sourceKey),
+                        color: Colors.white,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           s.source,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       Text(
                         '${s.count}',
                         style: const TextStyle(
-                            color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
                         width: 50,
                         child: Text(
                           '${s.percentage.toStringAsFixed(1)}%',
-                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                          style: const TextStyle(
+                            color: AppColors.textTertiary,
+                            fontSize: 12,
+                          ),
                           textAlign: TextAlign.right,
                         ),
                       ),
@@ -642,7 +704,9 @@ class _GeographicBreakdownCard extends StatelessWidget {
                       return PieChartSectionData(
                         value: d.value,
                         color: Color(d.color),
-                        title: d.percentage >= 8 ? '${d.percentage.toStringAsFixed(0)}%' : '',
+                        title: d.percentage >= 8
+                            ? '${d.percentage.toStringAsFixed(0)}%'
+                            : '',
                         titleStyle: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 10,
@@ -679,7 +743,10 @@ class _GeographicBreakdownCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           s.stateName,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       Text(
@@ -697,7 +764,9 @@ class _GeographicBreakdownCard extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: s.percentage / 100,
                             backgroundColor: AppColors.bgInput,
-                            valueColor: const AlwaysStoppedAnimation(AppColors.brand),
+                            valueColor: const AlwaysStoppedAnimation(
+                              AppColors.brand,
+                            ),
                             minHeight: 6,
                           ),
                         ),
@@ -746,14 +815,19 @@ class _TopCitiesCard extends StatelessWidget {
               final data = controller.cityTrafficChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No city data', style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text(
+                    'No city data',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
                 );
               }
 
               return BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: data.map((d) => d.value).reduce((a, b) => a > b ? a : b) * 1.2,
+                  maxY:
+                      data.map((d) => d.value).reduce((a, b) => a > b ? a : b) *
+                      1.2,
                   barGroups: data.asMap().entries.map((entry) {
                     return BarChartGroupData(
                       x: entry.key,
@@ -786,7 +860,9 @@ class _TopCitiesCard extends StatelessWidget {
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
-                              label.length > 6 ? '${label.substring(0, 5)}..' : label,
+                              label.length > 6
+                                  ? '${label.substring(0, 5)}..'
+                                  : label,
                               style: const TextStyle(
                                 color: AppColors.textTertiary,
                                 fontSize: 9,
@@ -812,20 +888,28 @@ class _TopCitiesCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.location_city_rounded, color: Colors.white, size: 14),
+                      const Icon(
+                        Icons.location_city_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           c.cityName,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                       Text(
                         '${c.viewCount}',
                         style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13),
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -867,7 +951,10 @@ class _AreaTypeCard extends StatelessWidget {
               final data = controller.areaTypeChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('—', style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text(
+                    '—',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
                 );
               }
 
@@ -942,7 +1029,10 @@ class _AreaStatRow extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
             ),
             const Spacer(),
             Text(
@@ -1001,7 +1091,10 @@ class _DeviceBreakdownCard extends StatelessWidget {
                         Text(
                           d.deviceType.capitalize ?? d.deviceType,
                           style: const TextStyle(
-                              color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         ClipRRect(
@@ -1009,7 +1102,9 @@ class _DeviceBreakdownCard extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: d.percentage / 100,
                             backgroundColor: AppColors.bgInput,
-                            valueColor: const AlwaysStoppedAnimation(AppColors.brand),
+                            valueColor: const AlwaysStoppedAnimation(
+                              AppColors.brand,
+                            ),
                             minHeight: 5,
                           ),
                         ),

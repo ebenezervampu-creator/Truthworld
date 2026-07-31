@@ -10,11 +10,12 @@ enum ContentType {
 }
 
 class SubscriptionContent {
-
   SubscriptionContent({
     required this.id,
     required this.type,
-    required this.algorithmicScore, required this.createdAt, this.video,
+    required this.algorithmicScore,
+    required this.createdAt,
+    this.video,
     this.playlist,
     this.communityPost,
   });
@@ -60,19 +61,23 @@ class SubscriptionContent {
   final Timestamp createdAt;
 
   static double _calculateVideoScore(Video video) {
-    final daysSinceUpload = DateTime.now().difference(video.createdAt.toDate()).inDays;
+    final daysSinceUpload = DateTime.now()
+        .difference(video.createdAt.toDate())
+        .inDays;
     final recencyFactor = 1.0 / (1 + daysSinceUpload * 0.1);
     final viewsFactor = video.views > 0 ? (video.views / 1000).clamp(0, 10) : 0;
     final likesFactor = video.likes > 0 ? (video.likes / 100).clamp(0, 5) : 0;
-    
+
     return recencyFactor * 5 + viewsFactor * 3 + likesFactor * 2;
   }
 
   static double _calculatePlaylistScore(PlaylistModel playlist) {
-    final daysSinceUpload = DateTime.now().difference(playlist.createdAt.toDate()).inDays;
+    final daysSinceUpload = DateTime.now()
+        .difference(playlist.createdAt.toDate())
+        .inDays;
     final recencyFactor = 1.0 / (1 + daysSinceUpload * 0.1);
     final videoCountFactor = (playlist.videoCount / 10).clamp(0, 5);
-    
+
     return recencyFactor * 5 + videoCountFactor * 3;
   }
 
@@ -81,7 +86,7 @@ class SubscriptionContent {
     final recencyFactor = 1.0 / (1 + daysSinceUpload * 0.1);
     final likesFactor = post.likes > 0 ? (post.likes / 50).clamp(0, 5) : 0;
     final viewsFactor = post.views > 0 ? (post.views / 500).clamp(0, 3) : 0;
-    
+
     return recencyFactor * 5 + likesFactor * 3 + viewsFactor * 2;
   }
 
@@ -103,7 +108,9 @@ class SubscriptionContent {
       case ContentType.playlist:
         return playlist?.thumbnailUrl ?? '';
       case ContentType.communityPost:
-        return communityPost?.images.isNotEmpty ?? false ? communityPost!.images.first : '';
+        return communityPost?.images.isNotEmpty ?? false
+            ? communityPost!.images.first
+            : '';
     }
   }
 
@@ -129,6 +136,3 @@ class SubscriptionContent {
     }
   }
 }
-
-
-

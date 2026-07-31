@@ -42,13 +42,13 @@ enum StageStatus {
 }
 
 class PipelineJobStatus {
-
   PipelineJobStatus({
     required this.jobId,
     required this.userId,
     required this.currentStage,
     required this.overallProgress,
-    required this.startedAt, this.stageProgress = const {},
+    required this.startedAt,
+    this.stageProgress = const {},
     this.stageStatuses = const {},
     this.eta,
     this.errorMessage,
@@ -94,6 +94,7 @@ class PipelineJobStatus {
       warnings: List<String>.from(map['warnings'] ?? []),
     );
   }
+
   /// Unique job identifier
   final String jobId;
 
@@ -222,14 +223,14 @@ class PipelineJobStatus {
 
 /// Real-time status update from Pub/Sub
 class PipelineStatusUpdate {
-
   PipelineStatusUpdate({
     required this.jobId,
     required this.userId,
     required this.stage,
     required this.progress,
     required this.status,
-    required this.timestamp, this.message,
+    required this.timestamp,
+    this.message,
     this.eta,
   });
 
@@ -256,8 +257,3 @@ class PipelineStatusUpdate {
   final DateTime timestamp;
   final int? eta;
 }
-
-
-
-
-

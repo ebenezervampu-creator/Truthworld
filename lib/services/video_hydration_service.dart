@@ -3,18 +3,18 @@ import 'package:flutter/foundation.dart';
 import 'package:universal_html/js.dart' as js;
 
 /// Service to handle video data injection from prerendered HTML pages.
-/// 
+///
 /// How it works:
 /// 1. Firebase Hosting serves prerendered HTML with injected data
 /// 2. HTML contains: window.__VIDEO_DATA__ = {...}
 /// 3. This service reads that data from JavaScript context
 /// 4. Flutter app uses injected data for instant hydration (no loading)
-/// 
+///
 /// Only active on web - returns null on mobile.
 
 class VideoHydrationService {
   /// Check if video data was injected by the prerender system
-  /// 
+  ///
   /// Returns true if:
   /// - Running on web
   /// - __VIDEO_DATA__ exists in window
@@ -41,12 +41,12 @@ class VideoHydrationService {
   }
 
   /// Get the injected video data as a Dart Map
-  /// 
+  ///
   /// Returns null if:
   /// - Not running on web
   /// - Data not found
   /// - Error reading from JS context
-  /// 
+  ///
   /// Otherwise returns map with keys:
   /// - id, title, description, thumbnail
   /// - duration, uploadDate
@@ -97,7 +97,7 @@ class VideoHydrationService {
   }
 
   /// Get a specific field from injected data
-  /// 
+  ///
   /// Example: VideoHydrationService.getInjectedField('title')
   static dynamic getInjectedField(String field) {
     try {
@@ -118,7 +118,7 @@ class VideoHydrationService {
   }
 
   /// Clean up injected data after it's been consumed
-  /// 
+  ///
   /// Safe to call multiple times - doesn't error if data doesn't exist
   static void clearInjectedData() {
     try {
@@ -162,8 +162,3 @@ class VideoHydrationService {
     }
   }
 }
-
-
-
-
-

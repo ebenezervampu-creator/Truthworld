@@ -5,7 +5,6 @@ import 'package:truthworld/theme/app_theme.dart';
 enum ClaimStatus { verified, unverified, disputed }
 
 class ExtractedClaim {
-
   ExtractedClaim({
     required this.id,
     required this.text,
@@ -25,9 +24,10 @@ class ExtractedClaim {
 }
 
 class TruthVerificationDashboardPage extends StatefulWidget {
-
   const TruthVerificationDashboardPage({
-    required this.channelId, required this.isDarkMode, super.key,
+    required this.channelId,
+    required this.isDarkMode,
+    super.key,
   });
   final String channelId;
   final bool isDarkMode;
@@ -42,7 +42,8 @@ class _TruthVerificationDashboardPageState
   final RxList<ExtractedClaim> _claims = <ExtractedClaim>[
     ExtractedClaim(
       id: 'c1',
-      text: 'Global solar energy generation increased by 22% year-over-year in 2025.',
+      text:
+          'Global solar energy generation increased by 22% year-over-year in 2025.',
       timestamp: '02:14',
       category: 'Energy Statistics',
       confidenceScore: 0.94,
@@ -50,16 +51,19 @@ class _TruthVerificationDashboardPageState
     ),
     ExtractedClaim(
       id: 'c2',
-      text: 'Over 80% of urban transit networks currently run exclusively on hydrogen fuel cells.',
+      text:
+          'Over 80% of urban transit networks currently run exclusively on hydrogen fuel cells.',
       timestamp: '06:45',
       category: 'Infrastructure',
       confidenceScore: 0.42,
-      sourceCitation: 'World Transit Database 2025 (Claim unverified - actual figure is ~14%)',
+      sourceCitation:
+          'World Transit Database 2025 (Claim unverified - actual figure is ~14%)',
       status: ClaimStatus.unverified,
     ),
     ExtractedClaim(
       id: 'c3',
-      text: 'Battery recycling efficiency surpassed 95% threshold across tier-1 facilities.',
+      text:
+          'Battery recycling efficiency surpassed 95% threshold across tier-1 facilities.',
       timestamp: '11:20',
       category: 'Clean Technology',
       confidenceScore: 0.88,
@@ -74,7 +78,9 @@ class _TruthVerificationDashboardPageState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: widget.isDarkMode ? const Color(0xFF1E222B) : AppColors.textPrimary,
+        backgroundColor: widget.isDarkMode
+            ? const Color(0xFF1E222B)
+            : AppColors.textPrimary,
         title: Text(
           'Attach Supporting Evidence / Citation',
           style: TextStyle(
@@ -92,7 +98,9 @@ class _TruthVerificationDashboardPageState
               style: TextStyle(
                 fontSize: 13,
                 fontStyle: FontStyle.italic,
-                color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
+                color: widget.isDarkMode
+                    ? AppColors.textSecondary
+                    : AppColors.bgPage,
               ),
             ),
             const SizedBox(height: 16),
@@ -102,11 +110,15 @@ class _TruthVerificationDashboardPageState
                 labelText: 'Source URL / Reference Document',
                 border: const OutlineInputBorder(),
                 labelStyle: TextStyle(
-                  color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
+                  color: widget.isDarkMode
+                      ? AppColors.textSecondary
+                      : AppColors.bgPage54,
                 ),
               ),
               style: TextStyle(
-                color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: widget.isDarkMode
+                    ? AppColors.textPrimary
+                    : AppColors.bgPage,
               ),
             ),
           ],
@@ -126,13 +138,18 @@ class _TruthVerificationDashboardPageState
                 _claims.refresh();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Citation submitted for AI re-verification review.'),
+                    content: Text(
+                      'Citation submitted for AI re-verification review.',
+                    ),
                   ),
                 );
               }
               Navigator.pop(context);
             },
-            child: const Text('Submit Citation', style: TextStyle(color: AppColors.textPrimary)),
+            child: const Text(
+              'Submit Citation',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
@@ -144,7 +161,9 @@ class _TruthVerificationDashboardPageState
     const overallTruthScore = 0.88; // 88% overall credibility rating
 
     return Scaffold(
-      backgroundColor: widget.isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: widget.isDarkMode
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF8FAFC),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -161,7 +180,9 @@ class _TruthVerificationDashboardPageState
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
-                        color: widget.isDarkMode ? AppColors.textPrimary : const Color(0xFF0F172A),
+                        color: widget.isDarkMode
+                            ? AppColors.textPrimary
+                            : const Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -169,40 +190,54 @@ class _TruthVerificationDashboardPageState
                       'Pre-publish review for Path 1 Credibility & Fact-Check analysis',
                       style: TextStyle(
                         fontSize: 13,
-                        color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
+                        color: widget.isDarkMode
+                            ? AppColors.textSecondary
+                            : AppColors.bgPage54,
                       ),
                     ),
                   ],
                 ),
-                Obx(() => ElevatedButton.icon(
-                  icon: Icon(
-                    _isPublished.value ? Icons.verified : Icons.publish,
-                    color: AppColors.textPrimary,
-                  ),
-                  label: Text(
-                    _isPublished.value ? 'Score Badge Published' : 'Approve & Publish Score Badge',
-                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isPublished.value ? const Color(0xFF10B981) : const Color(0xFF8B5CF6),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                Obx(
+                  () => ElevatedButton.icon(
+                    icon: Icon(
+                      _isPublished.value ? Icons.verified : Icons.publish,
+                      color: AppColors.textPrimary,
                     ),
-                  ),
-                  onPressed: () {
-                    _isPublished.toggle();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          _isPublished.value
-                              ? 'Credibility badge is now visible on player overlays.'
-                              : 'Score badge unpublished.',
-                        ),
+                    label: Text(
+                      _isPublished.value
+                          ? 'Score Badge Published'
+                          : 'Approve & Publish Score Badge',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
                       ),
-                    );
-                  },
-                )),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isPublished.value
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF8B5CF6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () {
+                      _isPublished.toggle();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            _isPublished.value
+                                ? 'Credibility badge is now visible on player overlays.'
+                                : 'Score badge unpublished.',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -210,10 +245,14 @@ class _TruthVerificationDashboardPageState
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: widget.isDarkMode ? const Color(0xFF1E293B) : AppColors.textPrimary,
+                color: widget.isDarkMode
+                    ? const Color(0xFF1E293B)
+                    : AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: widget.isDarkMode ? AppColors.bgDivider : Colors.black12,
+                  color: widget.isDarkMode
+                      ? AppColors.bgDivider
+                      : Colors.black12,
                 ),
               ),
               child: Row(
@@ -227,8 +266,12 @@ class _TruthVerificationDashboardPageState
                         child: CircularProgressIndicator(
                           value: overallTruthScore,
                           strokeWidth: 8,
-                          backgroundColor: AppColors.textSecondary.withValues(alpha: 0.2),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                          backgroundColor: AppColors.textSecondary.withValues(
+                            alpha: 0.2,
+                          ),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF10B981),
+                          ),
                         ),
                       ),
                       Text(
@@ -236,7 +279,9 @@ class _TruthVerificationDashboardPageState
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                          color: widget.isDarkMode
+                              ? AppColors.textPrimary
+                              : AppColors.bgPage,
                         ),
                       ),
                     ],
@@ -259,7 +304,9 @@ class _TruthVerificationDashboardPageState
                           '3 extracted claims analyzed. 2 verified against academic databases, 1 claim flagged for unverified statistical assertion.',
                           style: TextStyle(
                             fontSize: 13,
-                            color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
+                            color: widget.isDarkMode
+                                ? AppColors.textSecondary
+                                : AppColors.bgPage,
                           ),
                         ),
                       ],
@@ -274,7 +321,9 @@ class _TruthVerificationDashboardPageState
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: widget.isDarkMode
+                    ? AppColors.textPrimary
+                    : AppColors.bgPage,
               ),
             ),
             const SizedBox(height: 16),
@@ -288,12 +337,16 @@ class _TruthVerificationDashboardPageState
                 return Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: widget.isDarkMode ? const Color(0xFF1E293B) : AppColors.textPrimary,
+                    color: widget.isDarkMode
+                        ? const Color(0xFF1E293B)
+                        : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: claim.status == ClaimStatus.unverified
                           ? AppColors.warning.withValues(alpha: 0.4)
-                          : widget.isDarkMode ? AppColors.bgDivider : Colors.black12,
+                          : widget.isDarkMode
+                          ? AppColors.bgDivider
+                          : Colors.black12,
                     ),
                   ),
                   child: Column(
@@ -303,7 +356,10 @@ class _TruthVerificationDashboardPageState
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.info.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
@@ -318,7 +374,10 @@ class _TruthVerificationDashboardPageState
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: claim.status == ClaimStatus.verified
                                   ? AppColors.success.withValues(alpha: 0.15)
@@ -346,13 +405,19 @@ class _TruthVerificationDashboardPageState
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
-                          color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                          color: widget.isDarkMode
+                              ? AppColors.textPrimary
+                              : AppColors.bgPage,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.menu_book, size: 14, color: AppColors.textSecondary),
+                          const Icon(
+                            Icons.menu_book,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -365,7 +430,10 @@ class _TruthVerificationDashboardPageState
                           ),
                           TextButton.icon(
                             icon: const Icon(Icons.add_link, size: 14),
-                            label: const Text('Add Citation / Contest', style: TextStyle(fontSize: 12)),
+                            label: const Text(
+                              'Add Citation / Contest',
+                              style: TextStyle(fontSize: 12),
+                            ),
                             onPressed: () => _showAddCitationDialog(claim),
                           ),
                         ],

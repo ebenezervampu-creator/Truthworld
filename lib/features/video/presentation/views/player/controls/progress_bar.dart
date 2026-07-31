@@ -144,7 +144,8 @@ class ProgressBar extends StatelessWidget {
                         _ChapterTooltip(ctrl: ctrl, barWidth: barWidth),
                       // Progress bar
                       SizedBox(
-                        height: hasChapters && (hovered || ctrl.isDragging.value)
+                        height:
+                            hasChapters && (hovered || ctrl.isDragging.value)
                             ? 16
                             : 36,
                         child: Stack(
@@ -169,7 +170,9 @@ class ProgressBar extends StatelessWidget {
                                       ? PT.kProgressBarHover
                                       : PT.kProgressBarH,
                                   decoration: BoxDecoration(
-                                    color: AppColors.textPrimary.withValues(alpha: 0.18),
+                                    color: AppColors.textPrimary.withValues(
+                                      alpha: 0.18,
+                                    ),
                                     borderRadius: BorderRadius.circular(3),
                                   ),
                                 ),
@@ -185,7 +188,9 @@ class ProgressBar extends StatelessWidget {
                                         ? PT.kProgressBarHover
                                         : PT.kProgressBarH,
                                     decoration: BoxDecoration(
-                                      color: AppColors.textPrimary.withValues(alpha: 0.3),
+                                      color: AppColors.textPrimary.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       borderRadius: BorderRadius.circular(3),
                                     ),
                                   ),
@@ -206,7 +211,9 @@ class ProgressBar extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(3),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: AppColors.error.withValues(alpha: 0.6),
+                                          color: AppColors.error.withValues(
+                                            alpha: 0.6,
+                                          ),
                                           blurRadius: 6,
                                           spreadRadius: 1,
                                         ),
@@ -223,13 +230,15 @@ class ProgressBar extends StatelessWidget {
                                         ?.video
                                         .uiReport
                                         ?.keyClaims
-                                        .isNotEmpty ?? false) &&
+                                        .isNotEmpty ??
+                                    false) &&
                                 dur.inMilliseconds > 0)
                               ...ctrl.videoController!.video.uiReport!.keyClaims
                                   .where((c) => c.start != null)
                                   .map((claim) {
                                     final frac =
-                                        (claim.start! / (dur.inMilliseconds / 1000.0))
+                                        (claim.start! /
+                                                (dur.inMilliseconds / 1000.0))
                                             .clamp(0.0, 1.0);
                                     final verdictColor = _getVerdictColor(
                                       claim.verdict,
@@ -247,15 +256,17 @@ class ProgressBar extends StatelessWidget {
                                               color: verdictColor,
                                               shape: BoxShape.circle,
                                               border: Border.all(
-                                                color: AppColors.bgPage.withValues(
-                                                  alpha: 0.6,
-                                                ),
+                                                color: AppColors.bgPage
+                                                    .withValues(
+                                                      alpha: 0.6,
+                                                    ),
                                               ),
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: verdictColor.withValues(
-                                                    alpha: 0.4,
-                                                  ),
+                                                  color: verdictColor
+                                                      .withValues(
+                                                        alpha: 0.4,
+                                                      ),
                                                   blurRadius: 2,
                                                 ),
                                               ],
@@ -286,7 +297,9 @@ class ProgressBar extends StatelessWidget {
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppColors.error.withValues(alpha: 0.7),
+                                            color: AppColors.error.withValues(
+                                              alpha: 0.7,
+                                            ),
                                             blurRadius: 8,
                                             spreadRadius: 2,
                                           ),
@@ -324,7 +337,7 @@ class ProgressBar extends StatelessWidget {
       case 'inconclusive':
       case 'limited_support':
       case 'verification_timeout':
-        return Colors.amberAccent;
+        return AppColors.brandHover;
       case 'faith_based_claim':
       case 'not_historically_verifiable':
       case 'historical_tradition':
@@ -357,7 +370,6 @@ class _ChapterTooltip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              
               color: AppColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -428,20 +440,27 @@ class _ChapterSegmentedBar extends StatelessWidget {
                 (chapterDuration / dur.inMilliseconds) * availableWidth;
 
             // Calculate played/buffered fraction within this chapter
-            final playedMs =
-                (played * dur.inMilliseconds).clamp(0.0, dur.inMilliseconds.toDouble());
-            final bufferedMs =
-                (buffered * dur.inMilliseconds).clamp(0.0, dur.inMilliseconds.toDouble());
+            final playedMs = (played * dur.inMilliseconds).clamp(
+              0.0,
+              dur.inMilliseconds.toDouble(),
+            );
+            final bufferedMs = (buffered * dur.inMilliseconds).clamp(
+              0.0,
+              dur.inMilliseconds.toDouble(),
+            );
 
             final chapterPlayedFrac = chapterDuration > 0
                 ? ((playedMs - chapterStart) / chapterDuration).clamp(0.0, 1.0)
                 : 0.0;
             final chapterBufferedFrac = chapterDuration > 0
-                ? ((bufferedMs - chapterStart) / chapterDuration)
-                    .clamp(0.0, 1.0)
+                ? ((bufferedMs - chapterStart) / chapterDuration).clamp(
+                    0.0,
+                    1.0,
+                  )
                 : 0.0;
 
-            final isCurrent = ctrl.currentChapter.value == chapters[chapterIndex];
+            final isCurrent =
+                ctrl.currentChapter.value == chapters[chapterIndex];
 
             return SizedBox(
               width: segmentWidth.clamp(1.0, double.infinity),

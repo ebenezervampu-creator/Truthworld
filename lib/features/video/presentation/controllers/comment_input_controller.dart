@@ -6,7 +6,6 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 
 class CommentInputController extends BaseController {
-  
   CommentInputController({required this.videoId, required this.enableComments});
   final String videoId;
   final bool enableComments;
@@ -44,14 +43,16 @@ class CommentInputController extends BaseController {
   }
 
   Future<void> submitComment() async {
-    if (commentController.text.trim().isEmpty || !enableComments || isSubmitting.value) {
+    if (commentController.text.trim().isEmpty ||
+        !enableComments ||
+        isSubmitting.value) {
       return;
     }
 
     await safeExecute(() async {
       isSubmitting.value = true;
       final user = FirebaseAuth.instance.currentUser!;
-      
+
       final authService = AuthService.to;
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
@@ -68,7 +69,7 @@ class CommentInputController extends BaseController {
       focusNode.unfocus();
       showSuccess('Comment posted successfully');
     }, showLoading: false);
-    
+
     isSubmitting.value = false;
   }
 
@@ -79,8 +80,3 @@ class CommentInputController extends BaseController {
     super.onClose();
   }
 }
-
-
-
-
-

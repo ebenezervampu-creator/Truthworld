@@ -1,12 +1,12 @@
 class WatchTimeFormatter {
   /// Formats seconds into human-readable watch time.
-  /// 
+  ///
   /// Standard mode:
   /// - < 60 mins: "0 mins", "1 min", "59 mins"
   /// - 1.0 - < 2.0 hrs: "1.0 hr"
   /// - ≥ 2.0 hrs: "1.5 hrs", "12.4 hrs"
   /// - ≥ 1K hrs: "1.2K hrs", "1.5M hrs"
-  /// 
+  ///
   /// Compact mode:
   /// - < 60 mins: "0m", "1m", "59m"
   /// - ≥ 1 hr: "1.0h", "1.5h", "1.2Kh", "1.5Mh"

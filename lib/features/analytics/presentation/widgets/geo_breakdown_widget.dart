@@ -12,7 +12,6 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Sorted by view count descending
 /// - Dark theme matching the app's aesthetic
 class GeoBreakdownWidget extends StatelessWidget {
-
   const GeoBreakdownWidget({required this.regions, super.key});
   final List<GeoRegionModel> regions;
 
@@ -37,7 +36,9 @@ class GeoBreakdownWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +164,6 @@ class GeoBreakdownWidget extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-
   const _SectionTitle({
     required this.icon,
     required this.title,
@@ -211,7 +211,6 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _RegionRow extends StatelessWidget {
-
   const _RegionRow({
     required this.region,
     required this.totalCount,
@@ -233,7 +232,10 @@ class _RegionRow extends StatelessWidget {
             flex: 3,
             child: Text(
               region.regionKey,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),

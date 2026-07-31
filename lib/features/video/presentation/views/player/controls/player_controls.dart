@@ -13,7 +13,9 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class MainControls extends StatelessWidget {
   const MainControls({
-    required this.ctrl, required this.playerWidth, super.key,
+    required this.ctrl,
+    required this.playerWidth,
+    super.key,
   });
   final TowerPlayerController ctrl;
   final double playerWidth;
@@ -36,8 +38,9 @@ class MainControls extends StatelessWidget {
       final isNarrow = maxControlsWidth < 550;
       final isMedium = maxControlsWidth >= 550 && maxControlsWidth < 800;
 
-      final isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
-                                  Theme.of(context).platform == TargetPlatform.iOS;
+      final isMobileDevice =
+          Theme.of(context).platform == TargetPlatform.android ||
+          Theme.of(context).platform == TargetPlatform.iOS;
 
       return Stack(
         children: [
@@ -48,7 +51,10 @@ class MainControls extends StatelessWidget {
             right: 0,
             child: isMobileDevice
                 ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         IconBtn(
@@ -65,18 +71,20 @@ class MainControls extends StatelessWidget {
                       ],
                     ),
                   )
-                : Obx(() => ctrl.isFullScreen.value
-                    ? Center(
-                        child: SizedBox(
-                          width: maxControlsWidth,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {}, // Absorb taps
-                            child: PlayerTopBar(ctrl: ctrl),
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink()),
+                : Obx(
+                    () => ctrl.isFullScreen.value
+                        ? Center(
+                            child: SizedBox(
+                              width: maxControlsWidth,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {}, // Absorb taps
+                                child: PlayerTopBar(ctrl: ctrl),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
           ),
 
           // Centre controls — play / prev / next
@@ -216,7 +224,8 @@ class PlayerTopBar extends StatelessWidget {
             // Subscribe Button & Bell Icon
             Obx(() {
               final isSubbed = channelCtrl!.isSubscribed.value;
-              final notificationsEnabled = channelCtrl.notificationsEnabled.value;
+              final notificationsEnabled =
+                  channelCtrl.notificationsEnabled.value;
               final notificationOption = channelCtrl.notificationOption.value;
 
               IconData bellIcon;
@@ -249,7 +258,9 @@ class PlayerTopBar extends StatelessWidget {
                       child: Text(
                         isSubbed ? 'Subscribed' : 'Subscribe',
                         style: TS.bold.copyWith(
-                          color: isSubbed ? AppColors.textPrimary : AppColors.bgPage,
+                          color: isSubbed
+                              ? AppColors.textPrimary
+                              : AppColors.bgPage,
                           fontSize: 13,
                         ),
                       ),
@@ -258,7 +269,11 @@ class PlayerTopBar extends StatelessWidget {
                   if (isSubbed) ...[
                     const SizedBox(width: 8),
                     InkWell(
-                      onTap: () => _showPlayerNotificationsDialog(context, channelCtrl!, vc!.video.channelId),
+                      onTap: () => _showPlayerNotificationsDialog(
+                        context,
+                        channelCtrl!,
+                        vc!.video.channelId,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
                         padding: const EdgeInsets.all(8),
@@ -284,7 +299,10 @@ class PlayerTopBar extends StatelessWidget {
   }
 
   void _showPlayerNotificationsDialog(
-      BuildContext context, ChannelController channelCtrl, String channelId) {
+    BuildContext context,
+    ChannelController channelCtrl,
+    String channelId,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1C1C1C),
@@ -316,9 +334,11 @@ class PlayerTopBar extends StatelessWidget {
             const SizedBox(height: 16),
             Obx(() {
               final option = channelCtrl.notificationOption.value;
-              final notificationsEnabled = channelCtrl.notificationsEnabled.value;
+              final notificationsEnabled =
+                  channelCtrl.notificationsEnabled.value;
               final isAll = notificationsEnabled && option == 'all';
-              final isPersonalized = notificationsEnabled && option == 'personalized';
+              final isPersonalized =
+                  notificationsEnabled && option == 'personalized';
               final isNone = !notificationsEnabled || option == 'none';
 
               return Column(
@@ -337,34 +357,56 @@ class PlayerTopBar extends StatelessWidget {
                     ),
                     subtitle: const Text(
                       "You'll get all notifications",
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                    trailing: isAll ? const Icon(Icons.check, color: PT.primary) : null,
+                    trailing: isAll
+                        ? const Icon(Icons.check, color: PT.primary)
+                        : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(channelId, 'all');
+                      channelCtrl.updateNotificationPreference(
+                        channelId,
+                        'all',
+                      );
                     },
                   ),
                   ListTile(
                     leading: Icon(
                       Icons.notifications_outlined,
-                      color: isPersonalized ? PT.primary : AppColors.textPrimary,
+                      color: isPersonalized
+                          ? PT.primary
+                          : AppColors.textPrimary,
                     ),
                     title: Text(
                       'Personalized',
                       style: TextStyle(
-                        color: isPersonalized ? PT.primary : AppColors.textPrimary,
-                        fontWeight: isPersonalized ? FontWeight.bold : FontWeight.normal,
+                        color: isPersonalized
+                            ? PT.primary
+                            : AppColors.textPrimary,
+                        fontWeight: isPersonalized
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                     subtitle: const Text(
                       "You'll get personalized notifications",
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                    trailing: isPersonalized ? const Icon(Icons.check, color: PT.primary) : null,
+                    trailing: isPersonalized
+                        ? const Icon(Icons.check, color: PT.primary)
+                        : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(channelId, 'personalized');
+                      channelCtrl.updateNotificationPreference(
+                        channelId,
+                        'personalized',
+                      );
                     },
                   ),
                   ListTile(
@@ -376,17 +418,27 @@ class PlayerTopBar extends StatelessWidget {
                       'None',
                       style: TextStyle(
                         color: isNone ? PT.primary : AppColors.textPrimary,
-                        fontWeight: isNone ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isNone
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                     subtitle: const Text(
                       'Turn off all notifications',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
-                    trailing: isNone ? const Icon(Icons.check, color: PT.primary) : null,
+                    trailing: isNone
+                        ? const Icon(Icons.check, color: PT.primary)
+                        : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(channelId, 'none');
+                      channelCtrl.updateNotificationPreference(
+                        channelId,
+                        'none',
+                      );
                     },
                   ),
                 ],
@@ -401,13 +453,16 @@ class PlayerTopBar extends StatelessWidget {
 
 // ── Centre row ────────────────────────────────────────────────────────────────
 class CenterRow extends StatelessWidget {
-  const CenterRow({required this.ctrl, required this.maxControlsWidth, super.key});
+  const CenterRow({
+    required this.ctrl,
+    required this.maxControlsWidth,
+    super.key,
+  });
   final TowerPlayerController ctrl;
   final double maxControlsWidth;
 
   @override
   Widget build(BuildContext context) {
-
     final isMobile = maxControlsWidth < 600;
     final playSize = isMobile ? 48.0 : 68.0;
     final skipSize = isMobile ? 32.0 : 44.0;
@@ -457,7 +512,10 @@ class CenterRow extends StatelessWidget {
 // ── Bottom bar ────────────────────────────────────────────────────────────────
 class PlayerBottomBar extends StatelessWidget {
   const PlayerBottomBar({
-    required this.ctrl, required this.isNarrow, required this.isMedium, super.key,
+    required this.ctrl,
+    required this.isNarrow,
+    required this.isMedium,
+    super.key,
   });
   final TowerPlayerController ctrl;
   final bool isNarrow;
@@ -501,7 +559,10 @@ class PlayerBottomBar extends StatelessWidget {
 // ── Control row ───────────────────────────────────────────────────────────────
 class ControlRow extends StatelessWidget {
   const ControlRow({
-    required this.ctrl, required this.isNarrow, required this.isMedium, super.key,
+    required this.ctrl,
+    required this.isNarrow,
+    required this.isMedium,
+    super.key,
   });
   final TowerPlayerController ctrl;
   final bool isNarrow;
@@ -509,8 +570,9 @@ class ControlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
-                                Theme.of(context).platform == TargetPlatform.iOS;
+    final isMobileDevice =
+        Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.iOS;
 
     if (isMobileDevice) {
       return Row(
@@ -528,14 +590,19 @@ class ControlRow extends StatelessWidget {
                 }
                 VideoController? vc;
                 try {
-                  if (ctrl.tag != null && Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+                  if (ctrl.tag != null &&
+                      Get.isRegistered<VideoController>(tag: ctrl.tag)) {
                     vc = Get.find<VideoController>(tag: ctrl.tag);
                   } else if (Get.isRegistered<VideoController>()) {
                     vc = Get.find<VideoController>();
                   }
                 } catch (_) {}
                 if (vc != null) {
-                  VideoChaptersBottomSheet.show(context, video: vc.video, videoTag: ctrl.tag);
+                  VideoChaptersBottomSheet.show(
+                    context,
+                    video: vc.video,
+                    videoTag: ctrl.tag,
+                  );
                 } else {
                   ctrl.activePanel.value = 'chapters';
                   ctrl.settingsOpen.value = true;
@@ -546,7 +613,9 @@ class ControlRow extends StatelessWidget {
           const Spacer(),
           Obx(
             () => Tooltip(
-              message: ctrl.subtitlesEnabled.value ? 'Subtitles (on)' : 'Subtitles (off)',
+              message: ctrl.subtitlesEnabled.value
+                  ? 'Subtitles (on)'
+                  : 'Subtitles (off)',
               child: IconBtn(
                 icon: ctrl.subtitlesEnabled.value
                     ? Icons.closed_caption_rounded
@@ -569,24 +638,6 @@ class ControlRow extends StatelessWidget {
             ),
           ),
           Tooltip(
-            message: 'Miniplayer',
-            child: IconBtn(
-              icon: Icons.branding_watermark_outlined,
-              onTap: ctrl.togglePiP,
-            ),
-          ),
-          Obx(
-            () => Tooltip(
-              message: ctrl.isZoomToFill.value ? 'Fit to screen' : 'Zoom to fill',
-              child: IconBtn(
-                icon: ctrl.isZoomToFill.value
-                    ? Icons.fit_screen_rounded
-                    : Icons.aspect_ratio_rounded,
-                onTap: ctrl.toggleZoomToFill,
-              ),
-            ),
-          ),
-          Tooltip(
             message: 'Settings',
             child: IconBtn(
               icon: Icons.settings_outlined,
@@ -595,7 +646,9 @@ class ControlRow extends StatelessWidget {
           ),
           Obx(
             () => Tooltip(
-              message: ctrl.isFullScreen.value ? 'Exit full screen (f)' : 'Full screen (f)',
+              message: ctrl.isFullScreen.value
+                  ? 'Exit full screen (f)'
+                  : 'Full screen (f)',
               child: IconBtn(
                 icon: ctrl.isFullScreen.value
                     ? Icons.fullscreen_exit_rounded
@@ -663,14 +716,19 @@ class ControlRow extends StatelessWidget {
               }
               VideoController? vc;
               try {
-                if (ctrl.tag != null && Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+                if (ctrl.tag != null &&
+                    Get.isRegistered<VideoController>(tag: ctrl.tag)) {
                   vc = Get.find<VideoController>(tag: ctrl.tag);
                 } else if (Get.isRegistered<VideoController>()) {
                   vc = Get.find<VideoController>();
                 }
               } catch (_) {}
               if (vc != null) {
-                VideoChaptersBottomSheet.show(context, video: vc.video, videoTag: ctrl.tag);
+                VideoChaptersBottomSheet.show(
+                  context,
+                  video: vc.video,
+                  videoTag: ctrl.tag,
+                );
               } else {
                 ctrl.activePanel.value = 'chapters';
                 ctrl.settingsOpen.value = true;
@@ -682,19 +740,13 @@ class ControlRow extends StatelessWidget {
 
         // Right cluster
         if (!isNarrow) AbrBadge(ctrl: ctrl),
-        if (!isNarrow)
-          Tooltip(
-            message: 'Miniplayer',
-            child: IconBtn(
-              icon: Icons.branding_watermark_outlined,
-              onTap: ctrl.togglePiP,
-            ),
-          ),
 
         // CC / Subtitles (always present alongside Settings)
         Obx(
           () => Tooltip(
-            message: ctrl.subtitlesEnabled.value ? 'Subtitles (on)' : 'Subtitles (off)',
+            message: ctrl.subtitlesEnabled.value
+                ? 'Subtitles (on)'
+                : 'Subtitles (off)',
             child: IconBtn(
               icon: ctrl.subtitlesEnabled.value
                   ? Icons.closed_caption_rounded
@@ -748,19 +800,6 @@ class ControlRow extends StatelessWidget {
           ),
         ),
 
-        // Zoom to fill
-        Obx(
-          () => Tooltip(
-            message: ctrl.isZoomToFill.value ? 'Fit to screen' : 'Zoom to fill',
-            child: IconBtn(
-              icon: ctrl.isZoomToFill.value
-                  ? Icons.fit_screen_rounded
-                  : Icons.aspect_ratio_rounded,
-              onTap: ctrl.toggleZoomToFill,
-            ),
-          ),
-        ),
-
         // Settings
         Tooltip(
           message: 'Settings',
@@ -773,7 +812,9 @@ class ControlRow extends StatelessWidget {
         // Fullscreen
         Obx(
           () => Tooltip(
-            message: ctrl.isFullScreen.value ? 'Exit full screen (f)' : 'Full screen (f)',
+            message: ctrl.isFullScreen.value
+                ? 'Exit full screen (f)'
+                : 'Full screen (f)',
             child: IconBtn(
               icon: ctrl.isFullScreen.value
                   ? Icons.fullscreen_exit_rounded
@@ -801,7 +842,7 @@ class NetworkBadge extends StatelessWidget {
       case NetworkQuality.good:
         return Colors.lightGreenAccent;
       case NetworkQuality.fair:
-        return Colors.yellowAccent;
+        return AppColors.brandHover;
       case NetworkQuality.poor:
         return AppColors.warning;
       default:
@@ -833,7 +874,6 @@ class NetworkBadge extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                
                 color: col,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -864,7 +904,9 @@ class AbrBadge extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.textPrimary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.12)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.12),
+            ),
           ),
           child: Text(label, style: TS.badge),
         ),
@@ -952,7 +994,9 @@ class TimeDisplay extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               '•',
-              style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5)),
+              style: TextStyle(
+                color: AppColors.textPrimary.withValues(alpha: 0.5),
+              ),
             ),
             const SizedBox(width: 8),
             ConstrainedBox(
@@ -1012,7 +1056,8 @@ class IconBtn extends StatelessWidget {
 
 class CenterBtn extends StatelessWidget {
   const CenterBtn({
-    required this.icon, super.key,
+    required this.icon,
+    super.key,
     this.onTap,
     this.size = 44,
     this.isPrimary = false,
@@ -1049,7 +1094,10 @@ class CenterBtn extends StatelessWidget {
 
 class PremiumButton extends StatelessWidget {
   const PremiumButton({
-    required this.label, required this.icon, required this.onTap, super.key,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    super.key,
   });
   final String label;
   final IconData icon;
@@ -1073,7 +1121,6 @@ class PremiumButton extends StatelessWidget {
               Text(
                 label,
                 style: const TextStyle(
-                  
                   color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1089,7 +1136,9 @@ class PremiumButton extends StatelessWidget {
 
 class MobileAutoplaySwitch extends StatelessWidget {
   const MobileAutoplaySwitch({
-    required this.value, required this.onChanged, super.key,
+    required this.value,
+    required this.onChanged,
+    super.key,
   });
   final bool value;
   final ValueChanged<bool> onChanged;

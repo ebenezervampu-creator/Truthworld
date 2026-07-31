@@ -37,7 +37,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: vc.isLiked.value,
             );
           }),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // Dislike
           Obx(() {
@@ -49,7 +49,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: vc.isDisliked.value,
             );
           }),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // Comments
           Obx(
@@ -63,7 +63,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: ctrl.showCommentsPopup.value,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // Transcript
           Obx(
@@ -77,7 +77,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: ctrl.showTranscriptPopup.value,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // Verified / Facts
           Obx(
@@ -119,20 +119,26 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
       children: [
         InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           child: Container(
-            width: 40,
-            height: 40,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: isActive
-                  ? PT.primary.withValues(alpha: 0.2)
+                  ? AppColors.textPrimary.withValues(alpha: 0.22)
                   : AppColors.textPrimary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
+              border: isActive
+                  ? Border.all(
+                      color: AppColors.textPrimary.withValues(alpha: 0.4),
+                      width: 1,
+                    )
+                  : null,
             ),
             child: _AnimatedBounceIcon(
               icon: icon,
               isActive: isActive,
-              color: isActive ? PT.primary : AppColors.textPrimary,
+              color: AppColors.textPrimary,
               textDirection: flipHorizontal ? TextDirection.rtl : null,
             ),
           ),
@@ -162,7 +168,6 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 }
 
 class _AnimatedBounceIcon extends StatefulWidget {
-
   const _AnimatedBounceIcon({
     required this.icon,
     required this.isActive,
@@ -193,13 +198,17 @@ class _AnimatedBounceIconState extends State<_AnimatedBounceIcon>
     );
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.4)
-            .chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.4,
+        ).chain(CurveTween(curve: Curves.easeOut)),
         weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.4, end: 1)
-            .chain(CurveTween(curve: Curves.bounceOut)),
+        tween: Tween<double>(
+          begin: 1.4,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.bounceOut)),
         weight: 60,
       ),
     ]).animate(_controller);

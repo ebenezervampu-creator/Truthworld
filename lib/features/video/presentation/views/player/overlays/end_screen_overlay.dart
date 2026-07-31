@@ -16,7 +16,7 @@ class EndScreenOverlay extends StatelessWidget {
       if (!ctrl.showEndScreen.value) return const SizedBox.shrink();
 
       final isCountdownActive = ctrl.autoplayCountdown.value > 0;
-      
+
       // Extract recommended/next video
       Video? nextVideo;
       var recommendations = <Video>[];
@@ -78,13 +78,13 @@ class EndScreenOverlay extends StatelessWidget {
                                 _buildSquareCard(context, recommendations.first)
                               else
                                 const SizedBox.shrink(),
-                              
+
                               // Left bottom circular logo
                               _buildChannelLogo(context),
                             ],
                           ),
                         ),
-                        
+
                         // Right Column: Two vertical 16:9 cards
                         Positioned(
                           right: 40,
@@ -178,7 +178,10 @@ class EndScreenOverlay extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.3), width: 1.5),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: AppColors.bgPage.withValues(alpha: 0.3),
@@ -198,7 +201,11 @@ class EndScreenOverlay extends StatelessWidget {
                   placeholder: (_, _) => Container(color: AppColors.bgPage54),
                   errorWidget: (_, _, _) => const ColoredBox(
                     color: AppColors.bgPage54,
-                    child: Icon(Icons.link, color: AppColors.textTertiary, size: 30),
+                    child: Icon(
+                      Icons.link,
+                      color: AppColors.textTertiary,
+                      size: 30,
+                    ),
                   ),
                 ),
                 // Open in new badge at bottom right
@@ -228,9 +235,10 @@ class EndScreenOverlay extends StatelessWidget {
 
   Widget _buildChannelLogo(BuildContext context) {
     final vc = ctrl.videoController;
-    final avatarUrl = vc?.video.channelAvatarUrl ?? vc?.video.channelImage ?? '';
+    final avatarUrl =
+        vc?.video.channelAvatarUrl ?? vc?.video.channelImage ?? '';
     final channelName = vc?.video.channelName ?? '';
-    
+
     return GestureDetector(
       onTap: () {
         if (vc != null && vc.video.channelId.isNotEmpty) {
@@ -261,8 +269,14 @@ class EndScreenOverlay extends StatelessWidget {
                     color: AppColors.textPrimary.withValues(alpha: 0.1),
                     child: Center(
                       child: Text(
-                        channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
+                        channelName.isNotEmpty
+                            ? channelName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -270,8 +284,14 @@ class EndScreenOverlay extends StatelessWidget {
                     color: AppColors.textPrimary.withValues(alpha: 0.1),
                     child: Center(
                       child: Text(
-                        channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
+                        channelName.isNotEmpty
+                            ? channelName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -280,8 +300,14 @@ class EndScreenOverlay extends StatelessWidget {
                   color: AppColors.textPrimary.withValues(alpha: 0.1),
                   child: Center(
                     child: Text(
-                      channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
+                      channelName.isNotEmpty
+                          ? channelName[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -303,7 +329,10 @@ class EndScreenOverlay extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.3), width: 1.5),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: AppColors.bgPage.withValues(alpha: 0.3),
@@ -323,7 +352,11 @@ class EndScreenOverlay extends StatelessWidget {
                   placeholder: (_, _) => Container(color: AppColors.bgPage54),
                   errorWidget: (_, _, _) => const ColoredBox(
                     color: AppColors.bgPage54,
-                    child: Icon(Icons.video_library_outlined, color: AppColors.textTertiary, size: 40),
+                    child: Icon(
+                      Icons.video_library_outlined,
+                      color: AppColors.textTertiary,
+                      size: 40,
+                    ),
                   ),
                 ),
                 // Scrim
@@ -395,7 +428,10 @@ class EndScreenOverlay extends StatelessWidget {
                   bottom: 10,
                   right: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
@@ -419,7 +455,10 @@ class EndScreenOverlay extends StatelessWidget {
   }
 
   Widget _buildCompactLayout(BuildContext context, List<Video> videos) {
-    final list = videos.where((v) => v.id != ctrl.videoController?.video.id).take(3).toList();
+    final list = videos
+        .where((v) => v.id != ctrl.videoController?.video.id)
+        .take(3)
+        .toList();
     if (list.isEmpty) {
       return Center(
         child: FloatingActionButton(
@@ -429,7 +468,7 @@ class EndScreenOverlay extends StatelessWidget {
         ),
       );
     }
-    
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -437,12 +476,20 @@ class EndScreenOverlay extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.replay_rounded, color: AppColors.textPrimary, size: 24),
+              icon: const Icon(
+                Icons.replay_rounded,
+                color: AppColors.textPrimary,
+                size: 24,
+              ),
               onPressed: ctrl.replayVideo,
             ),
             const Text(
               'Replay',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -477,8 +524,12 @@ class EndScreenOverlay extends StatelessWidget {
                           child: CachedNetworkImage(
                             imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
                             fit: BoxFit.cover,
-                            placeholder: (_, _) => Container(color: Colors.black26),
-                            errorWidget: (_, _, _) => const Icon(Icons.video_library_outlined, color: AppColors.textDisabled),
+                            placeholder: (_, _) =>
+                                Container(color: Colors.black26),
+                            errorWidget: (_, _, _) => const Icon(
+                              Icons.video_library_outlined,
+                              color: AppColors.textDisabled,
+                            ),
                           ),
                         ),
                       ),

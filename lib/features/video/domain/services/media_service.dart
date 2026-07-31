@@ -6,7 +6,6 @@ import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 class MediaResult {
-
   MediaResult({
     required this.file,
     this.durationSeconds = 0,
@@ -30,7 +29,7 @@ class MediaService {
 
   Future<MediaResult?> pickVideo() async {
     final result = await FilePicker.pickFiles(type: FileType.video);
-    
+
     if (result != null && result.files.isNotEmpty) {
       final pickedFile = result.files.first;
 
@@ -47,10 +46,28 @@ class MediaService {
         }
       }
       const allowedExtensions = {
-        'mp4', 'mov', 'avi', 'wmv', 'webm', 'flv', '3gpp', '3gp', 'mpeg', 'mpg', 'mkv', 'mpegps', 'm4v', 'dnxhr', 'prores', 'cineform', 'hevc'
+        'mp4',
+        'mov',
+        'avi',
+        'wmv',
+        'webm',
+        'flv',
+        '3gpp',
+        '3gp',
+        'mpeg',
+        'mpg',
+        'mkv',
+        'mpegps',
+        'm4v',
+        'dnxhr',
+        'prores',
+        'cineform',
+        'hevc',
       };
       if (extension == null || !allowedExtensions.contains(extension)) {
-        throw Exception('Unsupported video format. YouTube allowed formats are supported.');
+        throw Exception(
+          'Unsupported video format. YouTube allowed formats are supported.',
+        );
       }
 
       const maxDurationSeconds = 60 * 60; // 60 minutes
@@ -68,7 +85,7 @@ class MediaService {
     }
     return null;
   }
-  
+
   Future<int> getVideoDuration(PlatformFile videoFile, String? webUrl) async {
     try {
       if (kIsWeb) {

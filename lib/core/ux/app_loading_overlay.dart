@@ -71,7 +71,6 @@ class AppLoadingOverlay {
                     message,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      
                       fontSize: 14,
                       color: AppColors.textSecondary,
                       height: 1.4,

@@ -13,9 +13,15 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Empty state
 /// - Skeleton loading
 class TopicVideoGrid extends StatelessWidget {
-
   const TopicVideoGrid({
-    required this.videos, required this.isLoadingMore, required this.hasMore, required this.isDesktop, required this.isTablet, required this.heroPrefix, required this.onLoadMore, super.key,
+    required this.videos,
+    required this.isLoadingMore,
+    required this.hasMore,
+    required this.isDesktop,
+    required this.isTablet,
+    required this.heroPrefix,
+    required this.onLoadMore,
+    super.key,
     this.isGrid = true,
     this.emptyTitle,
     this.emptySubtitle,
@@ -69,7 +75,6 @@ class TopicVideoGrid extends StatelessWidget {
       },
     );
   }
-
 
   Widget _buildGrid() {
     // Determine grid configuration based on screen size
@@ -177,9 +182,10 @@ class TopicVideoGrid extends StatelessWidget {
 
 /// Skeleton loading state for video grid
 class TopicVideoGridSkeleton extends StatelessWidget {
-
   const TopicVideoGridSkeleton({
-    required this.isDesktop, required this.isTablet, super.key,
+    required this.isDesktop,
+    required this.isTablet,
+    super.key,
   });
   final bool isDesktop;
   final bool isTablet;
@@ -213,66 +219,61 @@ class TopicVideoGridSkeleton extends StatelessWidget {
           childAspectRatio: childAspectRatio,
         ),
         itemCount: 8,
-      itemBuilder: (context, index) {
-        return Container(
-          decoration: BoxDecoration(
-            color: AppColors.bgSurfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Thumbnail placeholder
-              Expanded(
-                flex: 3,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: AppColors.bgSurface,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(12),
+        itemBuilder: (context, index) {
+          return Container(
+            decoration: BoxDecoration(
+              color: AppColors.bgSurfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Thumbnail placeholder
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: AppColors.bgSurface,
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              // Info placeholder
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        height: 16,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurface,
-                          borderRadius: BorderRadius.circular(4),
+                // Info placeholder
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          height: 16,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: AppColors.bgSurface,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 12,
-                        width: 80,
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurface,
-                          borderRadius: BorderRadius.circular(4),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 12,
+                          width: 80,
+                          decoration: BoxDecoration(
+                            color: AppColors.bgSurface,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
-}
-
-
-
-
-

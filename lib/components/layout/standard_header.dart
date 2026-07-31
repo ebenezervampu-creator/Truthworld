@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class StandardHeader extends StatelessWidget implements PreferredSizeWidget {
-
   const StandardHeader({
-    required this.title, super.key,
+    required this.title,
+    super.key,
     this.actions,
     this.leading,
     this.showDivider = true,
@@ -51,8 +51,3 @@ class StandardHeader extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
-
-
-
-
-

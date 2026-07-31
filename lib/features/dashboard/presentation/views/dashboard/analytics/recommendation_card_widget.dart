@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_controller.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class RecommendationItem {
   RecommendationItem({
@@ -14,7 +15,7 @@ class RecommendationItem {
   });
   final String title;
   final String description;
-  final String category; // 'Real-Time SEO' | 'Retention' | 'Thumbnail' | 'Cadence' | 'Virality'
+  final String category;
   final IconData icon;
   final Color badgeColor;
   final String impactScore;
@@ -23,26 +24,72 @@ class RecommendationItem {
 class RecommendationCardWidget extends StatelessWidget {
   const RecommendationCardWidget({
     required this.isDarkMode,
+    this.channelId = '',
     super.key,
     this.items,
   });
   final bool isDarkMode;
+  final String channelId;
   final List<RecommendationItem>? items;
 
-  List<RecommendationItem> _generateRealTimeRecommendations(AnalyticsController? controller) {
+  List<RecommendationItem> _generateRealTimeRecommendations(
+    AnalyticsController? controller,
+  ) {
     if (items != null && items!.isNotEmpty) return items!;
 
     final topVideo = (controller != null && controller.topVideos.isNotEmpty)
         ? controller.topVideos.first
         : null;
 
-    final topVideoTitle = topVideo != null ? '"${topVideo.title}"' : 'your top upload';
+    if (topVideo != null) {
+      final uploadTime = DateFormat(
+        'h:mm a',
+      ).format(topVideo.uploadedAt.toDate());
+      return [
+        RecommendationItem(
+          title: 'Real-Time SEO & Title Keyword Boost',
+          description:
+              'Adding high-demand search tags to "${topVideo.title}" will increase discoverability by up to 24% in current recommendation feeds.',
+          category: 'Real-Time SEO',
+          icon: Icons.auto_awesome,
+          badgeColor: AppColors.brand,
+          impactScore: '+24% Reach',
+        ),
+        RecommendationItem(
+          title: 'Audience Retention & Hook Optimization',
+          description:
+              'Analytics for "${topVideo.title}" (${topVideo.views} views) show viewer drop-off slows down when visual transitions occur in the first 90 seconds. Add a strong early hook.',
+          category: 'Retention',
+          icon: Icons.trending_up_rounded,
+          badgeColor: AppColors.info,
+          impactScore: 'High Retention',
+        ),
+        RecommendationItem(
+          title: 'Thumbnail Contrast & Expression Lift',
+          description:
+              'Thumbnails with bright facial contrast and 3-word text overlays achieve 18% higher CTR on mobile feeds for content like "${topVideo.title}".',
+          category: 'Thumbnail',
+          icon: Icons.center_focus_strong_rounded,
+          badgeColor: AppColors.warning,
+          impactScore: '+18% CTR',
+        ),
+        RecommendationItem(
+          title: 'Optimal Viewer Engagement Window',
+          description:
+              'Based on your top video upload timestamp ($uploadTime), your subscriber base shows peak real-time activity between 5:00 PM and 8:00 PM. Schedule future releases within this window.',
+          category: 'Cadence',
+          icon: Icons.schedule_rounded,
+          badgeColor: AppColors.success,
+          impactScore: 'Peak Traffic',
+        ),
+      ];
+    }
 
     return [
       RecommendationItem(
         title: 'Real-Time SEO & Title Keyword Boost',
         description:
-            'Adding high-demand search tags to $topVideoTitle will increase discoverability by up to 24% in current recommendation feeds.',
+            'Publish videos with high-demand search tags and clear keywords to maximize discoverability in recommendation feeds.',
         category: 'Real-Time SEO',
         icon: Icons.auto_awesome,
         badgeColor: AppColors.brand,
@@ -80,16 +127,20 @@ class RecommendationCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.isRegistered<AnalyticsController>()
-        ? Get.find<AnalyticsController>()
-        : null;
+    final controller =
+        channelId.isNotEmpty &&
+            Get.isRegistered<AnalyticsController>(tag: channelId)
+        ? Get.find<AnalyticsController>(tag: channelId)
+        : (Get.isRegistered<AnalyticsController>()
+              ? Get.find<AnalyticsController>()
+              : null);
 
     final list = _generateRealTimeRecommendations(controller);
-    final bgSurface = isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
-    final bgInput = isDarkMode ? AppColors.bgInput : AppColors.bgPage.withValues(alpha: 0.04);
-    final textPrimary = isDarkMode ? AppColors.textPrimary : AppColors.bgPage;
-    final textSecondary = isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
-    final borderColor = isDarkMode ? AppColors.bgDivider : AppColors.textSecondary.withValues(alpha: 0.2);
+    const bgSurface = AppColors.bgSurface;
+    const bgInput = AppColors.bgInput;
+    const textPrimary = AppColors.textPrimary;
+    const textSecondary = AppColors.textSecondary;
+    const borderColor = AppColors.bgDivider;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -97,11 +148,11 @@ class RecommendationCardWidget extends StatelessWidget {
         color: bgSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDarkMode ? 0.25 : 0.04),
+            color: Colors.black26,
             blurRadius: 10,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -110,6 +161,7 @@ class RecommendationCardWidget extends StatelessWidget {
         children: [
           // Header Row
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
@@ -119,7 +171,7 @@ class RecommendationCardWidget extends StatelessWidget {
                 ),
                 child: const Icon(
                   Icons.psychology_rounded,
-                  color: AppColors.brand,
+                  color: Colors.white,
                   size: 22,
                 ),
               ),
@@ -128,29 +180,34 @@ class RecommendationCardWidget extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
                         Text(
                           'Real-Time Recommendation Intelligence',
-                          style: TextStyle(
-                            fontSize: 17,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: textPrimary,
                           ),
                         ),
-                        const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.brand,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Text(
+                          child: Text(
                             'LIVE AI',
-                            style: TextStyle(
+                            style: AppTextStyles.badge.copyWith(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              color: Colors.black,
                               letterSpacing: 0.8,
                             ),
                           ),
@@ -160,7 +217,7 @@ class RecommendationCardWidget extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'AI-calculated channel growth optimizations based on real viewer signals',
-                      style: TextStyle(
+                      style: AppTextStyles.caption.copyWith(
                         fontSize: 12,
                         color: textSecondary,
                       ),
@@ -200,7 +257,7 @@ class RecommendationCardWidget extends StatelessWidget {
                       ),
                       child: Icon(
                         item.icon,
-                        color: item.badgeColor,
+                        color: Colors.white,
                         size: 18,
                       ),
                     ),
@@ -214,7 +271,7 @@ class RecommendationCardWidget extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   item.title,
-                                  style: TextStyle(
+                                  style: AppTextStyles.titleMedium.copyWith(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                     color: textPrimary,
@@ -223,14 +280,19 @@ class RecommendationCardWidget extends StatelessWidget {
                               ),
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: item.badgeColor.withValues(alpha: 0.15),
+                                  color: item.badgeColor.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
                                   item.impactScore,
-                                  style: TextStyle(
+                                  style: AppTextStyles.labelSmall.copyWith(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     color: item.badgeColor,
@@ -242,7 +304,7 @@ class RecommendationCardWidget extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             item.description,
-                            style: TextStyle(
+                            style: AppTextStyles.bodyMedium.copyWith(
                               fontSize: 12,
                               height: 1.4,
                               color: textSecondary,

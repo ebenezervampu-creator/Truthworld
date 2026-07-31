@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
@@ -27,9 +28,11 @@ Widget buildCommentsTab({
 }
 
 class ModernCommentsTab extends StatefulWidget {
-
   const ModernCommentsTab({
-    required this.video, required this.theme, required this.mainController, super.key,
+    required this.video,
+    required this.theme,
+    required this.mainController,
+    super.key,
   });
   final Video video;
   final ThemeData theme;
@@ -207,128 +210,143 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
     return Obx(() {
       final _ = _retryTrigger.value;
       return Container(
-        margin: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+        margin: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 8,
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('videos')
-                .doc(widget.video.id)
-                .collection('comments')
-                .snapshots(),
-            builder: (context, snapshot) {
-              final commentCount = snapshot.hasData
-                  ? snapshot.data!.docs.length
-                  : 0;
+              stream: FirebaseFirestore.instance
+                  .collection('videos')
+                  .doc(widget.video.id)
+                  .collection('comments')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                final commentCount = snapshot.hasData
+                    ? snapshot.data!.docs.length
+                    : 0;
 
-              return AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Container(
-                  key: ValueKey(commentCount),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile
-                        ? 12
-                        : isTablet
-                        ? 16
-                        : 20,
-                    vertical: isMobile
-                        ? 8
-                        : isTablet
-                        ? 10
-                        : 12,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        widget.theme.colorScheme.primary.withValues(alpha: 0.1),
-                        widget.theme.colorScheme.primary.withValues(alpha: 0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(
-                      isMobile
-                          ? 20
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Container(
+                    key: ValueKey(commentCount),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile
+                          ? 12
                           : isTablet
-                          ? 24
-                          : 28,
+                          ? 16
+                          : 20,
+                      vertical: isMobile
+                          ? 8
+                          : isTablet
+                          ? 10
+                          : 12,
                     ),
-                    border: Border.all(
-                      color: widget.theme.colorScheme.primary.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        size: isMobile
-                            ? 16
-                            : isTablet
-                            ? 18
-                            : 20,
-                        color: widget.theme.colorScheme.primary,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          widget.theme.colorScheme.primary.withValues(
+                            alpha: 0.1,
+                          ),
+                          widget.theme.colorScheme.primary.withValues(
+                            alpha: 0.05,
+                          ),
+                        ],
                       ),
-                      SizedBox(
-                        width: isMobile
-                            ? 6
+                      borderRadius: BorderRadius.circular(
+                        isMobile
+                            ? 20
                             : isTablet
-                            ? 8
-                            : 10,
+                            ? 24
+                            : 28,
                       ),
-                      Text(
-                        '$commentCount ${commentCount == 1 ? 'Comment' : 'Comments'}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: isMobile
-                              ? 14
-                              : isTablet
-                              ? 15
-                              : 16,
-                          color: widget.theme.colorScheme.primary,
+                      border: Border.all(
+                        color: widget.theme.colorScheme.primary.withValues(
+                          alpha: 0.2,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-          if (isDesktop) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: widget.theme.colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.sort_rounded,
-                    size: 16,
-                    color: widget.theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Sort by',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: widget.theme.colorScheme.onSurfaceVariant,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: isMobile
+                              ? 16
+                              : isTablet
+                              ? 18
+                              : 20,
+                          color: widget.theme.colorScheme.primary,
+                        ),
+                        SizedBox(
+                          width: isMobile
+                              ? 6
+                              : isTablet
+                              ? 8
+                              : 10,
+                        ),
+                        Text(
+                          '$commentCount ${commentCount == 1 ? 'Comment' : 'Comments'}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: isMobile
+                                ? 14
+                                : isTablet
+                                ? 15
+                                : 16,
+                            color: widget.theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
+            if (isDesktop) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: widget.theme.colorScheme.outline.withValues(
+                      alpha: 0.3,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.sort_rounded,
+                      size: 16,
+                      color: widget.theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Sort by',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: widget.theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
-      ),
-    );
-  });
-}
+        ),
+      );
+    });
+  }
 
   Widget _buildCommentsList(bool isMobile, bool isTablet, bool isDesktop) {
     return Obx(() {
@@ -342,55 +360,55 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingState(isMobile, isTablet, isDesktop);
-        }
+            return _buildLoadingState(isMobile, isTablet, isDesktop);
+          }
 
-        if (snapshot.hasError) {
-          return _buildErrorState(isMobile, isTablet, isDesktop);
-        }
+          if (snapshot.hasError) {
+            return _buildErrorState(isMobile, isTablet, isDesktop);
+          }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState(isMobile, isTablet, isDesktop);
-        }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return _buildEmptyState(isMobile, isTablet, isDesktop);
+          }
 
-        final comments = snapshot.data!.docs
-            .map(Comment.fromDocumentSnapshot)
-            .toList();
+          final comments = snapshot.data!.docs
+              .map(Comment.fromDocumentSnapshot)
+              .toList();
 
-        return ListView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          shrinkWrap: true,
-          itemCount: comments.length,
-          itemBuilder: (context, index) {
-            final comment = comments[index];
-            return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 300 + (index * 100)),
-              tween: Tween(begin: 0, end: 1),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) {
-                return Transform.translate(
-                  offset: Offset(0, 20 * (1 - value)),
-                  child: Opacity(
-                    opacity: value,
-                    child: ModernCommentItem(
-                      comment: comment,
-                      theme: widget.theme,
-                      mainController: widget.mainController,
-                      video: widget.video,
-                      isMobile: isMobile,
-                      isTablet: isTablet,
-                      isDesktop: isDesktop,
+          return ListView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemCount: comments.length,
+            itemBuilder: (context, index) {
+              final comment = comments[index];
+              return TweenAnimationBuilder<double>(
+                duration: Duration(milliseconds: 300 + (index * 100)),
+                tween: Tween(begin: 0, end: 1),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  return Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: Opacity(
+                      opacity: value,
+                      child: ModernCommentItem(
+                        comment: comment,
+                        theme: widget.theme,
+                        mainController: widget.mainController,
+                        video: widget.video,
+                        isMobile: isMobile,
+                        isTablet: isTablet,
+                        isDesktop: isDesktop,
+                      ),
                     ),
-                  ),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  });
-}
+                  );
+                },
+              );
+            },
+          );
+        },
+      );
+    });
+  }
 
   Widget _buildLoadingState(bool isMobile, bool isTablet, bool isDesktop) {
     final horizontalPadding = isMobile
@@ -423,7 +441,9 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: widget.theme.colorScheme.shadow.withValues(alpha: 0.05),
+                  color: widget.theme.colorScheme.shadow.withValues(
+                    alpha: 0.05,
+                  ),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -459,9 +479,10 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
                     ? 40
                     : 44,
                 decoration: BoxDecoration(
-                  color: widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-                    0.5,
-                  ),
+                  color: widget.theme.colorScheme.surfaceContainerHighest
+                      .withValues(
+                        alpha: 0.5,
+                      ),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -804,9 +825,15 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
 
 /// Modern Comment Item with enhanced UI/UX
 class ModernCommentItem extends StatefulWidget {
-
   const ModernCommentItem({
-    required this.comment, required this.theme, required this.mainController, required this.video, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+    required this.comment,
+    required this.theme,
+    required this.mainController,
+    required this.video,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    super.key,
   });
   final Comment comment;
   final ThemeData theme;
@@ -912,53 +939,53 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: widget.theme.colorScheme.shadow.withValues(alpha: 
-                        isHovered ? 0.15 : 0.08,
+                      color: widget.theme.colorScheme.shadow.withValues(
+                        alpha: isHovered ? 0.15 : 0.08,
                       ),
                       blurRadius: isHovered ? 16 : 8,
                       offset: Offset(0, isHovered ? 6 : 2),
                     ),
                   ],
                   border: Border.all(
-                    color: widget.theme.colorScheme.outline.withValues(alpha: 
-                      isHovered ? 0.3 : 0.1,
+                    color: widget.theme.colorScheme.outline.withValues(
+                      alpha: isHovered ? 0.3 : 0.1,
                     ),
                   ),
                 ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildUserAvatar(avatarRadius),
-                      SizedBox(
-                        width: widget.isMobile
-                            ? 12
-                            : widget.isTablet
-                            ? 16
-                            : 20,
-                      ),
-                      Expanded(child: _buildCommentContent()),
-                    ],
-                  ),
-                  SizedBox(
-                    height: widget.isMobile
-                        ? 12
-                        : widget.isTablet
-                        ? 16
-                        : 20,
-                  ),
-                  _buildRepliesSection(),
-                ],
-              ),
-            );
-          }),
-        ),
-      );
-    },
-  );
-}
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildUserAvatar(avatarRadius),
+                        SizedBox(
+                          width: widget.isMobile
+                              ? 12
+                              : widget.isTablet
+                              ? 16
+                              : 20,
+                        ),
+                        Expanded(child: _buildCommentContent()),
+                      ],
+                    ),
+                    SizedBox(
+                      height: widget.isMobile
+                          ? 12
+                          : widget.isTablet
+                          ? 16
+                          : 20,
+                    ),
+                    _buildRepliesSection(),
+                  ],
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildUserAvatar(double radius) {
     return Container(
@@ -1030,7 +1057,8 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                     : 4,
               ),
               decoration: BoxDecoration(
-                color: widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: widget.theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(
                   widget.isMobile
                       ? 8
@@ -1061,8 +1089,8 @@ class _ModernCommentItemState extends State<ModernCommentItem>
               ? 10
               : 12,
         ),
-        Text(
-          widget.comment.text,
+        ClickableUrlText(
+          text: widget.comment.text,
           style: TextStyle(
             fontSize: widget.isMobile
                 ? 14
@@ -1093,16 +1121,16 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         ? Get.find<CommentsController>(tag: tag)
         : Get.put(CommentsController(video: widget.video), tag: tag);
     final isLiked = commentsController.isCommentLikedByUser(widget.comment);
-    final isDisliked = commentsController.isCommentDislikedByUser(widget.comment);
+    final isDisliked = commentsController.isCommentDislikedByUser(
+      widget.comment,
+    );
 
     return Row(
       children: [
         // Like Icon
         IconButton(
           icon: Icon(
-            isLiked
-                ? Icons.thumb_up
-                : Icons.thumb_up_outlined,
+            isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
             size: 18,
             color: widget.theme.colorScheme.onSurface,
           ),
@@ -1134,9 +1162,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         // Dislike Icon
         IconButton(
           icon: Icon(
-            isDisliked
-                ? Icons.thumb_down
-                : Icons.thumb_down_outlined,
+            isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
             size: 18,
             color: widget.theme.colorScheme.onSurface,
           ),
@@ -1158,7 +1184,10 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         // Creator Heart Avatar Badge (Overlay Style)
         if (widget.comment.isHeartedByCreator)
           GestureDetector(
-            onTap: (isUserSignedIn && FirebaseAuth.instance.currentUser!.uid == widget.video.ownerId)
+            onTap:
+                (isUserSignedIn &&
+                    FirebaseAuth.instance.currentUser!.uid ==
+                        widget.video.ownerId)
                 ? () {
                     HapticFeedback.mediumImpact();
                     widget.mainController.heartComment(
@@ -1287,9 +1316,14 @@ class _ModernCommentItemState extends State<ModernCommentItem>
 
 /// Modern Action Button for comments
 class ModernActionButton extends StatefulWidget {
-
   const ModernActionButton({
-    required this.icon, required this.onTap, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+    required this.icon,
+    required this.onTap,
+    required this.theme,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    super.key,
     this.count,
     this.isActive = false,
     this.activeColor,
@@ -1334,7 +1368,9 @@ class _ModernActionButtonState extends State<ModernActionButton>
   @override
   Widget build(BuildContext context) {
     final activeCol = widget.activeColor ?? widget.theme.colorScheme.primary;
-    final color = widget.isActive ? activeCol : widget.theme.colorScheme.onSurfaceVariant;
+    final color = widget.isActive
+        ? activeCol
+        : widget.theme.colorScheme.onSurfaceVariant;
 
     return InkWell(
       onTapDown: (_) => _animationController.forward(),
@@ -1362,7 +1398,8 @@ class _ModernActionButtonState extends State<ModernActionButton>
               decoration: BoxDecoration(
                 color: widget.isActive
                     ? activeCol.withValues(alpha: 0.15)
-                    : widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    : widget.theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(
                   widget.isMobile
                       ? 8
@@ -1405,7 +1442,9 @@ class _ModernActionButtonState extends State<ModernActionButton>
                             : widget.isTablet
                             ? 12
                             : 13,
-                        fontWeight: widget.isActive ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: widget.isActive
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -1421,9 +1460,15 @@ class _ModernActionButtonState extends State<ModernActionButton>
 
 /// Modern Replies Section
 class ModernRepliesSection extends StatefulWidget {
-
   const ModernRepliesSection({
-    required this.commentId, required this.theme, required this.video, required this.mainController, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+    required this.commentId,
+    required this.theme,
+    required this.video,
+    required this.mainController,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    super.key,
   });
   final String commentId;
   final ThemeData theme;
@@ -1493,7 +1538,9 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
               child: Container(
                 width: 2,
                 decoration: BoxDecoration(
-                  color: widget.theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  color: widget.theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(8),
                   ),
@@ -1503,7 +1550,9 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                   child: Container(
                     height: 2,
                     width: 15,
-                    color: widget.theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    color: widget.theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.3,
+                    ),
                   ),
                 ),
               ),
@@ -1537,7 +1586,8 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                               radius: 10,
                               photoUrl: widget.video.thumbnailUrl,
                               displayName: widget.video.channelName,
-                              backgroundColor: widget.theme.colorScheme.primary.withValues(alpha: 0.2),
+                              backgroundColor: widget.theme.colorScheme.primary
+                                  .withValues(alpha: 0.2),
                               fontSize: 10,
                               showBorder: false,
                             ),
@@ -1552,7 +1602,9 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                             ),
                             const SizedBox(width: 4),
                             Icon(
-                              isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                              isExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
                               size: 18,
                               color: widget.theme.colorScheme.primary,
                             ),
@@ -1562,30 +1614,30 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                     ),
                   ),
                   SizeTransition(
-                sizeFactor: _expansionAnimation,
-                child: Container(
-                  margin: EdgeInsets.only(
-                    top: widget.isMobile
-                        ? 12
-                        : widget.isTablet
-                        ? 16
-                        : 20,
+                    sizeFactor: _expansionAnimation,
+                    child: Container(
+                      margin: EdgeInsets.only(
+                        top: widget.isMobile
+                            ? 12
+                            : widget.isTablet
+                            ? 16
+                            : 20,
+                      ),
+                      child: Column(
+                        children: replies.map((reply) {
+                          return ModernReplyItem(
+                            reply: reply,
+                            theme: widget.theme,
+                            video: widget.video,
+                            mainController: widget.mainController,
+                            isMobile: widget.isMobile,
+                            isTablet: widget.isTablet,
+                            isDesktop: widget.isDesktop,
+                          );
+                        }).toList(),
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    children: replies.map((reply) {
-                      return ModernReplyItem(
-                        reply: reply,
-                        theme: widget.theme,
-                        video: widget.video,
-                        mainController: widget.mainController,
-                        isMobile: widget.isMobile,
-                        isTablet: widget.isTablet,
-                        isDesktop: widget.isDesktop,
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
                 ],
               ),
             ),
@@ -1598,9 +1650,15 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
 
 /// Modern Reply Item
 class ModernReplyItem extends StatelessWidget {
-
   const ModernReplyItem({
-    required this.reply, required this.theme, required this.video, required this.mainController, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+    required this.reply,
+    required this.theme,
+    required this.video,
+    required this.mainController,
+    required this.isMobile,
+    required this.isTablet,
+    required this.isDesktop,
+    super.key,
   });
   final Reply reply;
   final ThemeData theme;
@@ -1644,7 +1702,9 @@ class ModernReplyItem extends StatelessWidget {
               : 20,
         ),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.3,
+          ),
           borderRadius: BorderRadius.circular(
             isMobile
                 ? 12
@@ -1733,9 +1793,10 @@ class ModernReplyItem extends StatelessWidget {
                               : 4,
                         ),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-                            0.5,
-                          ),
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(
+                                alpha: 0.5,
+                              ),
                           borderRadius: BorderRadius.circular(
                             isMobile
                                 ? 6
@@ -1766,8 +1827,8 @@ class ModernReplyItem extends StatelessWidget {
                         ? 8
                         : 10,
                   ),
-                  Text(
-                    reply.text,
+                  ClickableUrlText(
+                    text: reply.text,
                     style: TextStyle(
                       fontSize: isMobile
                           ? 13
@@ -1788,7 +1849,9 @@ class ModernReplyItem extends StatelessWidget {
                   Row(
                     children: [
                       ModernActionButton(
-                        icon: isLiked ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
+                        icon: isLiked
+                            ? Icons.thumb_up
+                            : Icons.thumb_up_alt_outlined,
                         count: reply.likeCount,
                         isActive: isLiked,
                         onTap: () {
@@ -1812,7 +1875,9 @@ class ModernReplyItem extends StatelessWidget {
                             : 20,
                       ),
                       ModernActionButton(
-                        icon: isDisliked ? Icons.thumb_down : Icons.thumb_down_alt_outlined,
+                        icon: isDisliked
+                            ? Icons.thumb_down
+                            : Icons.thumb_down_alt_outlined,
                         count: reply.dislikeCount,
                         isActive: isDisliked,
                         onTap: () {
@@ -1884,9 +1949,3 @@ void showSignInPrompt(BuildContext context) {
     ),
   );
 }
-
-
-
-
-
-

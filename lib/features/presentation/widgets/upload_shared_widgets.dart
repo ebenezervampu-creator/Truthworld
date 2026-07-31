@@ -1,4 +1,3 @@
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -7,14 +6,16 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
-// REUSABLE UPLOAD WIDGETS
+// REUSABLE UPLOAD WIDGETS (100% AppTheme & AppFonts)
 // =============================================================================
 
-/// Channel selector dropdown used by both upload flows.
+/// Channel selector dropdown used by upload flows.
 class UploadChannelSelector extends StatelessWidget {
-
   const UploadChannelSelector({
-    required this.channels, required this.selectedChannel, required this.onChanged, super.key,
+    required this.channels,
+    required this.selectedChannel,
+    required this.onChanged,
+    super.key,
   });
   final RxList<Channel> channels;
   final Rx<Channel?> selectedChannel;
@@ -22,20 +23,19 @@ class UploadChannelSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Obx(() {
       if (channels.isEmpty) {
-        return _buildNoChannels(isDark);
+        return _buildNoChannels(context);
       }
 
       final channel = selectedChannel.value ?? channels.first;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.bgPage : AppColors.textPrimary,
-          borderRadius: BorderRadius.circular(14),
+          color: context.colors.surface,
+          borderRadius: context.radius.lg,
           border: Border.all(
-            color: isDark ? AppColors.bgPage : AppColors.textSecondary,
+            color: context.colors.divider,
             width: 1.5,
           ),
         ),
@@ -53,21 +53,20 @@ class UploadChannelSelector extends StatelessWidget {
                 children: [
                   Text(
                     channel.channelName,
-                    style: TextStyle(
+                    style: context.twTypography.title.copyWith(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                      color: context.colors.textPrimary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     'Active Channel',
-                    style: TextStyle(
+                    style: context.twTypography.caption.copyWith(
                       fontSize: 11,
-                      color: isDark
-                          ? AppColors.textPrimary38
-                          : AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -78,18 +77,14 @@ class UploadChannelSelector extends StatelessWidget {
     });
   }
 
-  Widget _buildNoChannels(bool isDark) {
+  Widget _buildNoChannels(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.bgPage
-            : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(14),
+        color: context.colors.surface,
+        borderRadius: context.radius.lg,
         border: Border.all(
-          color: isDark
-              ? AppColors.bgPage
-              : AppColors.textSecondary,
+          color: context.colors.divider,
         ),
       ),
       child: Row(
@@ -99,22 +94,21 @@ class UploadChannelSelector extends StatelessWidget {
           Expanded(
             child: Text(
               'No channels found. Create one first.',
-              style: TextStyle(
+              style: context.twTypography.bodySmall.copyWith(
                 fontSize: 13,
-                color: isDark
-                    ? AppColors.textPrimary60
-                    : AppColors.textSecondary,
+                color: context.colors.textSecondary,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           TextButton(
             onPressed: () => Get.toNamed('/channelscreen'),
-            child: const Text(
+            child: Text(
               'Create',
-              style: TextStyle(
+              style: context.twTypography.button.copyWith(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
+                color: context.colors.brand,
               ),
             ),
           ),
@@ -124,11 +118,11 @@ class UploadChannelSelector extends StatelessWidget {
   }
 }
 
-/// Visibility selector (Public / Unlisted / Private).
+/// Visibility selector (Public / Members / Subscribers).
 class UploadVisibilitySelector extends StatelessWidget {
-
   const UploadVisibilitySelector({
-    required this.selectedVisibility, super.key,
+    required this.selectedVisibility,
+    super.key,
     this.options = const ['Public', 'Members', 'Subscribers'],
     this.onChanged,
   });
@@ -138,7 +132,6 @@ class UploadVisibilitySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Obx(() {
       return Row(
         children: options.map((visibility) {
@@ -152,45 +145,48 @@ class UploadVisibilitySelector extends StatelessWidget {
                   HapticFeedback.selectionClick();
                   onChanged?.call();
                 },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                borderRadius: context.radius.md,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.white.withValues(alpha: 0.12)
-                        : isDark
-                        ? AppColors.bgPage
-                        : AppColors.textPrimary,
-                    borderRadius: BorderRadius.circular(10),
+                        ? context.colors.brand.withValues(alpha: 0.15)
+                        : context.colors.surface,
+                    borderRadius: context.radius.md,
                     border: Border.all(
                       color: isSelected
-                          ? Colors.white
-                          : isDark
-                          ? AppColors.bgPage
-                          : AppColors.textSecondary,
+                          ? context.colors.brand
+                          : context.colors.divider,
                       width: isSelected ? 2 : 1,
                     ),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         _icon(visibility),
                         size: 20,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        visibility,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                          color: isSelected
-                              ? Colors.white
-                              : isDark
-                              ? AppColors.textPrimary60
-                              : AppColors.textSecondary,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          visibility,
+                          maxLines: 1,
+                          style: context.twTypography.label.copyWith(
+                            fontSize: 12,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? context.colors.brand
+                                : context.colors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -226,9 +222,10 @@ class UploadVisibilitySelector extends StatelessWidget {
 
 /// Styled text field for upload forms.
 class UploadInputField extends StatelessWidget {
-
   const UploadInputField({
-    required this.controller, required this.hint, super.key,
+    required this.controller,
+    required this.hint,
+    super.key,
     this.label,
     this.icon,
     this.maxLines = 1,
@@ -247,7 +244,6 @@ class UploadInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -255,17 +251,18 @@ class UploadInputField extends StatelessWidget {
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: AppColors.textSecondary),
+                Icon(icon, size: 16, color: AppColors.textPrimary),
                 const SizedBox(width: 8),
               ],
-              Text(
-                label!,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? AppColors.textPrimary70
-                      : AppColors.bgPage,
+              Expanded(
+                child: Text(
+                  label!,
+                  style: context.twTypography.label.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: context.colors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -278,56 +275,53 @@ class UploadInputField extends StatelessWidget {
           maxLength: maxLength,
           validator: validator,
           onChanged: onChanged,
-          style: TextStyle(
+          style: context.twTypography.body.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: isDark
-                ? AppColors.textPrimary
-                : AppColors.bgPage,
+            color: context.colors.textPrimary,
             height: 1.5,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
-              color: isDark
-                  ? AppColors.textPrimary.withValues(alpha: 0.3)
-                  : AppColors.textSecondary,
+            hintStyle: context.twTypography.body.copyWith(
+              color: context.colors.textSecondary.withValues(alpha: 0.5),
               fontSize: 14,
             ),
             filled: true,
-            fillColor: isDark
-                ? AppColors.bgPage
-                : AppColors.textPrimary,
+            fillColor: context.colors.surface,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: context.radius.lg,
               borderSide: BorderSide(
-                color: isDark
-                    ? AppColors.bgPage
-                    : AppColors.textSecondary,
+                color: context.colors.divider,
                 width: 1.5,
               ),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: context.radius.lg,
               borderSide: BorderSide(
-                color: isDark
-                    ? AppColors.bgPage
-                    : AppColors.textSecondary,
+                color: context.colors.divider,
                 width: 1.5,
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                color: AppColors.textSecondary,
+              borderRadius: context.radius.lg,
+              borderSide: BorderSide(
+                color: context.colors.brand,
                 width: 2,
               ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AppTokens.colors.error, width: 1.5),
+              borderRadius: context.radius.lg,
+              borderSide: BorderSide(color: context.colors.error, width: 1.5),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: context.radius.lg,
+              borderSide: BorderSide(color: context.colors.error, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
       ],
@@ -337,28 +331,28 @@ class UploadInputField extends StatelessWidget {
 
 /// Animated publish / schedule button.
 class UploadPublishButton extends StatelessWidget {
-
   const UploadPublishButton({
-    required this.canPublish, super.key,
+    required this.canPublish,
+    super.key,
     this.isUploading = false,
     this.isScheduled = false,
     this.uploadProgress = 0.0,
     this.onPublish,
-    this.accentColor = AppColors.brand,
+    this.accentColor,
   });
   final bool canPublish;
   final bool isUploading;
   final bool isScheduled;
   final double uploadProgress;
   final VoidCallback? onPublish;
-  final Color accentColor;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveAccent = accentColor ?? context.colors.brand;
 
     if (isUploading) {
-      return _buildUploadingState(isDark);
+      return _buildUploadingState(context, effectiveAccent);
     }
 
     return AnimatedContainer(
@@ -366,28 +360,23 @@ class UploadPublishButton extends StatelessWidget {
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: context.radius.lg,
         gradient: canPublish
             ? LinearGradient(
-                colors: isScheduled
-                    ? [
-                        AppColors.textPrimary,
-                        AppColors.textPrimary,
-                      ]
-                    : [accentColor, accentColor.withValues(alpha: 0.8)],
+                colors: [
+                  effectiveAccent,
+                  effectiveAccent.withValues(alpha: 0.8),
+                ],
               )
             : null,
-        color: canPublish
-            ? null
-            : isDark
-            ? AppColors.bgSurface
-            : AppColors.textSecondary,
+        color: canPublish ? null : context.colors.surface,
+        border: canPublish ? null : Border.all(color: context.colors.divider),
         boxShadow: canPublish
             ? [
                 BoxShadow(
-                  color: accentColor.withValues(alpha: 0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+                  color: effectiveAccent.withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
                 ),
               ]
             : [],
@@ -395,7 +384,7 @@ class UploadPublishButton extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: context.radius.lg,
           onTap: canPublish ? onPublish : null,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -405,24 +394,21 @@ class UploadPublishButton extends StatelessWidget {
                     ? Icons.schedule_rounded
                     : Icons.cloud_upload_rounded,
                 size: 22,
-                color: canPublish
-                    ? AppColors.textPrimary
-                    : isDark
-                    ? AppColors.textPrimary.withValues(alpha: 0.3)
-                    : AppColors.textSecondary,
+                color: AppColors.textPrimary,
               ),
               const SizedBox(width: 12),
-              Text(
-                isScheduled ? 'Schedule Upload' : 'Publish Now',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: canPublish
-                      ? AppColors.textPrimary
-                      : isDark
-                      ? AppColors.textPrimary.withValues(alpha: 0.3)
-                      : AppColors.textSecondary,
-                  letterSpacing: -0.3,
+              Flexible(
+                child: Text(
+                  isScheduled ? 'Schedule Upload' : 'Publish Now',
+                  style: context.twTypography.button.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: canPublish
+                        ? AppColors.textPrimary
+                        : context.colors.textSecondary,
+                    letterSpacing: -0.3,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -432,18 +418,16 @@ class UploadPublishButton extends StatelessWidget {
     );
   }
 
-  Widget _buildUploadingState(bool isDark) {
+  Widget _buildUploadingState(BuildContext context, Color effectiveAccent) {
     final progressText = '${(uploadProgress * 100).toInt()}%';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.bgPage
-            : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(14),
+        color: context.colors.surface,
+        borderRadius: context.radius.lg,
         border: Border.all(
-          color: accentColor.withValues(alpha: 0.3),
+          color: effectiveAccent.withValues(alpha: 0.3),
           width: 1.5,
         ),
       ),
@@ -455,9 +439,12 @@ class UploadPublishButton extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [accentColor, accentColor.withValues(alpha: 0.8)],
+                    colors: [
+                      effectiveAccent,
+                      effectiveAccent.withValues(alpha: 0.8),
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: context.radius.md,
                 ),
                 child: SizedBox(
                   width: 20,
@@ -478,47 +465,43 @@ class UploadPublishButton extends StatelessWidget {
                   children: [
                     Text(
                       'Uploading...',
-                      style: TextStyle(
+                      style: context.twTypography.title.copyWith(
                         fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: isDark
-                            ? AppColors.textPrimary
-                            : AppColors.bgPage,
+                        fontWeight: FontWeight.w600,
+                        color: context.colors.textPrimary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Processing your content',
-                      style: TextStyle(
+                      style: context.twTypography.caption.copyWith(
                         fontSize: 13,
-                        color: isDark
-                            ? AppColors.textPrimary60
-                            : AppColors.textSecondary,
+                        color: context.colors.textSecondary,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               Text(
                 progressText,
-                style: TextStyle(
+                style: context.twTypography.title.copyWith(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: accentColor,
+                  color: effectiveAccent,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: context.radius.sm,
             child: LinearProgressIndicator(
               value: uploadProgress,
               minHeight: 8,
-              backgroundColor: isDark
-                  ? AppColors.bgSurface
-                  : AppColors.textPrimary,
-              valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+              backgroundColor: context.colors.background,
+              valueColor: AlwaysStoppedAnimation<Color>(effectiveAccent),
             ),
           ),
         ],
@@ -529,9 +512,12 @@ class UploadPublishButton extends StatelessWidget {
 
 /// Preview checklist item.
 class UploadPreviewItem extends StatelessWidget {
-
   const UploadPreviewItem({
-    required this.icon, required this.label, required this.value, required this.isComplete, super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isComplete,
+    super.key,
   });
   final IconData icon;
   final String label;
@@ -540,17 +526,12 @@ class UploadPreviewItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         Icon(
           icon,
           size: 16,
-          color: isComplete
-              ? AppColors.bgPage
-              : isDark
-              ? AppColors.textPrimary38
-              : AppColors.textSecondary,
+          color: AppColors.textPrimary,
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -559,27 +540,22 @@ class UploadPreviewItem extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(
+                style: context.twTypography.caption.copyWith(
                   fontSize: 11,
-                  color: isDark
-                      ? AppColors.textPrimary60
-                      : AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
               Text(
                 value,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: context.twTypography.label.copyWith(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: isComplete
-                      ? (isDark
-                            ? AppColors.textPrimary
-                            : AppColors.bgPage)
-                      : (isDark
-                            ? AppColors.textPrimary38
-                            : AppColors.textSecondary),
+                      ? context.colors.textPrimary
+                      : context.colors.textSecondary,
                 ),
               ),
             ],
@@ -589,10 +565,3 @@ class UploadPreviewItem extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

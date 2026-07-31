@@ -7,7 +7,6 @@ import 'package:truthworld/features/video/presentation/controllers/reply_input_c
 import 'package:truthworld/theme/app_theme.dart';
 
 class ModernReplyInput extends StatefulWidget {
-
   const ModernReplyInput({
     required this.videoId,
     required this.commentId,
@@ -52,7 +51,7 @@ class _ModernReplyInputState extends State<ModernReplyInput>
     _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
-    
+
     // Listen for completion to trigger animations
     _controller.isSending.listen((sending) {
       if (!sending && _controller.replyText.value.isEmpty) {
@@ -132,81 +131,84 @@ class _ModernReplyInputState extends State<ModernReplyInput>
             if (!isSignedIn) ...[
               _buildSignInPrompt(theme),
             ] else ...[
-              Obx(() => Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  UserAvatar(
-                    photoUrl: AuthService.to.activePhotoUrl,
-                    displayName: AuthService.to.activeDisplayName,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(
-                          _controller.isFocused.value ? 16 : 24,
-                        ),
-                        color: _controller.isFocused.value
-                             ? AppTheme.colors.surfaceContainerHighest
-                             : AppTheme.colors.surfaceContainerHighest.withValues(alpha: 0.5),
-                        border: Border.all(
+              Obx(
+                () => Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    UserAvatar(
+                      photoUrl: AuthService.to.activePhotoUrl,
+                      displayName: AuthService.to.activeDisplayName,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            _controller.isFocused.value ? 16 : 24,
+                          ),
                           color: _controller.isFocused.value
-                              ? theme.colorScheme.primary
-                              : Colors.transparent,
-                          width: _controller.isFocused.value ? 1.5 : 0,
-                        ),
-                        boxShadow: _controller.isFocused.value
-                            ? [
-                                BoxShadow(
-                                  color: theme.colorScheme.primary.withValues(
-                                    alpha: 0.2,
-                                  ),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : [],
-                      ),
-                      child: TextField(
-                        controller: _controller.textController,
-                        focusNode: _controller.focusNode,
-                        autofocus: true,
-                        maxLines: 5,
-                        minLines: 1,
-                        keyboardType: TextInputType.multiline,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Add a reply...',
-                          hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                              ? AppTheme.colors.surfaceContainerHighest
+                              : AppTheme.colors.surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
+                          border: Border.all(
+                            color: _controller.isFocused.value
+                                ? theme.colorScheme.primary
+                                : Colors.transparent,
+                            width: _controller.isFocused.value ? 1.5 : 0,
                           ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          suffixIcon: _controller.replyText.value.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    color: theme.colorScheme.onSurfaceVariant,
+                          boxShadow: _controller.isFocused.value
+                              ? [
+                                  BoxShadow(
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
                                   ),
-                                  onPressed: () => _controller.clearText(),
-                                )
-                              : null,
+                                ]
+                              : [],
+                        ),
+                        child: TextField(
+                          controller: _controller.textController,
+                          focusNode: _controller.focusNode,
+                          autofocus: true,
+                          maxLines: 5,
+                          minLines: 1,
+                          keyboardType: TextInputType.multiline,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Add a reply...',
+                            hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            suffixIcon: _controller.replyText.value.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(
+                                      Icons.clear,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    onPressed: () => _controller.clearText(),
+                                  )
+                                : null,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildSendButton(theme),
-                ],
-              )),
+                    const SizedBox(width: 8),
+                    _buildSendButton(theme),
+                  ],
+                ),
+              ),
             ],
           ],
         ),
@@ -216,8 +218,9 @@ class _ModernReplyInputState extends State<ModernReplyInput>
 
   Widget _buildSendButton(ThemeData theme) {
     return Obx(() {
-      final canSend = _controller.replyText.value.trim().isNotEmpty && 
-                           !_controller.isSending.value;
+      final canSend =
+          _controller.replyText.value.trim().isNotEmpty &&
+          !_controller.isSending.value;
       return ScaleTransition(
         scale: _scaleAnimation,
         child: FadeTransition(
@@ -318,8 +321,3 @@ class _ModernReplyInputState extends State<ModernReplyInput>
     );
   }
 }
-
-
-
-
-

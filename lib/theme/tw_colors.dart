@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 /// Backed by a permanent dark theme. Exposes semantic color roles
 /// not supported natively by Flutter's standard ColorScheme.
 class TWColors extends ThemeExtension<TWColors> {
-
   const TWColors({
     required this.brand,
     required this.brandContainer,
@@ -114,7 +113,8 @@ class TWColors extends ThemeExtension<TWColors> {
       surface: surface ?? this.surface,
       surfaceContainer: surfaceContainer ?? this.surfaceContainer,
       surfaceContainerHigh: surfaceContainerHigh ?? this.surfaceContainerHigh,
-      surfaceContainerHighest: surfaceContainerHighest ?? this.surfaceContainerHighest,
+      surfaceContainerHighest:
+          surfaceContainerHighest ?? this.surfaceContainerHighest,
       surfaceInput: surfaceInput ?? this.surfaceInput,
       appBarSurface: appBarSurface ?? this.appBarSurface,
       divider: divider ?? this.divider,
@@ -146,9 +146,21 @@ class TWColors extends ThemeExtension<TWColors> {
       textDisabled: Color.lerp(textDisabled, other.textDisabled, t)!,
       background: Color.lerp(background, other.background, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
-      surfaceContainer: Color.lerp(surfaceContainer, other.surfaceContainer, t)!,
-      surfaceContainerHigh: Color.lerp(surfaceContainerHigh, other.surfaceContainerHigh, t)!,
-      surfaceContainerHighest: Color.lerp(surfaceContainerHighest, other.surfaceContainerHighest, t)!,
+      surfaceContainer: Color.lerp(
+        surfaceContainer,
+        other.surfaceContainer,
+        t,
+      )!,
+      surfaceContainerHigh: Color.lerp(
+        surfaceContainerHigh,
+        other.surfaceContainerHigh,
+        t,
+      )!,
+      surfaceContainerHighest: Color.lerp(
+        surfaceContainerHighest,
+        other.surfaceContainerHighest,
+        t,
+      )!,
       surfaceInput: Color.lerp(surfaceInput, other.surfaceInput, t)!,
       appBarSurface: Color.lerp(appBarSurface, other.appBarSurface, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
@@ -156,8 +168,16 @@ class TWColors extends ThemeExtension<TWColors> {
       warning: Color.lerp(warning, other.warning, t)!,
       error: Color.lerp(error, other.error, t)!,
       info: Color.lerp(info, other.info, t)!,
-      successContainer: Color.lerp(successContainer, other.successContainer, t)!,
-      warningContainer: Color.lerp(warningContainer, other.warningContainer, t)!,
+      successContainer: Color.lerp(
+        successContainer,
+        other.successContainer,
+        t,
+      )!,
+      warningContainer: Color.lerp(
+        warningContainer,
+        other.warningContainer,
+        t,
+      )!,
       errorContainer: Color.lerp(errorContainer, other.errorContainer, t)!,
       infoContainer: Color.lerp(infoContainer, other.infoContainer, t)!,
       selectedOverlay: Color.lerp(selectedOverlay, other.selectedOverlay, t)!,

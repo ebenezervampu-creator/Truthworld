@@ -43,8 +43,3 @@ class TrendingVideosService {
     return videos;
   }
 }
-
-
-
-
-

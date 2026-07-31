@@ -10,8 +10,8 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Smooth count transition via TweenAnimationBuilder
 /// - Dark gradient card matching the app's aesthetic
 class LiveViewerWidget extends StatefulWidget {
-
   const LiveViewerWidget({super.key, this.videoId});
+
   /// Pass a videoId for per-video count, or null for global count.
   final String? videoId;
 
@@ -58,7 +58,9 @@ class _LiveViewerWidgetState extends State<LiveViewerWidget>
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+            ),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFFE94560).withValues(alpha: 0.1),

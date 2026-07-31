@@ -16,6 +16,7 @@
 import { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { z } from "zod";
+import { getVertexAI } from "../utils/ai-client";
 
 /** Fast tier configuration */
 export const FAST_TIER_CONFIG = {
@@ -54,7 +55,7 @@ export class FastVerificationService {
   private readonly genAI: VertexAI;
 
   constructor(geminiApiKey: string) {
-    this.genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+    this.genAI = getVertexAI();
   }
 
   /**

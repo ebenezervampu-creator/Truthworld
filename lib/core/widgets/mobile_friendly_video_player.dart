@@ -10,9 +10,9 @@ import 'package:video_player/video_player.dart';
 /// A video player widget that wraps raw [VideoPlayer] but automatically uses
 /// [Chewie] on Android and iOS devices, and for Android users on web.
 class MobileFriendlyVideoPlayer extends StatefulWidget {
-
   const MobileFriendlyVideoPlayer({
-    required this.controller, super.key,
+    required this.controller,
+    super.key,
     this.showControls = false,
     this.autoPlay = false,
     this.looping = false,
@@ -23,7 +23,8 @@ class MobileFriendlyVideoPlayer extends StatefulWidget {
   final bool looping;
 
   @override
-  State<MobileFriendlyVideoPlayer> createState() => _MobileFriendlyVideoPlayerState();
+  State<MobileFriendlyVideoPlayer> createState() =>
+      _MobileFriendlyVideoPlayerState();
 }
 
 /// Detects if the current user is on mobile web (Android, iPhone, iPad, iPod)
@@ -31,15 +32,17 @@ bool _isMobileWebUser() {
   if (!kIsWeb) {
     return Platform.isAndroid || Platform.isIOS;
   }
-  
+
   // On web, check user agent for mobile operating systems
   try {
     final userAgent = html.window.navigator.userAgent.toLowerCase();
-    return userAgent.contains('android') || 
-           userAgent.contains('iphone') || 
-           userAgent.contains('ipad') || 
-           userAgent.contains('ipod') ||
-           (userAgent.contains('macintosh') && html.window.navigator.maxTouchPoints != null && html.window.navigator.maxTouchPoints! > 0);
+    return userAgent.contains('android') ||
+        userAgent.contains('iphone') ||
+        userAgent.contains('ipad') ||
+        userAgent.contains('ipod') ||
+        (userAgent.contains('macintosh') &&
+            html.window.navigator.maxTouchPoints != null &&
+            html.window.navigator.maxTouchPoints! > 0);
   } catch (_) {
     return false;
   }
@@ -68,7 +71,7 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
   void _initPlayer() {
     final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
     final isMobileOnWeb = kIsWeb && _isMobileWebUser();
-    
+
     // Use Chewie for mobile devices and mobile users on web
     if (isMobile || isMobileOnWeb) {
       _chewieController.value = ChewieController(
@@ -116,7 +119,7 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
   Widget build(BuildContext context) {
     final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
     final isMobileOnWeb = kIsWeb && _isMobileWebUser();
-    
+
     return Obx(() {
       final chewie = _chewieController.value;
       if ((isMobile || isMobileOnWeb) && chewie != null) {

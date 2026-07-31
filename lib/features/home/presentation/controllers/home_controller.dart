@@ -10,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -21,8 +22,13 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_query_builder.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
-
 
 // ========================================================================
 // COLOR CONSTANTS
@@ -142,8 +148,10 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   final availableCategories = <String>['All'].obs;
 
   // Special page data
-  final selectedPlaylist = Rxn<dynamic>(); // Stores playlist data for detail view
-  final selectedChannelForDetail = Rxn<Channel>(); // Stores channel data for detail view
+  final selectedPlaylist =
+      Rxn<dynamic>(); // Stores playlist data for detail view
+  final selectedChannelForDetail =
+      Rxn<Channel>(); // Stores channel data for detail view
 
   late TabController tabController;
 
@@ -250,10 +258,10 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     // Listen to authentication state changes
     ever(_authService.currentUser, (User? u) {
       if (u != null) {
-        _listenToUserLibraryData(u.uid);
+        _checkUserLibraryData(u.uid);
         fetchSubscribedChannels();
       } else {
-        _cancelLibrarySubscriptions();
+        _resetLibraryData();
         subscribedChannelList.clear();
       }
     });
@@ -261,82 +269,67 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     // Initial fetch if user is already authenticated
     final currentUid = _authService.user?.uid;
     if (currentUid != null && currentUid.isNotEmpty) {
-      _listenToUserLibraryData(currentUid);
+      _checkUserLibraryData(currentUid);
     }
   }
 
-  void _listenToUserLibraryData(String userId) {
-    _cancelLibrarySubscriptions();
+  Future<void> _checkUserLibraryData(String userId) async {
+    try {
+      final results = await Future.wait([
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('watch_history')
+            .limit(1)
+            .getCacheFirst(),
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('playlists')
+            .limit(1)
+            .getCacheFirst(),
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('savedTopics')
+            .limit(1)
+            .getCacheFirst(),
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('watch_later')
+            .limit(1)
+            .getCacheFirst(),
+        _firestore
+            .collection('videos')
+            .where('likedBy', arrayContains: userId)
+            .limit(1)
+            .getCacheFirst(),
+        _firestore
+            .collection('videos')
+            .where('ownerId', isEqualTo: userId)
+            .limit(1)
+            .getCacheFirst(),
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('clips')
+            .limit(1)
+            .getCacheFirst(),
+      ]);
 
-    _historySub = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('watch_history')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasWatchHistory.value = snap.docs.isNotEmpty;
-    });
+      hasWatchHistory.value = results[0].docs.isNotEmpty;
+      hasPlaylists.value = results[1].docs.isNotEmpty;
+      hasFollowedTopics.value = results[2].docs.isNotEmpty;
+      hasWatchLater.value = results[3].docs.isNotEmpty;
+      hasLikedVideos.value = results[4].docs.isNotEmpty;
+      hasUploadedVideos.value = results[5].docs.isNotEmpty;
+      hasClips.value = results[6].docs.isNotEmpty;
 
-    _playlistsSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('playlists')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasPlaylists.value = snap.docs.isNotEmpty;
-    });
-
-    _topicsSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('savedTopics')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasFollowedTopics.value = snap.docs.isNotEmpty;
-    });
-
-    _watchLaterSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('watch_later')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasWatchLater.value = snap.docs.isNotEmpty;
-    });
-
-    _likedSub = _firestore
-        .collection('videos')
-        .where('likedBy', arrayContains: userId)
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasLikedVideos.value = snap.docs.isNotEmpty;
-    });
-
-    _myVideosSub = _firestore
-        .collection('videos')
-        .where('ownerId', isEqualTo: userId)
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasUploadedVideos.value = snap.docs.isNotEmpty;
-    });
-
-    _clipsSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('clips')
-        .limit(1)
-        .snapshots()
-        .listen((snap) {
-      hasClips.value = snap.docs.isNotEmpty;
-    });
-
-    _setupDownloadsListener();
+      _setupDownloadsListener();
+    } catch (e) {
+      debugPrint('HomeController: Error checking user library data: $e');
+    }
   }
 
   void _setupDownloadsListener() {
@@ -345,14 +338,14 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     }
     final downloadsCtrl = Get.find<DownloadsController>();
     hasDownloads.value = downloadsCtrl.videos.isNotEmpty;
-    
+
     _downloadsListSub?.cancel();
     _downloadsListSub = downloadsCtrl.videos.listen((videosList) {
       hasDownloads.value = videosList.isNotEmpty;
     });
   }
 
-  void _cancelLibrarySubscriptions() {
+  void _resetLibraryData() {
     _historySub?.cancel();
     _playlistsSub?.cancel();
     _topicsSub?.cancel();
@@ -376,7 +369,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     ever(sideNavSelectedIndex, (index) {
       // Reset bottom nav visibility when switching tabs
       showBottomNav.value = true;
-      
+
       if (index == indexHome) {
         bottomNavSelectedIndex.value = 0;
       } else if (index == indexExploreTopics) {
@@ -393,14 +386,16 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     _connectivitySubscription = Get.find<ConnectivityService>()
         .onConnectivityChanged
         .listen((results) {
-      final isConnected = results.any((r) => r != ConnectivityResult.none);
-      // If we were showing an error or empty state due to offline, reload
-      if (isConnected && (videos.isEmpty || trendingVideos.isEmpty)) {
-        debugPrint('[HomeController] 🌐 Internet restored. Reloading feed...');
-        _loadInitialData();
-        fetchSubscribedChannels();
-      }
-    });
+          final isConnected = results.any((r) => r != ConnectivityResult.none);
+          // If we were showing an error or empty state due to offline, reload
+          if (isConnected && (videos.isEmpty || trendingVideos.isEmpty)) {
+            debugPrint(
+              '[HomeController] 🌐 Internet restored. Reloading feed...',
+            );
+            _loadInitialData();
+            fetchSubscribedChannels();
+          }
+        });
   }
 
   @override
@@ -412,7 +407,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   @override
   void onClose() {
     _isDisposed = true;
-    _cancelLibrarySubscriptions();
+    _resetLibraryData();
     _disposeAnimations();
     tabController.dispose();
     scrollController.removeListener(_scrollListener);
@@ -496,7 +491,10 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     try {
       final newLength = availableCategories.length;
       if (tabController.length != newLength) {
-        final currentIndex = tabController.index.clamp(0, newLength > 0 ? newLength - 1 : 0);
+        final currentIndex = tabController.index.clamp(
+          0,
+          newLength > 0 ? newLength - 1 : 0,
+        );
         tabController.dispose();
         tabController = TabController(
           length: newLength,
@@ -528,11 +526,15 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   /// Load videos from local storage using FeedCacheManager with TTL and VideoSanitizer
   void _loadCachedVideos() {
     try {
-      final cachedVideos = _feedCacheManager.getValidCachedVideos(FeedCacheManager.keyHomeFeed);
+      final cachedVideos = _feedCacheManager.getValidCachedVideos(
+        FeedCacheManager.keyHomeFeed,
+      );
       if (cachedVideos != null && cachedVideos.isNotEmpty && videos.isEmpty) {
         videos.assignAll(cachedVideos);
         isLoadingVideos.value = false;
-        debugPrint('HomeController: Loaded ${videos.length} sanitized videos from cache');
+        debugPrint(
+          'HomeController: Loaded ${videos.length} sanitized videos from cache',
+        );
       }
     } catch (e) {
       debugPrint('HomeController: Cache load error: $e');
@@ -560,7 +562,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
             .toList();
         featuredTopics.assignAll(cachedTopics);
         isLoadingFeaturedTopics.value = false;
-        debugPrint('HomeController: Loaded ${featuredTopics.length} featured topics from cache');
+        debugPrint(
+          'HomeController: Loaded ${featuredTopics.length} featured topics from cache',
+        );
       }
     } catch (e) {
       debugPrint('HomeController: Cached topics load error: $e');
@@ -591,9 +595,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
       var topicsList = <Topic>[];
       if (snapshot.docs.isNotEmpty) {
-        topicsList = snapshot.docs
-            .map(Topic.fromDocumentSnapshot)
-            .toList();
+        topicsList = snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
       }
 
       if (topicsList.isEmpty) {
@@ -676,63 +678,150 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       _lastDocument = null;
       rxHasMore.value = true;
 
+      // Try Server Feed first
+      final currentUserId = _authService.user?.uid;
+      final userProfile = Get.isRegistered<UserInterestProfileService>()
+          ? Get.find<UserInterestProfileService>().profile.value
+          : null;
+      final feedAlgorithmService = Get.isRegistered<FeedAlgorithmService>()
+          ? Get.find<FeedAlgorithmService>()
+          : null;
 
-      // NORMAL QUERY PATH: Standard per-category fetching
-      final results = await _buildCategoryQuery()
-          .limit(_pageSize)
-          .get();
+      bool fetchedFromServer = false;
 
-      debugPrint('HomeController: Fetched ${results.docs.length} videos for category ${selectedCategory.value}');
-
-      if (results.docs.isNotEmpty) {
-        _lastDocument = results.docs.last;
-        final newVideos = results.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList()
-            .sanitizeForFeed();
-
-        videos.assignAll(newVideos);
-        if (isMainFeed) {
-          _saveVideosToCache();
-        }
-
-        if (results.docs.length < _pageSize) {
-          rxHasMore.value = false;
-        }
-      } else {
-        // Fallback: Query videos collection directly if primary builder returns 0 docs
+      if (feedAlgorithmService != null) {
         try {
-          final fallbackResults = await _firestore
-              .collection('videos')
-              .limit(_pageSize)
-              .get();
+          // 1. Try server-side ranked feed (primary)
+          final serverVideos = await feedAlgorithmService.getPersonalizedFeed(
+            userId: currentUserId,
+            limit: _pageSize,
+            category: selectedCategory.value == 'All'
+                ? null
+                : selectedCategory.value,
+          );
 
-          if (fallbackResults.docs.isNotEmpty) {
-            _lastDocument = fallbackResults.docs.last;
-            final fallbackVideos = fallbackResults.docs
-                .map(Video.fromDocumentSnapshot)
-                .where(VideoVisibilityPolicy.isVisibleForFeed)
-                .toList();
+          // 2. Apply lightweight local adjustments only (NOT full rerank)
+          final adjusted = feedAlgorithmService.applyLocalAdjustments(
+            serverVideos,
+            notInterestedVideoIds: userProfile?.notInterestedVideoIds,
+            blockedChannelIds: userProfile?.blockedChannelIds,
+            recentlyWatchedVideoIds: userProfile?.recentlyWatchedVideoIds,
+          );
 
-            if (fallbackVideos.isNotEmpty) {
-              videos.assignAll(fallbackVideos);
-            } else {
-              videos.assignAll(
-                fallbackResults.docs
-                    .map(Video.fromDocumentSnapshot)
-                    .where((v) => v.status != VideoStatus.deleted)
-                    .toList(),
-              );
-            }
+          // Handle flip coin
+          final isFlipped =
+              (selectedCategory.value == '🪙 Flip Coin') ||
+              (Get.isRegistered<FlipCoinService>() &&
+                  Get.find<FlipCoinService>().isHomeFlipped.value);
+
+          if (isFlipped && Get.isRegistered<TruthworldAlgorithm>()) {
+            final ranked = Get.find<TruthworldAlgorithm>().rankVideosOpposite(
+              adjusted,
+              RecommendationSurface.homeFeedAll,
+              diversityConfig: DiversityConfig.homeFeed,
+            );
+            videos.assignAll(ranked.map((s) => s.video).toList());
           } else {
+            videos.assignAll(adjusted);
+          }
+
+          if (isMainFeed) {
+            _saveVideosToCache();
+          }
+          if (serverVideos.length < _pageSize) {
+            rxHasMore.value = false;
+          }
+          fetchedFromServer = true;
+        } catch (e) {
+          // 3. Fallback: direct Firestore query + full client-side ranking
+          debugPrint('Server feed unavailable, falling back to local: $e');
+        }
+      }
+
+      if (!fetchedFromServer) {
+        // NORMAL QUERY PATH: Standard per-category fetching
+        final results = await _buildCategoryQuery().limit(_pageSize).get();
+
+        debugPrint(
+          'HomeController: Fetched ${results.docs.length} videos for category ${selectedCategory.value}',
+        );
+
+        if (results.docs.isNotEmpty) {
+          _lastDocument = results.docs.last;
+          final rawVideos = results.docs
+              .map(Video.fromDocumentSnapshot)
+              .toList()
+              .sanitizeForFeed();
+
+          if ((isMainFeed || selectedCategory.value == '🪙 Flip Coin') &&
+              Get.isRegistered<TruthworldAlgorithm>()) {
+            final algorithm = Get.find<TruthworldAlgorithm>();
+            final isFlipped =
+                (selectedCategory.value == '🪙 Flip Coin') ||
+                (Get.isRegistered<FlipCoinService>() &&
+                    Get.find<FlipCoinService>().isHomeFlipped.value);
+
+            final ranked = isFlipped
+                ? algorithm.rankVideosOpposite(
+                    rawVideos,
+                    RecommendationSurface.homeFeedAll,
+                    diversityConfig: DiversityConfig.homeFeed,
+                  )
+                : algorithm.rankVideos(
+                    rawVideos,
+                    RecommendationSurface.homeFeedAll,
+                    diversityConfig: DiversityConfig.homeFeed,
+                  );
+            final rankedVideos = ranked.map((s) => s.video).toList();
+            videos.assignAll(
+              rankedVideos.isNotEmpty ? rankedVideos : rawVideos,
+            );
+          } else {
+            videos.assignAll(rawVideos);
+          }
+
+          if (isMainFeed) {
+            _saveVideosToCache();
+          }
+
+          if (results.docs.length < _pageSize) {
+            rxHasMore.value = false;
+          }
+        } else {
+          // Fallback: Query videos collection directly if primary builder returns 0 docs
+          try {
+            final fallbackResults = await _firestore
+                .collection('videos')
+                .limit(_pageSize)
+                .get();
+
+            if (fallbackResults.docs.isNotEmpty) {
+              _lastDocument = fallbackResults.docs.last;
+              final fallbackVideos = fallbackResults.docs
+                  .map(Video.fromDocumentSnapshot)
+                  .where(VideoVisibilityPolicy.isVisibleForFeed)
+                  .toList();
+
+              if (fallbackVideos.isNotEmpty) {
+                videos.assignAll(fallbackVideos);
+              } else {
+                videos.assignAll(
+                  fallbackResults.docs
+                      .map(Video.fromDocumentSnapshot)
+                      .where((v) => v.status != VideoStatus.deleted)
+                      .toList(),
+                );
+              }
+            } else {
+              videos.clear();
+            }
+          } catch (fbErr) {
+            debugPrint('Fallback video query error: $fbErr');
             videos.clear();
           }
-        } catch (fbErr) {
-          debugPrint('Fallback video query error: $fbErr');
-          videos.clear();
+          rxHasMore.value = false;
         }
-        rxHasMore.value = false;
-      }
+      } // End if (!fetchedFromServer)
 
       if (isMainFeed) {
         await fetchCommunityPosts();
@@ -781,9 +870,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
       if (results.docs.isNotEmpty) {
         _lastDocument = results.docs.last;
-        final newVideos = results.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList();
+        final newVideos = results.docs.map(Video.fromDocumentSnapshot).toList();
         final combined = [...videos, ...newVideos].sanitizeForFeed();
         videos.assignAll(combined);
 
@@ -951,6 +1038,15 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Handle Google Sign-In specific errors
   void _handleGoogleSignInError(GoogleSignInException exception) {
+    if (exception.code == 'user-cancelled' ||
+        exception.code == 'popup-closed' ||
+        exception.code == 'popup-closed-by-user') {
+      if (kDebugMode) {
+        debugPrint('ℹ️ Google Sign-In cancelled by user.');
+      }
+      return;
+    }
+
     final displayMessage = exception.getDisplayMessage();
 
     if (exception.isRetryable) {
@@ -990,7 +1086,10 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         onPressed: retryGoogleSignIn,
         child: const Text(
           'Retry',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -1034,8 +1133,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     bottomNavSelectedIndex.value = index;
     _triggerSelectionAnimation();
 
-    final isAtHome =
-        Get.currentRoute == '/' || Get.currentRoute == '/home';
+    final isAtHome = Get.currentRoute == '/' || Get.currentRoute == '/home';
 
     switch (index) {
       case 0:
@@ -1137,13 +1235,17 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       final firestoreCounts = <String, int>{};
       for (final doc in snapshot.docs) {
         final rawCat = (doc.data()['category'] as String?)?.trim();
-        if (rawCat != null && rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
+        if (rawCat != null &&
+            rawCat.isNotEmpty &&
+            rawCat.toLowerCase() != 'all') {
           final normalized = _capitalizeCategory(rawCat);
           firestoreCounts[normalized] = (firestoreCounts[normalized] ?? 0) + 1;
         }
       }
 
-      final mergedCounts = firestoreCounts.isNotEmpty ? firestoreCounts : categoryCounts;
+      final mergedCounts = firestoreCounts.isNotEmpty
+          ? firestoreCounts
+          : categoryCounts;
 
       // Filter to categories that have AT LEAST 2 videos
       final qualifyingCategories = <String>[];
@@ -1159,12 +1261,29 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         }
       });
 
-      availableCategories.assignAll(['All', ...qualifyingCategories]);
+      availableCategories.assignAll(
+        _personalizedSortCategories(qualifyingCategories),
+      );
       _reinitializeTabController();
     } catch (e) {
       debugPrint('HomeController: Error fetching category counts: $e');
       _updateCategoriesFromLoadedVideos();
     }
+  }
+
+  List<String> _personalizedSortCategories(List<String> inputCategories) {
+    List<String> sorted = List<String>.from(inputCategories);
+    if (Get.isRegistered<UserInterestProfileService>()) {
+      final profile = Get.find<UserInterestProfileService>().profile.value;
+      if (profile != null && profile.categoryAffinities.isNotEmpty) {
+        sorted.sort((a, b) {
+          final scoreA = profile.categoryAffinities[a] ?? 0.0;
+          final scoreB = profile.categoryAffinities[b] ?? 0.0;
+          return scoreB.compareTo(scoreA);
+        });
+      }
+    }
+    return ['All', 'Posts', '🪙 Flip Coin', ...sorted];
   }
 
   void _updateCategoriesFromLoadedVideos() {
@@ -1188,7 +1307,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       }
     });
 
-    availableCategories.assignAll(['All', ...qualifyingCategories]);
+    availableCategories.assignAll(
+      _personalizedSortCategories(qualifyingCategories),
+    );
     _reinitializeTabController();
   }
 
@@ -1322,7 +1443,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       return;
     }
     if (AuthService.to.hasChannel.value && AuthService.to.userChannel != null) {
-      Get.toNamed('/studio');
+      StudioLauncher.openStudio();
     } else {
       Get.toNamed('/channelscreen');
     }
@@ -1337,7 +1458,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     final playlistCtrl = Get.isRegistered<PlaylistController>()
         ? Get.find<PlaylistController>()
         : Get.put(PlaylistController());
-    
+
     var watchLater = playlistCtrl.getWatchLaterPlaylist();
     watchLater ??= await playlistCtrl.createPlayList('Watch Later');
     if (watchLater != null) {
@@ -1358,13 +1479,13 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           .where('visibility', isEqualTo: 'Public')
           .limit(50)
           .get();
-      
+
       final posts = snapshot.docs
           .map((doc) => CommunityPostModel.fromMap(doc.data()))
           .toList();
-      
+
       posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
-      
+
       communityPosts.assignAll(posts.take(10));
     } catch (e) {
       debugPrint('Error fetching community posts: $e');
@@ -1458,7 +1579,19 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
             .toList();
       }
 
-      videos.assignAll(catVideos);
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final ranked = algorithm.rankVideos(
+          catVideos,
+          RecommendationSurface.homeFeedCategory,
+        );
+        final rankedCatVideos = ranked.map((s) => s.video).toList();
+        videos.assignAll(
+          rankedCatVideos.isNotEmpty ? rankedCatVideos : catVideos,
+        );
+      } else {
+        videos.assignAll(catVideos);
+      }
 
       // 2. Fetch topics for category
       try {
@@ -1515,7 +1648,3 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     }
   }
 }
-
-
-
-

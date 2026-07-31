@@ -47,7 +47,6 @@ void showModernizedPlaylistDialog({
 }
 
 class _ModernizedPlaylistDialog extends StatefulWidget {
-
   const _ModernizedPlaylistDialog({
     required this.videoId,
     required this.animation,
@@ -175,7 +174,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             ),
             child: Icon(
               Icons.playlist_add_rounded,
-              color: colorScheme.primary,
+              color: AppColors.textPrimary,
               size: isTablet ? 28 : 24,
             ),
           ),
@@ -207,9 +206,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
           ),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(
+            icon: const Icon(
               Icons.close_rounded,
-              color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+              color: AppColors.textPrimary,
             ),
             style: IconButton.styleFrom(
               backgroundColor: colorScheme.primaryContainer.withValues(
@@ -287,7 +286,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             children: [
               Icon(
                 Icons.add_circle_outline_rounded,
-                color: colorScheme.secondary,
+                color: AppColors.textPrimary,
                 size: isTablet ? 24 : 20,
               ),
               const SizedBox(width: 8),
@@ -382,9 +381,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                         )
                       : IconButton(
                           onPressed: _createNewPlaylist,
-                          icon: Icon(
+                          icon: const Icon(
                             Icons.add_rounded,
-                            color: colorScheme.secondary,
+                            color: AppColors.textPrimary,
                           ),
                           style: IconButton.styleFrom(
                             backgroundColor: colorScheme.secondary.withValues(
@@ -419,6 +418,16 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
       final allPlaylists = <PlaylistModel>[];
       final seenIds = <String>{};
+
+      // Watch Later playlist included at top of private playlists
+      if (uid.isNotEmpty) {
+        final watchLaterPlaylist = playlistController.getWatchLaterPlaylist();
+        if (watchLaterPlaylist != null) {
+          allPlaylists.add(watchLaterPlaylist);
+          seenIds.add('watchlater');
+        }
+      }
+
       for (final p in [...userPrivatePlaylists, ...userPublicPlaylists]) {
         if (seenIds.add(p.id)) {
           allPlaylists.add(p);
@@ -454,6 +463,18 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
       final isSelected =
           _dialogController.selectedPlaylistId.value == playlist.id;
 
+      final isWatchLater = playlist.id == 'watchlater';
+      final isInPlaylist = isWatchLater
+          ? playlistController.isInWatchLater(widget.videoId)
+          : playlist.videoIds.contains(widget.videoId);
+
+      final videoCountText = isWatchLater
+          ? '${playlistController.watchLaterVideoIds.length} videos'
+          : '${playlist.videoCount} videos';
+
+      final subtitle =
+          '$videoCountText • ${playlist.isPublic ? "Public" : "Private"}${isInPlaylist ? " • Added" : ""}';
+
       return AnimatedContainer(
         duration: Duration(milliseconds: 200 + (index * 50)),
         curve: Curves.easeOutCubic,
@@ -479,7 +500,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
               ),
               child: Row(
                 children: [
-                  // Playlist icon
+                  // Playlist icon / thumbnail
                   Container(
                     width: isTablet ? 40 : 36,
                     height: isTablet ? 40 : 36,
@@ -490,13 +511,15 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                               alpha: 0.5,
                             ),
                       borderRadius: BorderRadius.circular(12),
-                      image: DecorationImage(
-                        image: CachedNetworkImageProvider(
-                          playlist.thumbnailUrl,
-                        ),
-                        fit: BoxFit.cover,
-                        onError: (exception, stackTrace) {},
-                      ),
+                      image: (!isWatchLater && playlist.thumbnailUrl.isNotEmpty)
+                          ? DecorationImage(
+                              image: CachedNetworkImageProvider(
+                                playlist.thumbnailUrl,
+                              ),
+                              fit: BoxFit.cover,
+                              onError: (exception, stackTrace) {},
+                            )
+                          : null,
                     ),
                     child: isSelected
                         ? Container(
@@ -513,8 +536,10 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                             ),
                           )
                         : Icon(
-                            Icons.playlist_play_rounded,
-                            color: colorScheme.onSurfaceVariant,
+                            isWatchLater
+                                ? Icons.watch_later_outlined
+                                : Icons.playlist_play_rounded,
+                            color: AppColors.textPrimary,
                             size: isTablet ? 24 : 20,
                           ),
                   ),
@@ -540,7 +565,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${playlist.videoCount} videos • ${playlist.isPublic ? "Public" : "Private"}',
+                          subtitle,
                           style: TextStyle(
                             fontSize: isTablet ? 12 : 10,
                             color: colorScheme.onSurface.withValues(alpha: 0.6),
@@ -550,19 +575,21 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                     ),
                   ),
 
-                  // Selection indicator
+                  // Selection / Checkmark indicator
                   AnimatedScale(
-                    scale: isSelected ? 1.0 : 0.0,
+                    scale: isSelected ? 1.0 : (isInPlaylist ? 0.8 : 0.0),
                     duration: const Duration(milliseconds: 200),
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: colorScheme.tertiary,
+                        color: isSelected
+                            ? colorScheme.tertiary
+                            : colorScheme.secondary.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.check_rounded,
-                        color: colorScheme.onTertiary,
+                        color: AppColors.textPrimary,
                         size: 16,
                       ),
                     ),
@@ -611,7 +638,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             child: Icon(
               Icons.playlist_add_outlined,
               size: isTablet ? 48 : 40,
-              color: colorScheme.tertiary,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -670,38 +697,60 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
           Expanded(
             flex: 2,
             child: Obx(
-              () => ElevatedButton(
-                onPressed:
-                    _dialogController.selectedPlaylistId.value.isNotEmpty &&
-                        !_dialogController.isAddingToPlaylist.value
-                    ? _addVideoToPlaylist
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  padding: EdgeInsets.symmetric(vertical: isTablet ? 16 : 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              () {
+                final selectedId = _dialogController.selectedPlaylistId.value;
+                final isSelected = selectedId.isNotEmpty;
+                final isWatchLater = selectedId == 'watchlater';
+                final isInWatchLater =
+                    isWatchLater &&
+                    playlistController.isInWatchLater(widget.videoId);
+                final isInPlaylist =
+                    !isWatchLater &&
+                    isSelected &&
+                    (_selectedPlaylist?.videoIds.contains(widget.videoId) ??
+                        false);
+
+                String buttonText = 'Add Video';
+                if (isWatchLater) {
+                  buttonText = isInWatchLater
+                      ? 'Remove from Watch Later'
+                      : 'Add to Watch Later';
+                } else if (isInPlaylist) {
+                  buttonText = 'Remove from Playlist';
+                }
+
+                return ElevatedButton(
+                  onPressed:
+                      isSelected && !_dialogController.isAddingToPlaylist.value
+                      ? _addVideoToPlaylist
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: EdgeInsets.symmetric(vertical: isTablet ? 16 : 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
                   ),
-                  elevation: 0,
-                ),
-                child: _dialogController.isAddingToPlaylist.value
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colorScheme.onPrimary,
+                  child: _dialogController.isAddingToPlaylist.value
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.onPrimary,
+                          ),
+                        )
+                      : Text(
+                          buttonText,
+                          style: TextStyle(
+                            fontSize: isTablet ? 16 : 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      )
-                    : Text(
-                        'Add Video',
-                        style: TextStyle(
-                          fontSize: isTablet ? 16 : 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-              ),
+                );
+              },
             ),
           ),
         ],
@@ -721,25 +770,28 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     _dialogController.setCreatingPlaylist(true);
 
     try {
-      await playlistController.createPlayList(
+      final newPlaylist = await playlistController.createPlayList(
         name,
         isPublic: _isPublicNewPlaylist,
+        videoIds: [widget.videoId],
       );
 
       newPlaylistCtrl.clear();
 
-      // Show success feedback
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Playlist "$name" created successfully'),
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        Navigator.of(context).pop();
+        if (newPlaylist != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Playlist "$name" created and video added!'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -762,41 +814,82 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   }
 
   Future<void> _addVideoToPlaylist() async {
-    if (_dialogController.selectedPlaylistId.value.isEmpty ||
-        _dialogController.isAddingToPlaylist.value) {
+    final selectedId = _dialogController.selectedPlaylistId.value;
+    if (selectedId.isEmpty || _dialogController.isAddingToPlaylist.value) {
       return;
     }
 
     _dialogController.setAddingToPlaylist(true);
 
     try {
-      final isPublic = _selectedPlaylist?.isPublic ?? false;
-      await playlistController.addVideoToPlaylist(
-        _dialogController.selectedPlaylistId.value,
-        widget.videoId,
-        isPublic,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pop();
-
-        // Show success feedback
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Video added to playlist successfully'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+      if (selectedId == 'watchlater') {
+        final wasIn = playlistController.isInWatchLater(widget.videoId);
+        await playlistController.toggleWatchLater(widget.videoId);
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                wasIn ? 'Removed from Watch Later' : 'Added to Watch Later',
+              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-          ),
-        );
+          );
+        }
+      } else {
+        final isPublic = _selectedPlaylist?.isPublic ?? false;
+        final isAlreadyIn =
+            _selectedPlaylist?.videoIds.contains(widget.videoId) ?? false;
+
+        if (isAlreadyIn) {
+          await playlistController.removeVideoFromPlaylist(
+            selectedId,
+            widget.videoId,
+            isPublic,
+          );
+          if (mounted) {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Removed from playlist successfully'),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }
+        } else {
+          await playlistController.addVideoToPlaylist(
+            selectedId,
+            widget.videoId,
+            isPublic,
+          );
+          if (mounted) {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Video added to playlist successfully'),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to add video: $e'),
+            content: Text('Failed to update playlist: $e'),
             backgroundColor: Theme.of(context).colorScheme.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -804,14 +897,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             ),
           ),
         );
-
+      }
+    } finally {
+      if (mounted) {
         _dialogController.setAddingToPlaylist(false);
       }
     }
   }
 }
-
-
-
-
-

@@ -23,7 +23,9 @@ class FullScreenHelper {
       if (_isDesktopPlatform()) {
         await FullScreenWindow.setFullScreen(true);
       } else {
-        debugPrint('FullScreenHelper: Full-screen not supported on this platform.');
+        debugPrint(
+          'FullScreenHelper: Full-screen not supported on this platform.',
+        );
       }
 
       debugPrint('FullScreenHelper: Successfully entered full-screen');
@@ -40,7 +42,9 @@ class FullScreenHelper {
       if (_isDesktopPlatform()) {
         await FullScreenWindow.setFullScreen(false);
       } else {
-        debugPrint('FullScreenHelper: Full-screen not supported on this platform.');
+        debugPrint(
+          'FullScreenHelper: Full-screen not supported on this platform.',
+        );
       }
 
       debugPrint('FullScreenHelper: Successfully exited full-screen');
@@ -78,8 +82,3 @@ class FullScreenHelper {
     return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
   }
 }
-
-
-
-
-

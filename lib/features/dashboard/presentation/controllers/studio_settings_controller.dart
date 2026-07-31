@@ -25,7 +25,7 @@ class StudioSettingsController extends BaseController {
     try {
       isLoadingData.value = true;
       final user = _auth.currentUser;
-      
+
       if (user == null) {
         isLoadingData.value = false;
         return;
@@ -37,7 +37,7 @@ class StudioSettingsController extends BaseController {
       if (doc.exists) {
         userData.assignAll(Map<String, dynamic>.from(doc.data()! as Map));
       }
-      
+
       clearError();
     } catch (e) {
       setError('Failed to load user settings');
@@ -52,7 +52,7 @@ class StudioSettingsController extends BaseController {
       // Optimistic update
       userData[field] = value;
       userData.refresh();
-      
+
       await _userRef.update({field: value});
     } catch (e) {
       // Revert if failed (or just notify)
@@ -62,7 +62,11 @@ class StudioSettingsController extends BaseController {
     }
   }
 
-  Future<void> updateNestedField(String parent, String child, dynamic value) async {
+  Future<void> updateNestedField(
+    String parent,
+    String child,
+    dynamic value,
+  ) async {
     try {
       final updated = Map<String, dynamic>.from(userData[parent] ?? {});
       updated[child] = value;
@@ -89,8 +93,3 @@ class StudioSettingsController extends BaseController {
     }
   }
 }
-
-
-
-
-

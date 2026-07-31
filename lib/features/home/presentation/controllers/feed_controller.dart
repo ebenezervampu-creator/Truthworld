@@ -10,23 +10,24 @@ import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Feed controller handling infinite scroll, category filtering, and community post mixing.
 class FeedController extends PagedController<Video> {
-
   FeedController() : super(pageSize: 24);
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+
   final selectedCategory = 'All'.obs;
   final communityPosts = <CommunityPostModel>[].obs;
   final mixedFeedItems = <dynamic>[].obs;
-  
+
   DocumentSnapshot? _lastDocument;
 
   @override
   void onInit() {
     super.onInit();
-    addWorker(ever(selectedCategory, (String category) {
-      logInit();
-      loadInitialData();
-    }));
+    addWorker(
+      ever(selectedCategory, (String category) {
+        logInit();
+        loadInitialData();
+      }),
+    );
   }
 
   void setCategory(String category) {
@@ -43,7 +44,9 @@ class FeedController extends PagedController<Video> {
   Future<Result<List<Video>>> safeFetchVideos(int page) async {
     try {
       logApi('fetchVideos (page: $page, category: ${selectedCategory.value})');
-      Query query = _firestore.collection('videos').orderBy('uploadedAt', descending: true);
+      Query query = _firestore
+          .collection('videos')
+          .orderBy('uploadedAt', descending: true);
 
       if (selectedCategory.value != 'All') {
         query = query.where('category', isEqualTo: selectedCategory.value);
@@ -58,11 +61,15 @@ class FeedController extends PagedController<Video> {
         _lastDocument = snapshot.docs.last;
       }
 
-      final fetchedVideos = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+      final fetchedVideos = snapshot.docs
+          .map(Video.fromDocumentSnapshot)
+          .toList();
       return Result.success(fetchedVideos);
     } catch (e) {
       logException(e);
-      return Result.failure(GenericAppException(message: e.toString(), originalException: e));
+      return Result.failure(
+        GenericAppException(message: e.toString(), originalException: e),
+      );
     }
   }
 }

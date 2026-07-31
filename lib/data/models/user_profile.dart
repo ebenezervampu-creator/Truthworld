@@ -4,15 +4,24 @@ import 'package:truthworld/data/models/user_model.dart';
 
 /// User profile model for storing user data in Firestore
 class UserProfile {
-
   UserProfile({
     required this.uid,
     required this.email,
-    required this.provider, required this.createdAt, required this.lastLogin, this.displayName,
+    required this.provider,
+    required this.createdAt,
+    required this.lastLogin,
+    this.displayName,
     this.photoUrl,
     this.isEmailVerified = false,
     this.isActive = true,
     this.metadata,
+    this.gender,
+    this.age,
+    this.birthdate,
+    this.location,
+    this.city,
+    this.state,
+    this.country,
   });
 
   /// Create from Firestore document
@@ -26,11 +35,20 @@ class UserProfile {
       displayName: data['displayName'] as String?,
       photoUrl: data['photoUrl'] as String?,
       provider: data['provider'] as String? ?? 'email',
-      createdAt: TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
-      lastLogin: TimestampUtils.parseToDateTime(data['lastLogin']) ?? DateTime.now(),
+      createdAt:
+          TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
+      lastLogin:
+          TimestampUtils.parseToDateTime(data['lastLogin']) ?? DateTime.now(),
       isEmailVerified: data['isEmailVerified'] as bool? ?? false,
       isActive: data['isActive'] as bool? ?? true,
       metadata: data['metadata'] as Map<String, dynamic>?,
+      gender: data['gender'] as String?,
+      age: (data['age'] as num?)?.toInt(),
+      birthdate: data['birthdate'] as String?,
+      location: data['location'] as String?,
+      city: data['city'] as String?,
+      state: data['state'] as String?,
+      country: data['country'] as String?,
     );
   }
 
@@ -51,6 +69,13 @@ class UserProfile {
       lastLogin: now,
       isEmailVerified: firebaseUser.metadata['emailVerified'] as bool? ?? false,
       metadata: metadata,
+      gender: firebaseUser.gender,
+      age: firebaseUser.age,
+      birthdate: firebaseUser.birthdate,
+      location: firebaseUser.location,
+      city: firebaseUser.city,
+      state: firebaseUser.state,
+      country: firebaseUser.country,
     );
   }
   final String uid;
@@ -63,6 +88,13 @@ class UserProfile {
   final bool isEmailVerified;
   final bool isActive;
   final Map<String, dynamic>? metadata;
+  final String? gender;
+  final int? age;
+  final String? birthdate;
+  final String? location;
+  final String? city;
+  final String? state;
+  final String? country;
 
   /// Convert to Firestore document
   Map<String, dynamic> toFirestore() {
@@ -77,6 +109,13 @@ class UserProfile {
       'isEmailVerified': isEmailVerified,
       'isActive': isActive,
       'metadata': metadata,
+      if (gender != null) 'gender': gender,
+      if (age != null) 'age': age,
+      if (birthdate != null) 'birthdate': birthdate,
+      if (location != null) 'location': location,
+      if (city != null) 'city': city,
+      if (state != null) 'state': state,
+      if (country != null) 'country': country,
     };
   }
 
@@ -92,6 +131,13 @@ class UserProfile {
     bool? isEmailVerified,
     bool? isActive,
     Map<String, dynamic>? metadata,
+    String? gender,
+    int? age,
+    String? birthdate,
+    String? location,
+    String? city,
+    String? state,
+    String? country,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -104,14 +150,16 @@ class UserProfile {
       isEmailVerified: isEmailVerified ?? this.isEmailVerified,
       isActive: isActive ?? this.isActive,
       metadata: metadata ?? this.metadata,
+      gender: gender ?? this.gender,
+      age: age ?? this.age,
+      birthdate: birthdate ?? this.birthdate,
+      location: location ?? this.location,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      country: country ?? this.country,
     );
   }
 
   @override
   String toString() => 'UserProfile(uid: $uid, email: $email)';
 }
-
-
-
-
-

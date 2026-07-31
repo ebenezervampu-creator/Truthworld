@@ -244,7 +244,9 @@ class AudioOnlyService extends GetxService {
     isAudioOnly.value = false;
     isActive.value = false;
     _stopPositionTracking();
-    debugPrint('[AudioOnly] Deactivated at $currentPos, returning to video mode');
+    debugPrint(
+      '[AudioOnly] Deactivated at $currentPos, returning to video mode',
+    );
     return currentPos;
   }
 
@@ -345,8 +347,3 @@ class AudioOnlyService extends GetxService {
 
 // Typedef for void callback in web context
 typedef VoidCallback = void Function();
-
-
-
-
-

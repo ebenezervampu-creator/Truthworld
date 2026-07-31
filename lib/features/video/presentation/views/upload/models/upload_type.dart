@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 enum UploadType {
   /// Long-form video uploads
   video,
-  
+
   /// Community posts with text, images, and polls
   communityPost,
 }

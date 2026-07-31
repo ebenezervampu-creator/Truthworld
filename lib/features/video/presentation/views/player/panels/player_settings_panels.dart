@@ -62,8 +62,12 @@ class SettingsPanel extends StatelessWidget {
                           return QualityPanel(ctrl: ctrl);
                         case 'subtitles':
                           return SubtitlesPanel(ctrl: ctrl);
+                        case 'subtitle_style':
+                          return SubtitleStylePanel(ctrl: ctrl);
                         case 'language':
                           return LanguagePanel(ctrl: ctrl);
+                        case 'zoom':
+                          return ZoomPanel(ctrl: ctrl);
                         case 'rating':
                           return RatingPanel(ctrl: ctrl);
                         case 'chapters':
@@ -194,16 +198,77 @@ class MainSettingsMenu extends StatelessWidget {
             ),
           ),
           Obx(
-            () => ToggleTile(
-              icon: Icons.aspect_ratio_rounded,
-              title: 'Zoom to Fill',
-              value: ctrl.isZoomToFill.value,
-              onChanged: (_) => ctrl.toggleZoomToFill(),
+            () => SettingsTile(
+              icon: Icons.zoom_in_rounded,
+              title: 'Zoom',
+              value: ctrl.zoomLabel,
+              onTap: () => ctrl.activePanel.value = 'zoom',
             ),
           ),
           const SizedBox(height: 8),
         ],
       ),
+    );
+  }
+}
+
+// ── Zoom panel ─────────────────────────────────────────────────────────────────
+class ZoomPanel extends StatelessWidget {
+  const ZoomPanel({required this.ctrl, super.key});
+  final TowerPlayerController ctrl;
+
+  static const List<double> _scales = [1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 8.0];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PanelHeader(
+          title: 'Zoom',
+          onBack: () => ctrl.activePanel.value = '',
+          onClose: null,
+        ),
+        const PlayerDivider(),
+        Flexible(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Obx(() {
+                  final isFill = ctrl.isZoomToFill.value;
+                  return SelectTile(
+                    label: 'Fill screen (Crop)',
+                    selected: isFill,
+                    onTap: () {
+                      ctrl.setZoomScale(1.0, fill: true);
+                      ctrl.closeSettings();
+                    },
+                  );
+                }),
+                for (final s in _scales)
+                  Obx(() {
+                    final isSel =
+                        !ctrl.isZoomToFill.value && ctrl.zoomScale.value == s;
+                    final label = s == 1.0
+                        ? 'Fit to screen (1.0x)'
+                        : '${s % 1 == 0 ? s.toInt() : s}x';
+                    return SelectTile(
+                      label: label,
+                      selected: isSel,
+                      onTap: () {
+                        ctrl.setZoomScale(s);
+                        ctrl.closeSettings();
+                      },
+                    );
+                  }),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -217,14 +282,16 @@ class ChaptersPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     VideoController? vc;
     try {
-      if (ctrl.tag != null && Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+      if (ctrl.tag != null &&
+          Get.isRegistered<VideoController>(tag: ctrl.tag)) {
         vc = Get.find<VideoController>(tag: ctrl.tag);
       } else if (Get.isRegistered<VideoController>()) {
         vc = Get.find<VideoController>();
       }
     } catch (_) {}
 
-    final video = vc?.video ??
+    final video =
+        vc?.video ??
         Video(
           id: '',
           title: '',
@@ -319,7 +386,7 @@ class QualityPanel extends StatelessWidget {
       case NetworkQuality.good:
         return AppColors.success;
       case NetworkQuality.fair:
-        return Colors.yellowAccent;
+        return AppColors.brandHover;
       default:
         return PT.primary;
     }
@@ -394,7 +461,11 @@ class QualityPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                const Icon(Icons.speed_rounded, color: AppColors.textTertiary, size: 14),
+                const Icon(
+                  Icons.speed_rounded,
+                  color: AppColors.textTertiary,
+                  size: 14,
+                ),
                 const SizedBox(width: 8),
                 const Text('Network: ', style: TS.bodySm),
                 Text(
@@ -480,6 +551,8 @@ class SubtitlesPanel extends StatelessWidget {
           title: 'Subtitles / CC',
           onBack: () => ctrl.activePanel.value = '',
           onClose: null,
+          actionIcon: Icons.tune_rounded,
+          onAction: () => ctrl.activePanel.value = 'subtitle_style',
         ),
         Obx(
           () => Padding(
@@ -512,6 +585,13 @@ class SubtitlesPanel extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        const PlayerDivider(),
+        SettingsTile(
+          icon: Icons.tune_rounded,
+          title: 'Subtitle Appearance & Style',
+          value: 'Customize',
+          onTap: () => ctrl.activePanel.value = 'subtitle_style',
         ),
         const PlayerDivider(),
         ConfigureLanguagesButton(
@@ -564,6 +644,707 @@ class SubtitlesPanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+// ── Subtitle Style / Options Panel ─────────────────────────────────────────────
+class SubtitleStylePanel extends StatelessWidget {
+  const SubtitleStylePanel({required this.ctrl, super.key});
+  final TowerPlayerController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        PanelHeader(
+          title: 'Subtitle Appearance',
+          onBack: () => ctrl.activePanel.value = 'subtitles',
+          onClose: null,
+        ),
+        const SizedBox(height: 4),
+        // Live Video Scene Preview Box
+        Obx(() {
+          final fontSizeOpt =
+              TowerPlayerController.globalSubtitleFontSizeOption.value;
+          final textColor = TowerPlayerController.globalSubtitleTextColor.value;
+          final bgColor = TowerPlayerController.globalSubtitleBgColor.value;
+          final bgOpacity = TowerPlayerController.globalSubtitleBgOpacity.value;
+          final edgeStyle = TowerPlayerController.globalSubtitleEdgeStyle.value;
+          final fontFamily =
+              TowerPlayerController.globalSubtitleFontFamily.value;
+
+          double previewFontSize = 13.0;
+          if (fontSizeOpt == 'Small') previewFontSize = 11.0;
+          if (fontSizeOpt == 'Large') previewFontSize = 15.0;
+          if (fontSizeOpt == 'Extra Large') previewFontSize = 17.0;
+
+          List<Shadow> shadows = const [];
+          if (edgeStyle == 'Drop Shadow') {
+            shadows = const [
+              Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+            ];
+          } else if (edgeStyle == 'Raised') {
+            shadows = const [
+              Shadow(
+                blurRadius: 1,
+                color: Colors.black,
+                offset: Offset(-1, -1),
+              ),
+              Shadow(blurRadius: 3, color: Colors.black, offset: Offset(2, 2)),
+            ];
+          } else if (edgeStyle == 'Outline') {
+            shadows = const [
+              Shadow(
+                blurRadius: 1,
+                color: Colors.black,
+                offset: Offset(-1, -1),
+              ),
+              Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, -1)),
+              Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, 1)),
+              Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, 1)),
+            ];
+          }
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            height: 90,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1E293B),
+                  Color(0xFF0F172A),
+                  Color(0xFF020617),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black54,
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: -20,
+                          right: -20,
+                          child: CircleAvatar(
+                            radius: 45,
+                            backgroundColor: Colors.indigo.withValues(
+                              alpha: 0.25,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: -25,
+                          left: -10,
+                          child: CircleAvatar(
+                            radius: 55,
+                            backgroundColor: Colors.blueAccent.withValues(
+                              alpha: 0.15,
+                            ),
+                          ),
+                        ),
+                        const Center(
+                          child: Icon(
+                            Icons.play_circle_fill_rounded,
+                            size: 36,
+                            color: Colors.white24,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  left: 10,
+                  right: 10,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.live_tv_rounded,
+                            size: 12,
+                            color: Colors.white70,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'VIDEO PREVIEW',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: const Text(
+                          'HD CC',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
+                  left: 10,
+                  right: 10,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: bgColor.withValues(alpha: bgOpacity),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'This is how your subtitles will look during video playback.',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TowerPlayerController.getSubtitleTextStyle(
+                          fontFamily: fontFamily,
+                          color: textColor,
+                          fontSize: previewFontSize,
+                          fontWeight: FontWeight.w500,
+                          height: 1.2,
+                          shadows: shadows,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        const PlayerDivider(),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            children: [
+              // 1. Font Family
+              _buildSectionHeader('Font Family'),
+              Obx(
+                () => Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children:
+                      [
+                        'Roboto',
+                        'Merriweather',
+                        'Roboto Mono',
+                        'Oswald',
+                        'Outfit',
+                      ].map((familyOpt) {
+                        final selected =
+                            TowerPlayerController
+                                .globalSubtitleFontFamily
+                                .value ==
+                            familyOpt;
+                        return ChoiceChip(
+                          label: Text(
+                            familyOpt,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: selected ? Colors.black : Colors.white,
+                            ),
+                          ),
+                          selected: selected,
+                          selectedColor: Colors.white,
+                          backgroundColor: Colors.white10,
+                          showCheckmark: false,
+                          onSelected: (_) =>
+                              TowerPlayerController
+                                      .globalSubtitleFontFamily
+                                      .value =
+                                  familyOpt,
+                        );
+                      }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // 2. Font Size
+              _buildSectionHeader('Font Size'),
+              Obx(
+                () => Row(
+                  children: ['Small', 'Normal', 'Large', 'Extra Large'].map((
+                    opt,
+                  ) {
+                    final selected =
+                        TowerPlayerController
+                            .globalSubtitleFontSizeOption
+                            .value ==
+                        opt;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: ChoiceChip(
+                          label: Text(
+                            opt,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: selected ? Colors.black : Colors.white,
+                            ),
+                          ),
+                          selected: selected,
+                          selectedColor: Colors.white,
+                          backgroundColor: Colors.white10,
+                          showCheckmark: false,
+                          onSelected: (_) =>
+                              TowerPlayerController
+                                      .globalSubtitleFontSizeOption
+                                      .value =
+                                  opt,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // 3. Text Color Palette
+              _buildSectionHeader('Font Color'),
+              Obx(
+                () => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _ColorOption(
+                        color: Colors.white,
+                        label: 'White',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                    .globalSubtitleTextColor
+                                    .value =
+                                Colors.white,
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: const Color(0xFFFFEB3B),
+                        label: 'Yellow',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                .globalSubtitleTextColor
+                                .value = const Color(
+                              0xFFFFEB3B,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: const Color(0xFF00E5FF),
+                        label: 'Cyan',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                .globalSubtitleTextColor
+                                .value = const Color(
+                              0xFF00E5FF,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: const Color(0xFF76FF03),
+                        label: 'Green',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                .globalSubtitleTextColor
+                                .value = const Color(
+                              0xFF76FF03,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: const Color(0xFFFF4081),
+                        label: 'Pink',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                .globalSubtitleTextColor
+                                .value = const Color(
+                              0xFFFF4081,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: const Color(0xFFFF9800),
+                        label: 'Orange',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                .globalSubtitleTextColor
+                                .value = const Color(
+                              0xFFFF9800,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: const Color(0xFFFF3D00),
+                        label: 'Red',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                .globalSubtitleTextColor
+                                .value = const Color(
+                              0xFFFF3D00,
+                            ),
+                      ),
+                      const SizedBox(width: 12),
+                      _ColorOption(
+                        color: Colors.black,
+                        label: 'Black',
+                        current:
+                            TowerPlayerController.globalSubtitleTextColor.value,
+                        onTap: () =>
+                            TowerPlayerController
+                                    .globalSubtitleTextColor
+                                    .value =
+                                Colors.black,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // 4. Background Color & Opacity
+              _buildSectionHeader('Background Color & Opacity'),
+              Obx(
+                () => Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _BgOption(
+                      label: 'Black 75%',
+                      color: Colors.black,
+                      opacity: 0.75,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            Colors.black;
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            0.75;
+                      },
+                    ),
+                    _BgOption(
+                      label: 'Black 50%',
+                      color: Colors.black,
+                      opacity: 0.50,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            Colors.black;
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            0.50;
+                      },
+                    ),
+                    _BgOption(
+                      label: 'Solid Black',
+                      color: Colors.black,
+                      opacity: 1.0,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            Colors.black;
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            1.0;
+                      },
+                    ),
+                    _BgOption(
+                      label: 'Transparent',
+                      color: Colors.transparent,
+                      opacity: 0.0,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            Colors.transparent;
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            0.0;
+                      },
+                    ),
+                    _BgOption(
+                      label: 'Navy 75%',
+                      color: const Color(0xFF0F172A),
+                      opacity: 0.75,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            const Color(0xFF0F172A);
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            0.75;
+                      },
+                    ),
+                    _BgOption(
+                      label: 'Yellow 75%',
+                      color: const Color(0xFFFBC02D),
+                      opacity: 0.75,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            const Color(0xFFFBC02D);
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            0.75;
+                      },
+                    ),
+                    _BgOption(
+                      label: 'White 75%',
+                      color: Colors.white,
+                      opacity: 0.75,
+                      curColor:
+                          TowerPlayerController.globalSubtitleBgColor.value,
+                      curOpacity:
+                          TowerPlayerController.globalSubtitleBgOpacity.value,
+                      onTap: () {
+                        TowerPlayerController.globalSubtitleBgColor.value =
+                            Colors.white;
+                        TowerPlayerController.globalSubtitleBgOpacity.value =
+                            0.75;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // 5. Text Shadow / Edge Style
+              _buildSectionHeader('Text Shadow / Edge'),
+              Obx(
+                () => Row(
+                  children: ['Drop Shadow', 'Outline', 'Raised', 'None'].map((
+                    styleOpt,
+                  ) {
+                    final selected =
+                        TowerPlayerController.globalSubtitleEdgeStyle.value ==
+                        styleOpt;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: ChoiceChip(
+                          label: Text(
+                            styleOpt,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: selected ? Colors.black : Colors.white,
+                            ),
+                          ),
+                          selected: selected,
+                          selectedColor: Colors.white,
+                          backgroundColor: Colors.white10,
+                          showCheckmark: false,
+                          onSelected: (_) =>
+                              TowerPlayerController
+                                      .globalSubtitleEdgeStyle
+                                      .value =
+                                  styleOpt,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              Center(
+                child: TextButton.icon(
+                  onPressed: () =>
+                      TowerPlayerController.resetSubtitleStyleToDefault(),
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 16,
+                    color: Colors.white70,
+                  ),
+                  label: const Text(
+                    'Reset to Industry Defaults',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        title,
+        style: TS.bodySm.copyWith(
+          fontWeight: FontWeight.w600,
+          color: Colors.white70,
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorOption extends StatelessWidget {
+  const _ColorOption({
+    required this.color,
+    required this.label,
+    required this.current,
+    required this.onTap,
+  });
+
+  final Color color;
+  final String label;
+  final Color current;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = current.value == color.value;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? Colors.white : Colors.white24,
+                width: isSelected ? 2.5 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        blurRadius: 6,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: isSelected
+                ? Icon(
+                    Icons.check,
+                    size: 13,
+                    color:
+                        color == Colors.white ||
+                            color == const Color(0xFFFFEB3B) ||
+                            color == const Color(0xFF76FF03) ||
+                            color == const Color(0xFF00E5FF)
+                        ? Colors.black
+                        : Colors.white,
+                  )
+                : null,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isSelected ? Colors.white : Colors.white60,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BgOption extends StatelessWidget {
+  const _BgOption({
+    required this.label,
+    required this.color,
+    required this.opacity,
+    required this.curColor,
+    required this.curOpacity,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final double opacity;
+  final Color curColor;
+  final double curOpacity;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected =
+        curColor.value == color.value && (curOpacity - opacity).abs() < 0.05;
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: isSelected ? Colors.black : Colors.white,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: Colors.white,
+      backgroundColor: Colors.white10,
+      showCheckmark: false,
+      onSelected: (_) => onTap(),
     );
   }
 }
@@ -690,10 +1471,14 @@ class RatingPanel extends StatelessWidget {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.textPrimary.withValues(alpha: 0.06),
+                                  color: AppColors.textPrimary.withValues(
+                                    alpha: 0.06,
+                                  ),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: AppColors.textPrimary.withValues(alpha: 0.12),
+                                    color: AppColors.textPrimary.withValues(
+                                      alpha: 0.12,
+                                    ),
                                   ),
                                 ),
                                 child: Text(
@@ -727,10 +1512,14 @@ class RatingPanel extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: AppColors.textPrimary.withValues(alpha: 0.05),
+                                color: AppColors.textPrimary.withValues(
+                                  alpha: 0.05,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: AppColors.textPrimary.withValues(alpha: 0.1),
+                                  color: AppColors.textPrimary.withValues(
+                                    alpha: 0.1,
+                                  ),
                                 ),
                               ),
                               child: Row(
@@ -816,12 +1605,22 @@ class RatingPanel extends StatelessWidget {
 
 class PanelHeader extends StatelessWidget {
   const PanelHeader({
-    required this.title, required this.onBack, required this.onClose, this.onContinue, super.key,
+    required this.title,
+    required this.onBack,
+    required this.onClose,
+    this.onContinue,
+    this.continueLabel = 'Continue',
+    this.actionIcon,
+    this.onAction,
+    super.key,
   });
   final String title;
   final VoidCallback? onBack;
   final VoidCallback? onClose;
   final VoidCallback? onContinue;
+  final String continueLabel;
+  final IconData? actionIcon;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -834,6 +1633,10 @@ class PanelHeader extends StatelessWidget {
           else
             const SizedBox(width: 8),
           Expanded(child: Text(title, style: TS.title)),
+          if (onAction != null && actionIcon != null) ...[
+            IconBtn(icon: actionIcon!, onTap: onAction, size: 20),
+            const SizedBox(width: 4),
+          ],
           if (onContinue != null) ...[
             TextButton(
               onPressed: onContinue,
@@ -842,9 +1645,9 @@ class PanelHeader extends StatelessWidget {
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text(
-                'Continue',
-                style: TextStyle(
+              child: Text(
+                continueLabel,
+                style: const TextStyle(
                   color: PT.primary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -863,7 +1666,11 @@ class PanelHeader extends StatelessWidget {
 
 class SettingsTile extends StatelessWidget {
   const SettingsTile({
-    required this.icon, required this.title, required this.value, required this.onTap, super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onTap,
+    super.key,
     this.badge,
   });
   final IconData icon;
@@ -905,7 +1712,11 @@ class SettingsTile extends StatelessWidget {
               ],
               Text(value, style: TS.bodySm),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 18),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textDisabled,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -916,7 +1727,11 @@ class SettingsTile extends StatelessWidget {
 
 class ToggleTile extends StatelessWidget {
   const ToggleTile({
-    required this.icon, required this.title, required this.value, required this.onChanged, super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    super.key,
   });
   final IconData icon;
   final String title;
@@ -950,7 +1765,9 @@ class ToggleTile extends StatelessWidget {
 
 class SelectTile extends StatelessWidget {
   const SelectTile({
-    required this.label, required this.selected, super.key,
+    required this.label,
+    required this.selected,
+    super.key,
     this.sublabel,
     this.badge,
     this.dimmed = false,
@@ -1023,7 +1840,9 @@ class SelectTile extends StatelessWidget {
                       Text(
                         sublabel!,
                         style: TS.bodySm.copyWith(
-                          color: dimmed ? AppColors.bgDivider : AppColors.textTertiary,
+                          color: dimmed
+                              ? AppColors.bgDivider
+                              : AppColors.textTertiary,
                           fontSize: 11,
                         ),
                       ),
@@ -1088,7 +1907,11 @@ class ConfigureLanguagesButton extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 18),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textDisabled,
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -1120,7 +1943,9 @@ class MobileSettingsBottomSheet extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Material(
-          color: const Color(0xFF1E1E1E), // Premium dark theme matching screenshot
+          color: const Color(
+            0xFF1E1E1E,
+          ), // Premium dark theme matching screenshot
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           child: ConstrainedBox(
@@ -1139,11 +1964,18 @@ class MobileSettingsBottomSheet extends StatelessWidget {
                     height: 450,
                     child: SubtitlesPanel(ctrl: ctrl),
                   );
+                case 'subtitle_style':
+                  content = SizedBox(
+                    height: 500,
+                    child: SubtitleStylePanel(ctrl: ctrl),
+                  );
                 case 'language':
                   content = SizedBox(
                     height: 450,
                     child: LanguagePanel(ctrl: ctrl),
                   );
+                case 'zoom':
+                  content = ZoomPanel(ctrl: ctrl);
                 case 'more':
                   content = MorePanel(ctrl: ctrl);
                 case 'sleep_timer':
@@ -1191,8 +2023,8 @@ class MobileMainSettingsMenu extends StatelessWidget {
             () => MobileSettingsTile(
               icon: Icons.tune_rounded,
               title: 'Quality',
-              value: ctrl.abr.isAutoMode.value 
-                  ? 'Auto (${ctrl.currentQualityLabel})' 
+              value: ctrl.abr.isAutoMode.value
+                  ? 'Auto (${ctrl.currentQualityLabel})'
                   : ctrl.currentQualityLabel,
               onTap: () => ctrl.activePanel.value = 'quality',
             ),
@@ -1225,6 +2057,14 @@ class MobileMainSettingsMenu extends StatelessWidget {
               onTap: () => ctrl.activePanel.value = 'language',
             ),
           ),
+          Obx(
+            () => MobileSettingsTile(
+              icon: Icons.zoom_in_rounded,
+              title: 'Zoom',
+              value: ctrl.zoomLabel,
+              onTap: () => ctrl.activePanel.value = 'zoom',
+            ),
+          ),
           MobileSettingsTile(
             icon: Icons.settings_outlined,
             title: 'More',
@@ -1240,7 +2080,11 @@ class MobileMainSettingsMenu extends StatelessWidget {
 
 class MobileSettingsTile extends StatelessWidget {
   const MobileSettingsTile({
-    required this.icon, required this.title, required this.value, required this.onTap, super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onTap,
+    super.key,
   });
   final IconData icon;
   final String title;
@@ -1292,7 +2136,11 @@ class MobileSettingsTile extends StatelessWidget {
 
 class MobileToggleTile extends StatelessWidget {
   const MobileToggleTile({
-    required this.icon, required this.title, required this.value, required this.onChanged, super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    super.key,
   });
   final IconData icon;
   final String title;
@@ -1352,87 +2200,100 @@ class MorePanel extends StatelessWidget {
           onClose: null,
         ),
         const PlayerDivider(),
-        Obx(
-          () => MobileToggleTile(
-            icon: Icons.repeat_rounded,
-            title: 'Loop video',
-            value: ctrl.isLooping.value,
-            onChanged: (v) => ctrl.toggleLoop(),
+        Flexible(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Obx(
+                  () => MobileToggleTile(
+                    icon: Icons.repeat_rounded,
+                    title: 'Loop video',
+                    value: ctrl.isLooping.value,
+                    onChanged: (v) => ctrl.toggleLoop(),
+                  ),
+                ),
+                Obx(
+                  () => MobileToggleTile(
+                    icon: Icons.music_note_rounded,
+                    title: 'Audio Only Mode',
+                    value: ctrl.isAudioOnly.value,
+                    onChanged: (v) => ctrl.toggleAudioOnly(),
+                  ),
+                ),
+                Obx(
+                  () => MobileToggleTile(
+                    icon: Icons.playlist_play_rounded,
+                    title: 'Autoplay Next',
+                    value: ctrl.isAutoplay.value,
+                    onChanged: (v) => ctrl.toggleAutoplay(),
+                  ),
+                ),
+                Obx(
+                  () => MobileToggleTile(
+                    icon: Icons.analytics_outlined,
+                    title: 'Stats for Nerds',
+                    value: ctrl.showStatsForNerds.value,
+                    onChanged: (v) => ctrl.showStatsForNerds.toggle(),
+                  ),
+                ),
+                Obx(
+                  () => MobileToggleTile(
+                    icon: Icons.view_sidebar_rounded,
+                    title: 'Fullscreen Action Bar',
+                    value: ctrl.showFullscreenActionsDock.value,
+                    onChanged: (v) => ctrl.showFullscreenActionsDock.toggle(),
+                  ),
+                ),
+                Obx(
+                  () => MobileToggleTile(
+                    icon: Icons.aspect_ratio_rounded,
+                    title: 'Zoom to Fill',
+                    value: ctrl.isZoomToFill.value,
+                    onChanged: (v) => ctrl.toggleZoomToFill(),
+                  ),
+                ),
+                Obx(
+                  () => MobileSettingsTile(
+                    icon: Icons.lock_outline_rounded,
+                    title: 'Lock screen',
+                    value: ctrl.lockController.isLocked.value
+                        ? 'Locked'
+                        : 'Off',
+                    onTap: () {
+                      ctrl.closeSettings();
+                      ctrl.lockController.lock();
+                    },
+                  ),
+                ),
+                Obx(() {
+                  final isActive = ctrl.isSleepTimerActive.value;
+                  final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
+                  final rem = ctrl.sleepTimerRemainingSeconds.value;
+                  var valueText = 'Off';
+                  if (isActive) {
+                    if (isAtEnd) {
+                      valueText = 'End of video';
+                    } else {
+                      final mins = rem ~/ 60;
+                      final secs = rem % 60;
+                      valueText =
+                          '$mins:${secs.toString().padLeft(2, '0')} left';
+                    }
+                  }
+                  return MobileSettingsTile(
+                    icon: Icons.nights_stay_rounded,
+                    title: 'Sleep timer',
+                    value: valueText,
+                    onTap: () => ctrl.activePanel.value = 'sleep_timer',
+                  );
+                }),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
-        Obx(
-          () => MobileToggleTile(
-            icon: Icons.music_note_rounded,
-            title: 'Audio Only Mode',
-            value: ctrl.isAudioOnly.value,
-            onChanged: (v) => ctrl.toggleAudioOnly(),
-          ),
-        ),
-        Obx(
-          () => MobileToggleTile(
-            icon: Icons.playlist_play_rounded,
-            title: 'Autoplay Next',
-            value: ctrl.isAutoplay.value,
-            onChanged: (v) => ctrl.toggleAutoplay(),
-          ),
-        ),
-        Obx(
-          () => MobileToggleTile(
-            icon: Icons.analytics_outlined,
-            title: 'Stats for Nerds',
-            value: ctrl.showStatsForNerds.value,
-            onChanged: (v) => ctrl.showStatsForNerds.toggle(),
-          ),
-        ),
-        Obx(
-          () => MobileToggleTile(
-            icon: Icons.view_sidebar_rounded,
-            title: 'Fullscreen Action Bar',
-            value: ctrl.showFullscreenActionsDock.value,
-            onChanged: (v) => ctrl.showFullscreenActionsDock.toggle(),
-          ),
-        ),
-        Obx(
-          () => MobileToggleTile(
-            icon: Icons.aspect_ratio_rounded,
-            title: 'Zoom to Fill',
-            value: ctrl.isZoomToFill.value,
-            onChanged: (v) => ctrl.toggleZoomToFill(),
-          ),
-        ),
-        Obx(
-          () => MobileSettingsTile(
-            icon: Icons.lock_outline_rounded,
-            title: 'Lock screen',
-            value: ctrl.lockController.isLocked.value ? 'Locked' : 'Off',
-            onTap: () {
-              ctrl.closeSettings();
-              ctrl.lockController.lock();
-            },
-          ),
-        ),
-        Obx(() {
-          final isActive = ctrl.isSleepTimerActive.value;
-          final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
-          final rem = ctrl.sleepTimerRemainingSeconds.value;
-          var valueText = 'Off';
-          if (isActive) {
-            if (isAtEnd) {
-              valueText = 'End of video';
-            } else {
-              final mins = rem ~/ 60;
-              final secs = rem % 60;
-              valueText = '$mins:${secs.toString().padLeft(2, '0')} left';
-            }
-          }
-          return MobileSettingsTile(
-            icon: Icons.nights_stay_rounded,
-            title: 'Sleep timer',
-            value: valueText,
-            onTap: () => ctrl.activePanel.value = 'sleep_timer',
-          );
-        }),
-        const SizedBox(height: 8),
       ],
     );
   }
@@ -1446,7 +2307,13 @@ class SleepTimerPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final options = [
       ('Off', const Duration()),
-      ('End of video', Duration(seconds: (ctrl.activePlayback.duration - ctrl.activePlayback.position).inSeconds)),
+      (
+        'End of video',
+        Duration(
+          seconds: (ctrl.activePlayback.duration - ctrl.activePlayback.position)
+              .inSeconds,
+        ),
+      ),
       ('10 minutes', const Duration(minutes: 10)),
       ('15 minutes', const Duration(minutes: 15)),
       ('20 minutes', const Duration(minutes: 20)),
@@ -1464,70 +2331,92 @@ class SleepTimerPanel extends StatelessWidget {
           onClose: null,
         ),
         const PlayerDivider(),
-        Obx(() {
-          final isActive = ctrl.isSleepTimerActive.value;
-          final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
-          final rem = ctrl.sleepTimerRemainingSeconds.value;
+        Flexible(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Obx(() {
+              final isActive = ctrl.isSleepTimerActive.value;
+              final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
+              final rem = ctrl.sleepTimerRemainingSeconds.value;
 
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isActive && !isAtEnd)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Time remaining: ${rem ~/ 60}:${(rem % 60).toString().padLeft(2, '0')}',
-                        style: TS.bodySm.copyWith(color: AppColors.brand),
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isActive && !isAtEnd)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.brand,
-                          side: const BorderSide(color: AppColors.brand),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        ),
-                        onPressed: () => ctrl.extendSleepTimer(const Duration(minutes: 5)),
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('+5 min', style: TextStyle(fontSize: 12)),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Time remaining: ${rem ~/ 60}:${(rem % 60).toString().padLeft(2, '0')}',
+                            style: TS.bodySm.copyWith(color: AppColors.brand),
+                          ),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.brand,
+                              side: const BorderSide(color: AppColors.brand),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                            ),
+                            onPressed: () => ctrl.extendSleepTimer(
+                              const Duration(minutes: 5),
+                            ),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text(
+                              '+5 min',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ...options.map((opt) {
-                final label = opt.$1;
-                final duration = opt.$2;
+                    ),
+                  ...options.map((opt) {
+                    final label = opt.$1;
+                    final duration = opt.$2;
 
-                var isSelected = false;
-                if (label == 'Off') {
-                  isSelected = !isActive;
-                } else if (isActive) {
-                  if (label == 'End of video') {
-                    isSelected = isAtEnd;
-                  } else if (!isAtEnd) {
-                    final diff = (ctrl.sleepTimerRemainingSeconds.value - duration.inSeconds).abs();
-                    isSelected = diff < 15;
-                  }
-                }
-
-                return SelectTile(
-                  label: label,
-                  selected: isSelected,
-                  onTap: () {
+                    var isSelected = false;
                     if (label == 'Off') {
-                      ctrl.cancelSleepTimer();
-                    } else {
-                      ctrl.setSleepTimer(duration, isEndOfVideo: label == 'End of video');
+                      isSelected = !isActive;
+                    } else if (isActive) {
+                      if (label == 'End of video') {
+                        isSelected = isAtEnd;
+                      } else if (!isAtEnd) {
+                        final diff =
+                            (ctrl.sleepTimerRemainingSeconds.value -
+                                    duration.inSeconds)
+                                .abs();
+                        isSelected = diff < 15;
+                      }
                     }
-                    ctrl.activePanel.value = 'more';
-                  },
-                );
-              }),
-            ],
-          );
-        }),
-        const SizedBox(height: 8),
+
+                    return SelectTile(
+                      label: label,
+                      selected: isSelected,
+                      onTap: () {
+                        if (label == 'Off') {
+                          ctrl.cancelSleepTimer();
+                        } else {
+                          ctrl.setSleepTimer(
+                            duration,
+                            isEndOfVideo: label == 'End of video',
+                          );
+                        }
+                        ctrl.activePanel.value = 'more';
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+              );
+            }),
+          ),
+        ),
       ],
     );
   }

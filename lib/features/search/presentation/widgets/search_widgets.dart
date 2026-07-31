@@ -2,8 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
-import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as ctrl;
+import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
+    as ctrl;
 import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// GetX Controller to manage state for SubscribeButton
@@ -34,9 +37,9 @@ class SubscribeButton extends StatelessWidget {
           final nextState = controller.isSubscribed.value;
           Get.snackbar(
             nextState ? 'Subscribed' : 'Unsubscribed',
-            nextState 
-              ? 'Added $channelName to subscriptions.' 
-              : 'Removed $channelName from subscriptions.',
+            nextState
+                ? 'Added $channelName to subscriptions.'
+                : 'Removed $channelName from subscriptions.',
             snackPosition: SnackPosition.BOTTOM,
             backgroundColor: colors.textPrimary.withValues(alpha: 0.9),
             colorText: colors.background,
@@ -47,7 +50,9 @@ class SubscribeButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isSubscribed ? colors.textPrimary.withValues(alpha: 0.1) : colors.textPrimary,
+            color: isSubscribed
+                ? colors.textPrimary.withValues(alpha: 0.1)
+                : colors.textPrimary,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Text(
@@ -91,9 +96,9 @@ class FollowButton extends StatelessWidget {
           final nextState = controller.isFollowing.value;
           Get.snackbar(
             nextState ? 'Following' : 'Unfollowed',
-            nextState 
-              ? 'Now following the $topicTitle topic.' 
-              : 'Unfollowed $topicTitle topic.',
+            nextState
+                ? 'Now following the $topicTitle topic.'
+                : 'Unfollowed $topicTitle topic.',
             snackPosition: SnackPosition.BOTTOM,
             backgroundColor: colors.textPrimary.withValues(alpha: 0.9),
             colorText: colors.background,
@@ -104,7 +109,9 @@ class FollowButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isFollowing ? colors.textPrimary.withValues(alpha: 0.1) : colors.brand,
+            color: isFollowing
+                ? colors.textPrimary.withValues(alpha: 0.1)
+                : colors.brand,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Text(
@@ -122,7 +129,6 @@ class FollowButton extends StatelessWidget {
 
 /// Reusable search result card widget
 class SearchResultCard extends StatelessWidget {
-
   const SearchResultCard({required this.result, super.key, this.onTap});
   final SearchResult result;
   final VoidCallback? onTap;
@@ -149,12 +155,13 @@ class SearchResultCard extends StatelessWidget {
       final m = (seconds % 3600) ~/ 60;
       final s = seconds % 60;
       if (h > 0) {
-        durationStr = '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+        durationStr =
+            '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
       } else {
         durationStr = '$m:${s.toString().padLeft(2, '0')}';
       }
     }
-    
+
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -176,10 +183,17 @@ class SearchResultCard extends StatelessWidget {
                           ? CachedNetworkImage(
                               imageUrl: result.thumbnail,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                              errorWidget: (context, url, error) => const Icon(Icons.play_circle_outline, color: AppColors.textTertiary),
+                              placeholder: (context, url) =>
+                                  Container(color: AppColors.bgDivider),
+                              errorWidget: (context, url, error) => const Icon(
+                                Icons.play_circle_outline,
+                                color: AppColors.textTertiary,
+                              ),
                             )
-                          : const Icon(Icons.play_circle_outline, color: AppColors.textTertiary),
+                          : const Icon(
+                              Icons.play_circle_outline,
+                              color: AppColors.textTertiary,
+                            ),
                     ),
                   ),
                 ),
@@ -188,14 +202,21 @@ class SearchResultCard extends StatelessWidget {
                     bottom: 6,
                     right: 6,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.bgPage.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         durationStr,
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -221,7 +242,10 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${_formatViews(result.views)} views • ${_formatRelativeTime(result.createdAt.toDate())}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   // Channel row
@@ -235,19 +259,31 @@ class SearchResultCard extends StatelessWidget {
                             width: 20,
                             height: 20,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                            errorWidget: (context, url, error) => const Icon(Icons.account_circle, size: 20, color: AppColors.textTertiary),
+                            placeholder: (context, url) =>
+                                Container(color: AppColors.bgDivider),
+                            errorWidget: (context, url, error) => const Icon(
+                              Icons.account_circle,
+                              size: 20,
+                              color: AppColors.textTertiary,
+                            ),
                           ),
                         )
                       else
-                        const Icon(Icons.account_circle, size: 20, color: AppColors.textTertiary),
+                        const Icon(
+                          Icons.account_circle,
+                          size: 20,
+                          color: AppColors.textTertiary,
+                        ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           result.channelName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -257,14 +293,21 @@ class SearchResultCard extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.bgDivider,
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: const Text(
                           '4K',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -273,7 +316,10 @@ class SearchResultCard extends StatelessWidget {
                           'Watch in high quality truth stream.',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                          style: TextStyle(
+                            color: AppColors.textTertiary,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ],
@@ -304,10 +350,19 @@ class SearchResultCard extends StatelessWidget {
                     ? CachedNetworkImage(
                         imageUrl: result.thumbnail,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                        errorWidget: (context, url, error) => const Icon(Icons.account_circle, size: 40, color: AppColors.textTertiary),
+                        placeholder: (context, url) =>
+                            Container(color: AppColors.bgDivider),
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.account_circle,
+                          size: 40,
+                          color: AppColors.textTertiary,
+                        ),
                       )
-                    : const Icon(Icons.account_circle, size: 40, color: AppColors.textTertiary),
+                    : const Icon(
+                        Icons.account_circle,
+                        size: 40,
+                        color: AppColors.textTertiary,
+                      ),
               ),
             ),
             const SizedBox(width: 16),
@@ -329,14 +384,20 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${result.channelName} • ${_formatViews(result.views)} subscribers',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'Official channel. Explore and join.',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                    style: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -372,10 +433,17 @@ class SearchResultCard extends StatelessWidget {
                           ? CachedNetworkImage(
                               imageUrl: result.thumbnail,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                              errorWidget: (context, url, error) => const Icon(Icons.playlist_play, color: AppColors.textTertiary),
+                              placeholder: (context, url) =>
+                                  Container(color: AppColors.bgDivider),
+                              errorWidget: (context, url, error) => const Icon(
+                                Icons.playlist_play,
+                                color: AppColors.textTertiary,
+                              ),
                             )
-                          : const Icon(Icons.playlist_play, color: AppColors.textTertiary),
+                          : const Icon(
+                              Icons.playlist_play,
+                              color: AppColors.textTertiary,
+                            ),
                     ),
                   ),
                 ),
@@ -395,7 +463,10 @@ class SearchResultCard extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.playlist_play, color: AppColors.textPrimary),
+                        const Icon(
+                          Icons.playlist_play,
+                          color: AppColors.textPrimary,
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           '${result.views}', // acts as video count
@@ -430,7 +501,10 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Playlist • ${result.channelName}',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -475,7 +549,11 @@ class SearchResultCard extends StatelessWidget {
                                 CachedNetworkImage(
                                   imageUrl: result.thumbnail,
                                   fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) => const Icon(Icons.topic, color: AppColors.textTertiary),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(
+                                        Icons.topic,
+                                        color: AppColors.textTertiary,
+                                      ),
                                 ),
                                 Container(
                                   color: Colors.black.withValues(alpha: 0.65),
@@ -483,12 +561,20 @@ class SearchResultCard extends StatelessWidget {
                                 CachedNetworkImage(
                                   imageUrl: result.thumbnail,
                                   fit: BoxFit.contain,
-                                  placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                                  errorWidget: (context, url, error) => const Icon(Icons.topic, color: AppColors.textTertiary),
+                                  placeholder: (context, url) =>
+                                      Container(color: AppColors.bgDivider),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(
+                                        Icons.topic,
+                                        color: AppColors.textTertiary,
+                                      ),
                                 ),
                               ],
                             )
-                          : const Icon(Icons.topic, color: AppColors.textTertiary),
+                          : const Icon(
+                              Icons.topic,
+                              color: AppColors.textTertiary,
+                            ),
                     ),
                   ),
                 ),
@@ -496,14 +582,21 @@ class SearchResultCard extends StatelessWidget {
                   top: 6,
                   left: 6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF9B30FF),
+                      color: AppColors.brand,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
                       'TOPIC',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 8, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -528,12 +621,18 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     result.channelName, // Display slug/handle
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '${_formatViews(result.views)} videos available',
-                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                    style: const TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -580,9 +679,11 @@ class SearchResultCard extends StatelessWidget {
 
 /// Custom autocomplete suggestion tile
 class SearchSuggestionTile extends StatelessWidget {
-
   const SearchSuggestionTile({
-    required this.suggestion, required this.onTap, required this.onCopy, super.key,
+    required this.suggestion,
+    required this.onTap,
+    required this.onCopy,
+    super.key,
   });
   final ctrl.SearchSuggestion suggestion;
   final VoidCallback onTap;
@@ -631,14 +732,21 @@ class SearchSuggestionTile extends StatelessWidget {
             ),
             if (suggestion.imageUrl != null && suggestion.imageUrl!.isNotEmpty)
               ClipRRect(
-                borderRadius: BorderRadius.circular(suggestion.isRoundImage ? 20 : 4),
+                borderRadius: BorderRadius.circular(
+                  suggestion.isRoundImage ? 20 : 4,
+                ),
                 child: CachedNetworkImage(
                   imageUrl: suggestion.imageUrl!,
                   width: 40,
                   height: suggestion.isRoundImage ? 40 : 25,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                  errorWidget: (context, url, error) => const Icon(Icons.image, size: 20, color: AppColors.textDisabled),
+                  placeholder: (context, url) =>
+                      Container(color: AppColors.bgDivider),
+                  errorWidget: (context, url, error) => const Icon(
+                    Icons.image,
+                    size: 20,
+                    color: AppColors.textDisabled,
+                  ),
                 ),
               )
             else
@@ -661,7 +769,6 @@ class SearchSuggestionTile extends StatelessWidget {
 
 /// Empty state widget for no search results
 class EmptySearchState extends StatelessWidget {
-
   const EmptySearchState({required this.query, super.key, this.onClearSearch});
   final String query;
   final VoidCallback? onClearSearch;
@@ -672,14 +779,25 @@ class EmptySearchState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.search_off, size: 64, color: AppColors.textSecondary),
+          const Icon(
+            Icons.search_off,
+            size: 64,
+            color: AppColors.textSecondary,
+          ),
           const SizedBox(height: 16),
           Text(
             'No results for "$query"',
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
-          const Text('Try different keywords', style: TextStyle(color: AppColors.textSecondary)),
+          const Text(
+            'Try different keywords',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
           const SizedBox(height: 16),
           if (onClearSearch != null)
             ElevatedButton(
@@ -687,7 +805,9 @@ class EmptySearchState extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.bgDivider,
                 foregroundColor: AppColors.textPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
               child: const Text('Clear Search'),
             ),
@@ -699,7 +819,6 @@ class EmptySearchState extends StatelessWidget {
 
 /// Loading skeleton for search results
 class SearchResultSkeleton extends StatelessWidget {
-
   const SearchResultSkeleton({super.key, this.count = 5});
   final int count;
 
@@ -755,9 +874,11 @@ class SearchResultSkeleton extends StatelessWidget {
 
 /// Recent searches list widget
 class RecentSearchesList extends StatelessWidget {
-
   const RecentSearchesList({
-    required this.recentSearches, required this.onSearchSelected, required this.onClearAll, super.key,
+    required this.recentSearches,
+    required this.onSearchSelected,
+    required this.onClearAll,
+    super.key,
   });
   final List<String> recentSearches;
   final Function(String) onSearchSelected;
@@ -779,11 +900,21 @@ class RecentSearchesList extends StatelessWidget {
             children: [
               const Text(
                 'Recent Searches',
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               TextButton(
                 onPressed: onClearAll,
-                child: const Text('Clear All', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                child: const Text(
+                  'Clear All',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ],
           ),
@@ -796,9 +927,14 @@ class RecentSearchesList extends StatelessWidget {
                 (search) => InkWell(
                   onTap: () => onSearchSelected(search),
                   child: Chip(
-                    label: Text(search, style: const TextStyle(color: AppColors.textPrimary)),
+                    label: Text(
+                      search,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                    ),
                     backgroundColor: AppColors.bgDivider,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 ),
               )
@@ -811,9 +947,12 @@ class RecentSearchesList extends StatelessWidget {
 
 /// Search bar widget matching Category Page simple text field design
 class SearchBar extends StatefulWidget {
-
   const SearchBar({
-    required this.controller, required this.onChanged, required this.onClear, required this.onSearchSubmitted, super.key,
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+    required this.onSearchSubmitted,
+    super.key,
     this.hintText = 'Search videos, channels, topics...',
     this.isLoading = false,
   });
@@ -861,93 +1000,125 @@ class _SearchBarState extends State<SearchBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Obx(() => Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isFocused.value ? AppColors.brand : AppColors.bgSurfaceContainerHighest,
-        ),
-      ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: _focusNode,
-        onChanged: widget.onChanged,
-        onSubmitted: (_) => widget.onSearchSubmitted(),
-        autofocus: true,
-        textInputAction: TextInputAction.search,
-        style: TextStyle(
-          color: theme.colorScheme.onSurface,
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-        ),
-        cursorColor: AppColors.brand,
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          hintStyle: TextStyle(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontSize: 14,
+    return Obx(
+      () => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isFocused.value
+                ? AppColors.brand
+                : AppColors.bgSurfaceContainerHighest,
           ),
-          prefixIcon: widget.isLoading
-              ? Container(
-                  width: 20,
-                  height: 20,
-                  margin: const EdgeInsets.all(12),
-                  child: const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.brand,
+        ),
+        child: TextField(
+          controller: widget.controller,
+          focusNode: _focusNode,
+          onChanged: widget.onChanged,
+          onSubmitted: (_) => widget.onSearchSubmitted(),
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+          cursorColor: AppColors.brand,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            hintStyle: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 14,
+            ),
+            prefixIcon: widget.isLoading
+                ? Container(
+                    width: 20,
+                    height: 20,
+                    margin: const EdgeInsets.all(12),
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.brand,
+                    ),
+                  )
+                : IconButton(
+                    icon: Icon(
+                      Icons.search_rounded,
+                      color: _isFocused.value
+                          ? AppColors.brand
+                          : theme.colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                    onPressed: widget.onSearchSubmitted,
                   ),
-                )
-              : IconButton(
-                  icon: Icon(
-                    Icons.search_rounded,
-                    color: _isFocused.value ? AppColors.brand : theme.colorScheme.onSurfaceVariant,
-                    size: 20,
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 🪙 FLIP PERSPECTIVE QUERY BUTTON
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: FlipCoinWidget(
+                    isFlipped: false,
+                    size: 26,
+                    tooltip: 'Flip search query to opposite perspective',
+                    onTap: () {
+                      final flipService = Get.isRegistered<FlipCoinService>()
+                          ? Get.find<FlipCoinService>()
+                          : Get.put(FlipCoinService());
+                      final currentQuery = widget.controller.text;
+                      if (currentQuery.isNotEmpty) {
+                        final flipped = flipService.flipSearchQuery(
+                          currentQuery,
+                        );
+                        widget.controller.text = flipped;
+                        widget.onChanged(flipped);
+                        widget.onSearchSubmitted();
+                      }
+                    },
                   ),
-                  onPressed: widget.onSearchSubmitted,
                 ),
-          suffixIcon: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_textLength.value > 0)
+                if (_textLength.value > 0)
+                  IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      widget.controller.clear();
+                      _textLength.value = 0;
+                      widget.onClear();
+                    },
+                  ),
                 IconButton(
                   icon: Icon(
-                    Icons.clear_rounded,
+                    Icons.mic_rounded,
                     color: theme.colorScheme.onSurfaceVariant,
-                    size: 18,
+                    size: 20,
                   ),
                   onPressed: () {
-                    widget.controller.clear();
-                    _textLength.value = 0;
-                    widget.onClear();
+                    Get.dialog(
+                      VoiceSearchDialog(
+                        onSearch: (query) {
+                          widget.controller.text = query;
+                          widget.onChanged(query);
+                          widget.onSearchSubmitted();
+                        },
+                      ),
+                      useSafeArea: false,
+                    );
                   },
                 ),
-              IconButton(
-                icon: Icon(
-                  Icons.mic_rounded,
-                  color: theme.colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
-                onPressed: () {
-                  Get.dialog(
-                    VoiceSearchDialog(
-                      onSearch: (query) {
-                        widget.controller.text = query;
-                        widget.onChanged(query);
-                        widget.onSearchSubmitted();
-                      },
-                    ),
-                    useSafeArea: false,
-                  );
-                },
-              ),
-            ],
+              ],
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
-    ));
+    );
   }
 }

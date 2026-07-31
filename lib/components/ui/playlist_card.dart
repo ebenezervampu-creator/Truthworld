@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -34,9 +35,14 @@ class PlaylistCard extends StatelessWidget {
         children: [
           // Stacked Thumbnail Architecture (100% matching 2nd image)
           InkWell(
-            onTap: onTap ?? () {
-              Get.toNamed('/playlist-detail', arguments: {'playlist': playlist});
-            },
+            onTap:
+                onTap ??
+                () {
+                  Get.toNamed(
+                    '/playlist-detail',
+                    arguments: {'playlist': playlist},
+                  );
+                },
             borderRadius: BorderRadius.circular(12),
             child: AspectRatio(
               aspectRatio: aspectRatio,
@@ -91,16 +97,17 @@ class PlaylistCard extends StatelessWidget {
                                 highlightColor: AppColors.bgSurfaceHover,
                                 child: Container(color: AppColors.bgSurface),
                               ),
-                              errorWidget: (context, url, error) => const ColoredBox(
-                                color: AppColors.bgSurface,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.playlist_play_rounded,
-                                    size: 40,
-                                    color: AppColors.brand,
+                              errorWidget: (context, url, error) =>
+                                  const ColoredBox(
+                                    color: AppColors.bgSurface,
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.playlist_play_rounded,
+                                        size: 40,
+                                        color: AppColors.brand,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
                             )
                           else
                             const ColoredBox(
@@ -153,7 +160,9 @@ class PlaylistCard extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    isPodcast ? 'Podcast' : '${playlist.videoCount} videos',
+                                    isPodcast
+                                        ? 'Podcast'
+                                        : '${playlist.videoCount} videos',
                                     style: GoogleFonts.roboto(
                                       color: Colors.white,
                                       fontSize: 11,
@@ -180,14 +189,19 @@ class PlaylistCard extends StatelessWidget {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: onTap ?? () {
-                    Get.toNamed('/playlist-detail', arguments: {'playlist': playlist});
-                  },
+                  onTap:
+                      onTap ??
+                      () {
+                        Get.toNamed(
+                          '/playlist-detail',
+                          arguments: {'playlist': playlist},
+                        );
+                      },
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        playlist.playlistName,
+                      ClickableUrlText(
+                        text: playlist.playlistName,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.roboto(
@@ -198,8 +212,8 @@ class PlaylistCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        playlist.description.isNotEmpty
+                      ClickableUrlText(
+                        text: playlist.description.isNotEmpty
                             ? playlist.description
                             : "${playlist.isPublic ? 'Public' : 'Private'} • Playlist",
                         maxLines: 1,
@@ -232,7 +246,3 @@ class PlaylistCard extends StatelessWidget {
     );
   }
 }
-
-
-
-

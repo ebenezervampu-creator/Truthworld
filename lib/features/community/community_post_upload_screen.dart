@@ -13,11 +13,10 @@ import 'package:truthworld/features/presentation/widgets/upload_shared_widgets.d
 import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
-// COMMUNITY POST UPLOAD SCREEN Ã¢â‚¬â€ 100% StatelessWidget + GetX
+// COMMUNITY POST UPLOAD SCREEN — 100% AppTheme, 100% AppFonts, Overflow Safe
 // =============================================================================
 
 class CommunityPostUploadScreen extends StatelessWidget {
-
   CommunityPostUploadScreen({super.key, this.draftToLoad}) {
     if (draftToLoad != null) {
       _c.loadDraft(draftToLoad!);
@@ -54,7 +53,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â DESKTOP LAYOUT Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  // ── DESKTOP LAYOUT ─────────────────────────────────────────────────────────
 
   Widget _buildDesktopLayout(BuildContext context) {
     return Row(
@@ -70,12 +69,23 @@ class CommunityPostUploadScreen extends StatelessWidget {
               ),
             ),
           ),
-          child: Column(
-            children: [
-              _buildSidebarHeader(context),
-              const Spacer(),
-              _buildBackButton(context),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      children: [
+                        _buildSidebarHeader(context),
+                        const Spacer(),
+                        _buildBackButton(context),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         // Main content
@@ -113,7 +123,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â MOBILE LAYOUT Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  // ── MOBILE LAYOUT ──────────────────────────────────────────────────────────
 
   Widget _buildMobileLayout(BuildContext context) {
     return Column(
@@ -156,7 +166,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â IMAGE GALLERY (1-10, any ratio) Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  // ── IMAGE GALLERY (1 Image, Any Ratio) ─────────────────────────────────────
 
   Widget _buildImageGallerySection(BuildContext context) {
     return _card(
@@ -167,8 +177,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       children: [
         Text(
           'Add 1 image, any aspect ratio. Max 20 MB.',
-          style: TextStyle(
-            
+          style: context.twTypography.caption.copyWith(
             fontSize: 12,
             color: context.colors.textSecondary,
           ),
@@ -194,8 +203,8 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             borderRadius: context.radius.lg,
                             border: Border.all(
-                              color: Colors.white,
-                              width: 2,
+                              color: context.colors.divider,
+                              width: 1.5,
                             ),
                           ),
                           child: _buildPickedImageWidget(images.first),
@@ -211,7 +220,9 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       return Positioned.fill(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: context.colors.background.withValues(alpha: 0.54),
+                            color: context.colors.background.withValues(
+                              alpha: 0.54,
+                            ),
                             borderRadius: context.radius.lg,
                           ),
                           child: Center(
@@ -240,10 +251,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
                             ),
                             borderRadius: context.radius.lg,
                           ),
-                          child: Center(
+                          child: const Center(
                             child: Icon(
                               Icons.error_outline_rounded,
-                              color: context.colors.error,
+                              color: AppColors.textPrimary,
                               size: 28,
                             ),
                           ),
@@ -259,7 +270,9 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: context.colors.background.withValues(alpha: 0.54),
+                            color: context.colors.background.withValues(
+                              alpha: 0.6,
+                            ),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -280,22 +293,23 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: context.colors.background.withValues(alpha: 0.54),
+                          color: context.colors.background.withValues(
+                            alpha: 0.6,
+                          ),
                           borderRadius: context.radius.sm,
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.edit_rounded,
                               color: AppColors.textPrimary,
                               size: 12,
                             ),
-                            SizedBox(width: 4),
+                            const SizedBox(width: 4),
                             Text(
                               'Tap to change',
-                              style: TextStyle(
-                                
+                              style: context.twTypography.caption.copyWith(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
                                 color: AppColors.textPrimary,
@@ -319,21 +333,20 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       borderRadius: context.radius.lg,
                       border: Border.all(
                         color: context.colors.divider,
-                        width: 2,
+                        width: 1.5,
                       ),
                     ),
                     child: Column(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.add_photo_alternate_rounded,
                           size: 36,
-                          color: context.colors.textSecondary,
+                          color: AppColors.textPrimary,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         Text(
                           'JPEG, PNG, GIF • Any aspect ratio',
-                          style: TextStyle(
-                            
+                          style: context.twTypography.caption.copyWith(
                             fontSize: 12,
                             color: context.colors.textSecondary,
                           ),
@@ -361,8 +374,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           SwitchListTile.adaptive(
             title: Text(
               'Add a poll',
-              style: TextStyle(
-                
+              style: context.twTypography.title.copyWith(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: context.colors.textPrimary,
@@ -370,8 +382,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             ),
             subtitle: Text(
               'Let your community vote',
-              style: TextStyle(
-                
+              style: context.twTypography.caption.copyWith(
                 fontSize: 12,
                 color: context.colors.textSecondary,
               ),
@@ -427,8 +438,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             if (_c.pollType.value == PollType.multiChoice) ...[
               Text(
                 'Options (3–5)',
-                style: TextStyle(
-                  
+                style: context.twTypography.label.copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: context.colors.textSecondary,
@@ -444,14 +454,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
-                          color: context.colors.textSecondary.withValues(alpha: 0.1),
+                          color: context.colors.surfaceContainer,
                           borderRadius: context.radius.sm,
                         ),
                         child: Center(
                           child: Text(
                             '${i + 1}',
-                            style: TextStyle(
-                              
+                            style: context.twTypography.label.copyWith(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: context.colors.textSecondary,
@@ -464,16 +473,16 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         child: TextFormField(
                           initialValue: _c.pollOptions[i],
                           onChanged: (v) => _c.updatePollOption(i, v),
-                          style: TextStyle(
-                            
+                          style: context.twTypography.body.copyWith(
                             fontSize: 14,
                             color: context.colors.textPrimary,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Option ${i + 1}',
-                            hintStyle: TextStyle(
-                              
-                              color: context.colors.textSecondary.withValues(alpha: 0.5),
+                            hintStyle: context.twTypography.body.copyWith(
+                              color: context.colors.textSecondary.withValues(
+                                alpha: 0.5,
+                              ),
                               fontSize: 14,
                             ),
                             filled: true,
@@ -507,9 +516,9 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       ),
                       if (_c.pollOptions.length > 3)
                         IconButton(
-                          icon: Icon(
+                          icon: const Icon(
                             Icons.close_rounded,
-                            color: context.colors.textSecondary,
+                            color: AppColors.textPrimary,
                           ),
                           onPressed: () => _c.removePollOption(i),
                         ),
@@ -520,14 +529,16 @@ class CommunityPostUploadScreen extends StatelessWidget {
               if (_c.pollOptions.length < 5)
                 TextButton.icon(
                   onPressed: _c.addPollOption,
-                  icon: Icon(Icons.add_rounded, color: context.colors.textSecondary),
+                  icon: const Icon(
+                    Icons.add_rounded,
+                    color: AppColors.textPrimary,
+                  ),
                   label: Text(
                     'Add Option',
-                    style: TextStyle(
-                      
+                    style: context.twTypography.button.copyWith(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: context.colors.textSecondary,
+                      color: context.colors.brand,
                     ),
                   ),
                 ),
@@ -563,16 +574,15 @@ class CommunityPostUploadScreen extends StatelessWidget {
             // Poll duration
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.timer_outlined,
                   size: 16,
-                  color: context.colors.textSecondary,
+                  color: AppColors.textPrimary,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   'Poll Duration',
-                  style: TextStyle(
-                    
+                  style: context.twTypography.label.copyWith(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: context.colors.textSecondary,
@@ -583,13 +593,17 @@ class CommunityPostUploadScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [null, 1, 3, 7].map((days) {
                 final isSelected = _c.pollDurationDays.value == days;
                 return InkWell(
                   onTap: () => _c.pollDurationDays.value = days,
                   borderRadius: context.radius.lg,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? context.colors.brand.withValues(alpha: 0.15)
@@ -608,8 +622,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           : days == 1
                           ? '1 day'
                           : '$days days',
-                      style: TextStyle(
-                        
+                      style: context.twTypography.label.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: isSelected
@@ -640,10 +653,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
           onTap: () => _c.setPollType(type),
           borderRadius: context.radius.lg,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
               color: isSelected
-                  ? context.colors.brand.withValues(alpha: 0.12)
+                  ? context.colors.brand.withValues(alpha: 0.15)
                   : context.colors.surface,
               borderRadius: context.radius.lg,
               border: Border.all(
@@ -659,20 +672,20 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Icon(
                   icon,
                   size: 18,
-                  color: isSelected
-                      ? context.colors.brand
-                      : context.colors.textSecondary,
+                  color: AppColors.textPrimary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected
-                        ? context.colors.brand
-                        : context.colors.textSecondary,
+                Flexible(
+                  child: Text(
+                    label,
+                    style: context.twTypography.label.copyWith(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: isSelected
+                          ? context.colors.brand
+                          : context.colors.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -683,26 +696,33 @@ class CommunityPostUploadScreen extends StatelessWidget {
     });
   }
 
-  Widget _yesNoPill(BuildContext context, String label, IconData icon, Color color) {
+  Widget _yesNoPill(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.12),
         borderRadius: context.radius.lg,
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 18, color: color),
+          Icon(icon, size: 18, color: AppColors.textPrimary),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: color,
+          Flexible(
+            child: Text(
+              label,
+              style: context.twTypography.label.copyWith(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -716,30 +736,39 @@ class CommunityPostUploadScreen extends StatelessWidget {
         return Image.network(
           file.xFile.path,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(
-            child: Icon(Icons.broken_image_rounded, color: Colors.white),
+          errorBuilder: (_, _, _) => const Center(
+            child: Icon(
+              Icons.broken_image_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
         );
       } else if (file.path != null && file.path!.isNotEmpty) {
         return Image.file(
           io.File(file.path!),
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(
-            child: Icon(Icons.broken_image_rounded, color: Colors.white),
+          errorBuilder: (_, _, _) => const Center(
+            child: Icon(
+              Icons.broken_image_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
         );
       } else if (file.bytes != null) {
         return Image.memory(
           file.bytes!,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Center(
-            child: Icon(Icons.broken_image_rounded, color: Colors.white),
+          errorBuilder: (_, _, _) => const Center(
+            child: Icon(
+              Icons.broken_image_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
         );
       }
     } catch (_) {}
     return const Center(
-      child: Icon(Icons.broken_image_rounded, color: Colors.white),
+      child: Icon(Icons.broken_image_rounded, color: AppColors.textPrimary),
     );
   }
 
@@ -752,64 +781,147 @@ class CommunityPostUploadScreen extends StatelessWidget {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.settings_outlined, color: Colors.white),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Post Interactive Settings',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: context.colors.textPrimary,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.tune_rounded,
+                      color: AppColors.textPrimary,
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Post Interactive Settings',
+                        style: context.twTypography.title.copyWith(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: context.colors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: AppColors.textPrimary,
+                      ),
+                      onPressed: () => Get.back<void>(),
+                    ),
+                  ],
+                ),
+                Divider(color: context.colors.divider),
+                Obx(
+                  () => SwitchListTile.adaptive(
+                    title: Text(
+                      'Dislike Option',
+                      style: context.twTypography.body.copyWith(
+                        color: context.colors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Allow users to dislike this post',
+                      style: context.twTypography.caption.copyWith(
+                        color: context.colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: _c.isDislikeEnabled.value,
+                    onChanged: (v) => _c.isDislikeEnabled.value = v,
+                    activeTrackColor: context.colors.brand,
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: Get.back,
+                ),
+                Obx(
+                  () => SwitchListTile.adaptive(
+                    title: Text(
+                      'Dislike Count',
+                      style: context.twTypography.body.copyWith(
+                        color: context.colors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Show dislike count to users',
+                      style: context.twTypography.caption.copyWith(
+                        color: context.colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: _c.showDislikeCount.value,
+                    onChanged: (v) => _c.showDislikeCount.value = v,
+                    activeTrackColor: context.colors.brand,
                   ),
-                ],
-              ),
-              Divider(color: context.colors.divider),
-              Obx(() => SwitchListTile.adaptive(
-                title: const Text('Dislike Option', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Allow users to dislike this post', style: TextStyle(color: Colors.white, fontSize: 12)),
-                value: _c.isDislikeEnabled.value,
-                onChanged: (v) => _c.isDislikeEnabled.value = v,
-                activeTrackColor: Colors.white,
-                activeColor: Colors.black,
-              )),
-              Obx(() => SwitchListTile.adaptive(
-                title: const Text('Dislike Count', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Show dislike count to users', style: TextStyle(color: Colors.white, fontSize: 12)),
-                value: _c.showDislikeCount.value,
-                onChanged: (v) => _c.showDislikeCount.value = v,
-                activeTrackColor: Colors.white,
-                activeColor: Colors.black,
-              )),
-              Obx(() => SwitchListTile.adaptive(
-                title: const Text('Comments', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Allow users to comment on this post', style: TextStyle(color: Colors.white, fontSize: 12)),
-                value: _c.isCommentsEnabled.value,
-                onChanged: (v) => _c.isCommentsEnabled.value = v,
-                activeTrackColor: Colors.white,
-                activeColor: Colors.black,
-              )),
-              Obx(() => SwitchListTile.adaptive(
-                title: const Text('Like Option', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Allow users to like this post', style: TextStyle(color: Colors.white, fontSize: 12)),
-                value: _c.isLikeEnabled.value,
-                onChanged: (v) => _c.isLikeEnabled.value = v,
-                activeTrackColor: Colors.white,
-                activeColor: Colors.black,
-              )),
-              const SizedBox(height: 12),
-            ],
+                ),
+                Obx(
+                  () => SwitchListTile.adaptive(
+                    title: Text(
+                      'Comments',
+                      style: context.twTypography.body.copyWith(
+                        color: context.colors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Allow users to comment on this post',
+                      style: context.twTypography.caption.copyWith(
+                        color: context.colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: _c.isCommentsEnabled.value,
+                    onChanged: (v) => _c.isCommentsEnabled.value = v,
+                    activeTrackColor: context.colors.brand,
+                  ),
+                ),
+                Obx(
+                  () => SwitchListTile.adaptive(
+                    title: Text(
+                      'Like Option',
+                      style: context.twTypography.body.copyWith(
+                        color: context.colors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Allow users to like this post',
+                      style: context.twTypography.caption.copyWith(
+                        color: context.colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: _c.isLikeEnabled.value,
+                    onChanged: (v) => _c.isLikeEnabled.value = v,
+                    activeTrackColor: context.colors.brand,
+                  ),
+                ),
+                Obx(
+                  () => SwitchListTile.adaptive(
+                    title: Text(
+                      'Like Count',
+                      style: context.twTypography.body.copyWith(
+                        color: context.colors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Show like count to users',
+                      style: context.twTypography.caption.copyWith(
+                        color: context.colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                    value: _c.showLikeCount.value,
+                    onChanged: (v) => _c.showLikeCount.value = v,
+                    activeTrackColor: context.colors.brand,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),
@@ -825,7 +937,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       title: 'Post Details',
       accentColor: context.colors.brand,
       trailingHeader: IconButton(
-        icon: const Icon(Icons.settings_outlined, color: Colors.white),
+        icon: const Icon(Icons.tune_rounded, color: AppColors.textPrimary),
         tooltip: 'Post Options Settings',
         onPressed: () => _showSettingsBottomSheet(context),
       ),
@@ -862,7 +974,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           'Visibility',
-          style: TextStyle(
+          style: context.twTypography.label.copyWith(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: context.colors.textSecondary,
@@ -887,8 +999,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       children: [
         Text(
           'Visibility',
-          style: TextStyle(
-            
+          style: context.twTypography.label.copyWith(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: context.colors.textSecondary,
@@ -901,8 +1012,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         // Category
         Text(
           'Category',
-          style: TextStyle(
-            
+          style: context.twTypography.label.copyWith(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: context.colors.textSecondary,
@@ -919,7 +1029,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 onTap: () => _c.selectedCategory.value = cat,
                 borderRadius: context.radius.lg,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? context.colors.brand.withValues(alpha: 0.15)
@@ -934,8 +1047,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   ),
                   child: Text(
                     cat,
-                    style: TextStyle(
-                      
+                    style: context.twTypography.label.copyWith(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: isSelected
@@ -955,8 +1067,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           () => SwitchListTile.adaptive(
             title: Text(
               'Schedule Post',
-              style: TextStyle(
-                
+              style: context.twTypography.title.copyWith(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: context.colors.textPrimary,
@@ -972,8 +1083,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           () => SwitchListTile.adaptive(
             title: Text(
               'Kid Friendly',
-              style: TextStyle(
-                
+              style: context.twTypography.title.copyWith(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: context.colors.textPrimary,
@@ -989,7 +1099,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â PREVIEW & PUBLISH Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  // ── PREVIEW & PUBLISH ──────────────────────────────────────────────────────
 
   Widget _buildPreviewPanel(BuildContext context) {
     return Column(
@@ -1031,15 +1141,17 @@ class CommunityPostUploadScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.preview_rounded, color: context.colors.brand),
+                const Icon(Icons.preview_rounded, color: AppColors.textPrimary),
                 const SizedBox(width: 10),
-                Text(
-                  'Preview',
-                  style: TextStyle(
-                    
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: context.colors.textPrimary,
+                Expanded(
+                  child: Text(
+                    'Preview',
+                    style: context.twTypography.title.copyWith(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: context.colors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -1085,14 +1197,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
               value: _titleCtrl.text.isNotEmpty ? _titleCtrl.text : 'Not added',
               isComplete: _titleCtrl.text.isNotEmpty,
             ),
-
           ],
         ),
       );
     });
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â SHARED COMPONENTS Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  // ── SHARED COMPONENTS ──────────────────────────────────────────────────────
 
   Widget _buildSidebarHeader(BuildContext context) {
     return Container(
@@ -1112,18 +1223,21 @@ class CommunityPostUploadScreen extends StatelessWidget {
               gradient: context.gradients.primary,
               borderRadius: context.radius.lg,
             ),
-            child: const Icon(Icons.forum_rounded, color: AppColors.textPrimary),
+            child: const Icon(
+              Icons.forum_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             'Community Post',
-            style: TextStyle(
-              
+            style: context.twTypography.title.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: context.colors.textPrimary,
               letterSpacing: -0.5,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1144,7 +1258,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
             onPressed: Get.back,
           ),
           const SizedBox(width: 8),
@@ -1154,17 +1268,22 @@ class CommunityPostUploadScreen extends StatelessWidget {
               gradient: context.gradients.primary,
               borderRadius: context.radius.lg,
             ),
-            child: const Icon(Icons.forum_rounded, color: AppColors.textPrimary),
+            child: const Icon(
+              Icons.forum_rounded,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(width: 12),
-          Text(
-            'Community Post',
-            style: TextStyle(
-              
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: context.colors.textPrimary,
-              letterSpacing: -0.5,
+          Expanded(
+            child: Text(
+              'Community Post',
+              style: context.twTypography.title.copyWith(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textPrimary,
+                letterSpacing: -0.5,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1179,14 +1298,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: Get.back,
-          icon: const Icon(Icons.arrow_back, size: 18),
-          label: const Text(
+          icon: const Icon(
+            Icons.arrow_back,
+            color: AppColors.textPrimary,
+            size: 18,
+          ),
+          label: Text(
             'Back to Home',
-            style: TextStyle(
-              
+            style: context.twTypography.button.copyWith(
               fontSize: 13,
               fontWeight: FontWeight.w500,
+              color: context.colors.textSecondary,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: context.colors.textSecondary,
@@ -1211,7 +1335,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
           onPressed: _c.isSavingDraft.value
               ? null
               : () {
-                  // Sync poll question before saving
                   _c.pollQuestion.value = _pollQuestionCtrl.text;
                   _c.saveDraft(
                     title: _titleCtrl.text,
@@ -1225,17 +1348,24 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(context.colors.brand),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      context.colors.brand,
+                    ),
                   ),
                 )
-              : const Icon(Icons.save_rounded, size: 18),
+              : const Icon(
+                  Icons.save_rounded,
+                  color: AppColors.textPrimary,
+                  size: 18,
+                ),
           label: Text(
             _c.isSavingDraft.value ? 'Saving...' : 'Save as Draft',
-            style: const TextStyle(
-              
+            style: context.twTypography.button.copyWith(
               fontSize: 13,
               fontWeight: FontWeight.w500,
+              color: context.colors.textPrimary,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: context.colors.textPrimary,
@@ -1256,7 +1386,8 @@ class CommunityPostUploadScreen extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String title,
-    required List<Widget> children, Color? accentColor,
+    required List<Widget> children,
+    Color? accentColor,
     Widget? trailingHeader,
   }) {
     final effectiveAccentColor = accentColor ?? context.colors.brand;
@@ -1288,17 +1419,18 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 child: Icon(icon, size: 18, color: AppColors.textPrimary),
               ),
               const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textPrimary,
+              Expanded(
+                child: Text(
+                  title,
+                  style: context.twTypography.title.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (trailingHeader != null) ...[
-                const Spacer(),
                 trailingHeader,
               ],
             ],
@@ -1322,7 +1454,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
       return;
     }
 
-    // Sync poll question
     _c.pollQuestion.value = _pollQuestionCtrl.text;
 
     _c.publishPost(
@@ -1332,11 +1463,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildChannelVerificationBanner(Channel channel, BuildContext context) {
+  Widget _buildChannelVerificationBanner(
+    Channel channel,
+    BuildContext context,
+  ) {
     final isUnderReview = channel.status == ChannelStatus.underReview;
     final isPending = channel.status == ChannelStatus.verificationPending;
-    final isRejected =
-        channel.status == ChannelStatus.verificationRejected;
+    final isRejected = channel.status == ChannelStatus.verificationRejected;
 
     var statusColor = context.colors.error;
     var statusIcon = Icons.gpp_bad_rounded;
@@ -1350,7 +1483,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       message =
           'Your channel details are currently under review by Gemini. You can publish once approved.';
     } else if (isPending) {
-      statusColor = AppColors.warning;
+      statusColor = context.colors.warning;
       statusIcon = Icons.pending_actions_rounded;
       title = 'Verification Pending';
       message =
@@ -1381,7 +1514,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(statusIcon, color: statusColor, size: 20),
+          Icon(statusIcon, color: AppColors.textPrimary, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1390,18 +1523,17 @@ class CommunityPostUploadScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    
+                  style: context.twTypography.title.copyWith(
                     color: statusColor,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(
-                    
+                  style: context.twTypography.bodySmall.copyWith(
                     color: context.colors.textSecondary,
                     fontSize: 12,
                   ),

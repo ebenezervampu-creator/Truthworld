@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Professional Reply Widget (Industry Standard)
 /// Displays nested replies with indentation and interaction options
-class ReplyWidget extends StatefulWidget { // For nested indentation
+class ReplyWidget extends StatefulWidget {
+  // For nested indentation
 
   const ReplyWidget({
-    required this.reply, required this.onLike, required this.onDislike, required this.onReply, required this.isLiked, required this.isDisliked, required this.isCreatorReply, super.key,
+    required this.reply,
+    required this.onLike,
+    required this.onDislike,
+    required this.onReply,
+    required this.isLiked,
+    required this.isDisliked,
+    required this.isCreatorReply,
+    super.key,
     this.replyLevel = 0,
   });
   final Reply reply;
@@ -55,8 +64,8 @@ class _ReplyWidgetState extends State<ReplyWidget> {
             _buildReplyHeader(),
             const SizedBox(height: 8),
             // Reply text
-            Text(
-              widget.reply.text,
+            ClickableUrlText(
+              text: widget.reply.text,
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
@@ -127,7 +136,8 @@ class _ReplyWidgetState extends State<ReplyWidget> {
                       ),
                     ),
                   // Channel badge
-                  if (widget.reply.channelId.isNotEmpty && !widget.isCreatorReply)
+                  if (widget.reply.channelId.isNotEmpty &&
+                      !widget.isCreatorReply)
                     Padding(
                       padding: const EdgeInsets.only(left: 4),
                       child: Container(
@@ -185,7 +195,9 @@ class _ReplyWidgetState extends State<ReplyWidget> {
         const SizedBox(width: 10),
         // Dislike
         _buildReplyInteractionButton(
-          icon: widget.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+          icon: widget.isDisliked
+              ? Icons.thumb_down
+              : Icons.thumb_down_outlined,
           label: widget.reply.dislikeCount > 0
               ? widget.reply.dislikeCount.toString()
               : 'Dislike',
@@ -259,9 +271,3 @@ class _ReplyWidgetState extends State<ReplyWidget> {
     }
   }
 }
-
-
-
-
-
-

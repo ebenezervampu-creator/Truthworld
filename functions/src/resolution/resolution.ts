@@ -1,19 +1,19 @@
 /**
- * 🎥 RESOLUTION — Video Resolution Processing (≤ 720p)
+ * 🎥 RESOLUTION — Video Resolution Processing (≤ 1040p)
  *
  * Firebase Cloud Function triggered by video uploads.
- * Processes uploaded videos into adaptive bitrate ladder capped at 720p.
+ * Processes uploaded videos into adaptive bitrate ladder capped at 1040p.
  *
  * ✅ FEATURES:
  *   - Storage trigger: onObjectFinalized for videos/ prefix
- *   - Resolution cap: Maximum 720p (free tier). Ladder: [720, 480, 360, 240, 144]
+ *   - Resolution cap: Maximum 1040p. Ladder: [1040, 720, 480, 360, 240, 144]
  *   - Stores processed metadata in Firestore
  *   - Stores processed files in Firebase Storage
  *   - minInstances: 0 (scale-to-zero)
  *
  * ✅ COST OPTIMIZATION:
  *   - Only transcode if source resolution > target
- *   - Skip redundant resolutions (e.g., don't upscale 480p to 720p)
+ *   - Skip redundant resolutions (e.g., don't upscale 480p to 720p/1040p)
  *   - Bitrate ladder dynamically set per resolution
  */
 
@@ -49,8 +49,8 @@ const REGION = "asia-south1";
 
 // ─── Resolution Configuration ────────────────────────────────────────────────
 
-/** Maximum resolution for free tier — strictly 720p */
-const MAX_RESOLUTION_HEIGHT = 720;
+/** Maximum resolution cap — strictly 1040p */
+const MAX_RESOLUTION_HEIGHT = 1040;
 
 /** Full resolution ladder (descending). Only resolutions ≤ source are generated. */
 interface ResolutionProfile {
@@ -63,6 +63,7 @@ interface ResolutionProfile {
 }
 
 const RESOLUTION_LADDER: ResolutionProfile[] = [
+  { height: 1040, width: 1848, label: "1040p", bitrateKbps: 5500, audioBitrateKbps: 192, fps: 30 },
   { height: 720, width: 1280, label: "720p", bitrateKbps: 3500, audioBitrateKbps: 128, fps: 30 },
   { height: 480, width: 854, label: "480p", bitrateKbps: 1500, audioBitrateKbps: 96, fps: 30 },
   { height: 360, width: 640, label: "360p", bitrateKbps: 1000, audioBitrateKbps: 96, fps: 30 },
@@ -84,7 +85,7 @@ const VALID_VIDEO_EXTENSIONS = new Set([
  * Creates a resolution processing job:
  *   1. Validates the uploaded file
  *   2. Determines source resolution from metadata
- *   3. Computes applicable resolution ladder (capped at 720p)
+ *   3. Computes applicable resolution ladder (capped at 1040p)
  *   4. Stores job metadata in Firestore `resolution_jobs` collection
  *   5. Marks each resolution variant status as pending
  *
@@ -162,7 +163,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       // Determine effective source resolution
       const effectiveHeight = sourceHeight > 0 ? Math.min(sourceHeight, MAX_RESOLUTION_HEIGHT) : MAX_RESOLUTION_HEIGHT;
 
-      // Build applicable resolution ladder (only resolutions ≤ source height, capped at 720)
+      // Build applicable resolution ladder (only resolutions ≤ source height, capped at 1040)
       const applicableResolutions = RESOLUTION_LADDER.filter(
         (r) => r.height <= effectiveHeight
       );

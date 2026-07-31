@@ -6,8 +6,3 @@ class PlatformViewRegistry {
 }
 
 final platformViewRegistry = PlatformViewRegistry();
-
-
-
-
-

@@ -28,6 +28,45 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Android App Links for Automatic Native App Opening -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!-- Domain Hosts -->
+                <data android:scheme="https" android:host="www.truthworld.in" />
+                <data android:scheme="https" android:host="truthworld.in" />
+                <data android:scheme="http" android:host="www.truthworld.in" />
+                <data android:scheme="http" android:host="truthworld.in" />
+
+                <!-- Entity Path Prefixes -->
+                <data android:pathPrefix="/watch" />
+                <data android:pathPrefix="/channel" />
+                <data android:pathPrefix="/@" />
+                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/user" />
+                <data android:pathPrefix="/playlist" />
+                <data android:pathPrefix="/topic" />
+                <data android:pathPrefix="/topics" />
+                <data android:pathPrefix="/T" />
+                <data android:pathPrefix="/t" />
+                <data android:pathPrefix="/studio" />
+                <data android:pathPrefix="/advertisements" />
+                <data android:pathPrefix="/advertiser" />
+                <data android:pathPrefix="/ads" />
+                <data android:pathPrefix="/post" />
+                <data android:pathPrefix="/community" />
+            </intent-filter>
+            <!-- Custom Schemes for Native App Launch -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="truthworld" />
+                <data android:scheme="truthworldstudio" />
+                <data android:scheme="truthworldads" />
+            </intent-filter>
         </activity>
         <!-- Default notification channel for FCM -->
         <meta-data
@@ -51,6 +90,30 @@
         </intent>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="fb" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="twitter" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tg" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mailto" />
         </intent>
     </queries>
 </manifest>

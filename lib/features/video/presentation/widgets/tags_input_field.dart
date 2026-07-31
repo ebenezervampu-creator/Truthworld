@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class TagInputField extends StatelessWidget {
-
   TagInputField({required this.onTagsChanged, super.key});
   final Function(List<String>) onTagsChanged;
   final RxList<String> tags = <String>[].obs;
@@ -40,21 +39,18 @@ class TagInputField extends StatelessWidget {
           onSubmitted: _addTag,
         ),
         const SizedBox(height: 10),
-        Obx(() => Wrap(
-          spacing: 8,
-          children: tags.map((tag) {
-            return Chip(
-              label: Text(tag),
-              onDeleted: () => _removeTag(tag),
-            );
-          }).toList(),
-        )),
+        Obx(
+          () => Wrap(
+            spacing: 8,
+            children: tags.map((tag) {
+              return Chip(
+                label: Text(tag),
+                onDeleted: () => _removeTag(tag),
+              );
+            }).toList(),
+          ),
+        ),
       ],
     );
   }
 }
-
-
-
-
-

@@ -14,7 +14,6 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Touch tooltip showing exact view count
 /// - Empty state with icon
 class HourlyTrendWidget extends StatelessWidget {
-
   const HourlyTrendWidget({required this.hourlyData, super.key});
   final List<Map<String, dynamic>> hourlyData;
 
@@ -43,7 +42,9 @@ class HourlyTrendWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,7 +109,9 @@ class HourlyTrendWidget extends StatelessWidget {
                           child: Text(
                             label,
                             style: TextStyle(
-                              color: AppColors.textPrimary.withValues(alpha: 0.5),
+                              color: AppColors.textPrimary.withValues(
+                                alpha: 0.5,
+                              ),
                               fontSize: 11,
                             ),
                           ),
@@ -116,12 +119,8 @@ class HourlyTrendWidget extends StatelessWidget {
                       },
                     ),
                   ),
-                  topTitles: const AxisTitles(
-                    
-                  ),
-                  rightTitles: const AxisTitles(
-                    
-                  ),
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,

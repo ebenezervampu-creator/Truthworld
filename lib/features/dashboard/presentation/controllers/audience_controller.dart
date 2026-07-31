@@ -8,7 +8,6 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 
 class StateAudienceItem {
-
   StateAudienceItem({
     required this.stateCode,
     required this.stateName,
@@ -26,7 +25,6 @@ class StateAudienceItem {
 }
 
 class AudienceController extends BaseController {
-
   AudienceController({required this.channelId});
   final String channelId;
   final VideoAnalyticsService _analyticsService = Get.find();
@@ -136,18 +134,18 @@ class AudienceController extends BaseController {
         .where('channelId', isEqualTo: channelId)
         .snapshots()
         .listen(
-      (querySnapshot) {
-        if (querySnapshot.docs.isNotEmpty) {
-          _processRealtimeChannelStats(querySnapshot, cutoffKey);
-        }
-      },
-      onError: (Object error) {
-        logger.warning(
-          'Channel stats listener error: $error',
-          tag: 'AudienceController',
+          (querySnapshot) {
+            if (querySnapshot.docs.isNotEmpty) {
+              _processRealtimeChannelStats(querySnapshot, cutoffKey);
+            }
+          },
+          onError: (Object error) {
+            logger.warning(
+              'Channel stats listener error: $error',
+              tag: 'AudienceController',
+            );
+          },
         );
-      },
-    );
 
     // Fallback: also listen to video_stats_daily for this channel
     // in case channel_stats_daily hasn't been populated yet
@@ -156,22 +154,22 @@ class AudienceController extends BaseController {
         .where('channelId', isEqualTo: channelId)
         .snapshots()
         .listen(
-      (querySnapshot) {
-        // Only use video stats as fallback if channel stats haven't produced data
-        if (allStateItems.isEmpty ||
-            allStateItems.every((item) => item.viewers == 0)) {
-          if (querySnapshot.docs.isNotEmpty) {
-            _processRealtimeVideoStats(querySnapshot, cutoffKey);
-          }
-        }
-      },
-      onError: (Object error) {
-        logger.warning(
-          'Video stats listener error: $error',
-          tag: 'AudienceController',
+          (querySnapshot) {
+            // Only use video stats as fallback if channel stats haven't produced data
+            if (allStateItems.isEmpty ||
+                allStateItems.every((item) => item.viewers == 0)) {
+              if (querySnapshot.docs.isNotEmpty) {
+                _processRealtimeVideoStats(querySnapshot, cutoffKey);
+              }
+            }
+          },
+          onError: (Object error) {
+            logger.warning(
+              'Video stats listener error: $error',
+              tag: 'AudienceController',
+            );
+          },
         );
-      },
-    );
   }
 
   /// Process real-time channel_stats_daily snapshot updates
@@ -213,14 +211,13 @@ class AudienceController extends BaseController {
     totalViews.value = totalViewsAccum;
     totalSubscribersGained.value = totalSubsAccum;
     returningViewers.value = returningAccum;
-    subscriberConversionRate.value =
-        totalViewsAccum > 0 ? (totalSubsAccum / totalViewsAccum) * 100 : 0.0;
+    subscriberConversionRate.value = totalViewsAccum > 0
+        ? (totalSubsAccum / totalViewsAccum) * 100
+        : 0.0;
 
     final totalGeo = urbanAccum + ruralAccum;
-    urbanPercentage.value =
-        totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 50.0;
-    ruralPercentage.value =
-        totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 50.0;
+    urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 50.0;
+    ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 50.0;
 
     _buildCompleteStateItems(stateTraffic, totalViewsAccum, totalSubsAccum);
   }
@@ -262,14 +259,13 @@ class AudienceController extends BaseController {
     totalViews.value = totalViewsAccum;
     totalSubscribersGained.value = totalSubsAccum;
     returningViewers.value = returningAccum;
-    subscriberConversionRate.value =
-        totalViewsAccum > 0 ? (totalSubsAccum / totalViewsAccum) * 100 : 0.0;
+    subscriberConversionRate.value = totalViewsAccum > 0
+        ? (totalSubsAccum / totalViewsAccum) * 100
+        : 0.0;
 
     final totalGeo = urbanAccum + ruralAccum;
-    urbanPercentage.value =
-        totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 50.0;
-    ruralPercentage.value =
-        totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 50.0;
+    urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 50.0;
+    ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 50.0;
 
     _buildCompleteStateItems(stateTraffic, totalViewsAccum, totalSubsAccum);
   }
@@ -318,15 +314,21 @@ class AudienceController extends BaseController {
     final items = <StateAudienceItem>[];
 
     // Merge live data keys with master list — handle unknown codes gracefully
-    final allCodes = <String>{..._indianStatesMap.keys, ...liveStateTraffic.keys};
+    final allCodes = <String>{
+      ..._indianStatesMap.keys,
+      ...liveStateTraffic.keys,
+    };
 
     // Overall conversion coefficient for subscriber estimation
-    final conversionRate =
-        totalViewsCount > 0 ? (totalSubsCount / totalViewsCount) : 0.0;
+    final conversionRate = totalViewsCount > 0
+        ? (totalSubsCount / totalViewsCount)
+        : 0.0;
 
     // First pass: compute totals for percentage calculations
-    final totalViewersSum =
-        liveStateTraffic.values.fold<int>(0, (prev, val) => prev + val);
+    final totalViewersSum = liveStateTraffic.values.fold<int>(
+      0,
+      (prev, val) => prev + val,
+    );
 
     var totalSubsSum = 0;
     final computedSubs = <String, int>{};
@@ -343,19 +345,21 @@ class AudienceController extends BaseController {
       final viewCount = liveStateTraffic[code] ?? 0;
       final subCount = computedSubs[code] ?? 0;
 
-      final viewPct =
-          totalViewersSum > 0 ? (viewCount / totalViewersSum) * 100 : 0.0;
-      final subPct =
-          totalSubsSum > 0 ? (subCount / totalSubsSum) * 100 : 0.0;
+      final viewPct = totalViewersSum > 0
+          ? (viewCount / totalViewersSum) * 100
+          : 0.0;
+      final subPct = totalSubsSum > 0 ? (subCount / totalSubsSum) * 100 : 0.0;
 
-      items.add(StateAudienceItem(
-        stateCode: code,
-        stateName: name,
-        viewers: viewCount,
-        subscribers: subCount,
-        viewerPercentage: viewPct,
-        subscriberPercentage: subPct,
-      ));
+      items.add(
+        StateAudienceItem(
+          stateCode: code,
+          stateName: name,
+          viewers: viewCount,
+          subscribers: subCount,
+          viewerPercentage: viewPct,
+          subscriberPercentage: subPct,
+        ),
+      );
     }
 
     // Sort: states with views descending first, then zero-view states alphabetically

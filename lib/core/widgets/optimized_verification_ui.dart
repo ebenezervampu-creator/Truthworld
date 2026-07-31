@@ -12,9 +12,10 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Real-time visual indicators
 
 class OptimizedVerificationStatusWidget extends StatelessWidget {
-
   const OptimizedVerificationStatusWidget({
-    required this.result, required this.isDark, super.key,
+    required this.result,
+    required this.isDark,
+    super.key,
     this.onApproved,
     this.onRetry,
     this.autoScroll = true,
@@ -313,9 +314,10 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
 /// Perfect for integrating into upload/channel screens
 
 class VerificationStatusListenerWidget extends StatelessWidget {
-
   const VerificationStatusListenerWidget({
-    required this.docId, required this.isDark, super.key,
+    required this.docId,
+    required this.isDark,
+    super.key,
     this.onApproved,
     this.onRetry,
     this.autoScroll = true,
@@ -424,9 +426,9 @@ class VerificationStatusListenerWidget extends StatelessWidget {
 /// Ideal for preview cards and list items
 
 class VerificationBadge extends StatelessWidget {
-
   const VerificationBadge({
-    required this.status, super.key,
+    required this.status,
+    super.key,
     this.compact = false,
   });
   final VerificationStatus status;
@@ -492,7 +494,10 @@ class VerificationBadge extends StatelessWidget {
 
     if (compact) {
       return Container(
-        padding: EdgeInsets.symmetric(horizontal: twSpacing.sm, vertical: twSpacing.xs),
+        padding: EdgeInsets.symmetric(
+          horizontal: twSpacing.sm,
+          vertical: twSpacing.xs,
+        ),
         decoration: BoxDecoration(
           color: statusColor.withValues(alpha: 0.15),
           borderRadius: twRadius.circularSm,
@@ -520,7 +525,10 @@ class VerificationBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: twSpacing.sm + 4, vertical: twSpacing.xs + 2),
+      padding: EdgeInsets.symmetric(
+        horizontal: twSpacing.sm + 4,
+        vertical: twSpacing.xs + 2,
+      ),
       decoration: BoxDecoration(
         color: statusColor.withValues(alpha: 0.12),
         borderRadius: twRadius.circularMd,
@@ -550,10 +558,3 @@ class VerificationBadge extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

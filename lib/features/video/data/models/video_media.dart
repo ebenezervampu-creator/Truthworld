@@ -17,14 +17,14 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 
 /// Localization data stored at: videos/{videoId}/media/localization
-/// Contains subtitle URLs, dubbed video URLs, and audio track URLs.
+/// Contains subtitle URLs, dubbed video URLs, audio track URLs, and multi-video commentary tracks.
 /// Kept separate because this grows with every supported language (130+).
 class VideoMediaLocalization {
-
   const VideoMediaLocalization({
     this.subtitles = const {},
     this.dubbedVideos = const {},
     this.audioTracks = const {},
+    this.commentaryVideos = const {},
     this.updatedAt,
   });
 
@@ -33,18 +33,22 @@ class VideoMediaLocalization {
       subtitles: _castStringMap(data['subtitles']),
       dubbedVideos: _castStringMap(data['dubbedVideos']),
       audioTracks: _castStringMap(data['audioTracks']),
+      commentaryVideos: _castCommentaryMap(data['commentaryVideos']),
       updatedAt: data['updatedAt'] as Timestamp?,
     );
   }
-  final Map<String, String> subtitles;    // { langCode: downloadUrl }
+  final Map<String, String> subtitles; // { langCode: downloadUrl }
   final Map<String, String> dubbedVideos; // { langCode: downloadUrl }
-  final Map<String, String> audioTracks;  // { langCode: downloadUrl }
+  final Map<String, String> audioTracks; // { langCode: downloadUrl }
+  final Map<String, Map<String, String>>
+  commentaryVideos; // { trackId: {title, role, videoUrl, audioUrl, langCode} }
   final Timestamp? updatedAt;
 
   Map<String, dynamic> toMap() => {
     'subtitles': subtitles,
     'dubbedVideos': dubbedVideos,
     'audioTracks': audioTracks,
+    'commentaryVideos': commentaryVideos,
     'updatedAt': updatedAt ?? FieldValue.serverTimestamp(),
   };
 
@@ -58,15 +62,36 @@ class VideoMediaLocalization {
     return {};
   }
 
+  static Map<String, Map<String, String>> _castCommentaryMap(dynamic value) {
+    if (value == null) return {};
+    if (value is Map) {
+      final res = <String, Map<String, String>>{};
+      value.forEach((k, v) {
+        if (v is Map) {
+          res[k.toString()] = Map<String, String>.from(
+            v.map(
+              (innerK, innerV) =>
+                  MapEntry(innerK.toString(), innerV?.toString() ?? ''),
+            ),
+          );
+        }
+      });
+      return res;
+    }
+    return {};
+  }
+
   bool get isEmpty =>
-      subtitles.isEmpty && dubbedVideos.isEmpty && audioTracks.isEmpty;
+      subtitles.isEmpty &&
+      dubbedVideos.isEmpty &&
+      audioTracks.isEmpty &&
+      commentaryVideos.isEmpty;
 }
 
 /// Credibility data stored at: videos/{videoId}/media/credibility
 /// Contains full epistemic scoring, claims, deductions, hardening metadata.
 /// This is the largest payload — can be 50-100KB for detailed reports.
 class VideoMediaCredibility {
-
   const VideoMediaCredibility({
     this.trustScore = 0.0,
     this.videoRating = 0.0,
@@ -97,7 +122,9 @@ class VideoMediaCredibility {
       videoRating: (data['videoRating'] ?? 0).toDouble(),
       trustLabel: data['trustLabel'],
       scoringFactors: data['scoringFactors'] != null
-          ? ScoringFactors.fromMap(Map<String, dynamic>.from(data['scoringFactors']))
+          ? ScoringFactors.fromMap(
+              Map<String, dynamic>.from(data['scoringFactors']),
+            )
           : null,
       deductions: (data['deductions'] as List? ?? [])
           .map((e) => TrustDeduction.fromMap(Map<String, dynamic>.from(e)))
@@ -106,23 +133,32 @@ class VideoMediaCredibility {
           .map((e) => ContextualFlag.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
       honestyBreakdown: data['honestyBreakdown'] != null
-          ? HonestyBreakdown.fromMap(Map<String, dynamic>.from(data['honestyBreakdown']))
+          ? HonestyBreakdown.fromMap(
+              Map<String, dynamic>.from(data['honestyBreakdown']),
+            )
           : null,
       harmCapApplied: data['harmCapApplied'] ?? false,
       harmCapReason: data['harmCapReason'],
       categoryWeightProfile: data['categoryWeightProfile'] != null
           ? Map<String, double>.from(
-              data['categoryWeightProfile'].map((k, v) => MapEntry(k, (v as num).toDouble())))
+              data['categoryWeightProfile'].map(
+                (k, v) => MapEntry(k, (v as num).toDouble()),
+              ),
+            )
           : null,
       confidenceNotes: List<String>.from(data['confidenceNotes'] ?? []),
       diagnostics: List<String>.from(data['diagnostics'] ?? []),
       factCheckStats: data['factCheckStats'] != null
-          ? FactCheckStats.fromMap(Map<String, dynamic>.from(data['factCheckStats']))
+          ? FactCheckStats.fromMap(
+              Map<String, dynamic>.from(data['factCheckStats']),
+            )
           : null,
       videoCategory: data['videoCategory'],
       effectiveCategory: data['effectiveCategory'],
       hardeningMetadata: data['hardeningMetadata'] != null
-          ? HardeningMetadata.fromMap(Map<String, dynamic>.from(data['hardeningMetadata']))
+          ? HardeningMetadata.fromMap(
+              Map<String, dynamic>.from(data['hardeningMetadata']),
+            )
           : null,
       intentToMisleadScore: (data['intentToMisleadScore'] ?? 0).toDouble(),
       uiReport: data['uiReport'] != null
@@ -193,7 +229,6 @@ class VideoMediaCredibility {
 /// Streaming data stored at: videos/{videoId}/media/streaming
 /// Contains resolution URLs, preview assets, and full description.
 class VideoMediaStreaming {
-
   const VideoMediaStreaming({
     this.originalUrl = '',
     this.hlsUrl = '',

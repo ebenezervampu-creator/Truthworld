@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic spacing tokens for layouts, padding, and margins.
 class TWSpacing extends ThemeExtension<TWSpacing> {
-
   const TWSpacing({
     required this.xxs,
     required this.xs,
@@ -78,7 +77,7 @@ extension TWSpacingExtension on BuildContext {
 
 class TWInsetHelper extends EdgeInsets {
   const TWInsetHelper(super.value) : super.all();
-  
+
   EdgeInsets get h => EdgeInsets.symmetric(horizontal: left);
   EdgeInsets get v => EdgeInsets.symmetric(vertical: top);
   EdgeInsets get horizontalInsets => EdgeInsets.symmetric(horizontal: left);

@@ -18,7 +18,6 @@ class GeographicMapController extends GetxController {
 }
 
 class GeographicMapWidget extends StatelessWidget {
-
   const GeographicMapWidget({required this.controller, super.key});
   final CreatorAnalyticsController controller;
 
@@ -71,7 +70,9 @@ class GeographicMapWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.textPrimary.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+          border: Border.all(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+          ),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -339,7 +340,10 @@ class GeographicMapWidget extends StatelessWidget {
                 child: Center(
                   child: Text(
                     'No traffic points to show',
-                    style: TextStyle(color: AppColors.textDisabled, fontSize: 11),
+                    style: TextStyle(
+                      color: AppColors.textDisabled,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ),
@@ -364,7 +368,6 @@ class GeographicMapWidget extends StatelessWidget {
 }
 
 class MapMarker {
-
   MapMarker({
     required this.name,
     required this.lat,

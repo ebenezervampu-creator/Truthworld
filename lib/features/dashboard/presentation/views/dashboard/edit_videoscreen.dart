@@ -5,7 +5,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class EditVideoScreen extends StatefulWidget {
-
   const EditVideoScreen({required this.video, super.key});
   final Video video;
 
@@ -19,12 +18,14 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
   late final TextEditingController _tagsController;
   late final RxString _selectedVisibility;
   late final RxBool _isKidFriendly;
+  late final RxBool _showLikeCount;
+  late final RxBool _showDislikeCount;
 
   final _formKey = GlobalKey<FormState>();
   final VideoManagementController _controller =
       Get.isRegistered<VideoManagementController>()
-          ? Get.find<VideoManagementController>()
-          : Get.put(VideoManagementController());
+      ? Get.find<VideoManagementController>()
+      : Get.put(VideoManagementController());
 
   @override
   void initState() {
@@ -36,6 +37,8 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
     _tagsController = TextEditingController(text: widget.video.tags.join(', '));
     _selectedVisibility = widget.video.visibility.obs;
     _isKidFriendly = widget.video.isKidFriendly.obs;
+    _showLikeCount = widget.video.showLikeCount.obs;
+    _showDislikeCount = widget.video.showDislikeCount.obs;
   }
 
   @override
@@ -54,6 +57,8 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
         'tags': _tagsController.text.split(',').map((e) => e.trim()).toList(),
         'visibility': _selectedVisibility.value,
         'isKidFriendly': _isKidFriendly.value,
+        'showLikeCount': _showLikeCount.value,
+        'showDislikeCount': _showDislikeCount.value,
       };
       _controller.updateVideo(widget.video.id, updatedData);
       Get.back();
@@ -80,7 +85,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
               label: Text('Save', style: AppTextStyles.buttonText),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -153,52 +158,107 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
   }
 
   Widget _buildDropdownField() {
-    return Obx(() => DropdownButtonFormField<String>(
-      initialValue: _selectedVisibility.value,
-      onChanged: (value) {
-        if (value != null) {
-          _selectedVisibility.value = value;
-        }
-      },
-      items: ['Public', 'Private', 'Unlisted']
-          .map((label) => DropdownMenuItem(
+    return Obx(
+      () => DropdownButtonFormField<String>(
+        initialValue: _selectedVisibility.value,
+        onChanged: (value) {
+          if (value != null) {
+            _selectedVisibility.value = value;
+          }
+        },
+        items: ['Public', 'Private', 'Unlisted']
+            .map(
+              (label) => DropdownMenuItem(
                 value: label,
                 child: Text(label, style: AppTextStyles.bodyMedium),
-              ))
-          .toList(),
-      decoration: InputDecoration(
-        labelText: 'Visibility',
-        labelStyle: AppTextStyles.inputHint,
-        filled: true,
-        fillColor: AppColors.bgInput,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+              ),
+            )
+            .toList(),
+        decoration: InputDecoration(
+          labelText: 'Visibility',
+          labelStyle: AppTextStyles.inputHint,
+          filled: true,
+          fillColor: AppColors.bgInput,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
         ),
+        dropdownColor: AppColors.bgSurface,
+        style: AppTextStyles.inputText,
       ),
-      dropdownColor: AppColors.bgSurface,
-      style: AppTextStyles.inputText,
-    ));
+    );
   }
 
   Widget _buildSwitchField() {
-    return Obx(() => SwitchListTile(
-      title: Text(
-        'Is this video "Made for Kids"?',
-        style: AppTextStyles.bodyMedium,
-      ),
-      value: _isKidFriendly.value,
-      onChanged: (value) {
-        _isKidFriendly.value = value;
-      },
-      activeThumbColor: AppColors.brand,
-      tileColor: AppColors.bgSurface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+    return Column(
+      children: [
+        Obx(
+          () => SwitchListTile(
+            title: Text(
+              'Is this video "Made for Kids"?',
+              style: AppTextStyles.bodyMedium,
+            ),
+            value: _isKidFriendly.value,
+            onChanged: (value) {
+              _isKidFriendly.value = value;
+            },
+            activeThumbColor: AppColors.brand,
+            tileColor: AppColors.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Obx(
+          () => SwitchListTile(
+            title: Text(
+              'Show Like Count',
+              style: AppTextStyles.bodyMedium,
+            ),
+            subtitle: Text(
+              'Show how many viewers like this video',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: _showLikeCount.value,
+            onChanged: (value) {
+              _showLikeCount.value = value;
+            },
+            activeThumbColor: AppColors.brand,
+            tileColor: AppColors.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Obx(
+          () => SwitchListTile(
+            title: Text(
+              'Show Dislike Count',
+              style: AppTextStyles.bodyMedium,
+            ),
+            subtitle: Text(
+              'Show how many viewers dislike this video',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            value: _showDislikeCount.value,
+            onChanged: (value) {
+              _showDislikeCount.value = value;
+            },
+            activeThumbColor: AppColors.brand,
+            tileColor: AppColors.bgSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
-
-
-
-
-

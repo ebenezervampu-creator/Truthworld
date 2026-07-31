@@ -178,8 +178,3 @@ class FeedbackController extends BaseController {
     }
   }
 }
-
-
-
-
-

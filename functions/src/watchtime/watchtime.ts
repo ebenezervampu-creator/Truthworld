@@ -34,10 +34,23 @@ interface WatchEventPayload {
   issubscriber?: boolean | string;
   isNotsubscriber?: boolean | string;
   watchTimeSecondsDelta?: number | string;
+  playbackQuality?: string;
+  playbackRate?: number;
+  trafficSource?: string;
+  playerState?: string;
+  isMuted?: boolean;
+  volume?: number;
+  deviceModel?: string;
+  platform?: string;
+  networkType?: string;
+  language?: string;
 }
 
 interface RawEvent extends WatchEventPayload {
   state: string;
+  city?: string;
+  country?: string;
+  areaType?: string;
   issubscriber?: boolean;
   isNewsubscriber?: boolean;
   createdAt: admin.firestore.Timestamp;
@@ -48,9 +61,12 @@ interface SessionAcc {
   userId: string;
   videoId: string;
   state: string;
+  city?: string;
+  country?: string;
+  areaType?: string;
   maxPosition: number;   // furthest point reached (for retention)
   duration: number;
-  deltaSeconds: number;  // sum of deltas â€” true watch time
+  deltaSeconds: number;  // sum of deltas — true watch time
   started: boolean;
   completed: boolean;
   lastPingPos: number;
@@ -182,7 +198,7 @@ export const trackWatchEvent = onRequest(
         "";
       const state = await resolveState(rawIp);
 
-      // â”€â”€ Write â”€â”€
+      // ── Write ──
       await db.collection("watch_events").add({
         videoId: body.videoId,
         userId: body.userId,
@@ -194,10 +210,20 @@ export const trackWatchEvent = onRequest(
         issubscriber: body.issubscriber === true || body.issubscriber === "true",
         isNotsubscriber: body.isNotsubscriber === true || (body.isNotsubscriber === "true"),
         state,
+        playbackQuality: body.playbackQuality ?? "auto",
+        playbackRate: body.playbackRate ?? 1.0,
+        trafficSource: body.trafficSource ?? "direct",
+        playerState: body.playerState ?? "normal",
+        isMuted: body.isMuted ?? false,
+        volume: body.volume ?? 1.0,
+        deviceModel: body.deviceModel ?? "unknown",
+        platform: body.platform ?? "unknown",
+        networkType: body.networkType ?? "unknown",
+        language: body.language ?? "en",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // â”€â”€ Maintain 'one user, one video' log â”€â”€
+      // ── Maintain 'one user, one video' log ──
       // This solves the 'permission-denied' issue by using the Admin SDK
       const { userId, videoId, sessionId } = body;
       const isAuth = userId && userId !== "anonymous";
@@ -212,10 +238,13 @@ export const trackWatchEvent = onRequest(
         watchPercentage: Math.min(1.0, position / duration),
         issubscriber: body.issubscriber === true || body.issubscriber === "true",
         isNotsubscriber: body.isNotsubscriber === true || body.isNotsubscriber === "true",
-        state: geo.state,
-        city: geo.city,
-        country: geo.country,
-        areaType: geo.areaType,
+        state,
+        playbackQuality: body.playbackQuality ?? "auto",
+        playbackRate: body.playbackRate ?? 1.0,
+        trafficSource: body.trafficSource ?? "direct",
+        playerState: body.playerState ?? "normal",
+        deviceModel: body.deviceModel ?? "unknown",
+        platform: body.platform ?? "unknown",
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
@@ -410,6 +439,11 @@ export const aggregateWatchStats = onSchedule(
         duration: number;
         Subscribers: number;
         newSubscribers: number;
+        stateTraffic: Map<string, number>;
+        cityTraffic: Map<string, number>;
+        countryTraffic: Map<string, number>;
+        urbanViewers: number;
+        ruralViewers: number;
       }
     >();
 
@@ -466,11 +500,13 @@ export const aggregateWatchStats = onSchedule(
       if (s.isNewsubscriber) v.newSubscribers += 1;
 
       // Accumulate geographic breakdowns
-      v.stateTraffic.set(s.state, (v.stateTraffic.get(s.state) || 0) + 1);
+      const stateVal = s.state ?? "Unknown";
+      v.stateTraffic.set(stateVal, (v.stateTraffic.get(stateVal) || 0) + 1);
       if (s.city && s.city !== "Unknown") {
         v.cityTraffic.set(s.city, (v.cityTraffic.get(s.city) || 0) + 1);
       }
-      v.countryTraffic.set(s.country, (v.countryTraffic.get(s.country) || 0) + 1);
+      const countryVal = s.country ?? "IN";
+      v.countryTraffic.set(countryVal, (v.countryTraffic.get(countryVal) || 0) + 1);
       if (s.areaType === "urban") v.urbanViewers += 1;
       else if (s.areaType === "rural") v.ruralViewers += 1;
 
@@ -533,11 +569,11 @@ export const aggregateWatchStats = onSchedule(
 
       // Convert geo Maps to plain objects for Firestore
       const stateTrafficObj: Record<string, number> = {};
-      acc.stateTraffic.forEach((count, key) => { stateTrafficObj[key] = count; });
+      acc.stateTraffic.forEach((count: number, key: string) => { stateTrafficObj[key] = count; });
       const cityTrafficObj: Record<string, number> = {};
-      acc.cityTraffic.forEach((count, key) => { cityTrafficObj[key] = count; });
+      acc.cityTraffic.forEach((count: number, key: string) => { cityTrafficObj[key] = count; });
       const countryTrafficObj: Record<string, number> = {};
-      acc.countryTraffic.forEach((count, key) => { countryTrafficObj[key] = count; });
+      acc.countryTraffic.forEach((count: number, key: string) => { countryTrafficObj[key] = count; });
 
       const statsDoc: VideoStats = {
         totalViews: acc.views,

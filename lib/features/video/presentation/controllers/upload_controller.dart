@@ -32,6 +32,7 @@ class UploadController extends GetxController with ContentValidationMixin {
   final _cacheService = VerificationCacheService();
   StreamSubscription? _thumbnailModerationSubscription;
   StreamSubscription? _communityImageModerationSubscription;
+
   /// Returns the upload progress as a formatted percentage string (e.g., '42%')
   String get uploadProgressPercent =>
       '${(uploadProgress.value * 100).toStringAsFixed(0)}%';
@@ -45,6 +46,40 @@ class UploadController extends GetxController with ContentValidationMixin {
   /// Current upload progress (0.0 - 1.0) - maintained for backward compatibility with UI
   RxDouble uploadProgress = 0.0.obs;
   RxString selectedCategory = 'Other'.obs;
+
+  /// Categories that are non-factual/creative where fact-checking is not needed
+  static const Set<String> categoriesWithoutFactCheck = {
+    'Music',
+    'Entertainment',
+    'Gaming',
+    'Comedy',
+    'Animation',
+    'Movies',
+    'Lifestyle',
+    'Sports',
+    'Pets & Animals',
+    'Fashion & Beauty',
+    'Food & Cooking',
+    'DIY & How-to',
+  };
+
+  /// Check whether fact checking is relevant for a given category name
+  bool isFactCheckNeededForCategory(String category) {
+    return !categoriesWithoutFactCheck.contains(category);
+  }
+
+  /// Whether Fact Checking is relevant for the currently selected category
+  bool get isFactCheckRelevant =>
+      isFactCheckNeededForCategory(selectedCategory.value);
+
+  /// Select a category and handle fact check toggle availability
+  void selectCategory(String cat) {
+    selectedCategory.value = cat;
+    if (!isFactCheckRelevant) {
+      aiFactCheckEnabled.value = false;
+    }
+  }
+
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxString selectedVisibility = 'Public'.obs;
   RxBool isKidFriendly = false.obs;
@@ -58,7 +93,8 @@ class UploadController extends GetxController with ContentValidationMixin {
   RxBool isTopicsLoading = false.obs;
   RxString topicsError = ''.obs;
   RxString topicSearchQuery = ''.obs;
-  final RxMap<String, Map<String, String>> channelMetadataCache = <String, Map<String, String>>{}.obs;
+  final RxMap<String, Map<String, String>> channelMetadataCache =
+      <String, Map<String, String>>{}.obs;
   final RxMap<String, dynamic> newTopicData = <String, dynamic>{}.obs;
   RxBool isScheduled = false.obs;
   Rx<DateTime> scheduledDate = DateTime.now().add(const Duration(days: 1)).obs;
@@ -75,8 +111,10 @@ class UploadController extends GetxController with ContentValidationMixin {
   final RxString videoModerationStatus = 'PENDING'.obs;
   final RxString videoModerationReason = ''.obs;
   final RxString videoModerationSummary = ''.obs;
+
   /// Whether the video content has been approved by Gemini moderation
   bool get isVideoContentApproved => videoModerationStatus.value == 'APPROVED';
+
   /// Whether the video was rejected (blocks Publish button)
   bool get isVideoContentRejected => videoModerationStatus.value == 'REJECTED';
 
@@ -95,15 +133,39 @@ class UploadController extends GetxController with ContentValidationMixin {
   RxBool aiFactCheckEnabled = false.obs;
   Rx<PlatformFile?> voiceSampleFile = Rx<PlatformFile?>(null);
 
+  /// Channel-provided sources & citation links for Credibility System
+  RxList<String> providedSources = <String>[].obs;
+
+  /// Whether sources validation passes (if fact checking is enabled, at least 1 source is required)
+  bool get isFactCheckSourcesValid =>
+      !aiFactCheckEnabled.value || providedSources.isNotEmpty;
+
+  /// Add a source URL provided by the channel
+  void addProvidedSource(String url) {
+    final cleanUrl = url.trim();
+    if (cleanUrl.isNotEmpty && !providedSources.contains(cleanUrl)) {
+      providedSources.add(cleanUrl);
+    }
+  }
+
+  /// Remove a provided source at given index
+  void removeProvidedSource(int index) {
+    if (index >= 0 && index < providedSources.length) {
+      providedSources.removeAt(index);
+    }
+  }
+
   /// Build the AI features map for Firestore.
   Map<String, dynamic> buildFeaturesMap({String? pipelineStage}) {
-    return AIFeatures(
+    final map = AIFeatures(
       genLangSubs: aiGenerateSubtitles.value,
       generateDubbing: aiGenerateDubbing.value,
       translationLanguages: List<String>.from(aiTranslationLanguages),
       tts: TTSConfig(
         enabled: aiGenerateDubbing.value,
-        voiceType: aiTTSVoiceType.value == 'cloned' ? 'voice_clone' : 'standard',
+        voiceType: aiTTSVoiceType.value == 'cloned'
+            ? 'voice_clone'
+            : 'standard',
       ),
       factChecking: aiFactCheckEnabled.value,
       diarization: aiDiarizationEnabled.value,
@@ -111,6 +173,8 @@ class UploadController extends GetxController with ContentValidationMixin {
       autoChapters: aiChaptersEnabled.value,
       pipelineStage: pipelineStage,
     ).toMap();
+    map['providedSources'] = List<String>.from(providedSources);
+    return map;
   }
 
   /// Pick a voice sample for TTS cloning.
@@ -206,7 +270,6 @@ class UploadController extends GetxController with ContentValidationMixin {
   /// Public getter for the current video ID being uploaded
   String? get currentVideoId => _currentVideoId;
 
-
   // Channel Loading State
   RxBool isChannelsLoading = true.obs;
   RxString channelsError = ''.obs;
@@ -218,7 +281,7 @@ class UploadController extends GetxController with ContentValidationMixin {
   RxInt uploadStage = 0.obs; // 0: Media, 1: Details, 2: Settings, 3: Publish
   RxString uploadStageLabel = 'Upload Media'.obs;
   RxBool canAdvanceStage = false.obs;
-  
+
   // UI Processing State
   RxBool isProcessing = false.obs;
   RxString processingMessage = ''.obs;
@@ -244,7 +307,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     initializeContentFilters();
     fetchChannelsWithRetry();
     fetchAvailableTopics();
-    
+
     // Every video doesn't have video rating only when user enabled Factchecking
     ever(aiFactCheckEnabled, (bool enabled) {
       allowRatings.value = enabled;
@@ -391,8 +454,6 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   // validateContent is now provided by ContentValidationMixin
 
-
-
   // validateTags is now provided by ContentValidationMixin
 
   // ==========================================================================
@@ -426,7 +487,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         .listen(
           (snapshot) {
             debugPrint('✅ Channels loaded: ${snapshot.docs.length}');
-            
+
             // Filter active channels in memory (status != deleted)
             channels.value = snapshot.docs
                 .map(Channel.fromDocumentSnapshot)
@@ -463,7 +524,10 @@ class UploadController extends GetxController with ContentValidationMixin {
         final extension = pickedFile.extension?.toLowerCase();
         const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif'};
         if (extension == null || !allowedExtensions.contains(extension)) {
-          Get.snackbar('Error', 'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.');
+          Get.snackbar(
+            'Error',
+            'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.',
+          );
           return;
         }
 
@@ -471,7 +535,10 @@ class UploadController extends GetxController with ContentValidationMixin {
         final maxSize = forCommunity ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
         if (pickedFile.size > maxSize) {
           final sizeLimitMB = forCommunity ? '10MB' : '2MB';
-          Get.snackbar('Error', 'Selected image exceeds the $sizeLimitMB limit.');
+          Get.snackbar(
+            'Error',
+            'Selected image exceeds the $sizeLimitMB limit.',
+          );
           return;
         }
 
@@ -507,10 +574,29 @@ class UploadController extends GetxController with ContentValidationMixin {
 
         final extension = pickedFile.extension?.toLowerCase();
         const allowedExtensions = {
-          'mp4', 'mov', 'avi', 'wmv', 'webm', 'flv', '3gpp', '3gp', 'mpeg', 'mpg', 'mkv', 'mpegps', 'm4v', 'dnxhr', 'prores', 'cineform', 'hevc'
+          'mp4',
+          'mov',
+          'avi',
+          'wmv',
+          'webm',
+          'flv',
+          '3gpp',
+          '3gp',
+          'mpeg',
+          'mpg',
+          'mkv',
+          'mpegps',
+          'm4v',
+          'dnxhr',
+          'prores',
+          'cineform',
+          'hevc',
         };
         if (extension == null || !allowedExtensions.contains(extension)) {
-          Get.snackbar('Error', 'Unsupported video format. YouTube allowed formats are supported.');
+          Get.snackbar(
+            'Error',
+            'Unsupported video format. YouTube allowed formats are supported.',
+          );
           return;
         }
 
@@ -579,7 +665,9 @@ class UploadController extends GetxController with ContentValidationMixin {
     final size = videoPlayerController!.value.size;
     final duration = videoPlayerController!.value.duration;
     isShort.value = size.height > size.width && duration.inSeconds <= 60;
-    debugPrint('🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)');
+    debugPrint(
+      '🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)',
+    );
 
     update();
   }
@@ -706,12 +794,14 @@ class UploadController extends GetxController with ContentValidationMixin {
         'videoUrl': '',
         'thumbnailUrl': '',
         'likes': 0,
-        'likedby': [],
+        'likeCount': 0,
+        'dislikes': 0,
+        'dislikeCount': 0,
         'views': 0,
-        'shares': [],
+        'viewCount': 0,
+        'shareCount': 0,
         'downloads': 0,
         'reportCount': 0,
-        'reports': [],
         'isBlocked': false,
         'visibility': selectedVisibility.value,
         'category': selectedCategory.value,
@@ -747,7 +837,8 @@ class UploadController extends GetxController with ContentValidationMixin {
             // ── Video Content Moderation Status ──────────────────────
             final moderation = data['moderation'] as Map<String, dynamic>?;
             if (moderation != null) {
-              final modStatus = (moderation['status'] as String?)?.toUpperCase() ?? 'PENDING';
+              final modStatus =
+                  (moderation['status'] as String?)?.toUpperCase() ?? 'PENDING';
               final modReason = moderation['reason'] as String? ?? '';
               final modSummary = moderation['summary'] as String? ?? '';
 
@@ -763,7 +854,9 @@ class UploadController extends GetxController with ContentValidationMixin {
                     'Content Approved',
                     '✅ Your video complies with Community Guidelines',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                    backgroundColor: const Color(
+                      0xFF10B981,
+                    ).withValues(alpha: 0.15),
                   );
                 } else if (modStatus == 'REJECTED') {
                   debugPrint('❌ Video content REJECTED: $modReason');
@@ -771,7 +864,9 @@ class UploadController extends GetxController with ContentValidationMixin {
                     'Content Rejected',
                     '❌ $modReason',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    backgroundColor: const Color(
+                      0xFFEF4444,
+                    ).withValues(alpha: 0.15),
                     duration: const Duration(seconds: 5),
                   );
                 } else if (modStatus == 'PROCESSING') {
@@ -797,7 +892,8 @@ class UploadController extends GetxController with ContentValidationMixin {
               isUploading.value = false;
 
               // Final check on URLs to ensure UI is ready
-              if (data['videoUrl'] != null) videoUrl.value = data['videoUrl'] as String;
+              if (data['videoUrl'] != null)
+                videoUrl.value = data['videoUrl'] as String;
               if (data['thumbnailUrl'] != null) {
                 thumbnailUrl.value = data['thumbnailUrl'] as String;
               }
@@ -811,7 +907,9 @@ class UploadController extends GetxController with ContentValidationMixin {
               );
               statusListener?.cancel();
             } else if (status == 'rejected') {
-              final reason = data['rejectionReason'] ?? 'Content violates Community Guidelines';
+              final reason =
+                  data['rejectionReason'] ??
+                  'Content violates Community Guidelines';
               debugPrint('❌ Video REJECTED by moderation: $reason');
               isUploading.value = false;
               videoUploadProgress.value = 0.0;
@@ -997,7 +1095,6 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   // Keep track of moderation listeners for all uploaded images
 
-
   // Track uploaded doc ids (both video and community)
   List<String> uploadedDocIds = [];
 
@@ -1112,76 +1209,84 @@ class UploadController extends GetxController with ContentValidationMixin {
   void _startImageVerification(String docId, {required bool forCommunity}) {
     final subscription = _imageVerificationService
         .streamVerificationStatus(docId)
-        .listen((result) {
-      final status = result.status.name.toUpperCase();
-      final reason = result.reason;
+        .listen(
+          (result) {
+            final status = result.status.name.toUpperCase();
+            final reason = result.reason;
 
-      if (forCommunity) {
-        communityImageStatus.value = status;
-        communityImageStatusReason.value = reason;
-      } else {
-        finalstatus.value = status;
-        finalstatusReason.value = reason;
-      }
+            if (forCommunity) {
+              communityImageStatus.value = status;
+              communityImageStatusReason.value = reason;
+            } else {
+              finalstatus.value = status;
+              finalstatusReason.value = reason;
+            }
 
-      // Cache the result for future reference
-      _cacheService.setVerification(docId, result);
+            // Cache the result for future reference
+            _cacheService.setVerification(docId, result);
 
-      debugPrint('🔍 [VERIFICATION UPDATE] $docId: $status (community=$forCommunity)');
-      debugPrint('   Reason: $reason');
+            debugPrint(
+              '🔍 [VERIFICATION UPDATE] $docId: $status (community=$forCommunity)',
+            );
+            debugPrint('   Reason: $reason');
 
-      if (status == 'REJECTED') {
-        Get.snackbar(
-          'Rejected',
-          'Your image was rejected: $reason',
-          backgroundColor: Get.theme.colorScheme.error.withValues(alpha: 0.1),
-          duration: const Duration(seconds: 4),
+            if (status == 'REJECTED') {
+              Get.snackbar(
+                'Rejected',
+                'Your image was rejected: $reason',
+                backgroundColor: Get.theme.colorScheme.error.withValues(
+                  alpha: 0.1,
+                ),
+                duration: const Duration(seconds: 4),
+              );
+            } else if (status == 'FLAGGED') {
+              Get.snackbar(
+                'Review',
+                'Your image needs review: $reason',
+                backgroundColor: AppColors.warning.withValues(alpha: 0.1),
+                duration: const Duration(seconds: 4),
+              );
+            } else if (status == 'APPROVED') {
+              Get.snackbar(
+                'Approved',
+                '✅ Your image was approved!',
+                backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
+              );
+            }
+
+            if (status != 'PENDING') {
+              Future.delayed(const Duration(seconds: 2), () {
+                if (forCommunity) {
+                  _communityImageModerationSubscription?.cancel();
+                } else {
+                  _thumbnailModerationSubscription?.cancel();
+                }
+              });
+            }
+          },
+          onError: (error) {
+            debugPrint('❌ [VERIFICATION ERROR] $error');
+            if (forCommunity) {
+              communityImageStatus.value = 'ERROR';
+              communityImageStatusReason.value =
+                  'Verification service error: $error';
+            } else {
+              finalstatus.value = 'ERROR';
+              finalstatusReason.value = 'Verification service error: $error';
+            }
+            Get.snackbar(
+              'Verification Error',
+              'Failed to verify image: $error',
+              backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
+              duration: const Duration(seconds: 4),
+            );
+            if (forCommunity) {
+              _communityImageModerationSubscription?.cancel();
+            } else {
+              _thumbnailModerationSubscription?.cancel();
+            }
+          },
         );
-      } else if (status == 'FLAGGED') {
-        Get.snackbar(
-          'Review',
-          'Your image needs review: $reason',
-          backgroundColor: AppColors.warning.withValues(alpha: 0.1),
-          duration: const Duration(seconds: 4),
-        );
-      } else if (status == 'APPROVED') {
-        Get.snackbar(
-          'Approved',
-          '✅ Your image was approved!',
-          backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-        );
-      }
-
-      if (status != 'PENDING') {
-        Future.delayed(const Duration(seconds: 2), () {
-          if (forCommunity) {
-            _communityImageModerationSubscription?.cancel();
-          } else {
-            _thumbnailModerationSubscription?.cancel();
-          }
-        });
-      }
-    }, onError: (error) {
-      debugPrint('❌ [VERIFICATION ERROR] $error');
-      if (forCommunity) {
-        communityImageStatus.value = 'ERROR';
-        communityImageStatusReason.value = 'Verification service error: $error';
-      } else {
-        finalstatus.value = 'ERROR';
-        finalstatusReason.value = 'Verification service error: $error';
-      }
-      Get.snackbar(
-        'Verification Error',
-        'Failed to verify image: $error',
-        backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
-        duration: const Duration(seconds: 4),
-      );
-      if (forCommunity) {
-        _communityImageModerationSubscription?.cancel();
-      } else {
-        _thumbnailModerationSubscription?.cancel();
-      }
-    });
 
     if (forCommunity) {
       _communityImageModerationSubscription = subscription;
@@ -1192,7 +1297,10 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   List<String> _generateKeywords(String title) {
     final cleanTitle = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
-    final words = cleanTitle.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final words = cleanTitle
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
     final keywords = <String>{};
     for (final word in words) {
       keywords.add(word);
@@ -1331,12 +1439,18 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
 
     if (channelName.trim().isEmpty) {
-      Get.snackbar('Error', 'Selected channel name is missing. Please select a valid channel.');
+      Get.snackbar(
+        'Error',
+        'Selected channel name is missing. Please select a valid channel.',
+      );
       return;
     }
-    
+
     if (channelId.trim().isEmpty) {
-      Get.snackbar('Error', 'Selected channel ID is missing. Please select a valid channel.');
+      Get.snackbar(
+        'Error',
+        'Selected channel ID is missing. Please select a valid channel.',
+      );
       return;
     }
 
@@ -1437,35 +1551,41 @@ class UploadController extends GetxController with ContentValidationMixin {
       // Handle inline topic creation if needed
       if (newTopicData.isNotEmpty) {
         debugPrint('🆕 Creating new inline topic: ${newTopicData['title']}');
-        
+
         final newTitle = newTopicData['title'] as String;
         final newDescription = (newTopicData['description'] as String?) ?? '';
         final newCategory = (newTopicData['category'] as String?) ?? 'Music';
-        final newVisibility = (newTopicData['visibilityType'] as TopicVisibilityType?) ?? TopicVisibilityType.public;
+        final newVisibility =
+            (newTopicData['visibilityType'] as TopicVisibilityType?) ??
+            TopicVisibilityType.public;
         final newAccessCode = newTopicData['accessCode'] as String?;
-        final thumbnailSource = (newTopicData['thumbnailSource'] as String?) ?? 'video';
-        
+        final thumbnailSource =
+            (newTopicData['thumbnailSource'] as String?) ?? 'video';
+
         String? finalThumbnailUrl;
-        if (thumbnailSource == 'custom' && newTopicData['customThumbnailBytes'] != null) {
+        if (thumbnailSource == 'custom' &&
+            newTopicData['customThumbnailBytes'] != null) {
           final bytes = newTopicData['customThumbnailBytes'] as Uint8List;
-          final fileName = (newTopicData['customThumbnailName'] as String?) ?? 'custom_topic_thumb.jpg';
+          final fileName =
+              (newTopicData['customThumbnailName'] as String?) ??
+              'custom_topic_thumb.jpg';
           finalThumbnailUrl = await uploadTopicCustomThumbnail(bytes, fileName);
         } else {
           // Use first video's thumbnail
           finalThumbnailUrl = thumbnailUrl.value;
         }
-        
+
         final newSlug = newTitle
             .toLowerCase()
             .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
             .replaceAll(RegExp(r'\s+'), '-');
-            
+
         final existingSlug = await _firestore
             .collection('topics')
             .where('slug', isEqualTo: newSlug)
             .limit(1)
             .get();
-            
+
         var finalSlug = newSlug;
         if (existingSlug.docs.isNotEmpty) {
           finalSlug = '$newSlug-${const Uuid().v4().substring(0, 6)}';
@@ -1487,7 +1607,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         }
         final finalHandle = 'T/$cleanHandle';
         final finalHandleLowercase = finalHandle.toLowerCase();
-        
+
         final newTopicRef = _firestore.collection('topics').doc();
         final newTopic = Topic(
           id: newTopicRef.id,
@@ -1501,16 +1621,20 @@ class UploadController extends GetxController with ContentValidationMixin {
           channelId: channelId.trim(),
           creatorId: userId,
           visibilityType: newVisibility,
-          accessCode: newVisibility == TopicVisibilityType.private ? newAccessCode : null,
+          accessCode: newVisibility == TopicVisibilityType.private
+              ? newAccessCode
+              : null,
           videoCount: 1, // Enforces the rule that it has 1 video now
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           status: 'underReview',
         );
-        
+
         await newTopicRef.set(newTopic.toMap());
-        debugPrint('✅ Inline topic created with slug: $finalSlug and handle: $finalHandle');
-        
+        debugPrint(
+          '✅ Inline topic created with slug: $finalSlug and handle: $finalHandle',
+        );
+
         selectedTopicId.value = finalSlug;
         newTopicData.clear();
       }
@@ -1549,7 +1673,8 @@ class UploadController extends GetxController with ContentValidationMixin {
       debugPrint('✅ Document updated successfully!');
 
       if (selectedTopicId.value.isNotEmpty) {
-        final topicQuery = await _firestore.collection('topics')
+        final topicQuery = await _firestore
+            .collection('topics')
             .where('slug', isEqualTo: selectedTopicId.value)
             .limit(1)
             .get();
@@ -1561,7 +1686,9 @@ class UploadController extends GetxController with ContentValidationMixin {
               'videoCount': FieldValue.increment(1),
               'updatedAt': FieldValue.serverTimestamp(),
             });
-            debugPrint('✅ Incremented videoCount for existing topic: ${selectedTopicId.value}');
+            debugPrint(
+              '✅ Incremented videoCount for existing topic: ${selectedTopicId.value}',
+            );
           }
         }
       }
@@ -1576,7 +1703,9 @@ class UploadController extends GetxController with ContentValidationMixin {
             videoId,
             true, // We assume public_playlists based on the current upload flow
           );
-          debugPrint('✅ Successfully added video to playlist via PlaylistController');
+          debugPrint(
+            '✅ Successfully added video to playlist via PlaylistController',
+          );
         } catch (e) {
           debugPrint('⚠️ Error adding to playlist via controller: $e');
           // Fallback to manual update if controller not found or fails
@@ -1588,7 +1717,6 @@ class UploadController extends GetxController with ContentValidationMixin {
               });
         }
       }
-
 
       // Move to publish stage
       setUploadStage(3);
@@ -1738,13 +1866,13 @@ class UploadController extends GetxController with ContentValidationMixin {
         'images': [communityImageUrl.value],
         'image': communityImageUrl.value,
         'likes': 0,
-        'likedby': [],
+        'likeCount': 0,
         'dislikes': 0,
-        'dislikedby': [],
         'dislikeCount': 0,
         'commentCount': 0,
         'views': 0,
-        'shares': [],
+        'viewCount': 0,
+        'shareCount': 0,
         'downloads': 0,
         'uploadedAt': Timestamp.now(),
         'ownerId': FirebaseAuth.instance.currentUser!.uid,
@@ -1831,18 +1959,20 @@ class UploadController extends GetxController with ContentValidationMixin {
         isTopicsLoading.value = false;
         return;
       }
-      
-      final snap = await _firestore.collection('topics')
+
+      final snap = await _firestore
+          .collection('topics')
           .where('status', isNotEqualTo: 'deletion_pending')
           .get();
-          
+
       final fetched = <Topic>[];
       for (final doc in snap.docs) {
         try {
           final t = Topic.fromDocumentSnapshot(doc);
           if (t.visibilityType == TopicVisibilityType.public ||
               t.creatorId == user.uid ||
-              (selectedChannel.value != null && t.channelId == selectedChannel.value!.id)) {
+              (selectedChannel.value != null &&
+                  t.channelId == selectedChannel.value!.id)) {
             fetched.add(t);
             // Pre-fetch channel metadata for public topics asynchronously
             if (t.channelId != null && t.channelId!.isNotEmpty) {
@@ -1853,9 +1983,11 @@ class UploadController extends GetxController with ContentValidationMixin {
           debugPrint('Error parsing topic doc: $e');
         }
       }
-      
+
       availableTopics.value = fetched;
-      debugPrint('Fetched ${availableTopics.length} available topics for upload screen');
+      debugPrint(
+        'Fetched ${availableTopics.length} available topics for upload screen',
+      );
     } catch (e) {
       debugPrint('Error fetching topics: $e');
       topicsError.value = e.toString();
@@ -1866,7 +1998,8 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   /// Resolves and caches channel metadata (name, handle, avatar) for a given channelId
   Future<void> fetchChannelMetadata(String channelId) async {
-    if (channelId.isEmpty || channelMetadataCache.containsKey(channelId)) return;
+    if (channelId.isEmpty || channelMetadataCache.containsKey(channelId))
+      return;
 
     // Check in user's own channels first
     for (final c in channels) {
@@ -1884,7 +2017,9 @@ class UploadController extends GetxController with ContentValidationMixin {
       final doc = await _firestore.collection('channels').doc(channelId).get();
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        final name = (data['channelName'] ?? data['name'] ?? 'TruthWorld Channel').toString();
+        final name =
+            (data['channelName'] ?? data['name'] ?? 'TruthWorld Channel')
+                .toString();
         final handle = (data['handle'] ?? '').toString();
         final avatarUrl = (data['avatarUrl'] ?? '').toString();
         channelMetadataCache[channelId] = {
@@ -1936,7 +2071,7 @@ class UploadController extends GetxController with ContentValidationMixin {
           .where('slug', isEqualTo: slug)
           .limit(1)
           .get();
-          
+
       if (query.docs.isEmpty) {
         Get.snackbar(
           'Error',
@@ -1946,10 +2081,10 @@ class UploadController extends GetxController with ContentValidationMixin {
         );
         return false;
       }
-      
+
       final topicDoc = query.docs.first;
       final topic = Topic.fromDocumentSnapshot(topicDoc);
-      
+
       if (topic.visibilityType == TopicVisibilityType.private) {
         if (topic.accessCode != passcode) {
           Get.snackbar(
@@ -1961,7 +2096,7 @@ class UploadController extends GetxController with ContentValidationMixin {
           return false;
         }
       }
-      
+
       if (!availableTopics.any((t) => t.slug == topic.slug)) {
         availableTopics.add(topic);
       }
@@ -1984,10 +2119,15 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
   }
 
-  Future<String?> uploadTopicCustomThumbnail(Uint8List bytes, String fileName) async {
+  Future<String?> uploadTopicCustomThumbnail(
+    Uint8List bytes,
+    String fileName,
+  ) async {
     try {
       await _ensureStorageAuthReady();
-      final ref = FirebaseStorage.instance.ref().child('thumbnails/topics/$fileName');
+      final ref = FirebaseStorage.instance.ref().child(
+        'thumbnails/topics/$fileName',
+      );
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
         customMetadata: {'uploaded': DateTime.now().toString()},
@@ -2013,7 +2153,6 @@ class UploadController extends GetxController with ContentValidationMixin {
 // ==========================================================================
 
 class VideoRepository {
-
   VideoRepository() {
     _initializeFilters();
   }
@@ -2054,8 +2193,13 @@ class VideoRepository {
       );
     }
 
-    final containsBadWord = ['xxx', 'nsfw', 'porn', 'sex', 'nude']
-        .any((word) => details.toLowerCase().contains(word));
+    final containsBadWord = [
+      'xxx',
+      'nsfw',
+      'porn',
+      'sex',
+      'nude',
+    ].any((word) => details.toLowerCase().contains(word));
 
     if (containsBadWord) {
       return const ContentValidationResult(
@@ -2135,8 +2279,3 @@ class VideoRepository {
     }
   }
 }
-
-
-
-
-

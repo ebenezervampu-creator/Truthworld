@@ -15,65 +15,65 @@ class AdminLoginScreen extends StatelessWidget {
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
         child: Stack(
-        children: [
-          // Background Gradient Orbs
-          Positioned(
-            top: -150,
-            left: -150,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.brand.withValues(alpha: 0.15),
-                    blurRadius: 120,
-                    spreadRadius: 80,
-                  ),
-                ],
+          children: [
+            // Background Gradient Orbs
+            Positioned(
+              top: -150,
+              left: -150,
+              child: Container(
+                width: 400,
+                height: 400,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.brand.withValues(alpha: 0.15),
+                      blurRadius: 120,
+                      spreadRadius: 80,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          Positioned(
-            bottom: -150,
-            right: -150,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.brandHover.withValues(alpha: 0.1),
-                    blurRadius: 150,
-                    spreadRadius: 100,
-                  ),
-                ],
+            Positioned(
+              bottom: -150,
+              right: -150,
+              child: Container(
+                width: 400,
+                height: 400,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.brandHover.withValues(alpha: 0.1),
+                      blurRadius: 150,
+                      spreadRadius: 100,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          // Main Login Layout
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 450),
-                child: Obx(() {
-                  if (controller.isAuthChecking.value) {
-                    return _buildLoadingCard();
-                  }
-                  return _buildLoginCard(context, controller);
-                }),
+            // Main Login Layout
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  child: Obx(() {
+                    if (controller.isAuthChecking.value) {
+                      return _buildLoadingCard();
+                    }
+                    return _buildLoginCard(context, controller);
+                  }),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildLoadingCard() {
     return Container(
@@ -105,7 +105,6 @@ class AdminLoginScreen extends StatelessWidget {
           Text(
             'Verifying console credentials...',
             style: TextStyle(
-              
               color: AppColors.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w400,
@@ -158,7 +157,6 @@ class AdminLoginScreen extends StatelessWidget {
             child: Text(
               'Moderator & Audit Center',
               style: TextStyle(
-                
                 color: AppColors.textSecondary,
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
@@ -191,7 +189,10 @@ class AdminLoginScreen extends StatelessWidget {
               labelStyle: const TextStyle(color: AppColors.textSecondary),
               filled: true,
               fillColor: AppColors.bgInput,
-              prefixIcon: const Icon(Icons.email_outlined, color: AppColors.textPrimary),
+              prefixIcon: const Icon(
+                Icons.email_outlined,
+                color: AppColors.textPrimary,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -215,7 +216,10 @@ class AdminLoginScreen extends StatelessWidget {
               labelStyle: const TextStyle(color: AppColors.textSecondary),
               filled: true,
               fillColor: AppColors.bgInput,
-              prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.textPrimary),
+              prefixIcon: const Icon(
+                Icons.lock_outline_rounded,
+                color: AppColors.textPrimary,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(color: AppColors.bgDivider),
@@ -235,7 +239,7 @@ class AdminLoginScreen extends StatelessWidget {
                 : () => controller.signInWithEmailAndPassword(),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -300,7 +304,9 @@ class AdminLoginScreen extends StatelessWidget {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.bgPage54),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.bgPage54,
+                      ),
                     ),
                   )
                 : Row(
@@ -347,8 +353,11 @@ class AdminLoginScreen extends StatelessWidget {
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lock_outline_rounded,
-                  color: AppColors.textTertiary, size: 14),
+              Icon(
+                Icons.lock_outline_rounded,
+                color: AppColors.textTertiary,
+                size: 14,
+              ),
               SizedBox(width: 6),
               Text(
                 'Secured with Firebase Auth',

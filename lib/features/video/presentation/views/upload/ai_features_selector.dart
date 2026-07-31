@@ -10,9 +10,23 @@ import 'package:truthworld/theme/app_theme.dart';
 // =============================================================================
 
 class AIFeaturesSelector extends StatelessWidget {
-
   const AIFeaturesSelector({
-    required this.transcriptEnabled, required this.generateSubtitles, required this.generateDubbing, required this.diarizationEnabled, required this.summaryEnabled, required this.autoChaptersEnabled, required this.selectedLanguages, required this.ttsEnabled, required this.ttsVoiceType, required this.factCheckEnabled, required this.voiceSample, super.key,
+    required this.transcriptEnabled,
+    required this.generateSubtitles,
+    required this.generateDubbing,
+    required this.diarizationEnabled,
+    required this.summaryEnabled,
+    required this.autoChaptersEnabled,
+    required this.selectedLanguages,
+    required this.ttsEnabled,
+    required this.ttsVoiceType,
+    required this.factCheckEnabled,
+    required this.voiceSample,
+    super.key,
+    this.selectedCategory,
+    this.providedSources,
+    this.onAddSource,
+    this.onRemoveSource,
     this.isPremiumUser = false,
     this.onPickVoiceSample,
   });
@@ -28,6 +42,10 @@ class AIFeaturesSelector extends StatelessWidget {
   final RxString ttsVoiceType;
   final RxBool factCheckEnabled;
   final Rx<PlatformFile?> voiceSample;
+  final RxString? selectedCategory;
+  final RxList<String>? providedSources;
+  final Function(String)? onAddSource;
+  final Function(int)? onRemoveSource;
   final bool isPremiumUser;
   final VoidCallback? onPickVoiceSample;
 
@@ -89,7 +107,8 @@ class AIFeaturesSelector extends StatelessWidget {
                 _buildFeatureToggle(
                   icon: Icons.bookmarks_rounded,
                   title: 'Auto Chapters',
-                  subtitle: 'Automatically segment video into chapters (AssemblyAI)',
+                  subtitle:
+                      'Automatically segment video into chapters (AssemblyAI)',
                   value: autoChaptersEnabled,
                   gradient: [const Color(0xFF10B981), const Color(0xFF3B82F6)],
                 ),
@@ -203,7 +222,7 @@ class AIFeaturesSelector extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        
+
         // --- Feature Toggles: Subtitles & Dubbing ---
         Row(
           children: [
@@ -226,7 +245,7 @@ class AIFeaturesSelector extends StatelessWidget {
             ),
           ],
         ),
-        
+
         Obx(() {
           if (!generateDubbing.value) return const SizedBox.shrink();
           return Padding(
@@ -275,7 +294,11 @@ class AIFeaturesSelector extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: isOn ? accentColor : AppColors.textTertiary),
+              Icon(
+                icon,
+                size: 18,
+                color: isOn ? accentColor : AppColors.textTertiary,
+              ),
               const SizedBox(width: 8),
               Text(
                 title,
@@ -286,7 +309,8 @@ class AIFeaturesSelector extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              if (isOn) Icon(Icons.check_circle_rounded, size: 14, color: accentColor),
+              if (isOn)
+                Icon(Icons.check_circle_rounded, size: 14, color: accentColor),
             ],
           ),
         ),
@@ -317,11 +341,19 @@ class AIFeaturesSelector extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _buildDubbingTypeChip('Normal', 'standard', Icons.bolt_rounded),
+                child: _buildDubbingTypeChip(
+                  'Normal',
+                  'standard',
+                  Icons.bolt_rounded,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildDubbingTypeChip('Voice Clone', 'cloned', Icons.copy_rounded),
+                child: _buildDubbingTypeChip(
+                  'Voice Clone',
+                  'cloned',
+                  Icons.copy_rounded,
+                ),
               ),
             ],
           ),
@@ -345,21 +377,35 @@ class AIFeaturesSelector extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFF59E0B).withValues(alpha: 0.2) : Colors.transparent,
+            color: isSelected
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isSelected ? const Color(0xFFF59E0B).withValues(alpha: 0.5) : Colors.transparent),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFFF59E0B).withValues(alpha: 0.5)
+                  : Colors.transparent,
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: isSelected ? const Color(0xFFF59E0B) : AppColors.textTertiary),
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected
+                    ? const Color(0xFFF59E0B)
+                    : AppColors.textTertiary,
+              ),
               const SizedBox(width: 6),
               Text(
                 label,
                 style: AppTextStyles.bodyMedium.copyWith(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                  color: isSelected
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -373,18 +419,36 @@ class AIFeaturesSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLanguageGroup('Widely Used', LanguageCategory.global, const Color(0xFF4285F4)),
+        _buildLanguageGroup(
+          'Widely Used',
+          LanguageCategory.global,
+          const Color(0xFF4285F4),
+        ),
         const SizedBox(height: 12),
-        _buildLanguageGroup('Indian Languages', LanguageCategory.indian, const Color(0xFFFF6B35)),
+        _buildLanguageGroup(
+          'Indian Languages',
+          LanguageCategory.indian,
+          const Color(0xFFFF6B35),
+        ),
         const SizedBox(height: 12),
-        _buildLanguageGroup('All Others (100+)', LanguageCategory.other, AppColors.textTertiary),
+        _buildLanguageGroup(
+          'All Others (100+)',
+          LanguageCategory.other,
+          AppColors.textTertiary,
+        ),
       ],
     );
   }
 
-  Widget _buildLanguageGroup(String title, LanguageCategory category, Color accentColor) {
-    final langs = supportedLanguages.where((l) => l.category == category).toList();
-    
+  Widget _buildLanguageGroup(
+    String title,
+    LanguageCategory category,
+    Color accentColor,
+  ) {
+    final langs = supportedLanguages
+        .where((l) => l.category == category)
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -411,7 +475,9 @@ class AIFeaturesSelector extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: langs.map((lang) => _buildLanguageChip(lang, accentColor)).toList(),
+          children: langs
+              .map((lang) => _buildLanguageChip(lang, accentColor))
+              .toList(),
         ),
       ],
     );
@@ -448,7 +514,11 @@ class AIFeaturesSelector extends StatelessWidget {
               if (isSelected)
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: Icon(Icons.check_circle_rounded, size: 14, color: accent),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 14,
+                    color: accent,
+                  ),
                 ),
               Text(
                 lang.name,
@@ -491,7 +561,11 @@ class AIFeaturesSelector extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.psychology_rounded, color: AppColors.textPrimary, size: 20),
+            child: const Icon(
+              Icons.psychology_rounded,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -570,8 +644,14 @@ class AIFeaturesSelector extends StatelessWidget {
                       if (badge != null) ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: gradient.first, borderRadius: BorderRadius.circular(6)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: gradient.first,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                           child: Text(
                             badge,
                             style: AppTextStyles.labelSmall.copyWith(
@@ -594,7 +674,11 @@ class AIFeaturesSelector extends StatelessWidget {
               ),
             ),
             if (locked)
-              const Icon(Icons.lock_outline_rounded, color: AppColors.textTertiary, size: 20)
+              const Icon(
+                Icons.lock_outline_rounded,
+                color: AppColors.textTertiary,
+                size: 20,
+              )
             else
               Switch(
                 value: isOn,
@@ -607,14 +691,245 @@ class AIFeaturesSelector extends StatelessWidget {
     });
   }
 
+  static const Set<String> _noFactCheckCategories = {
+    'Music',
+    'Entertainment',
+    'Gaming',
+    'Comedy',
+    'Animation',
+    'Movies',
+    'Lifestyle',
+    'Sports',
+    'Pets & Animals',
+    'Fashion & Beauty',
+    'Food & Cooking',
+    'DIY & How-to',
+  };
+
   Widget _buildFactCheckToggle() {
-    return _buildFeatureToggle(
-      icon:     Icons.fact_check_rounded,
-      title:    'Fact-Check',
-      subtitle: 'Verify claims and ensure accuracy (Gemini)',
-      value:    factCheckEnabled,
-      gradient: [const Color(0xFF14B8A6), const Color(0xFF0D9488)],
-    );
+    return Obx(() {
+      final category = selectedCategory?.value ?? '';
+      final isNoFactCheckNeeded =
+          category.isNotEmpty && _noFactCheckCategories.contains(category);
+
+      if (isNoFactCheckNeeded && factCheckEnabled.value) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          factCheckEnabled.value = false;
+        });
+      }
+
+      final isEnabled = factCheckEnabled.value && !isNoFactCheckNeeded;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildFeatureToggle(
+            icon: Icons.fact_check_rounded,
+            title: 'Fact-Check',
+            subtitle: isNoFactCheckNeeded
+                ? 'No fact checking needed for $category'
+                : 'Verify claims and ensure accuracy (Gemini)',
+            value: factCheckEnabled,
+            gradient: isNoFactCheckNeeded
+                ? [const Color(0xFF6B7280), const Color(0xFF4B5563)]
+                : [const Color(0xFF14B8A6), const Color(0xFF0D9488)],
+            locked: isNoFactCheckNeeded,
+            badge: isNoFactCheckNeeded ? 'N/A for $category' : null,
+          ),
+          if (isEnabled) _buildProvidedSourcesSection(),
+        ],
+      );
+    });
+  }
+
+  Widget _buildProvidedSourcesSection() {
+    final controller = TextEditingController();
+
+    return Obx(() {
+      final sources = providedSources?.toList() ?? [];
+
+      return Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.bgInput,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: sources.isEmpty
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.5)
+                : const Color(0xFF14B8A6).withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.link_rounded,
+                  color: AppColors.textPrimary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Channel Provided Sources & References',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  '*',
+                  style: TextStyle(
+                    color: Color(0xFFEF4444),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Provide at least 1 source link (news article, paper, official document) for the Credibility System.',
+              style: AppTextStyles.caption.copyWith(
+                color: sources.isEmpty
+                    ? const Color(0xFFF59E0B)
+                    : AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: controller,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'https://example.com/source-link',
+                      hintStyle: TextStyle(
+                        color: AppColors.textSecondary.withValues(alpha: 0.6),
+                        fontSize: 12,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.bgSurface,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: AppColors.bgDivider),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: AppColors.bgDivider),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF14B8A6)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final text = controller.text.trim();
+                    if (text.isNotEmpty && onAddSource != null) {
+                      onAddSource!(text);
+                      controller.clear();
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.add_rounded,
+                    color: AppColors.textPrimary,
+                    size: 16,
+                  ),
+                  label: const Text(
+                    'Add',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF14B8A6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (sources.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: sources.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final src = entry.value;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF14B8A6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF14B8A6).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 200),
+                          child: Text(
+                            src,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () {
+                            if (onRemoveSource != null) {
+                              onRemoveSource!(idx);
+                            }
+                          },
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.textPrimary,
+                            size: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildVoiceSamplePicker() {
@@ -627,18 +942,28 @@ class AIFeaturesSelector extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+            border: Border.all(
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+            ),
           ),
           child: Row(
             children: [
-              Icon(sample != null ? Icons.check_circle : Icons.upload_file_rounded, color: const Color(0xFFF59E0B), size: 22),
+              Icon(
+                sample != null ? Icons.check_circle : Icons.upload_file_rounded,
+                color: const Color(0xFFF59E0B),
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  sample != null ? '${sample.name} (${(sample.size / 1024).toStringAsFixed(0)} KB)' : 'Upload voice sample (MP3, WAV)',
+                  sample != null
+                      ? '${sample.name} (${(sample.size / 1024).toStringAsFixed(0)} KB)'
+                      : 'Upload voice sample (MP3, WAV)',
                   style: AppTextStyles.bodyMedium.copyWith(
                     fontSize: 12,
-                    fontWeight: sample != null ? FontWeight.w500 : FontWeight.w400,
+                    fontWeight: sample != null
+                        ? FontWeight.w500
+                        : FontWeight.w400,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -650,8 +975,3 @@ class AIFeaturesSelector extends StatelessWidget {
     });
   }
 }
-
-
-
-
-

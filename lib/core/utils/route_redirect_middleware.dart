@@ -129,7 +129,8 @@ class TopicRedirectMiddleware extends GetMiddleware {
     final uri = Uri.tryParse(route ?? '');
     if (uri != null) {
       final pathSegments = uri.pathSegments;
-      if (pathSegments.length >= 2 && (pathSegments[0] == 'topic' || pathSegments[0] == 'T')) {
+      if (pathSegments.length >= 2 &&
+          (pathSegments[0] == 'topic' || pathSegments[0] == 'T')) {
         final slug = pathSegments[1];
         // Clean handle prefix if present
         var clean = slug.trim();
@@ -158,21 +159,27 @@ class RouteStackObserver extends NavigatorObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     routeStack.add(route);
-    debugPrint('[RouteStackObserver] Pushed: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    debugPrint(
+      '[RouteStackObserver] Pushed: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}',
+    );
     super.didPush(route, previousRoute);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     routeStack.remove(route);
-    debugPrint('[RouteStackObserver] Popped: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    debugPrint(
+      '[RouteStackObserver] Popped: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}',
+    );
     super.didPop(route, previousRoute);
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
     routeStack.remove(route);
-    debugPrint('[RouteStackObserver] Removed: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    debugPrint(
+      '[RouteStackObserver] Removed: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}',
+    );
     super.didRemove(route, previousRoute);
   }
 
@@ -180,12 +187,15 @@ class RouteStackObserver extends NavigatorObserver {
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
     if (oldRoute != null) routeStack.remove(oldRoute);
     if (newRoute != null) routeStack.add(newRoute);
-    debugPrint('[RouteStackObserver] Replaced: ${oldRoute?.settings.name} with ${newRoute?.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    debugPrint(
+      '[RouteStackObserver] Replaced: ${oldRoute?.settings.name} with ${newRoute?.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}',
+    );
     super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 
   static bool hasRoute(String namePattern) {
-    return routeStack.any((route) => route.settings.name?.contains(namePattern) ?? false);
+    return routeStack.any(
+      (route) => route.settings.name?.contains(namePattern) ?? false,
+    );
   }
 }
-

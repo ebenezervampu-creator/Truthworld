@@ -9,7 +9,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// Separated from playback state to prevent unnecessary rebuilds.
 @immutable
 class MiniplayerVideoInfo {
-
   const MiniplayerVideoInfo({
     required this.id,
     required this.title,
@@ -76,7 +75,6 @@ enum MiniplayerMode {
 /// around the viewport, dismissable, and expandable to fullscreen.
 @immutable
 class MiniplayerConfig {
-
   const MiniplayerConfig({
     this.enabled = true,
     this.autoShowOnNavigate = true,
@@ -146,6 +144,10 @@ class MiniplayerConfig {
   /// Compute a responsive miniplayer width clamped between [minWidth]/[maxWidth].
   static double widthForScreen(double screenWidth) {
     if (screenWidth <= 0) return defaultWidth;
+    if (screenWidth < 600) {
+      // Mobile screen optimization
+      return (screenWidth - 24).clamp(260.0, 380.0);
+    }
     final target = screenWidth * 0.30;
     return target.clamp(minWidth, maxWidth);
   }

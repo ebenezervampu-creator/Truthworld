@@ -5,7 +5,6 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 /// This keeps the grouping, sorting, and summary calculations in one place so
 /// the widget stays presentational and state transitions remain predictable.
 class GeoBreakdownState {
-
   const GeoBreakdownState({
     required this.indianStates,
     required this.countries,

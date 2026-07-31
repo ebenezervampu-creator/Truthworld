@@ -3,9 +3,9 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 
 /// Reusable Topic Visibility Badge Widget (Public / Private / Channel Only)
 class TopicVisibilityBadge extends StatelessWidget {
-
   const TopicVisibilityBadge({
-    required this.visibilityType, super.key,
+    required this.visibilityType,
+    super.key,
     this.isCompact = false,
   });
   final TopicVisibilityType visibilityType;

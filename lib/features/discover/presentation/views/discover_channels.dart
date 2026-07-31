@@ -11,7 +11,9 @@ class DiscoverChannelsPage extends StatelessWidget {
   DiscoverChannelsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  final DiscoverChannelsController controller = Get.put(DiscoverChannelsController());
+  final DiscoverChannelsController controller = Get.put(
+    DiscoverChannelsController(),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +26,13 @@ class DiscoverChannelsPage extends StatelessWidget {
           backgroundColor: backgroundColor,
           appBar: (context.isMobile && !isDashboard)
               ? AppBar(
-                  title: const Text('Discover Channels', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                  title: const Text(
+                    'Discover Channels',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   backgroundColor: Colors.transparent,
                   elevation: 0,
                 )
@@ -59,22 +67,32 @@ class DiscoverChannelsPage extends StatelessWidget {
                         style: const TextStyle(color: AppColors.textPrimary),
                         decoration: InputDecoration(
                           hintText: 'Search channels by name...',
-                          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-                          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
-                                  onPressed: controller.clearSearch,
-                                )
-                              : const SizedBox.shrink()),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: AppColors.textSecondary,
+                          ),
+                          suffixIcon: Obx(
+                            () => controller.searchQuery.value.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    onPressed: controller.clearSearch,
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
                         ),
                       ),
                     ),
                   ),
 
                   // Categories Horizontal List or Grid
-                  Obx(() => controller.selectedCategory.value == 'All'
-                    ? _buildCategoryGrid(context)
-                    : _buildSelectedCategoryHeader(context)),
+                  Obx(
+                    () => controller.selectedCategory.value == 'All'
+                        ? _buildCategoryGrid(context)
+                        : _buildSelectedCategoryHeader(context),
+                  ),
 
                   // Filters Bar
                   SliverToBoxAdapter(
@@ -88,7 +106,11 @@ class DiscoverChannelsPage extends StatelessWidget {
                   Obx(() {
                     if (controller.isLoading.value) {
                       return const SliverFillRemaining(
-                        child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.brand,
+                          ),
+                        ),
                       );
                     }
 
@@ -131,14 +153,17 @@ class DiscoverChannelsPage extends StatelessWidget {
   Widget _buildCategoryGrid(BuildContext context) {
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: context.isMobile ? 2 : (ResponsiveContext(context).isTablet ? 3 : 4),
+        crossAxisCount: context.isMobile
+            ? 2
+            : (ResponsiveContext(context).isTablet ? 3 : 4),
         childAspectRatio: 1.6,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          final category = controller.categories[index + 1]; // Skip 'All' for grid
+          final category =
+              controller.categories[index + 1]; // Skip 'All' for grid
           return _buildCategoryCard(context, category);
         },
         childCount: controller.categories.length - 1,
@@ -146,7 +171,10 @@ class DiscoverChannelsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, Map<String, dynamic> category) {
+  Widget _buildCategoryCard(
+    BuildContext context,
+    Map<String, dynamic> category,
+  ) {
     return InkWell(
       onTap: () => controller.selectCategory(category['name']),
       borderRadius: BorderRadius.circular(16),
@@ -235,10 +263,12 @@ class DiscoverChannelsPage extends StatelessWidget {
                 backgroundColor: AppColors.bgSurface,
                 selectedColor: AppColors.brand,
                 labelStyle: TextStyle(
-                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                  color: isSelected ? Colors.black : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
             );
           });
@@ -263,7 +293,10 @@ class DiscoverChannelsPage extends StatelessWidget {
             if (isDashboard && Get.isRegistered<HomeController>()) {
               Get.find<HomeController>().navigateToChannelDetail(channel);
             } else {
-              Get.toNamed(channel.channelRoute, arguments: {'channel': channel});
+              Get.toNamed(
+                channel.channelRoute,
+                arguments: {'channel': channel},
+              );
             }
           },
           child: Column(
@@ -286,8 +319,10 @@ class DiscoverChannelsPage extends StatelessWidget {
                           ? CachedNetworkImage(
                               imageUrl: channel.bannerUrl,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: AppColors.bgDivider),
-                              errorWidget: (context, url, error) => Container(color: AppColors.bgDivider),
+                              placeholder: (context, url) =>
+                                  Container(color: AppColors.bgDivider),
+                              errorWidget: (context, url, error) =>
+                                  Container(color: AppColors.bgDivider),
                             )
                           : Container(
                               decoration: const BoxDecoration(
@@ -343,16 +378,23 @@ class DiscoverChannelsPage extends StatelessWidget {
                           if (channel.isVerified)
                             const Padding(
                               padding: EdgeInsets.only(left: 4),
-                              child: Icon(Icons.verified, color: Colors.white, size: 14),
+                              child: Icon(
+                                Icons.verified,
+                                color: Colors.white,
+                                size: 14,
+                              ),
                             ),
                         ],
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        channel.handle.isNotEmpty 
-                            ? channel.handle 
+                        channel.handle.isNotEmpty
+                            ? channel.handle
                             : '@${channel.name.toLowerCase().replaceAll(RegExp(r'\s+'), '')}',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -378,11 +420,16 @@ class DiscoverChannelsPage extends StatelessWidget {
                             foregroundColor: AppColors.textPrimary,
                             elevation: 0,
                             padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
                           ),
                           child: const Text(
                             'Subscribe',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -410,8 +457,3 @@ class DiscoverChannelsPage extends StatelessWidget {
     return count.toString();
   }
 }
-
-
-
-
-

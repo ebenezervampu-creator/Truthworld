@@ -45,7 +45,9 @@ class UserPreferencesService extends GetxService {
         blockedChannelIds.assignAll(rawBlockedIds.map((e) => e.toString()));
       }
 
-      final rawBlockedNames = _storage.read<List<dynamic>>(_keyBlockedChannelNames);
+      final rawBlockedNames = _storage.read<List<dynamic>>(
+        _keyBlockedChannelNames,
+      );
       if (rawBlockedNames != null) {
         blockedChannelNames.assignAll(rawBlockedNames.map((e) => e.toString()));
       }
@@ -58,7 +60,10 @@ class UserPreferencesService extends GetxService {
     try {
       await _storage.write(_keyHiddenVideos, hiddenVideoIds.toList());
       await _storage.write(_keyBlockedChannels, blockedChannelIds.toList());
-      await _storage.write(_keyBlockedChannelNames, blockedChannelNames.toList());
+      await _storage.write(
+        _keyBlockedChannelNames,
+        blockedChannelNames.toList(),
+      );
     } catch (e) {
       debugPrint('[UserPreferencesService] Error saving to storage: $e');
     }
@@ -73,13 +78,20 @@ class UserPreferencesService extends GetxService {
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
-          final fsHidden = List<String>.from(data['notInterestedVideoIds'] ?? []);
-          final fsBlockedIds = List<String>.from(data['blockedChannelIds'] ?? []);
-          final fsBlockedNames = List<String>.from(data['blockedChannelNames'] ?? []);
+          final fsHidden = List<String>.from(
+            data['notInterestedVideoIds'] ?? [],
+          );
+          final fsBlockedIds = List<String>.from(
+            data['blockedChannelIds'] ?? [],
+          );
+          final fsBlockedNames = List<String>.from(
+            data['blockedChannelNames'] ?? [],
+          );
 
           if (fsHidden.isNotEmpty) hiddenVideoIds.addAll(fsHidden);
           if (fsBlockedIds.isNotEmpty) blockedChannelIds.addAll(fsBlockedIds);
-          if (fsBlockedNames.isNotEmpty) blockedChannelNames.addAll(fsBlockedNames);
+          if (fsBlockedNames.isNotEmpty)
+            blockedChannelNames.addAll(fsBlockedNames);
 
           _saveToStorage();
         }
@@ -102,7 +114,9 @@ class UserPreferencesService extends GetxService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (e) {
-        debugPrint('[UserPreferencesService] Error syncing hideVideo to Firestore: $e');
+        debugPrint(
+          '[UserPreferencesService] Error syncing hideVideo to Firestore: $e',
+        );
       }
     }
   }
@@ -120,7 +134,9 @@ class UserPreferencesService extends GetxService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (e) {
-        debugPrint('[UserPreferencesService] Error syncing unhideVideo to Firestore: $e');
+        debugPrint(
+          '[UserPreferencesService] Error syncing unhideVideo to Firestore: $e',
+        );
       }
     }
   }
@@ -151,16 +167,22 @@ class UserPreferencesService extends GetxService {
         if (channelName != null && channelName.isNotEmpty) {
           updates['blockedChannelNames'] = FieldValue.arrayUnion([channelName]);
         }
-        await _firestore.collection('users').doc(user.uid).set(updates, SetOptions(merge: true));
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set(updates, SetOptions(merge: true));
       } catch (e) {
-        debugPrint('[UserPreferencesService] Error syncing blockChannel to Firestore: $e');
+        debugPrint(
+          '[UserPreferencesService] Error syncing blockChannel to Firestore: $e',
+        );
       }
     }
   }
 
   Future<void> unblockChannel(String channelId, {String? channelName}) async {
     if (channelId.isNotEmpty) blockedChannelIds.remove(channelId);
-    if (channelName != null && channelName.isNotEmpty) blockedChannelNames.remove(channelName);
+    if (channelName != null && channelName.isNotEmpty)
+      blockedChannelNames.remove(channelName);
 
     await _saveToStorage();
 
@@ -174,11 +196,18 @@ class UserPreferencesService extends GetxService {
           updates['blockedChannelIds'] = FieldValue.arrayRemove([channelId]);
         }
         if (channelName != null && channelName.isNotEmpty) {
-          updates['blockedChannelNames'] = FieldValue.arrayRemove([channelName]);
+          updates['blockedChannelNames'] = FieldValue.arrayRemove([
+            channelName,
+          ]);
         }
-        await _firestore.collection('users').doc(user.uid).set(updates, SetOptions(merge: true));
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set(updates, SetOptions(merge: true));
       } catch (e) {
-        debugPrint('[UserPreferencesService] Error syncing unblockChannel to Firestore: $e');
+        debugPrint(
+          '[UserPreferencesService] Error syncing unblockChannel to Firestore: $e',
+        );
       }
     }
   }
@@ -189,14 +218,19 @@ class UserPreferencesService extends GetxService {
   }
 
   bool isChannelBlocked(String channelId, {String? channelName}) {
-    if (channelId.isNotEmpty && blockedChannelIds.contains(channelId)) return true;
-    if (channelName != null && channelName.isNotEmpty && blockedChannelNames.contains(channelName)) return true;
+    if (channelId.isNotEmpty && blockedChannelIds.contains(channelId))
+      return true;
+    if (channelName != null &&
+        channelName.isNotEmpty &&
+        blockedChannelNames.contains(channelName))
+      return true;
     return false;
   }
 
   bool isVideoBlocked(Video video) {
     if (isVideoHidden(video.id)) return true;
-    if (isChannelBlocked(video.channelId, channelName: video.channelName)) return true;
+    if (isChannelBlocked(video.channelId, channelName: video.channelName))
+      return true;
     return false;
   }
 

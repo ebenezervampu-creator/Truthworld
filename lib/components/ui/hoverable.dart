@@ -12,9 +12,9 @@ class HoverableController extends GetxController {
 }
 
 class Hoverable extends StatelessWidget {
-
   const Hoverable({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.scaleOnHover = true,
     this.scaleFactor = 1.02,
     this.hoverColor,

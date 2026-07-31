@@ -83,7 +83,9 @@ Future<List<Map<String, dynamic>>> getAllVideosData() async {
           final metaJson = jsonDecode(content) as Map<String, dynamic>;
           results.add({'meta': metaJson});
         } catch (e) {
-          debugPrint('[database_helpers] Error reading meta file ${entity.path}: $e');
+          debugPrint(
+            '[database_helpers] Error reading meta file ${entity.path}: $e',
+          );
         }
       }
     }
@@ -141,8 +143,3 @@ Future<String?> getVideoFilePath(String id) async {
   }
   return null;
 }
-
-
-
-
-

@@ -9,7 +9,8 @@ import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
-import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as search_ctrl;
+import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
+    as search_ctrl;
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
@@ -17,9 +18,9 @@ import 'package:truthworld/features/video/presentation/controllers/video_control
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoOptionsSheet extends StatelessWidget {
-
   const VideoOptionsSheet({
-    required this.video, super.key,
+    required this.video,
+    super.key,
     this.onRemoveFromHistory,
   });
   final Video video;
@@ -45,7 +46,9 @@ class VideoOptionsSheet extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Material(
-          color: const Color(0xFF1E1E1E), // Premium dark theme matching screenshot
+          color: const Color(
+            0xFF1E1E1E,
+          ), // Premium dark theme matching screenshot
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -72,36 +75,53 @@ class VideoOptionsSheet extends StatelessWidget {
                     ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.watch_later_outlined, color: AppColors.textPrimary, size: 24),
+                    icon: const Icon(
+                      Icons.watch_later_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
                     title: 'Save to Watch later',
-                    onTap: () async {
+                    onTap: () {
                       Get.back();
-                      if (!Get.isRegistered<PlaylistController>()) {
-                        Get.put(PlaylistController());
-                      }
-                      final playlistCtrl = Get.find<PlaylistController>();
-                      await playlistCtrl.toggleWatchLater(video.id);
+                      showModernizedPlaylistDialog(
+                        context: context,
+                        videoId: video.id,
+                      );
                     },
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary, size: 24),
+                    icon: const Icon(
+                      Icons.bookmark_outline_rounded,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
                     title: 'Save to playlist',
                     onTap: () {
                       Get.back();
-                      showModernizedPlaylistDialog(context: context, videoId: video.id);
+                      showModernizedPlaylistDialog(
+                        context: context,
+                        videoId: video.id,
+                      );
                     },
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.download_outlined, color: AppColors.textPrimary, size: 24),
+                    icon: const Icon(
+                      Icons.download_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
                     title: 'Download video',
                     onTap: () async {
                       Get.back();
-                      if (Get.isRegistered<VideoController>() && Get.find<VideoController>().video.id == video.id) {
+                      if (Get.isRegistered<VideoController>() &&
+                          Get.find<VideoController>().video.id == video.id) {
                         final vc = Get.find<VideoController>();
                         if (vc.currentResolution.value != null) {
-                          await vc.saveVideoOffline(vc.currentResolution.value!);
+                          await vc.saveVideoOffline(
+                            vc.currentResolution.value!,
+                          );
                           if (Get.isRegistered<DownloadsController>()) {
                             Get.find<DownloadsController>().loadVideos();
                           }
@@ -122,8 +142,11 @@ class VideoOptionsSheet extends StatelessWidget {
                         );
 
                         var videoBytes = Uint8List(0);
-                        final targetUrl = video.originalUrl.isNotEmpty ? video.originalUrl : video.videoUrl;
-                        if (targetUrl.isNotEmpty && targetUrl.startsWith('http')) {
+                        final targetUrl = video.originalUrl.isNotEmpty
+                            ? video.originalUrl
+                            : video.videoUrl;
+                        if (targetUrl.isNotEmpty &&
+                            targetUrl.startsWith('http')) {
                           final res = await http.get(Uri.parse(targetUrl));
                           if (res.statusCode == 200) {
                             videoBytes = res.bodyBytes;
@@ -144,7 +167,9 @@ class VideoOptionsSheet extends StatelessWidget {
                           'Download Complete',
                           "'${video.title}' downloaded successfully for offline viewing.",
                           snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.success.withValues(alpha: 0.8),
+                          backgroundColor: AppColors.success.withValues(
+                            alpha: 0.8,
+                          ),
                           colorText: AppColors.textPrimary,
                           margin: const EdgeInsets.all(20),
                           borderRadius: 16,
@@ -154,7 +179,9 @@ class VideoOptionsSheet extends StatelessWidget {
                           'Download Failed',
                           'Could not download video: $e',
                           snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.error.withValues(alpha: 0.8),
+                          backgroundColor: AppColors.error.withValues(
+                            alpha: 0.8,
+                          ),
                           colorText: AppColors.textPrimary,
                           margin: const EdgeInsets.all(20),
                           borderRadius: 16,
@@ -166,7 +193,11 @@ class VideoOptionsSheet extends StatelessWidget {
                     context,
                     icon: Transform.flip(
                       flipX: true,
-                      child: const Icon(Icons.reply_outlined, color: AppColors.textPrimary, size: 24),
+                      child: const Icon(
+                        Icons.reply_outlined,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
                     ),
                     title: 'Share',
                     onTap: () {
@@ -183,7 +214,11 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.block_outlined, color: AppColors.textPrimary, size: 24),
+                    icon: const Icon(
+                      Icons.block_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
                     title: 'Not interested',
                     onTap: () {
                       Get.back();
@@ -223,12 +258,22 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.no_accounts_outlined, color: AppColors.textPrimary, size: 24),
+                    icon: const Icon(
+                      Icons.no_accounts_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
                     title: "Don't recommend channel",
                     onTap: () {
                       Get.back();
-                      UserPreferencesService.to.blockChannel(video.channelId, channelName: video.channelName);
-                      _removeChannelFromControllers(video.channelId, video.channelName);
+                      UserPreferencesService.to.blockChannel(
+                        video.channelId,
+                        channelName: video.channelName,
+                      );
+                      _removeChannelFromControllers(
+                        video.channelId,
+                        video.channelName,
+                      );
                       AppSnackbar.show(
                         "Don't recommend channel",
                         "We won't recommend videos from ${video.channelName} anymore.",
@@ -240,7 +285,10 @@ class VideoOptionsSheet extends StatelessWidget {
                         mainButton: TextButton(
                           onPressed: () {
                             if (Get.isSnackbarOpen) Get.back();
-                            UserPreferencesService.to.unblockChannel(video.channelId, channelName: video.channelName);
+                            UserPreferencesService.to.unblockChannel(
+                              video.channelId,
+                              channelName: video.channelName,
+                            );
                             if (Get.isRegistered<HomeController>()) {
                               Get.find<HomeController>().fetchInitialVideos();
                             }
@@ -263,7 +311,11 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.flag_outlined, color: AppColors.textPrimary, size: 24),
+                    icon: const Icon(
+                      Icons.flag_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
                     title: 'Report',
                     onTap: () {
                       Get.back();
@@ -300,7 +352,6 @@ class VideoOptionsSheet extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  
                   fontSize: 16,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w400,
@@ -338,7 +389,6 @@ class VideoOptionsSheet extends StatelessWidget {
             title: const Text(
               'Report Video',
               style: TextStyle(
-                
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
@@ -350,7 +400,6 @@ class VideoOptionsSheet extends StatelessWidget {
                   title: Text(
                     reason,
                     style: const TextStyle(
-                      
                       color: AppColors.textPrimary,
                       fontSize: 15,
                     ),
@@ -397,11 +446,11 @@ class VideoOptionsSheet extends StatelessWidget {
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: Colors.black,
                   disabledBackgroundColor: AppColors.brand.withValues(
                     alpha: 0.3,
                   ),
-                  disabledForegroundColor: AppColors.textSecondary,
+                  disabledForegroundColor: Colors.black54,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -433,7 +482,10 @@ class VideoOptionsSheet extends StatelessWidget {
     }
   }
 
-  static void _removeChannelFromControllers(String channelId, String channelName) {
+  static void _removeChannelFromControllers(
+    String channelId,
+    String channelName,
+  ) {
     bool matches(Video v) {
       if (channelId.isNotEmpty && v.channelId == channelId) return true;
       if (channelName.isNotEmpty && v.channelName == channelName) return true;

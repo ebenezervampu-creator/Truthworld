@@ -15,9 +15,10 @@ import 'package:truthworld/features/topics/presentation/widgets/topic_popup_menu
 import 'package:truthworld/theme/app_theme.dart';
 
 class TopicManagementScreen extends StatelessWidget {
-
   TopicManagementScreen({
-    required this.channelId, required this.isDarkMode, super.key,
+    required this.channelId,
+    required this.isDarkMode,
+    super.key,
     this.searchQuery = '',
   });
   final String channelId;
@@ -37,14 +38,16 @@ class TopicManagementScreen extends StatelessWidget {
       final isOwner =
           Get.isRegistered<AuthService>() &&
           ((topic.channelId != null &&
-              topic.channelId!.isNotEmpty &&
-              AuthService.to.userChannel?.id == topic.channelId) ||
-           (topic.creatorId != null &&
-              topic.creatorId!.isNotEmpty &&
-              AuthService.to.uid == topic.creatorId));
+                  topic.channelId!.isNotEmpty &&
+                  AuthService.to.userChannel?.id == topic.channelId) ||
+              (topic.creatorId != null &&
+                  topic.creatorId!.isNotEmpty &&
+                  AuthService.to.uid == topic.creatorId));
 
       if (!isOwner) {
-        SnackbarService.error(message: 'Only the topic creator channel can edit this topic.');
+        SnackbarService.error(
+          message: 'Only the topic creator channel can edit this topic.',
+        );
         return;
       }
 
@@ -58,12 +61,19 @@ class TopicManagementScreen extends StatelessWidget {
       );
     };
 
-    final isDark = Theme.of(context).brightness == Brightness.dark || isDarkMode;
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || isDarkMode;
     final bgColor = isDark ? const Color(0xFF0D1117) : const Color(0xFFF9FAFB);
-    final cardBgColor = isDark ? const Color(0xFF161B22) : AppColors.textPrimary;
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB);
+    final cardBgColor = isDark
+        ? const Color(0xFF161B22)
+        : AppColors.textPrimary;
+    final borderColor = isDark
+        ? const Color(0xFF30363D)
+        : const Color(0xFFE5E7EB);
     final textColor = isDark ? AppColors.textPrimary : const Color(0xFF111827);
-    final subtextColor = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
+    final subtextColor = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF6B7280);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -117,16 +127,22 @@ class TopicManagementScreen extends StatelessWidget {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: () => _showCreateTopicDialog(context, controller),
+                                onPressed: () =>
+                                    _showCreateTopicDialog(context, controller),
                                 icon: const Icon(Icons.add_rounded, size: 18),
                                 label: Text(
                                   'New Topic',
-                                  style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+                                  style: AppTextStyles.buttonText.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF3B82F6),
                                   foregroundColor: AppColors.textPrimary,
-                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 12,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -166,16 +182,22 @@ class TopicManagementScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 16),
                           ElevatedButton.icon(
-                            onPressed: () => _showCreateTopicDialog(context, controller),
+                            onPressed: () =>
+                                _showCreateTopicDialog(context, controller),
                             icon: const Icon(Icons.add_rounded, size: 18),
                             label: Text(
                               'New Topic',
-                              style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+                              style: AppTextStyles.buttonText.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF3B82F6),
                               foregroundColor: AppColors.textPrimary,
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 12,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -251,7 +273,14 @@ class TopicManagementScreen extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Studio Search Bar
-                  _buildStudioSearchBar(context, controller, isDark, textColor, subtextColor, borderColor),
+                  _buildStudioSearchBar(
+                    context,
+                    controller,
+                    isDark,
+                    textColor,
+                    subtextColor,
+                    borderColor,
+                  ),
 
                   const SizedBox(height: 10),
                 ],
@@ -285,13 +314,17 @@ class TopicManagementScreen extends StatelessWidget {
                   });
 
                   return Obx(() {
-                    final query = controller.searchQuery.value.trim().toLowerCase();
+                    final query = controller.searchQuery.value
+                        .trim()
+                        .toLowerCase();
                     final filtered = query.isEmpty
                         ? topics
                         : topics.where((topic) {
                             return topic.title.toLowerCase().contains(query) ||
                                 topic.handle.toLowerCase().contains(query) ||
-                                topic.description.toLowerCase().contains(query) ||
+                                topic.description.toLowerCase().contains(
+                                  query,
+                                ) ||
                                 topic.category.toLowerCase().contains(query);
                           }).toList();
 
@@ -302,12 +335,13 @@ class TopicManagementScreen extends StatelessWidget {
                     return GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 420,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 1.25,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 420,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 1.25,
+                          ),
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
                         final topic = filtered[index];
@@ -380,14 +414,18 @@ class TopicManagementScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                    color: isDark
+                        ? AppColors.textPrimary
+                        : const Color(0xFF111827),
                   ),
                 ),
                 Text(
                   title,
                   style: TextStyle(
                     fontSize: 11,
-                    color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                    color: isDark
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF6B7280),
                   ),
                 ),
               ],
@@ -425,7 +463,11 @@ class TopicManagementScreen extends StatelessWidget {
           decoration: InputDecoration(
             hintText: 'Search topics by title, handle, or category...',
             hintStyle: TextStyle(fontSize: 14, color: subtextColor),
-            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF3B82F6), size: 20),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF3B82F6),
+              size: 20,
+            ),
             suffixIcon: query.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear_rounded, size: 18),
@@ -445,11 +487,16 @@ class TopicManagementScreen extends StatelessWidget {
     BuildContext context,
     TopicManagementController controller,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark || isDarkMode;
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || isDarkMode;
     final cardBg = isDark ? const Color(0xFF161B22) : AppColors.textPrimary;
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB);
+    final borderColor = isDark
+        ? const Color(0xFF30363D)
+        : const Color(0xFFE5E7EB);
     final textColor = isDark ? AppColors.textPrimary : const Color(0xFF111827);
-    final subtextColor = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
+    final subtextColor = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF6B7280);
 
     return Center(
       child: Container(
@@ -514,7 +561,10 @@ class TopicManagementScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF3B82F6),
                 foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -531,11 +581,16 @@ class TopicManagementScreen extends StatelessWidget {
     BuildContext context,
     TopicManagementController controller,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark || isDarkMode;
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark || isDarkMode;
     final cardBg = isDark ? const Color(0xFF161B22) : AppColors.textPrimary;
-    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB);
+    final borderColor = isDark
+        ? const Color(0xFF30363D)
+        : const Color(0xFFE5E7EB);
     final textColor = isDark ? AppColors.textPrimary : const Color(0xFF111827);
-    final subtextColor = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
+    final subtextColor = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF6B7280);
 
     return Center(
       child: Container(
@@ -585,7 +640,10 @@ class TopicManagementScreen extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF3B82F6),
                 side: const BorderSide(color: Color(0xFF3B82F6)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -638,7 +696,9 @@ class TopicManagementScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.textPrimary.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+            ),
             boxShadow: [
               BoxShadow(
                 color: AppColors.bgPage.withValues(alpha: 0.2),
@@ -666,7 +726,6 @@ class TopicManagementScreen extends StatelessWidget {
               const Text(
                 'Failed to Load Topics',
                 style: TextStyle(
-                  
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -677,7 +736,6 @@ class TopicManagementScreen extends StatelessWidget {
                 error,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  
                   fontSize: 13,
                   color: AppColors.textSecondary,
                   height: 1.4,
@@ -746,7 +804,8 @@ class TopicManagementScreen extends StatelessWidget {
               : createCtrl.categoryController.text,
           selectedVideoIds: createCtrl.selectedVideoIds,
           visibilityType: createCtrl.selectedVisibility.value,
-          accessCode: createCtrl.selectedVisibility.value == TopicVisibilityType.private
+          accessCode:
+              createCtrl.selectedVisibility.value == TopicVisibilityType.private
               ? createCtrl.accessCodeController.text.trim()
               : null,
           thumbnailUrl: finalThumbnailUrl,
@@ -757,9 +816,12 @@ class TopicManagementScreen extends StatelessWidget {
 }
 
 class EditTopicDialog extends StatefulWidget {
-
   const EditTopicDialog({
-    required this.topic, required this.channelId, required this.isDarkMode, required this.controller, super.key,
+    required this.topic,
+    required this.channelId,
+    required this.isDarkMode,
+    required this.controller,
+    super.key,
   });
   final Topic topic;
   final String channelId;
@@ -865,7 +927,8 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
             (v) => selectedVideoIds.contains(v['id']),
           );
           if (firstVideo != null) {
-            chosenVideoThumbnailUrl.value = firstVideo['thumbnailUrl'] as String?;
+            chosenVideoThumbnailUrl.value =
+                firstVideo['thumbnailUrl'] as String?;
           }
         }
       }
@@ -895,7 +958,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
         title: Text(
           'Edit Topic',
           style: TextStyle(
-            
             fontWeight: FontWeight.bold,
             color: widget.isDarkMode
                 ? AppTheme.colors.textPrimary
@@ -972,7 +1034,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       'Category',
                       style: TextStyle(
-                        
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -987,7 +1048,9 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                           ? const Color(0xFF1C2128)
                           : AppColors.textPrimary,
                       style: TextStyle(
-                        color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                        color: widget.isDarkMode
+                            ? AppColors.textPrimary
+                            : AppColors.bgPage,
                       ),
                       decoration: InputDecoration(
                         enabledBorder: OutlineInputBorder(
@@ -1019,7 +1082,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       'Visibility Type',
                       style: TextStyle(
-                        
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -1035,7 +1097,9 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                           ? const Color(0xFF1C2128)
                           : AppColors.textPrimary,
                       style: TextStyle(
-                        color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                        color: widget.isDarkMode
+                            ? AppColors.textPrimary
+                            : AppColors.bgPage,
                       ),
                       decoration: InputDecoration(
                         enabledBorder: OutlineInputBorder(
@@ -1052,15 +1116,24 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                       items: const [
                         DropdownMenuItem(
                           value: TopicVisibilityType.public,
-                          child: Text('Public (Anyone can contribute)', overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            'Public (Anyone can contribute)',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         DropdownMenuItem(
                           value: TopicVisibilityType.channelOnly,
-                          child: Text('Channel Only (Only you can contribute)', overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            'Channel Only (Only you can contribute)',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         DropdownMenuItem(
                           value: TopicVisibilityType.private,
-                          child: Text('Private (Passcode required for others)', overflow: TextOverflow.ellipsis),
+                          child: Text(
+                            'Private (Passcode required for others)',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                       onChanged: (val) {
@@ -1120,7 +1193,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       'Topic Thumbnail',
                       style: TextStyle(
-                        
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -1164,7 +1236,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                 child: Text(
                                   'Use Video Thumbnail',
                                   style: TextStyle(
-                                    
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: thumbnailSource.value == 'video'
@@ -1196,7 +1267,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                 child: Text(
                                   'Upload Custom',
                                   style: TextStyle(
-                                    
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: thumbnailSource.value == 'custom'
@@ -1316,7 +1386,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                           Text(
                                             'Tap to upload a custom topic thumbnail',
                                             style: TextStyle(
-                                              
                                               fontSize: 12,
                                               color: widget.isDarkMode
                                                   ? AppColors.textSecondary
@@ -1347,7 +1416,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                         Text(
                           "Select which video's thumbnail to use:",
                           style: TextStyle(
-                            
                             fontSize: 12,
                             color: widget.isDarkMode
                                 ? AppTheme.colors.textPrimary70
@@ -1411,7 +1479,8 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                                         ),
                                                   )
                                                 : Container(
-                                                    color: AppColors.textSecondary,
+                                                    color:
+                                                        AppColors.textSecondary,
                                                   ),
                                           ),
                                           if (isSelected)
@@ -1439,9 +1508,10 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                             right: 0,
                                             child: Container(
                                               padding: const EdgeInsets.all(4),
-                                              color: AppColors.bgPage.withValues(
-                                                alpha: 0.6,
-                                              ),
+                                              color: AppColors.bgPage
+                                                  .withValues(
+                                                    alpha: 0.6,
+                                                  ),
                                               child: Text(
                                                 (v['title'] as String?) ?? '',
                                                 maxLines: 1,
@@ -1468,7 +1538,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       'Link Videos (At least 1 required)',
                       style: TextStyle(
-                        
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -1484,7 +1553,6 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                         child: Text(
                           'No videos found on your channel. Upload a video first to link to topics.',
                           style: TextStyle(
-                            
                             color: AppColors.error,
                             fontSize: 13,
                           ),
@@ -1509,7 +1577,8 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                           children: channelVideos.map((video) {
                             final videoId = (video['id'] as String?) ?? '';
                             final title = (video['title'] as String?) ?? '';
-                            final thumbnailUrl = (video['thumbnailUrl'] as String?) ?? '';
+                            final thumbnailUrl =
+                                (video['thumbnailUrl'] as String?) ?? '';
                             final isSelected = selectedVideoIds.contains(
                               videoId,
                             );
@@ -1543,9 +1612,10 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                           errorBuilder: (c, o, s) => Container(
                                             width: 44,
                                             height: 25,
-                                            color: AppColors.textSecondary.withValues(
-                                              alpha: 0.3,
-                                            ),
+                                            color: AppColors.textSecondary
+                                                .withValues(
+                                                  alpha: 0.3,
+                                                ),
                                             child: const Icon(
                                               Icons.video_library,
                                               size: 14,
@@ -1555,9 +1625,10 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                       : Container(
                                           width: 44,
                                           height: 25,
-                                          color: AppColors.textSecondary.withValues(
-                                            alpha: 0.3,
-                                          ),
+                                          color: AppColors.textSecondary
+                                              .withValues(
+                                                alpha: 0.3,
+                                              ),
                                           child: const Icon(
                                             Icons.video_library,
                                             size: 14,
@@ -1587,7 +1658,8 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                               chosenVideoThumbnailUrl.value,
                                         )) {
                                       chosenVideoThumbnailUrl.value =
-                                          selectedMap.first['thumbnailUrl'] as String?;
+                                          selectedMap.first['thumbnailUrl']
+                                              as String?;
                                     }
                                   } else {
                                     chosenVideoThumbnailUrl.value = null;
@@ -1699,7 +1771,10 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                         color: AppColors.textPrimary,
                       ),
                     )
-                  : const Text('Save', style: TextStyle(color: AppColors.textPrimary)),
+                  : const Text(
+                      'Save',
+                      style: TextStyle(color: AppColors.textPrimary),
+                    ),
             ),
         ],
       );

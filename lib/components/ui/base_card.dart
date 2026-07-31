@@ -10,9 +10,9 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Optional hover/tap effects
 /// - Semantic accessibility support
 class BaseCard extends StatelessWidget {
-
   const BaseCard({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.onTap,
     this.onDoubleTap,
     this.enableHoverEffect = true,
@@ -76,7 +76,8 @@ class BaseCard extends StatelessWidget {
                 ? AppTheme.colors.primary.withValues(alpha: 0.2)
                 : Colors.transparent,
             child: Padding(
-              padding: padding ?? EdgeInsets.all(AppTheme.components.cardPadding),
+              padding:
+                  padding ?? EdgeInsets.all(AppTheme.components.cardPadding),
               child: child,
             ),
           ),
@@ -85,8 +86,3 @@ class BaseCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

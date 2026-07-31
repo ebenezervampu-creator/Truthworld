@@ -14,7 +14,8 @@ import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
 /// Represents a single resolution tier in the quality ladder
-class ResolutionTier { // Minimum bandwidth required (kbps) to sustain
+class ResolutionTier {
+  // Minimum bandwidth required (kbps) to sustain
 
   const ResolutionTier({
     required this.label,
@@ -67,6 +68,13 @@ class ResolutionTier { // Minimum bandwidth required (kbps) to sustain
       minBandwidth: 3000,
     ),
     const ResolutionTier(
+      label: '1040p',
+      url: '',
+      height: 1040,
+      bitrate: 4500,
+      minBandwidth: 5200,
+    ),
+    const ResolutionTier(
       label: '1080p',
       url: '',
       height: 1080,
@@ -100,7 +108,6 @@ enum NetworkQuality {
 
 /// ABR decision record for analytics
 class AbrDecision {
-
   AbrDecision({
     required this.timestamp,
     required this.fromTierIndex,
@@ -173,7 +180,7 @@ class AdaptiveBitrateController extends GetxController {
   }) {
     resolutionLadder = ladder;
     _vpc = vpc;
-    
+
     // Initial Bandwidth Hint from Browser
     final hint = _getInitialBandwidthHint();
     if (hint > 0) {
@@ -183,7 +190,10 @@ class AdaptiveBitrateController extends GetxController {
     // We keep the current tier or start as high as hint allows
     if (ladder.isNotEmpty) {
       // SAFETY: Clamp default currentTierIndex to new ladder bounds immediately
-      currentTierIndex.value = currentTierIndex.value.clamp(0, ladder.length - 1);
+      currentTierIndex.value = currentTierIndex.value.clamp(
+        0,
+        ladder.length - 1,
+      );
       _runAbrDecision(forceHighest: true);
     }
 
@@ -278,11 +288,14 @@ class AdaptiveBitrateController extends GetxController {
       }
     }
 
-    // INDUSTRY STANDARD: On first decision, jump immediately to best tier 
+    // INDUSTRY STANDARD: On first decision, jump immediately to best tier
     // instead of waiting for hysteresis/buffer gates.
     if (_isFirstDecision || forceHighest) {
       _isFirstDecision = false;
-      _switchToTier(bestTier, reason: 'First load ABR | hint=${bw.toStringAsFixed(0)}kbps');
+      _switchToTier(
+        bestTier,
+        reason: 'First load ABR | hint=${bw.toStringAsFixed(0)}kbps',
+      );
       return;
     }
 
@@ -316,7 +329,11 @@ class AdaptiveBitrateController extends GetxController {
     _updateNetworkQuality(bw);
   }
 
-  void _switchToTier(int index, {required String reason, bool isManual = false}) {
+  void _switchToTier(
+    int index, {
+    required String reason,
+    bool isManual = false,
+  }) {
     final clamped = index.clamp(0, resolutionLadder.length - 1);
     if (clamped == currentTierIndex.value) return;
 
@@ -526,8 +543,3 @@ class AdaptiveBitrateController extends GetxController {
     super.onClose();
   }
 }
-
-
-
-
-

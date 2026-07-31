@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class DraftsScreen extends StatelessWidget {
-
   const DraftsScreen({
-    required this.channelId, required this.isDarkMode, super.key,
+    required this.channelId,
+    required this.isDarkMode,
+    super.key,
   });
   final String channelId;
   final bool isDarkMode;
@@ -63,8 +64,3 @@ class DraftsScreen extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

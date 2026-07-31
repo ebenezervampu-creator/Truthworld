@@ -4,6 +4,8 @@ import 'package:truthworld/features/community/presentation/controllers/saved_com
 class SavedCommunityPostsBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<SavedCommunityPostsController>(SavedCommunityPostsController.new);
+    Get.lazyPut<SavedCommunityPostsController>(
+      SavedCommunityPostsController.new,
+    );
   }
 }

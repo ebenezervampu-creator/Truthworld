@@ -19,7 +19,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Unified Topic Card Widget matching the premium full-bleed hero card design.
 class TopicCardWidget extends StatefulWidget {
-
   const TopicCardWidget({
     super.key,
     this.topic,
@@ -141,8 +140,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     _streamedTopic = topicVal;
     final currentTopic = topic!;
 
-    final exploreController =
-        Get.isRegistered<ExploreTopicsController>()
+    final exploreController = Get.isRegistered<ExploreTopicsController>()
         ? Get.find<ExploreTopicsController>()
         : null;
     final followingController = _followingTopicsController;
@@ -151,11 +149,11 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
         widget.showEditOption &&
         Get.isRegistered<AuthService>() &&
         ((currentTopic.channelId != null &&
-            currentTopic.channelId!.isNotEmpty &&
-            AuthService.to.userChannel?.id == currentTopic.channelId) ||
-         (currentTopic.creatorId != null &&
-            currentTopic.creatorId!.isNotEmpty &&
-            AuthService.to.uid == currentTopic.creatorId));
+                currentTopic.channelId!.isNotEmpty &&
+                AuthService.to.userChannel?.id == currentTopic.channelId) ||
+            (currentTopic.creatorId != null &&
+                currentTopic.creatorId!.isNotEmpty &&
+                AuthService.to.uid == currentTopic.creatorId));
 
     return _buildPremiumCard(
       context,
@@ -198,14 +196,18 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isHovered
-                ? (widget.accentColor ?? AppColors.brand).withValues(alpha: 0.25)
+                ? (widget.accentColor ?? AppColors.brand).withValues(
+                    alpha: 0.25,
+                  )
                 : AppColors.textPrimary.withValues(alpha: 0.05),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
               color: isHovered
-                  ? (widget.accentColor ?? AppColors.brand).withValues(alpha: 0.15)
+                  ? (widget.accentColor ?? AppColors.brand).withValues(
+                      alpha: 0.15,
+                    )
                   : AppColors.bgPage.withValues(alpha: 0.3),
               blurRadius: isHovered ? 16 : 12,
               offset: Offset(0, isHovered ? 8 : 6),
@@ -308,9 +310,11 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                       vertical: isMobile ? 4 : 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: widget.accentColor ?? const Color(
-                                        0xFF9333EA,
-                                      ), // Purple accent
+                                      color:
+                                          widget.accentColor ??
+                                          const Color(
+                                            0xFF9333EA,
+                                          ), // Purple accent
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Row(
@@ -336,53 +340,59 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                     ),
                                   ),
 
-                                   // Followers count badge and optional trailing widget
-                                   Row(
-                                     mainAxisSize: MainAxisSize.min,
-                                     children: [
-                                       Container(
-                                         padding: const EdgeInsets.symmetric(
-                                           horizontal: 10,
-                                           vertical: 4,
-                                         ),
-                                         decoration: BoxDecoration(
-                                           color: AppColors.bgPage.withValues(
-                                             alpha: 0.4,
-                                           ),
-                                           borderRadius: BorderRadius.circular(20),
-                                           border: Border.all(
-                                             color: AppColors.textPrimary.withValues(
-                                               alpha: 0.12,
-                                             ),
-                                           ),
-                                         ),
-                                         child: Row(
-                                           mainAxisSize: MainAxisSize.min,
-                                           children: [
-                                             Icon(
-                                               Icons.people_outline_rounded,
-                                               size: isMobile ? 12 : 14,
-                                               color: AppColors.textSecondary,
-                                             ),
-                                             const SizedBox(width: 4),
-                                             Text(
-                                               '${FormatUtils.formatCount(currentTopic.followerCount)} Followers',
-                                               style: AppTextStyles.labelMedium
-                                                   .copyWith(
-                                                     color: AppColors.textSecondary,
-                                                     fontSize: isMobile ? 10 : 11,
-                                                     fontWeight: FontWeight.bold,
-                                                   ),
-                                             ),
-                                           ],
-                                         ),
-                                       ),
-                                       if (widget.trailing != null) ...[
-                                         const SizedBox(width: 8),
-                                         widget.trailing!,
-                                       ],
-                                     ],
-                                   ),
+                                  // Followers count badge and optional trailing widget
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.bgPage.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: AppColors.textPrimary
+                                                .withValues(
+                                                  alpha: 0.12,
+                                                ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.people_outline_rounded,
+                                              size: isMobile ? 12 : 14,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '${FormatUtils.formatCount(currentTopic.followerCount)} Followers',
+                                              style: AppTextStyles.labelMedium
+                                                  .copyWith(
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                    fontSize: isMobile
+                                                        ? 10
+                                                        : 11,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (widget.trailing != null) ...[
+                                        const SizedBox(width: 8),
+                                        widget.trailing!,
+                                      ],
+                                    ],
+                                  ),
                                 ],
                               ),
 
@@ -431,9 +441,10 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                           vertical: 3,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: AppColors.textPrimary.withValues(
-                                            alpha: 0.12,
-                                          ),
+                                          color: AppColors.textPrimary
+                                              .withValues(
+                                                alpha: 0.12,
+                                              ),
                                           borderRadius: BorderRadius.circular(
                                             4,
                                           ),
@@ -474,7 +485,8 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                     child: Row(
                                       children: [
                                         // Follow button (regular mode) or Edit button (Dashboard mode)
-                                        if (isOwner && widget.showEditOption) ...[
+                                        if (isOwner &&
+                                            widget.showEditOption) ...[
                                           // Edit Button (Rose design)
                                           ElevatedButton.icon(
                                             onPressed: () {
@@ -511,7 +523,8 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                               backgroundColor: const Color(
                                                 0xFFE11D48,
                                               ), // rose-600
-                                              foregroundColor: AppColors.textPrimary,
+                                              foregroundColor:
+                                                  AppColors.textPrimary,
                                               padding: EdgeInsets.symmetric(
                                                 horizontal: isMobile ? 14 : 20,
                                                 vertical: isMobile ? 8 : 12,
@@ -532,29 +545,33 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                                     fontSize: isMobile
                                                         ? 12
                                                         : 13,
-                                                    color: AppColors.textPrimary,
+                                                    color:
+                                                        AppColors.textPrimary,
                                                   ),
                                             ),
                                           ),
                                         ] else ...[
-                                           // Follow / Following Button
-                                           Obx(() {
-                                             final isFollowed = followingController
-                                                 .isTopicFollowed(currentTopic.id);
-                                             return AnimatedFollowTopicButton(
-                                               isFollowed: isFollowed,
-                                               compact: isMobile,
-                                               onPressed:
-                                                   widget.onFollowToggle ??
-                                                   () {
-                                                     followingController
-                                                         .toggleFollowTopic(
-                                                           currentTopic,
-                                                         );
-                                                   },
-                                             );
-                                           }),
-                                         ],
+                                          // Follow / Following Button
+                                          Obx(() {
+                                            final isFollowed =
+                                                followingController
+                                                    .isTopicFollowed(
+                                                      currentTopic.id,
+                                                    );
+                                            return AnimatedFollowTopicButton(
+                                              isFollowed: isFollowed,
+                                              compact: isMobile,
+                                              onPressed:
+                                                  widget.onFollowToggle ??
+                                                  () {
+                                                    followingController
+                                                        .toggleFollowTopic(
+                                                          currentTopic,
+                                                        );
+                                                  },
+                                            );
+                                          }),
+                                        ],
 
                                         const SizedBox(width: 8),
 
@@ -580,9 +597,11 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                             );
                                           },
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.textPrimary
+                                            backgroundColor: AppColors
+                                                .textPrimary
                                                 .withValues(alpha: 0.12),
-                                            foregroundColor: AppColors.textPrimary,
+                                            foregroundColor:
+                                                AppColors.textPrimary,
                                             padding: EdgeInsets.symmetric(
                                               horizontal: isMobile ? 14 : 20,
                                               vertical: isMobile ? 8 : 12,
@@ -810,7 +829,9 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           decoration: BoxDecoration(
             color: const Color(0xFF0F0F0F),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+            ),
           ),
           child: Shimmer.fromColors(
             baseColor: const Color(0xFF161618),
@@ -897,7 +918,9 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
         decoration: BoxDecoration(
           color: const Color(0xFF0F0F0F),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+          border: Border.all(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+          ),
         ),
         child: Shimmer.fromColors(
           baseColor: const Color(0xFF161618),

@@ -21,7 +21,6 @@ import 'package:truthworld/features/video/presentation/views/player/models/playe
 
 /// Internal Cue Representation for visual preview and editing
 class SubtitleCue {
-
   SubtitleCue({
     required this.id,
     required this.startTime,
@@ -62,10 +61,14 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   final filteredVideos = <Video>[].obs;
   final searchQuery = ''.obs;
   StreamSubscription<QuerySnapshot>? _videosSubscription;
+  StreamSubscription<QuerySnapshot>? _channelVideosSubscription;
+  final Map<String, Video> _ownerVideosMap = {};
+  final Map<String, Video> _channelVideosMap = {};
 
   // Selected video and subtitle preview state
   final selectedVideo = Rxn<Video>();
-  final availableLanguages = <String>[].obs; // List of language codes e.g. ['en', 'es']
+  final availableLanguages =
+      <String>[].obs; // List of language codes e.g. ['en', 'es']
   final selectedLanguage = ''.obs;
   final currentCues = <SubtitleCue>[].obs;
   final isSaving = false.obs;
@@ -88,6 +91,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   @override
   void onClose() {
     _videosSubscription?.cancel();
+    _channelVideosSubscription?.cancel();
     _requestsSubscription?.cancel();
     super.onClose();
   }
@@ -112,7 +116,10 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       }
 
       if (channelId.value.isEmpty) {
-        final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .get();
         if (userDoc.exists && userDoc.data() != null) {
           channelId.value = userDoc.data()!['channelId'] ?? currentUser.uid;
         } else {
@@ -122,7 +129,12 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
       _listenToChannelVideos();
     } catch (e, stack) {
-      logger.error('Failed to initialize subtitles context', error: e, stackTrace: stack, tag: _tag);
+      logger.error(
+        'Failed to initialize subtitles context',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
       setError('Initialization failed');
     }
   }
@@ -135,18 +147,26 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   }
 
   void _listenToChannelVideos() {
-    if (channelId.value.isEmpty) {
-      setError('Channel ID is missing');
+    final currentUser = _auth.currentUser;
+    final targetOwnerId = currentUser?.uid ?? '';
+    final targetChannelId = channelId.value;
+
+    if (targetOwnerId.isEmpty && targetChannelId.isEmpty) {
+      setError('User not authenticated and Channel ID is missing');
       return;
     }
 
     _videosSubscription?.cancel();
-    _videosSubscription = _firestore
-        .collection('videos')
-        .where('channelId', isEqualTo: channelId.value)
-        .snapshots()
-        .listen((snapshot) {
-      final loadedVideos = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+    _channelVideosSubscription?.cancel();
+    _ownerVideosMap.clear();
+    _channelVideosMap.clear();
+
+    void updateVideosList() {
+      final combinedMap = <String, Video>{
+        ..._ownerVideosMap,
+        ..._channelVideosMap,
+      };
+      final loadedVideos = combinedMap.values.toList();
       // Client-side sort to ensure consistent chronological ordering without composite index requirement
       loadedVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       videos.value = loadedVideos;
@@ -156,20 +176,65 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
       // Preserve or auto-select a video
       if (selectedVideo.value != null) {
-        final updatedVideo = loadedVideos.firstWhereOrNull((v) => v.id == selectedVideo.value!.id);
+        final updatedVideo = loadedVideos.firstWhereOrNull(
+          (v) => v.id == selectedVideo.value!.id,
+        );
         if (updatedVideo != null) {
           selectedVideo.value = updatedVideo;
-          // Refresh cues if needed
         } else {
           selectVideo(loadedVideos.isNotEmpty ? loadedVideos.first : null);
         }
       } else if (loadedVideos.isNotEmpty) {
         selectVideo(loadedVideos.first);
       }
-    }, onError: (e) {
-      logger.error('Error streaming channel videos', error: e, tag: _tag);
-      setError('Failed to fetch videos');
-    });
+    }
+
+    if (targetOwnerId.isNotEmpty) {
+      _videosSubscription = _firestore
+          .collection('videos')
+          .where('ownerId', isEqualTo: targetOwnerId)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _ownerVideosMap.clear();
+              for (final doc in snapshot.docs) {
+                final video = Video.fromDocumentSnapshot(doc);
+                _ownerVideosMap[video.id] = video;
+              }
+              updateVideosList();
+            },
+            onError: (e) {
+              logger.error('Error streaming owner videos', error: e, tag: _tag);
+              if (_channelVideosMap.isEmpty) {
+                setError('Failed to fetch videos');
+              }
+            },
+          );
+    }
+
+    if (targetChannelId.isNotEmpty && targetChannelId != targetOwnerId) {
+      _channelVideosSubscription = _firestore
+          .collection('videos')
+          .where('channelId', isEqualTo: targetChannelId)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              _channelVideosMap.clear();
+              for (final doc in snapshot.docs) {
+                final video = Video.fromDocumentSnapshot(doc);
+                _channelVideosMap[video.id] = video;
+              }
+              updateVideosList();
+            },
+            onError: (e) {
+              logger.error(
+                'Error streaming channel videos',
+                error: e,
+                tag: _tag,
+              );
+            },
+          );
+    }
   }
 
   void setSearchQuery(String query) {
@@ -185,8 +250,8 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     final q = searchQuery.value.toLowerCase().trim();
     filteredVideos.value = videos.where((v) {
       return v.title.toLowerCase().contains(q) ||
-             v.description.toLowerCase().contains(q) ||
-             v.tags.any((t) => t.toLowerCase().contains(q));
+          v.description.toLowerCase().contains(q) ||
+          v.tags.any((t) => t.toLowerCase().contains(q));
     }).toList();
   }
 
@@ -233,19 +298,28 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         .doc(videoId)
         .collection('language_requests')
         .snapshots()
-        .listen((snapshot) {
-      final reqs = snapshot.docs.map((doc) => LanguageRequest.fromMap(doc.data(), doc.id)).toList();
-      reqs.sort((a, b) {
-        final countCompare = b.count.compareTo(a.count);
-        if (countCompare != 0) return countCompare;
-        return a.language.compareTo(b.language);
-      });
-      languageRequests.value = reqs;
-      isLoadingRequests.value = false;
-    }, onError: (e) {
-      logger.error('Error listening to language requests', error: e, tag: _tag);
-      isLoadingRequests.value = false;
-    });
+        .listen(
+          (snapshot) {
+            final reqs = snapshot.docs
+                .map((doc) => LanguageRequest.fromMap(doc.data(), doc.id))
+                .toList();
+            reqs.sort((a, b) {
+              final countCompare = b.count.compareTo(a.count);
+              if (countCompare != 0) return countCompare;
+              return a.language.compareTo(b.language);
+            });
+            languageRequests.value = reqs;
+            isLoadingRequests.value = false;
+          },
+          onError: (e) {
+            logger.error(
+              'Error listening to language requests',
+              error: e,
+              tag: _tag,
+            );
+            isLoadingRequests.value = false;
+          },
+        );
   }
 
   void toggleRequestsPanel() {
@@ -273,14 +347,18 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     var contentToParse = urlOrData;
 
     // Check if it's a remote file link stored in Firestore instead of raw string data
-    if (urlOrData.startsWith('gs://') || urlOrData.startsWith('http://') || urlOrData.startsWith('https://')) {
+    if (urlOrData.startsWith('gs://') ||
+        urlOrData.startsWith('http://') ||
+        urlOrData.startsWith('https://')) {
       try {
         setViewState(ViewState.loading);
         var downloadUrl = urlOrData;
 
         // Resolve gs:// storage URIs to public download URLs
         if (urlOrData.startsWith('gs://')) {
-          downloadUrl = await FirebaseStorage.instance.refFromURL(urlOrData).getDownloadURL();
+          downloadUrl = await FirebaseStorage.instance
+              .refFromURL(urlOrData)
+              .getDownloadURL();
         }
 
         // Fetch actual subtitle text file payload using HTTP GET
@@ -288,13 +366,20 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         if (response.statusCode == 200) {
           contentToParse = response.body;
         } else {
-          logger.error('Failed to download subtitle file from $downloadUrl, status: ${response.statusCode}', tag: _tag);
+          logger.error(
+            'Failed to download subtitle file from $downloadUrl, status: ${response.statusCode}',
+            tag: _tag,
+          );
           currentCues.clear();
           setViewState(ViewState.success);
           return;
         }
       } catch (e) {
-        logger.error('Error downloading/resolving remote subtitle link: $urlOrData', error: e, tag: _tag);
+        logger.error(
+          'Error downloading/resolving remote subtitle link: $urlOrData',
+          error: e,
+          tag: _tag,
+        );
         currentCues.clear();
         setViewState(ViewState.success);
         return;
@@ -306,7 +391,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       final lines = contentToParse.split('\n');
       final cues = <SubtitleCue>[];
       SubtitleCue? pendingCue;
-      
+
       for (final line in lines) {
         if (line.contains('-->')) {
           if (pendingCue != null) {
@@ -319,14 +404,18 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
             endTime: parts.length > 1 ? parts[1].trim() : '00:00:05.000',
             text: '',
           );
-        } else if (line.trim().isNotEmpty && !line.startsWith('WEBVTT') && pendingCue != null) {
-          pendingCue.text = pendingCue.text.isEmpty ? line.trim() : '${pendingCue.text}\n${line.trim()}';
+        } else if (line.trim().isNotEmpty &&
+            !line.startsWith('WEBVTT') &&
+            pendingCue != null) {
+          pendingCue.text = pendingCue.text.isEmpty
+              ? line.trim()
+              : '${pendingCue.text}\n${line.trim()}';
         }
       }
       if (pendingCue != null) {
         cues.add(pendingCue);
       }
-      
+
       if (cues.isNotEmpty) {
         currentCues.value = cues;
         setViewState(ViewState.success);
@@ -334,13 +423,23 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       }
     } else {
       // It's a plain text segment layout or raw strings! Let's generate clean 4-second timestamp window slices dynamically.
-      final lines = contentToParse.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final lines = contentToParse
+          .split('\n')
+          .where((l) => l.trim().isNotEmpty)
+          .toList();
       final cues = <SubtitleCue>[];
       var startSec = 1;
       for (var i = 0; i < lines.length; i++) {
         final sStr = "00:00:${startSec.toString().padLeft(2, '0')}.000";
         final eStr = "00:00:${(startSec + 4).toString().padLeft(2, '0')}.000";
-        cues.add(SubtitleCue(id: UniqueKey().toString(), startTime: sStr, endTime: eStr, text: lines[i].trim()));
+        cues.add(
+          SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: sStr,
+            endTime: eStr,
+            text: lines[i].trim(),
+          ),
+        );
         startSec += 5;
       }
       if (cues.isNotEmpty) {
@@ -353,7 +452,6 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     currentCues.clear();
     setViewState(ViewState.success);
   }
-
 
   void addLanguageTrack(String langCode) {
     if (availableLanguages.contains(langCode)) {
@@ -376,12 +474,17 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   }
 
   void addNewCue() {
-    final lastEndTime = currentCues.isNotEmpty ? currentCues.last.endTime : '00:00:00.000';
+    final lastEndTime = currentCues.isNotEmpty
+        ? currentCues.last.endTime
+        : '00:00:00.000';
     currentCues.add(
       SubtitleCue(
         id: UniqueKey().toString(),
         startTime: lastEndTime,
-        endTime: _shiftTimeString(lastEndTime, 4000), // automatically calculate realistic consecutive gap
+        endTime: _shiftTimeString(
+          lastEndTime,
+          4000,
+        ), // automatically calculate realistic consecutive gap
         text: 'New Subtitle Segment',
       ),
     );
@@ -394,11 +497,15 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     hasUnsavedChanges.value = true;
   }
 
-  void shiftCueTiming(int index, {bool isStart = true, int shiftMilliseconds = 500}) {
+  void shiftCueTiming(
+    int index, {
+    bool isStart = true,
+    int shiftMilliseconds = 500,
+  }) {
     if (index < 0 || index >= currentCues.length) return;
     final cue = currentCues[index];
     final targetTimeStr = isStart ? cue.startTime : cue.endTime;
-    
+
     final shifted = _shiftTimeString(targetTimeStr, shiftMilliseconds);
     if (isStart) {
       cue.startTime = shifted;
@@ -421,18 +528,29 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         m = int.parse(parts[1]);
         final sParts = parts[2].split('.');
         s = int.parse(sParts[0]);
-        ms = sParts.length > 1 ? int.parse(sParts[1].padRight(3, '0').substring(0, 3)) : 0;
+        ms = sParts.length > 1
+            ? int.parse(sParts[1].padRight(3, '0').substring(0, 3))
+            : 0;
       } else if (parts.length == 2) {
         m = int.parse(parts[0]);
         final sParts = parts[1].split('.');
         s = int.parse(sParts[0]);
-        ms = sParts.length > 1 ? int.parse(sParts[1].padRight(3, '0').substring(0, 3)) : 0;
+        ms = sParts.length > 1
+            ? int.parse(sParts[1].padRight(3, '0').substring(0, 3))
+            : 0;
       }
-      
-      var totalMs = Duration(hours: h, minutes: m, seconds: s, milliseconds: ms).inMilliseconds + offsetMs;
+
+      var totalMs =
+          Duration(
+            hours: h,
+            minutes: m,
+            seconds: s,
+            milliseconds: ms,
+          ).inMilliseconds +
+          offsetMs;
       if (totalMs < 0) totalMs = 0;
       final updated = Duration(milliseconds: totalMs);
-      
+
       String twoDigits(int n) => n.toString().padLeft(2, '0');
       String threeDigits(int n) => n.toString().padLeft(3, '0');
       return '${twoDigits(updated.inHours)}:${twoDigits(updated.inMinutes.remainder(60))}:${twoDigits(updated.inSeconds.remainder(60))}.${threeDigits(updated.inMilliseconds.remainder(1000))}';
@@ -455,7 +573,9 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       buffer.writeln();
     }
     Clipboard.setData(ClipboardData(text: buffer.toString()));
-    showSuccess('Exported ${getLanguageName(selectedLanguage.value)} track to Clipboard in WEBVTT format!');
+    showSuccess(
+      'Exported ${getLanguageName(selectedLanguage.value)} track to Clipboard in WEBVTT format!',
+    );
   }
 
   Future<void> saveCurrentSubtitles() async {
@@ -506,7 +626,12 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       hasUnsavedChanges.value = false;
       showSuccess('${getLanguageName(lang)} subtitles saved successfully!');
     } catch (e, stack) {
-      logger.error('Failed to save subtitles', error: e, stackTrace: stack, tag: _tag);
+      logger.error(
+        'Failed to save subtitles',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
       handleError('Failed to save subtitle track');
     } finally {
       isSaving.value = false;
@@ -557,22 +682,24 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       // Upload to Firebase Storage
       final sanitizedTitle = title.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
       final extension = file.extension ?? 'vtt';
-      final storagePath = 'videos/${video.id}/subtitles/${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final storagePath =
+          'videos/${video.id}/subtitles/${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.$extension';
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
-      
+
       final metadata = SettableMetadata(contentType: 'text/vtt');
-      
+
       // Use putData for both platforms using read bytes
       final uploadTask = storageRef.putData(fileBytes, metadata);
       await uploadTask;
-      
+
       // Construct gs:// URL
       final bucket = FirebaseStorage.instance.ref().bucket;
       final gsUrl = 'gs://$bucket/$storagePath';
 
       // Update Firestore map
       final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
-      updatedSubs[title] = gsUrl; // Use the custom Title as the key, gsUrl as value
+      updatedSubs[title] =
+          gsUrl; // Use the custom Title as the key, gsUrl as value
 
       await _firestore
           .collection('videos')
@@ -593,7 +720,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
       // Refresh active video
       selectedVideo.refresh();
-      
+
       // Refresh list of available languages & switch to it
       if (!availableLanguages.contains(title)) {
         availableLanguages.add(title);
@@ -602,7 +729,12 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
       showSuccess('Subtitle track "$title" uploaded successfully!');
     } catch (e, stack) {
-      logger.error('Failed to upload subtitle track', error: e, stackTrace: stack, tag: _tag);
+      logger.error(
+        'Failed to upload subtitle track',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
       showError('Failed to upload subtitle track: $e');
     } finally {
       isUploadingFile.value = false;
@@ -615,7 +747,3 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     return code.length <= 3 ? code.toUpperCase() : code;
   }
 }
-
-
-
-

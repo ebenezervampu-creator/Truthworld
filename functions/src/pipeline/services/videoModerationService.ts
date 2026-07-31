@@ -28,6 +28,7 @@
 import { VertexAI } from "@google-cloud/vertexai";
 import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
+import { getVertexAI } from "../utils/ai-client";
 
 // ─── Response Schema ─────────────────────────────────────────────────────────
 
@@ -350,7 +351,7 @@ You MUST return a JSON object matching this exact schema:
 Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification"
 
 Valid content categories (must match casing exactly, default is 'Other'):
-'Education', 'Entertainment', 'Music', 'News', 'Sports', 'Gaming', 'Technology', 'Science', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Health & Fitness', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
+'News', 'Politics', 'Business & Finance', 'Technology', 'Science', 'Health & Fitness', 'History', 'Education', 'Entertainment', 'Music', 'Sports', 'Gaming', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
 
 Remember: TruthWorld VERIFIES truth through its Credibility Engine. Your ONLY job is ensuring family-friendly DELIVERY. Reject for HOW it's said, NOT for WHAT is said.`;
 
@@ -407,53 +408,86 @@ export function normalizeContentCategory(rawCategory?: string, topic?: string, i
   const rawStr = (rawCategory || "").toLowerCase();
   const combined = `${topicStr} ${intentStr} ${rawStr}`.toLowerCase();
 
-  if (combined.match(/\b(politic|political|election|government|parliament|biden|trump|modi|minister|policy|lawmaker|senate|democracy)\b/)) {
+  if (combined.match(/\b(politic|political|election|government|parliament|biden|trump|modi|minister|policy|lawmaker|senate|democracy|party|candidate|campaign|vote|voting|diplomacy)\b/)) {
     return "Politics";
   }
-  if (combined.match(/\b(news|journalism|breaking|report|war|conflict|strike|shootout|crime|investigation|press|geopolitics)\b/)) {
+  if (combined.match(/\b(news|journalism|breaking|report|war|conflict|strike|shootout|crime|investigation|press|geopolitics|media|world_event)\b/)) {
     return "News";
   }
-  if (combined.match(/\b(finance|financial|crypto|stocks|investing|money|market|business|economy|trading|bank|bitcoin|financial_fraud|real_money_gaming)\b/)) {
+  if (combined.match(/\b(finance|financial|crypto|stocks|investing|money|market|business|economy|trading|bank|bitcoin|financial_fraud|real_money_gaming|revenue|wealth|corporate|startup)\b/)) {
     return "Business & Finance";
   }
-  if (combined.match(/\b(health|medical|vaccine|disease|covid|fitness|doctor|wellness|mental|hospital|substance_abuse|addiction|drug_crisis)\b/)) {
+  if (combined.match(/\b(health|medical|vaccine|disease|covid|fitness|doctor|wellness|mental|hospital|substance_abuse|addiction|drug_crisis|workout|gym|diet|nutrition|therapy)\b/)) {
     return "Health & Fitness";
   }
-  if (combined.match(/\b(tech|technology|cybersecurity|ai|artificial_intelligence|software|gadget|computer|engineering|defense|military_technology)\b/)) {
+  if (combined.match(/\b(tech|technology|cybersecurity|ai|artificial_intelligence|software|gadget|computer|engineering|defense|military_technology|coding|developer|robotics|data|app|hardware)\b/)) {
     return "Technology";
   }
-  if (combined.match(/\b(science|astronomy|physics|chemistry|biology|nasa|space|scientific|research|conspiracy_theory)\b/)) {
+  if (combined.match(/\b(science|astronomy|physics|chemistry|biology|nasa|space|scientific|research|conspiracy_theory|universe|planet|experiment|evolution)\b/)) {
     return "Science";
   }
-  if (combined.match(/\b(history|historical|ancient|archaeology|nazism|holocaust|hitler|stalin|war_history|world_war)\b/)) {
+  if (combined.match(/\b(history|historical|ancient|archaeology|nazism|holocaust|hitler|stalin|war_history|world_war|empire|dynasty|century)\b/)) {
     return "History";
   }
-  if (combined.match(/\b(religion|religious|faith|god|theology|spiritual|spirituality|blasphemy|church|temple|islam|hindu|christian|religious_debate)\b/)) {
+  if (combined.match(/\b(religion|religious|faith|god|theology|spiritual|spirituality|blasphemy|church|temple|islam|hindu|christian|religious_debate|bible|quran|gita|buddhism|monk)\b/)) {
     return "Spirituality";
   }
-  if (combined.match(/\b(game|gaming|gta|esports|playstation|xbox|nintendo|steam|gamer|violent_gaming)\b/)) {
+  if (combined.match(/\b(game|gaming|gta|esports|playstation|xbox|nintendo|steam|gamer|violent_gaming|gameplay|streamer|twitch|minecraft|roblox)\b/)) {
     return "Gaming";
   }
-  if (combined.match(/\b(movie|cinema|film|actor|actress|hollywood|bollywood|tv_show|series|episode)\b/)) {
+  if (combined.match(/\b(movie|cinema|film|actor|actress|hollywood|bollywood|trailer|director|box_office|imdb)\b/)) {
     return "Movies";
   }
-  if (combined.match(/\b(comedy|satire|roast|parody|humor|joke|prank)\b/)) {
+  if (combined.match(/\b(tv_show|series|episode|television|show)\b/)) {
+    return "TV Shows";
+  }
+  if (combined.match(/\b(comedy|satire|roast|parody|humor|joke|prank|standup|stand-up|funny|meme)\b/)) {
     return "Comedy";
   }
-  if (combined.match(/\b(education|educational|tutorial|how_to|how-to|lecture|academic|explainer|course|learning)\b/)) {
+  if (combined.match(/\b(education|educational|tutorial|how_to|how-to|lecture|academic|explainer|course|learning|lesson|guide|school|university|study)\b/)) {
     return "Education";
   }
-  if (intentStr === "documentary" || combined.includes("documentary")) {
+  if (intentStr === "documentary" || combined.match(/\b(documentary|investigative|expose|exposé|in-depth)\b/)) {
     return "Documentary";
   }
-  if (combined.match(/\b(music|song|album|singing|band|concert|artist|track)\b/)) {
+  if (combined.match(/\b(music|song|album|singing|band|concert|artist|track|rap|hiphop|pop|rock|guitar|musician)\b/)) {
     return "Music";
   }
-  if (combined.match(/\b(food|cooking|recipe|chef|dish|cuisine|baking|restaurant)\b/)) {
+  if (combined.match(/\b(food|cooking|recipe|chef|dish|cuisine|baking|restaurant|meal|kitchen)\b/)) {
     return "Food & Cooking";
   }
-  if (combined.match(/\b(sport|sports|cricket|football|soccer|basketball|tennis|olympics|match)\b/)) {
+  if (combined.match(/\b(sport|sports|cricket|football|soccer|basketball|tennis|olympics|match|athlete|nfl|nba|ipl|wwe|ufc|boxing|stadium)\b/)) {
     return "Sports";
+  }
+  if (combined.match(/\b(vlog|vlogs|vlogger|daily_vlog)\b/)) {
+    return "Vlogs";
+  }
+  if (combined.match(/\b(travel|destination|tour|trip|journey|vacation|flight|hotel|explore|tourism)\b/)) {
+    return "Travel";
+  }
+  if (combined.match(/\b(lifestyle|daily_routine|relationship|personal_growth|routine)\b/)) {
+    return "Lifestyle";
+  }
+  if (combined.match(/\b(fashion|beauty|makeup|skincare|style|outfit|clothing|model)\b/)) {
+    return "Fashion & Beauty";
+  }
+  if (combined.match(/\b(car|cars|automotive|vehicle|motorcycle|bike|automobile|tesla|engine|drive)\b/)) {
+    return "Automotive";
+  }
+  if (combined.match(/\b(animal|animals|pet|pets|dog|cat|wildlife|zoo)\b/)) {
+    return "Animals & Pets";
+  }
+  if (combined.match(/\b(motivation|motivational|inspirational|mindset|success|speech)\b/)) {
+    return "Motivation";
+  }
+  if (combined.match(/\b(art|design|drawing|painting|architecture|graphic)\b/)) {
+    return "Art & Design";
+  }
+  if (combined.match(/\b(diy|craft|crafting|repair|woodworking)\b/)) {
+    return "DIY & How-to";
+  }
+  if (combined.match(/\b(kids|kid|family|children|parenting|toy|toys)\b/)) {
+    return "Kids & Family";
   }
 
   // If rawCategory was valid (even if "Other"), return standard casing
@@ -471,10 +505,7 @@ export class VideoModerationService {
   private readonly vertexAI: VertexAI;
 
   constructor() {
-    this.vertexAI = new VertexAI({
-      project: "truthworld-1",
-      location: "asia-south1",
-    });
+    this.vertexAI = getVertexAI();
   }
 
   /**

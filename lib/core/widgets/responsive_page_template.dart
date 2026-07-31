@@ -7,11 +7,10 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 class ResponsivePageTemplate extends StatelessWidget {
-
   const ResponsivePageTemplate({
-    required this.body, super.key,
+    required this.body,
+    super.key,
     this.appBar,
     this.drawer,
     this.sideNavigation,
@@ -71,7 +70,10 @@ class ResponsivePageTemplate extends StatelessWidget {
     if (context.showSideNav && sideNavigation != null) {
       return Row(
         children: [
-          SizedBox(width: context.layoutTokens.sidebarWidth, child: sideNavigation),
+          SizedBox(
+            width: context.layoutTokens.sidebarWidth,
+            child: sideNavigation,
+          ),
           VerticalDivider(
             width: 1,
             thickness: 1,
@@ -90,7 +92,8 @@ class ResponsivePageTemplate extends StatelessWidget {
   }
 
   Widget? _getBottomNavigation(BuildContext context) {
-    if (context.isDesktop || context.isLargeDesktop || context.isUltraWide) return null;
+    if (context.isDesktop || context.isLargeDesktop || context.isUltraWide)
+      return null;
     return bottomNavigation;
   }
 }
@@ -99,9 +102,9 @@ class ResponsivePageTemplate extends StatelessWidget {
 // RESPONSIVE CONTENT AREA
 // ==========================================================================
 class ResponsiveContentArea extends StatelessWidget {
-
   const ResponsiveContentArea({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.crossAxisAlignment = CrossAxisAlignment.start,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
@@ -151,9 +154,9 @@ class ResponsiveContentArea extends StatelessWidget {
 // RESPONSIVE SECTION
 // ==========================================================================
 class ResponsiveSection extends StatelessWidget {
-
   const ResponsiveSection({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.title,
     this.subtitle,
     this.action,
@@ -179,7 +182,10 @@ class ResponsiveSection extends StatelessWidget {
             SizedBox(height: context.layoutSpacing),
           ],
           child,
-          if (showDivider) ...[SizedBox(height: context.layoutSpacing), const Divider()],
+          if (showDivider) ...[
+            SizedBox(height: context.layoutSpacing),
+            const Divider(),
+          ],
         ],
       ),
     );
@@ -209,7 +215,10 @@ class ResponsiveSection extends StatelessWidget {
             ],
           ),
         ),
-        if (action != null) ...[SizedBox(width: context.layoutSpacing), action!],
+        if (action != null) ...[
+          SizedBox(width: context.layoutSpacing),
+          action!,
+        ],
       ],
     );
   }
@@ -219,9 +228,9 @@ class ResponsiveSection extends StatelessWidget {
 // RESPONSIVE GRID LAYOUT
 // ==========================================================================
 class ResponsiveGridLayout extends StatelessWidget {
-
   const ResponsiveGridLayout({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.maxColumns,
     this.crossAxisSpacing,
     this.mainAxisSpacing,
@@ -259,9 +268,9 @@ class ResponsiveGridLayout extends StatelessWidget {
 // RESPONSIVE LIST LAYOUT
 // ==========================================================================
 class ResponsiveListLayout extends StatelessWidget {
-
   const ResponsiveListLayout({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.padding,
     this.spacing,
     this.shrinkWrap = false,
@@ -294,9 +303,9 @@ class ResponsiveListLayout extends StatelessWidget {
 // RESPONSIVE CARD LAYOUT
 // ==========================================================================
 class ResponsiveCardLayout extends StatelessWidget {
-
   const ResponsiveCardLayout({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.maxColumns,
     this.padding,
     this.showListView = false,
@@ -331,9 +340,9 @@ class ResponsiveCardLayout extends StatelessWidget {
 // RESPONSIVE WRAPPER
 // ==========================================================================
 class ResponsiveWrapper extends StatelessWidget {
-
   const ResponsiveWrapper({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.padding,
     this.centerContent = true,
     this.maxWidth,
@@ -353,10 +362,3 @@ class ResponsiveWrapper extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

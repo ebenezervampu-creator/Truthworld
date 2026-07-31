@@ -4,14 +4,17 @@ import 'package:truthworld/features/community/data/models/quiz_model.dart';
 
 /// Represents a draft community post or quiz
 class CommunityDraft {
-
   CommunityDraft({
     required this.id,
     required this.ownerId,
     required this.channelId,
     required this.type,
     required this.title,
-    required this.category, required this.visibility, required this.createdAt, required this.updatedAt, this.description = '',
+    required this.category,
+    required this.visibility,
+    required this.createdAt,
+    required this.updatedAt,
+    this.description = '',
     this.tags = const [],
     this.isKidFriendly = false,
     this.imageUrls = const [],

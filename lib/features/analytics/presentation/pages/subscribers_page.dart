@@ -45,7 +45,8 @@ class SubscribersPage extends StatelessWidget {
         ),
       ),
       body: Obx(() {
-        final isLoading = controller.isLoadingVideoAnalytics.value ||
+        final isLoading =
+            controller.isLoadingVideoAnalytics.value ||
             controller.isLoadingChannelAnalytics.value;
 
         if (isLoading) {
@@ -69,7 +70,9 @@ class SubscribersPage extends StatelessWidget {
                     child: InkWell(
                       onTap: () {
                         controller.selectedVideoId.value = '';
-                        controller.loadChannelAnalytics(controller.selectedChannelId.value);
+                        controller.loadChannelAnalytics(
+                          controller.selectedChannelId.value,
+                        );
                       },
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -78,7 +81,11 @@ class SubscribersPage extends StatelessWidget {
                           SizedBox(width: 4),
                           Text(
                             'Back to Channel Analytics',
-                            style: TextStyle(color: Color(0xFF8B5CF6), fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: Color(0xFF8B5CF6),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -101,13 +108,18 @@ class SubscribersPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMainMetric(CreatorAnalyticsController controller, Map<String, dynamic> args) {
+  Widget _buildMainMetric(
+    CreatorAnalyticsController controller,
+    Map<String, dynamic> args,
+  ) {
     final subscribersChange = args['subscribersChange'] as String? ?? '+0';
     final isPositive = !subscribersChange.startsWith('-');
     final totalSubs = controller.selectedVideoId.value.isNotEmpty
-        ? (controller.videoAnalytics.value?.subscribersGained ?? 0) - (controller.videoAnalytics.value?.subscribersLost ?? 0)
-        : (controller.channelAnalytics.value?.subscribersGained ?? 0) - (controller.channelAnalytics.value?.subscribersLost ?? 0);
-    
+        ? (controller.videoAnalytics.value?.subscribersGained ?? 0) -
+              (controller.videoAnalytics.value?.subscribersLost ?? 0)
+        : (controller.channelAnalytics.value?.subscribersGained ?? 0) -
+              (controller.channelAnalytics.value?.subscribersLost ?? 0);
+
     final title = controller.selectedVideoId.value.isNotEmpty
         ? (controller.videoAnalytics.value?.title ?? 'Video Analytics')
         : 'Net Subscribers';
@@ -140,15 +152,20 @@ class SubscribersPage extends StatelessWidget {
               children: [
                 Icon(
                   isPositive ? Icons.trending_up : Icons.trending_down,
-                  color: isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                  color: isPositive
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFFEF4444),
                   size: 16,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '$subscribersChange in last 28 days',
                   style: TextStyle(
-                    color: (isPositive ? const Color(0xFF22C55E) : const Color(0xFFEF4444))
-                        .withValues(alpha: 0.8),
+                    color:
+                        (isPositive
+                                ? const Color(0xFF22C55E)
+                                : const Color(0xFFEF4444))
+                            .withValues(alpha: 0.8),
                     fontSize: 12,
                   ),
                 ),
@@ -162,7 +179,8 @@ class SubscribersPage extends StatelessWidget {
                 value: NumberFormat.compact().format(
                   controller.selectedVideoId.value.isNotEmpty
                       ? controller.videoAnalytics.value?.subscribersGained ?? 0
-                      : controller.channelAnalytics.value?.subscribersGained ?? 0
+                      : controller.channelAnalytics.value?.subscribersGained ??
+                            0,
                 ),
                 color: const Color(0xFF22C55E),
               ),
@@ -172,7 +190,7 @@ class SubscribersPage extends StatelessWidget {
                 value: NumberFormat.compact().format(
                   controller.selectedVideoId.value.isNotEmpty
                       ? controller.videoAnalytics.value?.subscribersLost ?? 0
-                      : controller.channelAnalytics.value?.subscribersLost ?? 0
+                      : controller.channelAnalytics.value?.subscribersLost ?? 0,
                 ),
                 color: const Color(0xFFEF4444),
               ),
@@ -201,7 +219,10 @@ class SubscribersPage extends StatelessWidget {
               color: AppColors.textPrimary.withValues(alpha: 0.05),
               dashArray: const [5, 5],
             ),
-            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            labelStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
             axisLine: const AxisLine(width: 0),
           ),
           tooltipBehavior: TooltipBehavior(enable: true),
@@ -210,9 +231,13 @@ class SubscribersPage extends StatelessWidget {
               dataSource: controller.subscribersTrendData,
               xValueMapper: (SubscribersTrendModel data, _) => data.date,
               yValueMapper: (SubscribersTrendModel data, _) => data.subscribers,
-              pointColorMapper: (SubscribersTrendModel data, _) => 
-                  data.subscribers >= 0 ? const Color(0xFF8B5CF6) : const Color(0xFFEF4444),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              pointColorMapper: (SubscribersTrendModel data, _) =>
+                  data.subscribers >= 0
+                  ? const Color(0xFF8B5CF6)
+                  : const Color(0xFFEF4444),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
               name: 'Net Subscribers',
             ),
           ],
@@ -225,7 +250,12 @@ class SubscribersPage extends StatelessWidget {
     return Obx(() {
       final videos = controller.channelVideos;
       if (videos.isEmpty) {
-        return const Center(child: Text('No videos found', style: TextStyle(color: AppColors.textTertiary)));
+        return const Center(
+          child: Text(
+            'No videos found',
+            style: TextStyle(color: AppColors.textTertiary),
+          ),
+        );
       }
 
       return ListView.separated(
@@ -235,9 +265,12 @@ class SubscribersPage extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
           final video = videos[index];
-          return _VideoStatCard(video: video, onTap: () {
-            controller.selectedVideoId.value = video.id;
-          });
+          return _VideoStatCard(
+            video: video,
+            onTap: () {
+              controller.selectedVideoId.value = video.id;
+            },
+          );
         },
       );
     });
@@ -245,8 +278,11 @@ class SubscribersPage extends StatelessWidget {
 }
 
 class _StatItem extends StatelessWidget {
-
-  const _StatItem({required this.label, required this.value, required this.color});
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
   final String label;
   final String value;
   final Color color;
@@ -258,11 +294,18 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.4), fontSize: 11),
+          style: TextStyle(
+            color: AppColors.textPrimary.withValues(alpha: 0.4),
+            fontSize: 11,
+          ),
         ),
         Text(
           value,
-          style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
@@ -270,7 +313,6 @@ class _StatItem extends StatelessWidget {
 }
 
 class _VideoStatCard extends StatelessWidget {
-
   const _VideoStatCard({required this.video, required this.onTap});
   final Video video;
   final VoidCallback onTap;
@@ -285,7 +327,9 @@ class _VideoStatCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.textPrimary.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: AppColors.textPrimary.withValues(alpha: 0.06),
+          ),
         ),
         child: Row(
           children: [
@@ -307,23 +351,38 @@ class _VideoStatCard extends StatelessWidget {
                     video.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.people_alt_rounded, color: Color(0xFF8B5CF6), size: 12),
+                      const Icon(
+                        Icons.people_alt_rounded,
+                        color: Color(0xFF8B5CF6),
+                        size: 12,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'Most conversions',
-                        style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 11),
+                        style: TextStyle(
+                          color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 20),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textDisabled,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -361,7 +420,9 @@ class _GlassCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: child,
     );

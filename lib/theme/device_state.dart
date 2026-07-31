@@ -1,7 +1,6 @@
 import 'package:truthworld/theme/tw_breakpoints.dart';
 
 class DeviceState {
-
   const DeviceState({
     required this.width,
     required this.height,

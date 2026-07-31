@@ -66,7 +66,6 @@ class CustomizationController extends GetxController {
   void onInit() {
     super.onInit();
     loadChannelData();
-    _listenToChannelChanges();
   }
 
   void _listenToChannelChanges() {
@@ -75,28 +74,37 @@ class CustomizationController extends GetxController {
         .doc(channelId)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.exists) {
-        final data = snapshot.data()!;
-        status.value = (data['status'] as String?) ?? 'active';
-        moderationReason.value = (data['moderationReason'] as String?) ?? '';
-        avatarStatus.value = (data['avatarStatus'] as String?) ?? 'APPROVED';
-        bannerStatus.value = (data['bannerStatus'] as String?) ?? 'APPROVED';
-        avatarStatusReason.value = (data['avatarStatusReason'] as String?) ?? '';
-        bannerStatusReason.value = (data['bannerStatusReason'] as String?) ?? '';
-        avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
-        bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
+          if (snapshot.exists) {
+            final data = snapshot.data()!;
+            status.value = (data['status'] as String?) ?? 'active';
+            moderationReason.value =
+                (data['moderationReason'] as String?) ?? '';
+            avatarStatus.value =
+                (data['avatarStatus'] as String?) ?? 'APPROVED';
+            bannerStatus.value =
+                (data['bannerStatus'] as String?) ?? 'APPROVED';
+            avatarStatusReason.value =
+                (data['avatarStatusReason'] as String?) ?? '';
+            bannerStatusReason.value =
+                (data['bannerStatusReason'] as String?) ?? '';
+            avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
+            bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
 
-        final bUrl = (data['bannerImageUrl'] as String?) ??
-            (data['bannerUrl'] as String?) ??
-            (data['banner'] as String?) ??
-            (data['bannerPicUrl'] as String?) ??
-            '';
-        if (bUrl.isNotEmpty) bannerUrl.value = bUrl;
+            final bUrl =
+                (data['bannerImageUrl'] as String?) ??
+                (data['bannerUrl'] as String?) ??
+                (data['banner'] as String?) ??
+                (data['bannerPicUrl'] as String?) ??
+                '';
+            if (bUrl.isNotEmpty) bannerUrl.value = bUrl;
 
-        final aUrl = (data['avatarUrl'] as String?) ?? (data['photoUrl'] as String?) ?? '';
-        if (aUrl.isNotEmpty) avatarUrl.value = aUrl;
-      }
-    });
+            final aUrl =
+                (data['avatarUrl'] as String?) ??
+                (data['photoUrl'] as String?) ??
+                '';
+            if (aUrl.isNotEmpty) avatarUrl.value = aUrl;
+          }
+        });
   }
 
   @override
@@ -123,16 +131,22 @@ class CustomizationController extends GetxController {
 
       if (doc.exists) {
         final data = doc.data()!;
-        channelNameController.text = (data['channelName'] as String?) ?? (data['name'] as String?) ?? '';
+        channelNameController.text =
+            (data['channelName'] as String?) ?? (data['name'] as String?) ?? '';
         descriptionController.text = (data['description'] as String?) ?? '';
-        customUrlController.text = (data['customUrl'] as String?) ?? (data['handle'] as String?) ?? '';
+        customUrlController.text =
+            (data['customUrl'] as String?) ?? (data['handle'] as String?) ?? '';
         contactEmailController.text = (data['contactEmail'] as String?) ?? '';
         websiteUrlController.text = (data['websiteUrl'] as String?) ?? '';
         categoryController.text = (data['category'] as String?) ?? '';
         languageController.text = (data['language'] as String?) ?? 'en';
-        
-        avatarUrl.value = (data['avatarUrl'] as String?) ?? (data['photoUrl'] as String?) ?? '';
-        bannerUrl.value = (data['bannerImageUrl'] as String?) ??
+
+        avatarUrl.value =
+            (data['avatarUrl'] as String?) ??
+            (data['photoUrl'] as String?) ??
+            '';
+        bannerUrl.value =
+            (data['bannerImageUrl'] as String?) ??
             (data['bannerUrl'] as String?) ??
             (data['banner'] as String?) ??
             (data['bannerPicUrl'] as String?) ??
@@ -140,14 +154,18 @@ class CustomizationController extends GetxController {
 
         avatarStatus.value = (data['avatarStatus'] as String?) ?? 'APPROVED';
         bannerStatus.value = (data['bannerStatus'] as String?) ?? 'APPROVED';
-        avatarStatusReason.value = (data['avatarStatusReason'] as String?) ?? '';
-        bannerStatusReason.value = (data['bannerStatusReason'] as String?) ?? '';
+        avatarStatusReason.value =
+            (data['avatarStatusReason'] as String?) ?? '';
+        bannerStatusReason.value =
+            (data['bannerStatusReason'] as String?) ?? '';
         avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
         bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
         isPublic.value = (data['isPublic'] as bool?) ?? true;
         allowComments.value = (data['allowComments'] as bool?) ?? true;
-        allowSubscriptions.value = (data['allowSubscriptions'] as bool?) ?? true;
-        showSubscriberCount.value = (data['showSubscriberCount'] as bool?) ?? true;
+        allowSubscriptions.value =
+            (data['allowSubscriptions'] as bool?) ?? true;
+        showSubscriberCount.value =
+            (data['showSubscriberCount'] as bool?) ?? true;
 
         final tags = data['tags'] as List<dynamic>?;
         tagsController.text = tags?.join(', ') ?? '';
@@ -155,7 +173,8 @@ class CustomizationController extends GetxController {
         final socialLinks = data['socialLinks'] as Map<String, dynamic>?;
         if (socialLinks != null) {
           twitterController.text = (socialLinks['twitter'] as String?) ?? '';
-          instagramController.text = (socialLinks['instagram'] as String?) ?? '';
+          instagramController.text =
+              (socialLinks['instagram'] as String?) ?? '';
           facebookController.text = (socialLinks['facebook'] as String?) ?? '';
         }
       }
@@ -176,7 +195,9 @@ class CustomizationController extends GetxController {
     try {
       final fileId = isBanner ? bannerFileId.value : avatarFileId.value;
       final statusField = isBanner ? 'bannerStatus' : 'avatarStatus';
-      final reasonField = isBanner ? 'bannerStatusReason' : 'avatarStatusReason';
+      final reasonField = isBanner
+          ? 'bannerStatusReason'
+          : 'avatarStatusReason';
 
       await _firestore.collection('channels').doc(channelId).update({
         statusField: 'APPROVED',
@@ -218,10 +239,12 @@ class CustomizationController extends GetxController {
         final pickedImage = await pickedFile.readAsBytes();
         if (isAvatar) {
           newAvatarBytes.value = pickedImage;
-          newAvatarName.value = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          newAvatarName.value =
+              'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
         } else {
           newBannerBytes.value = pickedImage;
-          newBannerName.value = 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          newBannerName.value =
+              'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
         }
       }
     } catch (e) {
@@ -257,7 +280,9 @@ class CustomizationController extends GetxController {
 
       String? uploadedAvatarFileName;
       if (newAvatarBytes.value != null) {
-        uploadedAvatarFileName = newAvatarName.value ?? 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        uploadedAvatarFileName =
+            newAvatarName.value ??
+            'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
         updatedAvatarUrl = await _uploadImage(
           newAvatarBytes.value!,
           'channels/avatars/$ownerId/$uploadedAvatarFileName',
@@ -266,7 +291,9 @@ class CustomizationController extends GetxController {
 
       String? uploadedBannerFileName;
       if (newBannerBytes.value != null) {
-        uploadedBannerFileName = newBannerName.value ?? 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        uploadedBannerFileName =
+            newBannerName.value ??
+            'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
         updatedBannerUrl = await _uploadImage(
           newBannerBytes.value!,
           'channels/banners/$ownerId/$uploadedBannerFileName',
@@ -280,10 +307,14 @@ class CustomizationController extends GetxController {
           .toList();
 
       final socialLinks = {
-        if (twitterController.text.isNotEmpty) 'twitter': twitterController.text,
-        if (instagramController.text.isNotEmpty) 'instagram': instagramController.text,
-        if (facebookController.text.isNotEmpty) 'facebook': facebookController.text,
-        if (websiteUrlController.text.isNotEmpty) 'website': websiteUrlController.text,
+        if (twitterController.text.isNotEmpty)
+          'twitter': twitterController.text,
+        if (instagramController.text.isNotEmpty)
+          'instagram': instagramController.text,
+        if (facebookController.text.isNotEmpty)
+          'facebook': facebookController.text,
+        if (websiteUrlController.text.isNotEmpty)
+          'website': websiteUrlController.text,
       };
 
       final updateData = <String, dynamic>{
@@ -292,10 +323,18 @@ class CustomizationController extends GetxController {
         'channelName': channelNameController.text,
         'channelNameLowercase': channelNameController.text.toLowerCase(),
         'description': descriptionController.text,
-        'customUrl': customUrlController.text.isNotEmpty ? customUrlController.text : null,
-        'customUrlLowercase': customUrlController.text.isNotEmpty ? customUrlController.text.toLowerCase() : null,
-        'handle': customUrlController.text.isNotEmpty ? customUrlController.text : null,
-        'handleLowercase': customUrlController.text.isNotEmpty ? customUrlController.text.toLowerCase() : null,
+        'customUrl': customUrlController.text.isNotEmpty
+            ? customUrlController.text
+            : null,
+        'customUrlLowercase': customUrlController.text.isNotEmpty
+            ? customUrlController.text.toLowerCase()
+            : null,
+        'handle': customUrlController.text.isNotEmpty
+            ? customUrlController.text
+            : null,
+        'handleLowercase': customUrlController.text.isNotEmpty
+            ? customUrlController.text.toLowerCase()
+            : null,
         'avatarUrl': updatedAvatarUrl,
         'photoUrl': updatedAvatarUrl,
         'bannerUrl': updatedBannerUrl,
@@ -306,9 +345,15 @@ class CustomizationController extends GetxController {
         'allowComments': allowComments.value,
         'allowSubscriptions': allowSubscriptions.value,
         'showSubscriberCount': showSubscriberCount.value,
-        'contactEmail': contactEmailController.text.isNotEmpty ? contactEmailController.text : null,
-        'websiteUrl': websiteUrlController.text.isNotEmpty ? websiteUrlController.text : null,
-        'category': categoryController.text.isNotEmpty ? categoryController.text : null,
+        'contactEmail': contactEmailController.text.isNotEmpty
+            ? contactEmailController.text
+            : null,
+        'websiteUrl': websiteUrlController.text.isNotEmpty
+            ? websiteUrlController.text
+            : null,
+        'category': categoryController.text.isNotEmpty
+            ? categoryController.text
+            : null,
         'language': languageController.text,
         'tags': tags,
         'socialLinks': socialLinks.isNotEmpty ? socialLinks : null,

@@ -1056,7 +1056,7 @@ export const getCreatorCopyrightClaims = onRequest(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE 2: RESOLUTION — Video Resolution Processing (≤ 720p)
+// FEATURE 2: RESOLUTION — Video Resolution Processing (≤ 1040p)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export {
@@ -1265,8 +1265,8 @@ export const onVideoPublished = onDocumentUpdated(
         genLangSubs: enableGenLangSubs,
         channelType: afterData.channelType || "standard",
         autoChapters: aiFeatures.autoChapters ?? false,
-        maxClaims: enableFactChecking ? (afterData.channelType === 'custom' ? 100 : 20) : 0,
-        priority: afterData.channelType === 'custom' ? "high" : "normal",
+        maxClaims: enableFactChecking ? 100 : 0,
+        priority: "normal",
 
         skipCache: false,
 
@@ -1275,7 +1275,7 @@ export const onVideoPublished = onDocumentUpdated(
         contentFormat: enableDiarization ? "general" : "solo",
 
         // Translation & Localization
-        translationModel: afterData.channelType === "custom" ? "dynamic" : "standard",
+        translationModel: "standard",
 
         toneMode: "formal",
         localeStyle: requestedLanguages.includes("hi") ? "hinglish" : "neutral",
@@ -1672,7 +1672,6 @@ export {
 
 export { onFactCheckCompleted } from "./channels/reputation_triggers";
 
-/*
 export {
   getHomeFeed,
   getDiscoveryModules
@@ -1682,6 +1681,7 @@ export {
   trackActivity
 } from "./users/signals";
 
+/*
 export {
   getCreatorRevenue
 } from "./economy/revenue";
@@ -1695,6 +1695,7 @@ export {
   approveVerification
 } from "./channels/verification";
 */
+
 
 export {
   addCommentNested,
@@ -2024,6 +2025,81 @@ export const resolveCopyrightOwnerAction = onRequest(
     } catch (error) {
       logger.error("[Copyright Action API] Failed to resolve copyright owner action", { error: String(error) });
       res.status(500).json({ error: "Internal server error processing copyright action" });
+    }
+  }
+);
+
+
+/**
+ * 🏛️ React to Channel Fact-Check Disputes & Trigger Re-Evaluation
+ * Triggers when a channel submits a dispute on a video with factCheckDispute.status === 'pending_review'
+ */
+export const onVideoDisputeSubmitted = onDocumentUpdated(
+  {
+    document: "videos/{videoId}",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+    secrets: ["GEMINI_API_KEY"],
+  },
+  async (event) => {
+    const beforeData = event.data?.before.data();
+    const afterData = event.data?.after.data();
+
+    if (!afterData || !afterData.factCheckDispute) return;
+
+    const beforeStatus = beforeData?.factCheckDispute?.status;
+    const afterStatus = afterData.factCheckDispute.status;
+
+    // Trigger re-evaluation only when transitioning into pending_review
+    if (afterStatus === "pending_review" && beforeStatus !== "pending_review") {
+      const videoId = event.params.videoId;
+      logger.info("[DisputeTrigger] Re-evaluating credibility for disputed video", { videoId, reason: afterData.factCheckDispute.reason });
+
+      try {
+        const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
+        const { CredibilityEngine } = require("./pipeline/layers/06-credibility");
+        const engine = new CredibilityEngine(geminiKey);
+
+        const executionPlan: ExecutionPlan = {
+          jobId: videoId,
+          languages: [],
+          enablePath1: true,
+          enablePath2: false,
+          enableTruthEngine: true,
+          enableReachEngine: false,
+          enableAuxiliary: false,
+          dubbingMode: "none",
+          generateDubbing: false,
+          genLangSubs: false,
+          channelType: "standard",
+          maxClaims: 20,
+          priority: "high",
+          skipCache: true,
+          synthesisTier: "deep",
+        };
+
+        await engine.runCredibilityPipeline(
+          videoId,
+          afterData.userId || afterData.creatorId || "unknown",
+          executionPlan,
+          `dispute_re_eval_${videoId}_${Date.now()}`,
+          `trace_dispute_${videoId}`
+        );
+
+        await admin.firestore().collection("videos").doc(videoId).set(
+          {
+            "factCheckDispute.status": "resolved",
+            "factCheckDispute.resolvedAt": admin.firestore.FieldValue.serverTimestamp(),
+            "credibilityStatus": "re_evaluated_with_channel_sources",
+          },
+          { merge: true }
+        );
+
+        logger.info("[DisputeTrigger] Successfully re-evaluated disputed video", { videoId });
+      } catch (err) {
+        logger.error("[DisputeTrigger] Failed to re-evaluate disputed video", { videoId, error: String(err) });
+      }
     }
   }
 );

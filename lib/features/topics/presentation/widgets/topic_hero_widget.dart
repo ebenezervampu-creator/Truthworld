@@ -13,9 +13,10 @@ import 'package:truthworld/theme/app_theme.dart';
 /// 2. Topic Title & Collapsible description ("show more / show less").
 /// 3. Community icon + text row with Video count, Follow/Following button, and Notification Bell settings.
 class TopicHeroWidget extends StatefulWidget {
-
   const TopicHeroWidget({
-    required this.isDesktop, required this.isTablet, super.key,
+    required this.isDesktop,
+    required this.isTablet,
+    super.key,
     this.topic,
     this.onCommunityTap,
     this.onCommentsTap,
@@ -40,15 +41,22 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
     }
 
     final topic = widget.topic!;
-    final horizontalPadding = widget.isDesktop ? 48.0 : (widget.isTablet ? 32.0 : 16.0);
-    final imageHeight = widget.isDesktop ? 360.0 : (widget.isTablet ? 260.0 : 200.0);
+    final horizontalPadding = widget.isDesktop
+        ? 48.0
+        : (widget.isTablet ? 32.0 : 16.0);
+    final imageHeight = widget.isDesktop
+        ? 360.0
+        : (widget.isTablet ? 260.0 : 200.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 1. Complete Topic Thumbnail (NO title or text on it)
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: 12,
+          ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: SizedBox(
@@ -87,7 +95,9 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                 child: Text(
                   topic.title,
                   style: TextStyle(
-                    fontSize: widget.isDesktop ? 32 : (widget.isTablet ? 26 : 22),
+                    fontSize: widget.isDesktop
+                        ? 32
+                        : (widget.isTablet ? 26 : 22),
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                     height: 1.2,
@@ -166,8 +176,8 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
     final bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
         ? topic.coverImage
         : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
-            ? topic.thumbnailUrl
-            : null;
+        ? topic.thumbnailUrl
+        : null;
 
     if (bgUrl != null) {
       return Image.network(
@@ -230,7 +240,8 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
 
     return Obx(() {
       final isFollowed = followingController.isTopicFollowed(topic.id);
-      final currentBellSetting = followingController.topicNotificationSettings[topic.id] ?? 'all';
+      final currentBellSetting =
+          followingController.topicNotificationSettings[topic.id] ?? 'all';
       final commentsHandler = widget.onCommentsTap ?? widget.onCommunityTap;
 
       return SingleChildScrollView(
@@ -241,7 +252,9 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.6),
+                color: AppColors.bgSurfaceContainerHighest.withValues(
+                  alpha: 0.6,
+                ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: AppColors.bgDivider.withValues(alpha: 0.5),
@@ -275,9 +288,14 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
               onTap: commentsHandler,
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.6),
+                  color: AppColors.bgSurfaceContainerHighest.withValues(
+                    alpha: 0.6,
+                  ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: AppColors.bgDivider.withValues(alpha: 0.5),
@@ -315,33 +333,34 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
 
             // Bell Icon Notification Option (when Following)
             if (isFollowed) ...[
-            const SizedBox(width: 8),
-            Container(
-              height: 36,
-              width: 36,
-              decoration: const BoxDecoration(
-                color: AppColors.bgSurfaceContainerHighest,
-                shape: BoxShape.circle,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: () => _showNotificationSettingsDialog(context, topic.id),
-                  child: Icon(
-                    _getBellIcon(currentBellSetting),
-                    size: 18,
-                    color: AppColors.textPrimary,
+              const SizedBox(width: 8),
+              Container(
+                height: 36,
+                width: 36,
+                decoration: const BoxDecoration(
+                  color: AppColors.bgSurfaceContainerHighest,
+                  shape: BoxShape.circle,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () =>
+                        _showNotificationSettingsDialog(context, topic.id),
+                    child: Icon(
+                      _getBellIcon(currentBellSetting),
+                      size: 18,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
-      ),
-    );
-  });
-}
+        ),
+      );
+    });
+  }
 
   IconData _getBellIcon(String setting) {
     switch (setting) {

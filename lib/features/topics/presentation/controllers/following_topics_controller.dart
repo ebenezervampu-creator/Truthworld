@@ -9,7 +9,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 
 /// GetX controller for the Following Topics page
 class FollowingTopicsController extends GetxController {
-
   FollowingTopicsController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
@@ -36,7 +35,8 @@ class FollowingTopicsController extends GetxController {
   final RxBool isSearchExpanded = false.obs;
 
   // Topic notification settings map: topicId -> 'all' | 'personalized' | 'none'
-  final RxMap<String, String> topicNotificationSettings = <String, String>{}.obs;
+  final RxMap<String, String> topicNotificationSettings =
+      <String, String>{}.obs;
 
   @override
   void onInit() {
@@ -167,8 +167,9 @@ class FollowingTopicsController extends GetxController {
         if (success) {
           followedTopics.removeWhere((t) => t.id == topic.id);
           if (selectedTopic.value?.id == topic.id) {
-            selectedTopic.value =
-                followedTopics.isNotEmpty ? followedTopics.first : null;
+            selectedTopic.value = followedTopics.isNotEmpty
+                ? followedTopics.first
+                : null;
           }
           SnackbarService.success(
             message: 'You unfollowed "${topic.title}" successfully.',
@@ -209,31 +210,46 @@ class FollowingTopicsController extends GetxController {
       return topicNotificationSettings[topicId]!;
     }
 
-    final setting = await _repository.getTopicNotificationSetting(userId, topicId);
+    final setting = await _repository.getTopicNotificationSetting(
+      userId,
+      topicId,
+    );
     topicNotificationSettings[topicId] = setting;
     return setting;
   }
 
   /// Update notification setting for a topic ('all' | 'personalized' | 'none')
-  Future<void> updateTopicNotificationSetting(String topicId, String setting) async {
+  Future<void> updateTopicNotificationSetting(
+    String topicId,
+    String setting,
+  ) async {
     final userId = AuthService.to.uid;
     if (userId.isEmpty) {
-      SnackbarService.error(message: 'Please sign in to update notification settings.');
+      SnackbarService.error(
+        message: 'Please sign in to update notification settings.',
+      );
       return;
     }
 
     try {
       topicNotificationSettings[topicId] = setting;
-      await _repository.updateTopicNotificationSetting(userId, topicId, setting);
-      
+      await _repository.updateTopicNotificationSetting(
+        userId,
+        topicId,
+        setting,
+      );
+
       final label = setting == 'all'
           ? 'All notifications'
-          : (setting == 'personalized' ? 'Personalized notifications' : 'Notifications turned off');
-      SnackbarService.success(message: 'Notification preference updated to "$label".');
+          : (setting == 'personalized'
+                ? 'Personalized notifications'
+                : 'Notifications turned off');
+      SnackbarService.success(
+        message: 'Notification preference updated to "$label".',
+      );
     } catch (e) {
       debugPrint('Error updating topic notification setting: $e');
       SnackbarService.error(message: 'Failed to update notification settings.');
     }
   }
 }
-

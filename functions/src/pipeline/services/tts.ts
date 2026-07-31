@@ -74,7 +74,7 @@ export class TTSService {
   }
 
   async synthesize(request: TTSRequest): Promise<TTSResult> {
-    const voiceId = request.voiceId || "21m00Tcm4TlvDq8ikWAM"; // Rachel (default)
+    const voiceId = request.voiceId || "EXAVITQu4vr4xnSDxMaL"; // Sarah (default valid premade voice)
     const model = this.selectModel(request.language);
     const apiKey = this.getApiKey();
 

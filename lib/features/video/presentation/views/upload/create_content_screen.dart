@@ -23,15 +23,14 @@ import 'package:truthworld/features/video/presentation/views/upload/models/uploa
 import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 // ==========================================================================
 // CREATE CONTENT SCREEN - Refactored to support specific upload types
 // ==========================================================================
 
 class CreateContentScreen extends StatefulWidget {
-
   const CreateContentScreen({
-    required this.uploadType, super.key,
+    required this.uploadType,
+    super.key,
   });
   final UploadType uploadType;
 
@@ -249,10 +248,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       return Column(
         children: [
           _buildEnhancedAppBar(),
-          if (widget.uploadType != UploadType.communityPost) _buildProgressIndicator(true),
+          if (widget.uploadType != UploadType.communityPost)
+            _buildProgressIndicator(true),
           Expanded(
             child: Container(
-              constraints: BoxConstraints(maxWidth: context.layoutTokens.contentMaxWidth),
+              constraints: BoxConstraints(
+                maxWidth: context.layoutTokens.contentMaxWidth,
+              ),
               margin: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
               child: widget.uploadType == UploadType.video
                   ? _buildVideoUploadFlow(true)
@@ -275,12 +277,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       statusColor = context.colors.info;
       icon = Icons.sync_rounded;
       title = 'Branding Under Moderation';
-      subtitle = 'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+      subtitle =
+          'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
     } else if (channel.status == ChannelStatus.verificationRejected) {
       statusColor = context.colors.error;
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected';
-      subtitle = channel.moderationReason != null && channel.moderationReason!.isNotEmpty
+      subtitle =
+          channel.moderationReason != null &&
+              channel.moderationReason!.isNotEmpty
           ? channel.moderationReason!
           : 'Your channel details were rejected by Gemini AI. Please update your name, description, or tags in customization to re-verify.';
       showButton = true;
@@ -288,12 +293,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       statusColor = context.colors.warning;
       icon = Icons.hourglass_empty_rounded;
       title = 'Verification Pending';
-      subtitle = 'Your channel is currently verification pending. You can publish videos once your branding is verified.';
+      subtitle =
+          'Your channel is currently verification pending. You can publish videos once your branding is verified.';
     } else if (channel.status == ChannelStatus.suspended) {
       statusColor = context.colors.error;
       icon = Icons.gavel_rounded;
       title = 'Channel Suspended';
-      subtitle = 'Your channel has been suspended for policy violations. Publishing is disabled.';
+      subtitle =
+          'Your channel has been suspended for policy violations. Publishing is disabled.';
     } else {
       statusColor = context.colors.textDisabled;
       icon = Icons.info_outline_rounded;
@@ -362,10 +369,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             const SizedBox(height: 28),
             ElevatedButton.icon(
               onPressed: () {
-                Get.toNamed('/community-guidelines', arguments: {
-                  'fromRejectedChannelId': channel.id,
-                  'ownerId': channel.ownerId,
-                });
+                Get.toNamed(
+                  '/community-guidelines',
+                  arguments: {
+                    'fromRejectedChannelId': channel.id,
+                    'ownerId': channel.ownerId,
+                  },
+                );
               },
               icon: const Icon(Icons.description_outlined, size: 20),
               label: Text(
@@ -375,7 +385,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: statusColor,
                 foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 16,
+                ),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -420,7 +433,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         borderRadius: context.radius.md,
                       ),
                       child: Icon(
-                        isCommunity ? Icons.campaign_rounded : Icons.cloud_upload_rounded,
+                        isCommunity
+                            ? Icons.campaign_rounded
+                            : Icons.cloud_upload_rounded,
                         size: 20,
                         color: AppColors.textPrimary,
                       ),
@@ -667,7 +682,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       size: 12,
                       color: isActive
                           ? const Color(0xFF6366F1)
-                          : (isDark ? AppColors.textDisabled : const Color(0xFFD1D5DB)),
+                          : (isDark
+                                ? AppColors.textDisabled
+                                : const Color(0xFFD1D5DB)),
                     ),
                   ],
                 ),
@@ -709,7 +726,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               Text(
                 'Loading channels...',
                 style: context.themeTypography.body.copyWith(
-                  color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                  color: isDark
+                      ? AppColors.textSecondary
+                      : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -790,20 +809,26 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               Icon(
                 Icons.video_library_outlined,
                 size: 32,
-                color: isDark ? AppColors.textTertiary : const Color(0xFFD1D5DB),
+                color: isDark
+                    ? AppColors.textTertiary
+                    : const Color(0xFFD1D5DB),
               ),
               const SizedBox(height: 12),
               Text(
                 'No Channels Yet',
                 style: context.themeTypography.title.copyWith(
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Create a channel to start uploading',
                 style: context.themeTypography.bodySmall.copyWith(
-                  color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                  color: isDark
+                      ? AppColors.textSecondary
+                      : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -858,7 +883,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     channel.channelName,
                     style: context.themeTypography.body.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                      color: isDark
+                          ? AppColors.textPrimary
+                          : const Color(0xFF0F172A),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -866,20 +893,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     channel.status == ChannelStatus.active
                         ? 'Active Channel'
                         : channel.status == ChannelStatus.underReview
-                            ? 'Under Review'
-                            : channel.status == ChannelStatus.verificationRejected
-                                ? 'Rejected'
-                                : channel.status == ChannelStatus.verificationPending
-                                    ? 'Pending Verification'
-                                    : 'Suspended',
+                        ? 'Under Review'
+                        : channel.status == ChannelStatus.verificationRejected
+                        ? 'Rejected'
+                        : channel.status == ChannelStatus.verificationPending
+                        ? 'Pending Verification'
+                        : 'Suspended',
                     style: context.themeTypography.label.copyWith(
                       color: channel.status == ChannelStatus.active
                           ? (isDark ? AppColors.textTertiary : Colors.black45)
                           : channel.status == ChannelStatus.underReview
-                              ? const Color(0xFF3B82F6)
-                              : channel.status == ChannelStatus.verificationRejected
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFFF59E0B),
+                          ? const Color(0xFF3B82F6)
+                          : channel.status == ChannelStatus.verificationRejected
+                          ? const Color(0xFFEF4444)
+                          : const Color(0xFFF59E0B),
                     ),
                   ),
                 ],
@@ -932,7 +959,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               Text(
                 'Preview',
                 style: context.themeTypography.headline.copyWith(
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF0F172A),
                 ),
               ),
             ],
@@ -1013,7 +1042,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                           : 'Untitled Video',
                       style: context.themeTypography.body.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                        color: isDark
+                            ? AppColors.textPrimary
+                            : const Color(0xFF0F172A),
                         height: 1.4,
                       ),
                       maxLines: 2,
@@ -1126,12 +1157,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                             Flexible(
                               child: Text(
                                 _getPlaylistName(playlistId),
-                                style: context.themeTypography.bodySmall.copyWith(
-                                  color: isDark
-                                      ? AppColors.textSecondary
-                                      : AppColors.textSecondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: context.themeTypography.bodySmall
+                                    .copyWith(
+                                      color: isDark
+                                          ? AppColors.textSecondary
+                                          : AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -1218,7 +1250,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     Text(
                       'Ready to Publish',
                       style: context.themeTypography.headline.copyWith(
-                        color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                        color: isDark
+                            ? AppColors.textPrimary
+                            : const Color(0xFF111827),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1283,8 +1317,12 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         const SizedBox(height: 8),
                         _buildValidationSummaryRow(
                           label: 'Description',
-                          status: _uploadController.descriptionValidationStatus.value,
-                          reason: _uploadController.descriptionValidationReason.value,
+                          status: _uploadController
+                              .descriptionValidationStatus
+                              .value,
+                          reason: _uploadController
+                              .descriptionValidationReason
+                              .value,
                           isDark: isDark,
                         ),
                       ],
@@ -1397,7 +1435,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                               : (isProcessing && isDark
                                     ? AppColors.textPrimary
                                     : isDark
-                                    ? AppColors.textPrimary.withValues(alpha: 0.6)
+                                    ? AppColors.textPrimary.withValues(
+                                        alpha: 0.6,
+                                      )
                                     : const Color(0xFF6B7280)),
                           fontWeight: isComplete
                               ? FontWeight.w500
@@ -1802,9 +1842,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         );
       case 2:
         debugPrint('Validating Step 3: Advanced Settings');
-        // Additional validation if needed for step 3
+        if (!_uploadController.isFactCheckSourcesValid) {
+          canProceed = false;
+          errorMessage =
+              'Please provide at least one source link for Fact-Checking.';
+        }
         debugPrint(
-          "Step 3 validation result: canProceed=true, errorMessage=''",
+          "Step 3 validation result: canProceed=$canProceed, errorMessage='$errorMessage'",
         );
       case 3:
         debugPrint('Step 4: No validation needed for final step');
@@ -1904,7 +1948,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               top: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF10B981),
                   borderRadius: BorderRadius.circular(20),
@@ -2046,7 +2093,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.textPrimary,
+                    ),
                   ),
                 )
               : const Icon(Icons.publish_rounded, size: 20),
@@ -2084,7 +2133,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final hasVideo = videoUrl.isNotEmpty;
     final hasThumbnail = thumbnailUrl.isNotEmpty || pickedImage != null;
     final hasChannel = selectedChannel != null;
-    final isChannelActive = selectedChannel != null && selectedChannel.status == ChannelStatus.active;
+    final isChannelActive =
+        selectedChannel != null &&
+        selectedChannel.status == ChannelStatus.active;
     final hasValidTitle = _titleController.text.trim().length >= 5;
     final hasValidDesc = _descriptionController.text.trim().length >= 10;
     final hasCategory = selectedCategory.isNotEmpty;
@@ -2185,7 +2236,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.textPrimary,
+                  ),
                 ),
               )
             else
@@ -2252,8 +2305,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final color = approved
         ? const Color(0xFF10B981)
         : rejected
-            ? const Color(0xFFEF4444)
-            : const Color(0xFF3B82F6);
+        ? const Color(0xFFEF4444)
+        : const Color(0xFF3B82F6);
 
     return Container(
       width: double.infinity,
@@ -2271,8 +2324,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             approved
                 ? Icons.check_circle_rounded
                 : rejected
-                    ? Icons.error_outline_rounded
-                    : Icons.hourglass_top_rounded,
+                ? Icons.error_outline_rounded
+                : Icons.hourglass_top_rounded,
             size: 16,
             color: color,
           ),
@@ -2295,8 +2348,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   reason.isNotEmpty
                       ? reason
                       : (pending
-                          ? 'Validation is in progress...'
-                          : 'No validation details available.'),
+                            ? 'Validation is in progress...'
+                            : 'No validation details available.'),
                   style: context.themeTypography.bodySmall.copyWith(
                     color: isDark
                         ? AppColors.textPrimary.withValues(alpha: 0.75)
@@ -2436,16 +2489,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
     // 1️⃣ Validation: Required fields
     final selectedChannel = _uploadController.selectedChannel.value;
-    if (selectedChannel != null && selectedChannel.status != ChannelStatus.active) {
+    if (selectedChannel != null &&
+        selectedChannel.status != ChannelStatus.active) {
       var message = 'Your channel is not active.';
       if (selectedChannel.status == ChannelStatus.underReview) {
-        message = 'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+        message =
+            'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
       } else if (selectedChannel.status == ChannelStatus.verificationRejected) {
-        message = selectedChannel.moderationReason != null && selectedChannel.moderationReason!.isNotEmpty
+        message =
+            selectedChannel.moderationReason != null &&
+                selectedChannel.moderationReason!.isNotEmpty
             ? 'Branding Rejected: ${selectedChannel.moderationReason!}'
             : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
       } else if (selectedChannel.status == ChannelStatus.verificationPending) {
-        message = 'Your channel is currently verification pending. You can publish videos once your branding is verified.';
+        message =
+            'Your channel is currently verification pending. You can publish videos once your branding is verified.';
       } else if (selectedChannel.status == ChannelStatus.suspended) {
         message = 'Your channel is suspended. Publishing is disabled.';
       }
@@ -2681,8 +2739,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       );
     } catch (e) {
       // Enhanced error handling
-      var errorMessage =
-          'Failed to publish community post. Please try again.';
+      var errorMessage = 'Failed to publish community post. Please try again.';
       if (e is FirebaseException) {
         errorMessage = 'Firebase error: ${e.message}';
       } else if (e is io.IOException) {
@@ -2770,7 +2827,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
             ),
           ),
-          child: Icon(Icons.arrow_back, size: 20,
+          child: Icon(
+            Icons.arrow_back,
+            size: 20,
             color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
           ),
         ),
@@ -2846,7 +2905,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                 color: isCompleted || isActive
                                     ? AppColors.textPrimary
                                     : isDark
-                                    ? AppColors.textPrimary.withValues(alpha: 0.3)
+                                    ? AppColors.textPrimary.withValues(
+                                        alpha: 0.3,
+                                      )
                                     : const Color(0xFF9CA3AF),
                               ),
                             ),
@@ -2863,7 +2924,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                           ? AppColors.textSecondary
                                           : AppColors.textSecondary)
                                     : (isDark
-                                          ? AppColors.textPrimary.withValues(alpha: 0.3)
+                                          ? AppColors.textPrimary.withValues(
+                                              alpha: 0.3,
+                                            )
                                           : const Color(0xFF9CA3AF)),
                               ),
                             ),
@@ -3027,6 +3090,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               },
             ),
             const SizedBox(height: 20),
+            _buildVideoCategoryDropdown(isDark),
+            const SizedBox(height: 20),
             _buildEnhancedTextField(
               controller: _tagsController,
               label: 'Tags',
@@ -3045,6 +3110,168 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildVideoCategoryDropdown(bool isDark) {
+    return Obx(() {
+      final currentCategory = _uploadController.selectedCategory.value;
+      final categories = _uploadController.videoCategories;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Category',
+                style: AppTextStyles.labelMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? const Color(0xFFE6EDF3)
+                      : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                '*',
+                style: TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: categories.contains(currentCategory)
+                ? currentCategory
+                : categories.first,
+            decoration: InputDecoration(
+              hintText: 'Select video category',
+              prefixIcon: const Icon(
+                Icons.category_rounded,
+                size: 20,
+                color: AppColors.textPrimary,
+              ),
+              filled: true,
+              fillColor: isDark ? const Color(0xFF161B22) : AppColors.bgInput,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF30363D)
+                      : const Color(0xFFE5E7EB),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF30363D)
+                      : const Color(0xFFE5E7EB),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: const BorderSide(
+                  color: Color(0xFF10B981),
+                  width: 2,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+            ),
+            dropdownColor: isDark
+                ? const Color(0xFF161B22)
+                : AppColors.bgSurface,
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: AppColors.textPrimary,
+            ),
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 14,
+              color: AppColors.textPrimary,
+            ),
+            items: categories.map((cat) {
+              final isNoFactCheck = !_uploadController
+                  .isFactCheckNeededForCategory(cat);
+              return DropdownMenuItem<String>(
+                value: cat,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      cat,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.textPrimary,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (isNoFactCheck) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6B7280).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(
+                              0xFF6B7280,
+                            ).withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          'No Fact-Check',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark
+                                ? Colors.white70
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                _uploadController.selectCategory(value);
+                HapticFeedback.lightImpact();
+              }
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select a category';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 6),
+          Obx(() {
+            final cat = _uploadController.selectedCategory.value;
+            final isNoFactCheck = !_uploadController
+                .isFactCheckNeededForCategory(cat);
+            if (isNoFactCheck) {
+              return Text(
+                'Note: Fact-checking is not needed for $cat content.',
+                style: AppTextStyles.caption.copyWith(
+                  color: const Color(0xFF9CA3AF),
+                  fontSize: 12,
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          }),
+        ],
+      );
+    });
   }
 
   // Step 3: Advanced Settings
@@ -3082,6 +3309,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             ttsVoiceType: _uploadController.aiTTSVoiceType,
             factCheckEnabled: _uploadController.aiFactCheckEnabled,
             voiceSample: _uploadController.voiceSampleFile,
+            selectedCategory: _uploadController.selectedCategory,
+            providedSources: _uploadController.providedSources,
+            onAddSource: _uploadController.addProvidedSource,
+            onRemoveSource: _uploadController.removeProvidedSource,
             isPremiumUser:
                 _uploadController.selectedChannel.value?.monetizationTier ==
                     MonetizationTier.premium ||
@@ -3251,7 +3482,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -3301,14 +3535,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   Text(
                     'Video File',
                     style: context.themeTypography.headline.copyWith(
-                      color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                      color: isDark
+                          ? AppColors.textPrimary
+                          : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Select your video file to upload',
                     style: context.themeTypography.bodySmall.copyWith(
-                      color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+                      color: isDark
+                          ? AppColors.textSecondary
+                          : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -3339,8 +3577,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          if (isDark) const Color(0xFF1F2937) else const Color(0xFFF9FAFB),
-                          if (isDark) const Color(0xFF161B22) else AppColors.textPrimary,
+                          if (isDark)
+                            const Color(0xFF1F2937)
+                          else
+                            const Color(0xFFF9FAFB),
+                          if (isDark)
+                            const Color(0xFF161B22)
+                          else
+                            AppColors.textPrimary,
                         ],
                       ),
                 color: hasVideo
@@ -3451,7 +3695,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Color(0xFF3B82F6),
                         ),
-                        backgroundColor: AppColors.textPrimary.withValues(alpha: 0.3),
+                        backgroundColor: AppColors.textPrimary.withValues(
+                          alpha: 0.3,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -3480,7 +3726,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               top: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF10B981),
                   borderRadius: BorderRadius.circular(20),
@@ -3520,7 +3769,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               left: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.bgPage.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(12),
@@ -3620,14 +3872,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   Text(
                     'Thumbnail',
                     style: context.themeTypography.headline.copyWith(
-                      color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                      color: isDark
+                          ? AppColors.textPrimary
+                          : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Upload an eye-catching thumbnail image',
                     style: context.themeTypography.bodySmall.copyWith(
-                      color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+                      color: isDark
+                          ? AppColors.textSecondary
+                          : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -3658,8 +3914,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          if (isDark) const Color(0xFF1F2937) else const Color(0xFFF9FAFB),
-                          if (isDark) const Color(0xFF161B22) else AppColors.textPrimary,
+                          if (isDark)
+                            const Color(0xFF1F2937)
+                          else
+                            const Color(0xFFF9FAFB),
+                          if (isDark)
+                            const Color(0xFF161B22)
+                          else
+                            AppColors.textPrimary,
                         ],
                       ),
                 color: hasImage
@@ -3833,7 +4095,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               Text(
                 label,
                 style: context.themeTypography.title.copyWith(
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
                 ),
               ),
             ],
@@ -3881,15 +4145,24 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFF6366F1),
+                  width: 2,
+                ),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                borderSide: const BorderSide(
+                  color: Color(0xFFEF4444),
+                  width: 1.5,
+                ),
               ),
               focusedErrorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+                borderSide: const BorderSide(
+                  color: Color(0xFFEF4444),
+                  width: 2,
+                ),
               ),
               contentPadding: EdgeInsets.symmetric(
                 horizontal: 18,
@@ -3901,8 +4174,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       ],
     );
   }
-
-
 
   Widget _buildVisibilitySettings(bool isDark) {
     return Obx(() {
@@ -3936,9 +4207,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         : AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected
-                          ? AppColors.brand
-                          : AppColors.bgDivider,
+                      color: isSelected ? AppColors.brand : AppColors.bgDivider,
                     ),
                   ),
                   child: Row(
@@ -4023,14 +4292,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   Text(
                     'Made for kids',
                     style: context.themeTypography.body.copyWith(
-                      color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                      color: isDark
+                          ? AppColors.textPrimary
+                          : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Content designed for viewers under 13',
                     style: context.themeTypography.bodySmall.copyWith(
-                      color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+                      color: isDark
+                          ? AppColors.textSecondary
+                          : const Color(0xFF6B7280),
                     ),
                   ),
                 ],
@@ -4182,7 +4455,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               Text(
                 'Add to Public Playlist',
                 style: context.themeTypography.body.copyWith(
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
                 ),
               ),
               const Spacer(),
@@ -4302,7 +4577,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+        backgroundColor: isDark
+            ? const Color(0xFF161B22)
+            : AppColors.textPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Create Public Playlist',
@@ -4317,7 +4594,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             Text(
               'Playlist Name',
               style: context.themeTypography.label.copyWith(
-                color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                color: isDark
+                    ? AppColors.textSecondary
+                    : AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
@@ -4330,7 +4609,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               decoration: InputDecoration(
                 hintText: 'Enter playlist name',
                 hintStyle: context.themeTypography.body.copyWith(
-                  color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
+                  color: isDark
+                      ? AppColors.textTertiary
+                      : const Color(0xFF9CA3AF),
                 ),
                 filled: true,
                 fillColor: isDark
@@ -4354,7 +4635,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             child: Text(
               'Cancel',
               style: context.themeTypography.body.copyWith(
-                color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                color: isDark
+                    ? AppColors.textSecondary
+                    : AppColors.textSecondary,
               ),
             ),
           ),
@@ -4472,7 +4755,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
         dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
         style: context.themeTypography.body.copyWith(
@@ -4507,7 +4793,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         }
       }
 
-      final draftTitle = hasDraft ? (_uploadController.newTopicData['title'] as String? ?? 'New Draft') : '';
+      final draftTitle = hasDraft
+          ? (_uploadController.newTopicData['title'] as String? ?? 'New Draft')
+          : '';
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4519,7 +4807,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 style: context.themeTypography.title.copyWith(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
                 ),
               ),
               const Spacer(),
@@ -4536,7 +4826,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   label: const Text('+ New Topic'),
                   style: TextButton.styleFrom(
                     foregroundColor: const Color(0xFF3B82F6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                   ),
                 ),
             ],
@@ -4559,7 +4852,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 border: Border.all(
                   color: (selectedTopic != null || hasDraft)
                       ? const Color(0xFF3B82F6)
-                      : (isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB)),
+                      : (isDark
+                            ? const Color(0xFF30363D)
+                            : const Color(0xFFE5E7EB)),
                   width: (selectedTopic != null || hasDraft) ? 1.5 : 1.0,
                 ),
                 boxShadow: [
@@ -4581,7 +4876,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         color: AppColors.brand.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.edit_document, color: Colors.white, size: 22),
+                      child: const Icon(
+                        Icons.edit_document,
+                        color: Colors.white,
+                        size: 22,
+                      ),
                     )
                   else if (selectedTopic != null)
                     ClipRRect(
@@ -4589,18 +4888,32 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       child: Container(
                         width: 46,
                         height: 46,
-                        color: isDark ? const Color(0xFF21262D) : const Color(0xFFE5E7EB),
-                        child: (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage) != null &&
-                                (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage)!.isNotEmpty
+                        color: isDark
+                            ? const Color(0xFF21262D)
+                            : const Color(0xFFE5E7EB),
+                        child:
+                            (selectedTopic.thumbnailUrl ??
+                                        selectedTopic.coverImage) !=
+                                    null &&
+                                (selectedTopic.thumbnailUrl ??
+                                        selectedTopic.coverImage)!
+                                    .isNotEmpty
                             ? Image.network(
-                                (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage)!,
+                                (selectedTopic.thumbnailUrl ??
+                                    selectedTopic.coverImage)!,
                                 width: 46,
                                 height: 46,
                                 fit: BoxFit.cover,
                               )
                             : ColoredBox(
-                                color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                                child: const Icon(Icons.topic_rounded, color: Color(0xFF3B82F6), size: 22),
+                                color: const Color(
+                                  0xFF3B82F6,
+                                ).withValues(alpha: 0.15),
+                                child: const Icon(
+                                  Icons.topic_rounded,
+                                  color: Color(0xFF3B82F6),
+                                  size: 22,
+                                ),
                               ),
                       ),
                     )
@@ -4609,12 +4922,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF21262D) : const Color(0xFFF3F4F6),
+                        color: isDark
+                            ? const Color(0xFF21262D)
+                            : const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         Icons.topic_rounded,
-                        color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+                        color: isDark
+                            ? AppColors.textSecondary
+                            : const Color(0xFF6B7280),
                         size: 22,
                       ),
                     ),
@@ -4654,12 +4971,26 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                   ),
                                 ),
                               ),
-                              if (selectedTopic.visibilityType == TopicVisibilityType.private)
-                                const Icon(Icons.lock_rounded, size: 14, color: AppColors.warning)
-                              else if (selectedTopic.visibilityType == TopicVisibilityType.channelOnly)
-                                const Icon(Icons.group_rounded, size: 14, color: AppColors.info)
+                              if (selectedTopic.visibilityType ==
+                                  TopicVisibilityType.private)
+                                const Icon(
+                                  Icons.lock_rounded,
+                                  size: 14,
+                                  color: AppColors.warning,
+                                )
+                              else if (selectedTopic.visibilityType ==
+                                  TopicVisibilityType.channelOnly)
+                                const Icon(
+                                  Icons.group_rounded,
+                                  size: 14,
+                                  color: AppColors.info,
+                                )
                               else
-                                const Icon(Icons.public_rounded, size: 14, color: AppColors.success),
+                                const Icon(
+                                  Icons.public_rounded,
+                                  size: 14,
+                                  color: AppColors.success,
+                                ),
                             ],
                           ),
                           const SizedBox(height: 2),
@@ -4725,19 +5056,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     });
   }
 
-
-
-    void _showCreateTopicModal(bool isDark) {
+  void _showCreateTopicModal(bool isDark) {
     final currentChannelId = _uploadController.selectedChannel.value?.id ?? '';
     CreateTopicDialog.show(
       context: context,
       isDarkMode: isDark,
       channelVideosFuture: currentChannelId.isNotEmpty
           ? FirebaseFirestore.instance
-              .collection('videos')
-              .where('channelId', isEqualTo: currentChannelId)
-              .get()
-              .then((snap) => snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList())
+                .collection('videos')
+                .where('channelId', isEqualTo: currentChannelId)
+                .get()
+                .then(
+                  (snap) => snap.docs
+                      .map((doc) => {'id': doc.id, ...doc.data()})
+                      .toList(),
+                )
           : Future.value([]),
       onCreateTopicSubmitted: (createCtrl) async {
         final title = createCtrl.titleController.text.trim();
@@ -4745,7 +5078,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         if (rawHandle.startsWith('T/') || rawHandle.startsWith('t/')) {
           rawHandle = rawHandle.substring(2);
         }
-        final cleanHandle = rawHandle.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-').replaceAll(RegExp('-+'), '-');
+        final cleanHandle = rawHandle
+            .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
+            .replaceAll(RegExp('-+'), '-');
         final finalHandle = 'T/$cleanHandle';
         final finalHandleLowercase = finalHandle.toLowerCase();
 
@@ -4757,7 +5092,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             .get();
 
         if (existingHandle.docs.isNotEmpty) {
-          Get.snackbar('Error', 'Topic handle is already taken. Please choose a different one.');
+          Get.snackbar(
+            'Error',
+            'Topic handle is already taken. Please choose a different one.',
+          );
           throw Exception('Handle already taken');
         }
 
@@ -4774,7 +5112,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         };
 
         _uploadController.selectedTopicId.value = 'new_topic_draft';
-        Get.snackbar('Success', 'Topic draft created! It will be published along with your video.');
+        Get.snackbar(
+          'Success',
+          'Topic draft created! It will be published along with your video.',
+        );
       },
     );
   }
@@ -4830,7 +5171,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
         dropdownColor: AppColors.bgSurface,
         style: AppTextStyles.bodyMedium.copyWith(
@@ -4857,8 +5201,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   }
 
   void showCreatePlaylistModal(bool isDark) {
-    final playListNameController =
-        TextEditingController();
+    final playListNameController = TextEditingController();
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 

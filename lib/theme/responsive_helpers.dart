@@ -11,7 +11,11 @@ export 'tw_layout_tokens.dart';
 class Responsive {
   static DeviceState getDevice(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    return DeviceState.fromSize(size.width, size.height, getFontScale(size.width));
+    return DeviceState.fromSize(
+      size.width,
+      size.height,
+      getFontScale(size.width),
+    );
   }
 
   static double getFontScale(double width) {
@@ -26,12 +30,14 @@ class Responsive {
   }
 
   static bool isMobile(double width) => width < TWBreakpoints.tablet;
-  static bool isTablet(double width) => width >= TWBreakpoints.tablet && width < TWBreakpoints.desktop;
+  static bool isTablet(double width) =>
+      width >= TWBreakpoints.tablet && width < TWBreakpoints.desktop;
   static bool isDesktop(double width) => width >= TWBreakpoints.desktop;
   static bool isMobileSmall(double width) => width < 360;
 }
 
-typedef ResponsiveWidgetBuilder = Widget Function(BuildContext context, DeviceState device);
+typedef ResponsiveWidgetBuilder =
+    Widget Function(BuildContext context, DeviceState device);
 
 class ResponsiveBuilder extends StatelessWidget {
   const ResponsiveBuilder({required this.builder, super.key});
@@ -53,9 +59,9 @@ class ResponsiveBuilder extends StatelessWidget {
 }
 
 class ResponsiveContainer extends StatelessWidget {
-
   const ResponsiveContainer({
-    required this.child, super.key,
+    required this.child,
+    super.key,
     this.padding,
     this.maxWidth,
     this.centerContent = true,
@@ -119,17 +125,18 @@ extension TWTypographyExtension on BuildContext {
 extension TWTypographyScale on TWTypography {
   TWTypography scale(double factor) {
     return copyWith(
-      logo: logo.copyWith(fontSize: logo.fontSize! * factor),
-      hero: hero.copyWith(fontSize: hero.fontSize! * factor),
-      display: display.copyWith(fontSize: display.fontSize! * factor),
-      headline: headline.copyWith(fontSize: headline.fontSize! * factor),
-      title: title.copyWith(fontSize: title.fontSize! * factor),
-      body: body.copyWith(fontSize: body.fontSize! * factor),
-      bodySmall: bodySmall.copyWith(fontSize: bodySmall.fontSize! * factor),
-      label: label.copyWith(fontSize: label.fontSize! * factor),
-      caption: caption.copyWith(fontSize: caption.fontSize! * factor),
-      button: button.copyWith(fontSize: button.fontSize! * factor),
-      overline: overline.copyWith(fontSize: overline.fontSize! * factor),
-    ) as TWTypography;
+          logo: logo.copyWith(fontSize: logo.fontSize! * factor),
+          hero: hero.copyWith(fontSize: hero.fontSize! * factor),
+          display: display.copyWith(fontSize: display.fontSize! * factor),
+          headline: headline.copyWith(fontSize: headline.fontSize! * factor),
+          title: title.copyWith(fontSize: title.fontSize! * factor),
+          body: body.copyWith(fontSize: body.fontSize! * factor),
+          bodySmall: bodySmall.copyWith(fontSize: bodySmall.fontSize! * factor),
+          label: label.copyWith(fontSize: label.fontSize! * factor),
+          caption: caption.copyWith(fontSize: caption.fontSize! * factor),
+          button: button.copyWith(fontSize: button.fontSize! * factor),
+          overline: overline.copyWith(fontSize: overline.fontSize! * factor),
+        )
+        as TWTypography;
   }
 }

@@ -2,13 +2,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ModernVideoListCard extends StatefulWidget {
-
   const ModernVideoListCard({
-    required this.video, required this.index, required this.colorScheme, required this.constraints, super.key,
+    required this.video,
+    required this.index,
+    required this.colorScheme,
+    required this.constraints,
+    super.key,
     this.heroPrefix = 'video_list',
     this.accentColor = const Color(0xFFDC143C),
   });
@@ -254,7 +258,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             Flexible(
               child: _buildStatChip(
                 Icons.visibility_rounded,
-                '${widget.video.views}',
+                FormatUtils.formatCount(widget.video.views),
                 context,
               ),
             ),
@@ -262,7 +266,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             Flexible(
               child: _buildStatChip(
                 Icons.favorite_rounded,
-                '${widget.video.likeCount}',
+                FormatUtils.formatCount(widget.video.likeCount),
                 context,
               ),
             ),
@@ -293,7 +297,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
                 : Responsive.isMobile(context.screenWidth)
                 ? 12
                 : 16,
-            color: widget.accentColor,
+            color: Colors.white,
           ),
           SizedBox(width: context.layoutSpacing / 4),
           Text(
@@ -334,9 +338,12 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
 }
 
 class ModernVideoGridCard extends StatefulWidget {
-
   const ModernVideoGridCard({
-    required this.video, required this.index, required this.colorScheme, required this.constraints, super.key,
+    required this.video,
+    required this.index,
+    required this.colorScheme,
+    required this.constraints,
+    super.key,
     this.heroPrefix = 'video_grid',
     this.accentColor = const Color(0xFFDC143C), // AppColors.brand
   });
@@ -366,7 +373,10 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
   Widget build(BuildContext context) {
     return InteractionStyles.interactiveCard(
       onTap: () {
-        Get.toNamed('/watch?v=${widget.video.id}', arguments: {'video': widget.video});
+        Get.toNamed(
+          '/watch?v=${widget.video.id}',
+          arguments: {'video': widget.video},
+        );
       },
       child: Container(
         decoration: ComponentStyles.getCardDecoration(),
@@ -451,14 +461,14 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
               Flexible(
                 child: _buildStatChip(
                   Icons.visibility_rounded,
-                  '${widget.video.views}',
+                  FormatUtils.formatCount(widget.video.views),
                   context,
                 ),
               ),
               Flexible(
                 child: _buildStatChip(
                   Icons.favorite_rounded,
-                  '${widget.video.likeCount}',
+                  FormatUtils.formatCount(widget.video.likeCount),
                   context,
                 ),
               ),
@@ -502,8 +512,3 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
     );
   }
 }
-
-
-
-
-

@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/presentation/views/channel/channel_plan_selection_screen.dart';
+import 'package:truthworld/features/channel/presentation/views/channel_monetization_dashboard_view.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
@@ -42,77 +46,329 @@ class MonetizationScreen extends StatelessWidget {
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Channel Monetization',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Day 1 Creator Monetization Program',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check_circle_rounded, color: Colors.green, size: 16),
-                            SizedBox(width: 6),
-                            Text(
-                              'ACTIVE',
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPolicyNoticeCard(),
-                  const SizedBox(height: 24),
-                  _buildEligibilitySection(controller),
-                  const SizedBox(height: 24),
-                  _buildRevenueSummary(context, controller),
-                  const SizedBox(height: 24),
-                  _buildPerVideoWithdrawalSection(context, controller),
-                ],
-              ),
-            ),
+          : Obx(() {
+              final channel = controller.currentChannel.value;
+              final isCustom = channel?.channelType == ChannelType.custom;
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeaderSection(channel),
+                    const SizedBox(height: 20),
+                    _buildChannelTypeCard(context, channel),
+                    const SizedBox(height: 24),
+                    _buildPolicyNoticeCard(isCustom),
+                    const SizedBox(height: 24),
+                    _buildEligibilitySection(controller, isCustom),
+                    const SizedBox(height: 24),
+                    _buildRevenueSummary(context, controller),
+                    const SizedBox(height: 24),
+                    _buildPerVideoWithdrawalSection(context, controller),
+                  ],
+                ),
+              );
+            }),
     );
   }
 
-  Widget _buildPolicyNoticeCard() {
+  Widget _buildHeaderSection(Channel? channel) {
+    final channelType = channel?.channelType ?? ChannelType.standard;
+    final isCustom = channelType == ChannelType.custom;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 6,
+                children: [
+                  const Text(
+                    'Channel Monetization',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  _buildChannelTypeBadge(channelType),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isCustom
+                    ? 'Custom Channel Infrastructure & Direct Earnings'
+                    : 'Day 1 Creator Monetization Program',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.green.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle_rounded, color: Colors.green, size: 16),
+              SizedBox(width: 6),
+              Text(
+                'ACTIVE',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChannelTypeBadge(ChannelType type) {
+    final isCustom = type == ChannelType.custom;
+    final badgeColor = isCustom ? const Color(0xFFF59E0B) : const Color(0xFF3B82F6);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isCustom ? Icons.stars_rounded : Icons.layers_rounded,
+            color: Colors.white,
+            size: 14,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            isCustom ? 'CUSTOM CHANNEL' : 'STANDARD CHANNEL',
+            style: TextStyle(
+              color: badgeColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelTypeCard(BuildContext context, Channel? channel) {
+    final channelType = channel?.channelType ?? ChannelType.standard;
+    final isCustom = channelType == ChannelType.custom;
+    final pendingType = channel?.pendingChannelType;
+
+    return _buildInfoCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: isCustom ? const Color(0xFFF59E0B) : AppColors.brand,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Channel Type & Infrastructure Tier',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              _buildChannelTypeBadge(channelType),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isCustom
+                ? 'Your channel operates on the Custom Channel Tier with full infrastructure control, 100% gross revenue share (minus infrastructure usage), unlimited uploads, and instant cash withdrawals.'
+                : 'Your channel is currently on the Standard Channel Tier with zero hosting fees, 55% net revenue share, up to 5 videos upload limit (10 minutes total duration), and a 10-hour watch time threshold for cash withdrawals.',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildChannelTypeDetailTile(
+                  icon: Icons.video_collection_outlined,
+                  label: 'Upload Limit',
+                  value: isCustom ? 'Unlimited Videos' : 'Up to 5 Videos',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildChannelTypeDetailTile(
+                  icon: Icons.timelapse_rounded,
+                  label: 'Video Duration',
+                  value: isCustom ? 'Up to 24 Hours' : '2 to 10 Mins (10m Total)',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildChannelTypeDetailTile(
+                  icon: Icons.pie_chart_outline_rounded,
+                  label: 'Revenue Share',
+                  value: isCustom ? '100% Gross - Infra' : '55% Net Creator',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildChannelTypeDetailTile(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: 'Cash-Out Rule',
+                  value: isCustom ? 'Instant Withdrawal' : '10h Watch Time Gate',
+                ),
+              ),
+            ],
+          ),
+          if (pendingType != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Scheduled to switch to ${pendingType.name.toUpperCase()} CHANNEL at the next billing cycle.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final currentPlan = isCustom ? ChannelPlanType.custom : ChannelPlanType.standard;
+                final selectedPlan = await ChannelTypeSelectorModal.show(
+                  context,
+                  initialPlan: currentPlan,
+                );
+                if (selectedPlan != null && channel != null) {
+                  unawaited(Get.to<void>(() => ChannelMonetizationDashboardView(channel: channel)));
+                }
+              },
+              icon: const Icon(Icons.tune_rounded, color: Colors.white, size: 16),
+              label: Text(
+                isCustom ? 'Manage Custom Infra & Tier Settings' : 'Explore / Switch Channel Type',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                side: BorderSide(color: AppColors.brand.withValues(alpha: 0.6)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelTypeDetailTile({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.bgInput,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPolicyNoticeCard(bool isCustom) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -132,11 +388,11 @@ class MonetizationScreen extends StatelessWidget {
             child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Instant Revenue from Day 1',
                   style: TextStyle(
                     fontSize: 15,
@@ -144,12 +400,12 @@ class MonetizationScreen extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   '• Zero subscriber requirement: Generate ad & view revenue starting immediately.\n'
-                  '• Cash Payout Rule: Money generated by a video becomes withdrawable once that video crosses 10 hours of watch time.\n'
+                  '${isCustom ? '• Cash Payout Rule: Direct & instant cash out on all generated revenue.' : '• Cash Payout Rule: Money generated by a video becomes withdrawable once that video crosses 10 hours of watch time.'}\n'
                   '• AI Tools Usability: Locked earnings can be used anytime for features like AI Subtitles and Dubbing!',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                     height: 1.45,
@@ -163,7 +419,7 @@ class MonetizationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEligibilitySection(DashboardController controller) {
+  Widget _buildEligibilitySection(DashboardController controller, bool isCustom) {
     return _buildInfoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,8 +462,8 @@ class MonetizationScreen extends StatelessWidget {
                 child: _buildEligibilityStatusTile(
                   icon: Icons.timer_outlined,
                   title: 'Cash Out Gate',
-                  value: '10h / Video',
-                  subtitle: 'Watch time for cash withdrawal',
+                  value: isCustom ? 'Instant' : '10h / Video',
+                  subtitle: isCustom ? 'No watch time restriction' : 'Watch time for cash withdrawal',
                   isUnlocked: true,
                 ),
               ),
@@ -386,7 +642,7 @@ class MonetizationScreen extends StatelessWidget {
                     label: const Text('Use Balance for AI Subtitles & Dubbing'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.textPrimary,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),

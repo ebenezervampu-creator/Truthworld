@@ -9,8 +9,3 @@ class HashtagFeatureBinding extends Bindings {
     // For now, this serves as a template
   }
 }
-
-
-
-
-

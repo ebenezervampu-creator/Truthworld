@@ -4,7 +4,6 @@ import 'package:uuid/uuid.dart';
 /// Structured logging service for production-grade observability
 /// Implements industry standards for error tracking and debugging
 class LoggerService {
-
   factory LoggerService() {
     return _instance;
   }
@@ -50,7 +49,9 @@ class LoggerService {
   }) {
     _enableCrashlytics = enableCrashlytics;
     _minLevel = minLogLevel.clamp(_levelVerbose, _levelWTF);
-    info('❅ Logger initialized | Crashlytics: $_enableCrashlytics | Level: $minLogLevel');
+    info(
+      '❅ Logger initialized | Crashlytics: $_enableCrashlytics | Level: $minLogLevel',
+    );
   }
 
   /// Log verbose messages (for development only)
@@ -167,8 +168,10 @@ class LoggerService {
 
   /// Log a performance metric
   void metric(String name, Duration duration, {String? tag}) {
-    info('⏱️ METRIC: $name took ${duration.inMilliseconds}ms',
-        tag: tag ?? 'PERF');
+    info(
+      '⏱️ METRIC: $name took ${duration.inMilliseconds}ms',
+      tag: tag ?? 'PERF',
+    );
   }
 
   /// Log API request
@@ -199,7 +202,8 @@ class LoggerService {
     required int level,
     required String tag,
     required String message,
-    required String emoji, Object? error,
+    required String emoji,
+    Object? error,
     StackTrace? stackTrace,
   }) {
     if (level < _minLevel) return;
@@ -254,8 +258,3 @@ class LoggerService {
 
 /// Global logger instance for easy access
 final logger = LoggerService();
-
-
-
-
-

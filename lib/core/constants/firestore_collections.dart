@@ -21,8 +21,3 @@ class FirestoreCollections {
   static String userNotifications(String userId) =>
       'users/$userId/notifications';
 }
-
-
-
-
-

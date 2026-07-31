@@ -6,13 +6,13 @@ import 'package:truthworld/features/settings/data/models/download_settings.dart'
 import 'package:truthworld/features/settings/data/models/playback_settings.dart';
 
 class SettingsRepository {
-
   SettingsRepository({SettingsLocalDataSource? dataSource})
-      : _dataSource = dataSource ?? SettingsLocalDataSource();
+    : _dataSource = dataSource ?? SettingsLocalDataSource();
   final SettingsLocalDataSource _dataSource;
 
   // --- Digital Wellbeing ---
-  DigitalWellbeingSettings getDigitalWellbeing() => _dataSource.loadDigitalWellbeing();
+  DigitalWellbeingSettings getDigitalWellbeing() =>
+      _dataSource.loadDigitalWellbeing();
   Future<void> updateDigitalWellbeing(DigitalWellbeingSettings settings) async {
     await _dataSource.saveDigitalWellbeing(settings);
     _logAnalytics('wellbeing_settings_updated');
@@ -56,15 +56,18 @@ class SettingsRepository {
   Future<void> setSearchHistoryPaused(bool value) async {
     await _dataSource.saveSearchHistoryPaused(value);
   }
+
   Future<void> clearSearchHistory() async {
     await _dataSource.clearSearchHistory();
   }
 
   List<String> getBlockedUsers() => _dataSource.loadBlockedUsers();
-  Future<void> setBlockedUsers(List<String> users) => _dataSource.saveBlockedUsers(users);
+  Future<void> setBlockedUsers(List<String> users) =>
+      _dataSource.saveBlockedUsers(users);
 
   List<String> getMutedKeywords() => _dataSource.loadMutedKeywords();
-  Future<void> setMutedKeywords(List<String> keywords) => _dataSource.saveMutedKeywords(keywords);
+  Future<void> setMutedKeywords(List<String> keywords) =>
+      _dataSource.saveMutedKeywords(keywords);
 
   // --- Reset Commands ---
   Future<void> resetWellbeing() async {

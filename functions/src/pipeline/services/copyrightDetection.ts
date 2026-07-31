@@ -9,8 +9,8 @@
  */
 
 import * as admin from "firebase-admin";
-import { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
+import { getVertexAI } from "../utils/ai-client";
 import { cosineSimilarity } from "./fingerprintService";
 import { vectorRetrievalService } from "./vectorRetrievalService";
 import {
@@ -333,10 +333,7 @@ export class CopyrightDetectionService {
     originalTitle: string
   ): Promise<number> {
     try {
-      const vertexAI = new VertexAI({
-        project: "truthworld-1",
-        location: "asia-south1",
-      });
+      const vertexAI = getVertexAI();
 
       const model = vertexAI.getGenerativeModel({
         model: GEMINI_MODEL,
@@ -393,10 +390,7 @@ Return JSON:
     matchedSegments: SegmentMatch[]
   ): Promise<FairUseAnalysis> {
     try {
-      const vertexAI = new VertexAI({
-        project: "truthworld-1",
-        location: "asia-south1",
-      });
+      const vertexAI = getVertexAI();
 
       const model = vertexAI.getGenerativeModel({
         model: GEMINI_MODEL,

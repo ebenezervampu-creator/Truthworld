@@ -9,7 +9,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class VoiceSearchController extends GetxController
     with GetSingleTickerProviderStateMixin {
-
   VoiceSearchController({required this.onSearch, required this.context});
   final Function(String) onSearch;
   final BuildContext context;
@@ -174,7 +173,6 @@ class VoiceSearchController extends GetxController
 }
 
 class VoiceSearchDialog extends StatefulWidget {
-
   const VoiceSearchDialog({required this.onSearch, super.key});
   final Function(String) onSearch;
 
@@ -211,7 +209,11 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
               top: 16,
               right: 16,
               child: IconButton(
-                icon: const Icon(Icons.close, color: AppColors.textPrimary, size: 28),
+                icon: const Icon(
+                  Icons.close,
+                  color: AppColors.textPrimary,
+                  size: 28,
+                ),
                 onPressed: () {
                   controller.stopListening();
                   Navigator.of(context).pop();
@@ -252,7 +254,8 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
                             t,
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: (t == 'Listening...' ||
+                              color:
+                                  (t == 'Listening...' ||
                                       t.startsWith("Didn't catch") ||
                                       t.startsWith('Permission'))
                                   ? AppColors.textSecondary
@@ -299,8 +302,8 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
                         final soundScale =
                             1.0 +
                             (controller.soundLevel.value.clamp(0.0, 10.0) /
-                                10.0) *
-                            0.7;
+                                    10.0) *
+                                0.7;
 
                         return Stack(
                           alignment: Alignment.center,
@@ -338,7 +341,9 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
                                   width: 90,
                                   height: 90,
                                   decoration: BoxDecoration(
-                                    color: AppColors.error.withValues(alpha: 0.25),
+                                    color: AppColors.error.withValues(
+                                      alpha: 0.25,
+                                    ),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -349,8 +354,9 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
                               width: 72,
                               height: 72,
                               decoration: BoxDecoration(
-                                color:
-                                    isListening ? AppColors.error : AppColors.textSecondary,
+                                color: isListening
+                                    ? AppColors.error
+                                    : AppColors.textSecondary,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
@@ -365,7 +371,9 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
                                 ],
                               ),
                               child: Icon(
-                                isListening ? Icons.mic : Icons.mic_off_outlined,
+                                isListening
+                                    ? Icons.mic
+                                    : Icons.mic_off_outlined,
                                 color: AppColors.textPrimary,
                                 size: 32,
                               ),

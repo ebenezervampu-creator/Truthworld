@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.example.truthworld",
+        "paths": [
+          "/watch/*",
+          "/channel/*",
+          "/@*",
+          "/c/*",
+          "/user/*",
+          "/playlist/*",
+          "/topic/*",
+          "/topics/*",
+          "/T/*",
+          "/t/*",
+          "/studio/*",
+          "/advertiser/*",
+          "/ads/*"
+        ]
+      }
+    ]
+  }
+}

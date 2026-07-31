@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
@@ -41,11 +42,13 @@ class UserClipsController extends GetxController {
           .orderBy('createdAt', descending: true)
           .get();
 
-      clips.assignAll(snapshot.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return VideoClip.fromMap(data);
-      }).toList());
+      clips.assignAll(
+        snapshot.docs.map((doc) {
+          final data = doc.data();
+          data['id'] = doc.id;
+          return VideoClip.fromMap(data);
+        }).toList(),
+      );
     } catch (e) {
       debugPrint('Error fetching clips: $e');
       errorMessage.value = e.toString();
@@ -183,7 +186,10 @@ class ClipsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMainContent(BuildContext context, UserClipsController controller) {
+  Widget _buildMainContent(
+    BuildContext context,
+    UserClipsController controller,
+  ) {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -250,10 +256,16 @@ class ClipsPage extends StatelessWidget {
                       : Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                              icon: const Icon(
+                                Icons.arrow_back,
+                                color: AppColors.textPrimary,
+                              ),
                               onPressed: () {
                                 if (isDashboard) {
-                                  Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                                  Get.find<HomeController>()
+                                          .sideNavSelectedIndex
+                                          .value =
+                                      HomeController.indexLibrary;
                                 } else {
                                   Get.back<void>();
                                 }
@@ -286,10 +298,14 @@ class ClipsPage extends StatelessWidget {
                           : const SizedBox.shrink(),
                     ),
                     IconButton(
-                      icon: Obx(() => Icon(
-                        controller.isListView.value ? Icons.grid_view_rounded : Icons.view_list_rounded,
-                        color: AppColors.textPrimary,
-                      )),
+                      icon: Obx(
+                        () => Icon(
+                          controller.isListView.value
+                              ? Icons.grid_view_rounded
+                              : Icons.view_list_rounded,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       onPressed: () => controller.toggleView(),
                     ),
                   ],
@@ -373,7 +389,8 @@ class ClipsPage extends StatelessWidget {
                     ),
                   ),
                   ...dateClips.map(
-                    (clip) => _ClipVideoListCard(clip: clip, controller: controller),
+                    (clip) =>
+                        _ClipVideoListCard(clip: clip, controller: controller),
                   ),
                 ],
               );
@@ -432,14 +449,24 @@ class ClipsPage extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.bgSurface,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.1)),
+              border: Border.all(
+                color: AppColors.bgDivider.withValues(alpha: 0.1),
+              ),
             ),
-            child: Icon(Icons.content_cut_rounded, size: 64, color: AppColors.textSecondary.withValues(alpha: 0.3)),
+            child: Icon(
+              Icons.content_cut_rounded,
+              size: 64,
+              color: AppColors.textSecondary.withValues(alpha: 0.3),
+            ),
           ),
           const SizedBox(height: 24),
           const Text(
             'No clips yet',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -454,7 +481,6 @@ class ClipsPage extends StatelessWidget {
 }
 
 class _ClipVideoListCard extends StatelessWidget {
-
   const _ClipVideoListCard({required this.clip, required this.controller});
   final VideoClip clip;
   final UserClipsController controller;
@@ -462,7 +488,9 @@ class _ClipVideoListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final durationSeconds = (clip.endTime - clip.startTime).toInt();
-    final durationText = FormatUtils.formatDuration(Duration(seconds: durationSeconds));
+    final durationText = FormatUtils.formatDuration(
+      Duration(seconds: durationSeconds),
+    );
 
     return InkWell(
       onTap: () => controller.playClip(clip),
@@ -503,7 +531,11 @@ class _ClipVideoListCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.content_cut, color: AppColors.textPrimary, size: 10),
+                        const Icon(
+                          Icons.content_cut,
+                          color: AppColors.textPrimary,
+                          size: 10,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           durationText,
@@ -554,7 +586,9 @@ class _ClipVideoListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    clip.channelName.isNotEmpty ? '${clip.channelName} • ${clip.videoTitle}' : clip.videoTitle,
+                    clip.channelName.isNotEmpty
+                        ? '${clip.channelName} • ${clip.videoTitle}'
+                        : clip.videoTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -580,6 +614,11 @@ class _ClipVideoListCard extends StatelessWidget {
   }
 
   void _showOptions(BuildContext context) {
+    final encodedTitle = Uri.encodeComponent(clip.title);
+    final clipUrl =
+        'https://www.truthworld.in/watch?v=${clip.videoId}&start=${clip.startTime.toInt()}&end=${clip.endTime.toInt()}&clipTitle=$encodedTitle';
+    final durationSec = (clip.endTime - clip.startTime).toInt();
+
     Get.bottomSheet<void>(
       Container(
         padding: const EdgeInsets.all(24),
@@ -600,21 +639,54 @@ class _ClipVideoListCard extends StatelessWidget {
               ),
             ),
             _buildOptionItem(
+              icon: Icons.play_arrow_rounded,
+              label: 'Play Clip',
+              onTap: () {
+                Get.back<void>();
+                controller.playClip(clip);
+              },
+            ),
+            _buildOptionItem(
+              icon: Icons.bookmark_added_rounded,
+              label: 'Saved in your Clips',
+              onTap: () {
+                Get.back<void>();
+                Get.snackbar(
+                  'Saved',
+                  'This clip is saved in your library',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: AppColors.bgSurface,
+                  colorText: AppColors.textPrimary,
+                );
+              },
+            ),
+            _buildOptionItem(
+              icon: Icons.share_rounded,
+              label: 'Share clip with Truthworld Watermark',
+              onTap: () {
+                Get.back<void>();
+                ShareBottomSheet.show(
+                  title: '🎬 ${clip.title} (Truthworld Watermark Clip)',
+                  url: clipUrl,
+                  thumbnailUrl: clip.thumbnailUrl,
+                  subtitle:
+                      '🎬 Watch clip: "${clip.title}" [${clip.startTime.toInt()}s - ${clip.endTime.toInt()}s]\n'
+                      '✨ Truthworld Watermark\n'
+                      '👇 Tap to watch in Truthworld App:\n'
+                      '$clipUrl',
+                  channelName: clip.channelName,
+                  durationMs: durationSec * 1000,
+                  type: 'clip',
+                );
+              },
+            ),
+            _buildOptionItem(
               icon: Icons.delete_outline_rounded,
               label: 'Delete from clips',
               color: AppColors.error,
               onTap: () {
                 Get.back<void>();
                 _showDeleteConfirmation(context);
-              },
-            ),
-            _buildOptionItem(
-              icon: Icons.share_outlined,
-              label: 'Share clip link',
-              onTap: () {
-                Get.back<void>();
-                Clipboard.setData(ClipboardData(text: 'https://www.truthworld.in/watch?v=${clip.videoId}'));
-                Get.snackbar('Copied', 'Clip link copied to clipboard');
               },
             ),
           ],
@@ -637,7 +709,7 @@ class _ClipVideoListCard extends StatelessWidget {
           color: (color ?? AppColors.brand).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: color ?? AppColors.textSecondary, size: 20),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
       title: Text(
         label,
@@ -696,7 +768,6 @@ class _ClipVideoListCard extends StatelessWidget {
 }
 
 class _ClipVideoGridCard extends StatelessWidget {
-
   const _ClipVideoGridCard({required this.clip, required this.controller});
   final VideoClip clip;
   final UserClipsController controller;
@@ -704,7 +775,9 @@ class _ClipVideoGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final durationSeconds = (clip.endTime - clip.startTime).toInt();
-    final durationText = FormatUtils.formatDuration(Duration(seconds: durationSeconds));
+    final durationText = FormatUtils.formatDuration(
+      Duration(seconds: durationSeconds),
+    );
 
     return InkWell(
       onTap: () => controller.playClip(clip),
@@ -720,14 +793,18 @@ class _ClipVideoGridCard extends StatelessWidget {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
                     child: CachedNetworkImage(
                       imageUrl: clip.thumbnailUrl,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(color: AppTheme.secondaryBackground),
-                      errorWidget: (context, url, error) => Container(color: AppTheme.secondaryBackground),
+                      placeholder: (context, url) =>
+                          Container(color: AppTheme.secondaryBackground),
+                      errorWidget: (context, url, error) =>
+                          Container(color: AppTheme.secondaryBackground),
                     ),
                   ),
                 ),
@@ -735,7 +812,10 @@ class _ClipVideoGridCard extends StatelessWidget {
                   bottom: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
@@ -743,11 +823,19 @@ class _ClipVideoGridCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.content_cut, color: AppColors.textPrimary, size: 10),
+                        const Icon(
+                          Icons.content_cut,
+                          color: AppColors.textPrimary,
+                          size: 10,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           durationText,
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -757,14 +845,18 @@ class _ClipVideoGridCard extends StatelessWidget {
                   top: 8,
                   right: 8,
                   child: InkWell(
-                    onTap: () => controller.deleteClip(clip.id),
+                    onTap: () => _showOptions(context),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: AppColors.bgPage.withValues(alpha: 0.6),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.delete_outline_rounded, color: AppColors.textPrimary, size: 18),
+                      child: const Icon(
+                        Icons.more_vert_rounded,
+                        color: AppColors.textPrimary,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
@@ -779,22 +871,182 @@ class _ClipVideoGridCard extends StatelessWidget {
                     clip.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     clip.videoTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Clip ($durationText) • ${controller.formatTimeAgo(clip.createdAt)}',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.7)),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary.withValues(alpha: 0.7),
+                    ),
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOptions(BuildContext context) {
+    final encodedTitle = Uri.encodeComponent(clip.title);
+    final clipUrl =
+        'https://www.truthworld.in/watch?v=${clip.videoId}&start=${clip.startTime.toInt()}&end=${clip.endTime.toInt()}&clipTitle=$encodedTitle';
+    final durationSec = (clip.endTime - clip.startTime).toInt();
+
+    Get.bottomSheet<void>(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: AppColors.textDisabled,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                'Play Clip',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+              onTap: () {
+                Get.back<void>();
+                controller.playClip(clip);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.bookmark_added_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                'Saved in your Clips',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+              onTap: () {
+                Get.back<void>();
+                Get.snackbar(
+                  'Saved',
+                  'This clip is saved in your library',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: AppColors.bgSurface,
+                  colorText: AppColors.textPrimary,
+                );
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.share_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                'Share clip with Truthworld Watermark',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+              onTap: () {
+                Get.back<void>();
+                ShareBottomSheet.show(
+                  title: '🎬 ${clip.title} (Truthworld Watermark Clip)',
+                  url: clipUrl,
+                  thumbnailUrl: clip.thumbnailUrl,
+                  subtitle:
+                      '🎬 Watch clip: "${clip.title}" [${clip.startTime.toInt()}s - ${clip.endTime.toInt()}s]\n✨ Truthworld Watermark\n👇 Tap to watch in Truthworld App:\n$clipUrl',
+                  channelName: clip.channelName,
+                  durationMs: durationSec * 1000,
+                  type: 'clip',
+                );
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              title: const Text(
+                'Delete from clips',
+                style: TextStyle(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+              onTap: () {
+                Get.back<void>();
+                controller.deleteClip(clip.id);
+              },
             ),
           ],
         ),

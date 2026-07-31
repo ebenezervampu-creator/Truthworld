@@ -11,17 +11,17 @@ import 'package:truthworld/core/services/image_verification_service.dart';
 /// - Real-time sync support
 
 class VerificationCacheService {
-
   factory VerificationCacheService() {
     return _singleton;
   }
 
   VerificationCacheService._internal();
-  static final VerificationCacheService _singleton = VerificationCacheService._internal();
+  static final VerificationCacheService _singleton =
+      VerificationCacheService._internal();
 
   // Cache storage with timestamp tracking
   final Map<String, _CacheEntry> _cache = {};
-  
+
   // Configuration
   static const Duration cacheTTL = Duration(minutes: 5);
   static const int maxCacheSize = 100;
@@ -37,11 +37,11 @@ class VerificationCacheService {
   /// Get cached verification result
   VerificationResult? getVerification(String docId) {
     final entry = _cache[docId];
-    
+
     // Check if cache is still valid
     if (entry != null) {
       final age = DateTime.now().difference(entry.timestamp);
-      
+
       if (age.inSeconds < cacheTTL.inSeconds) {
         // Update access time for LRU
         entry.lastAccessed = DateTime.now();
@@ -51,14 +51,14 @@ class VerificationCacheService {
         _cache.remove(docId);
       }
     }
-    
+
     return null;
   }
 
   /// Cache a verification result
   void setVerification(String docId, VerificationResult result) {
     _performCleanupIfNeeded();
-    
+
     _cache[docId] = _CacheEntry(
       result: result,
       timestamp: DateTime.now(),
@@ -81,11 +81,13 @@ class VerificationCacheService {
       'size': _cache.length,
       'maxSize': maxCacheSize,
       'entries': _cache.entries
-          .map((e) => {
-                'docId': e.key,
-                'status': e.value.result.status.name,
-                'age': DateTime.now().difference(e.value.timestamp).inSeconds,
-              })
+          .map(
+            (e) => {
+              'docId': e.key,
+              'status': e.value.result.status.name,
+              'age': DateTime.now().difference(e.value.timestamp).inSeconds,
+            },
+          )
           .toList(),
     };
   }
@@ -95,7 +97,8 @@ class VerificationCacheService {
     final timeSinceLastCleanup = now.difference(_lastCleanup);
 
     // Run cleanup periodically or if cache is full
-    if (timeSinceLastCleanup > cleanupInterval || _cache.length >= maxCacheSize) {
+    if (timeSinceLastCleanup > cleanupInterval ||
+        _cache.length >= maxCacheSize) {
       _cleanup();
       _lastCleanup = now;
     }
@@ -121,7 +124,8 @@ class VerificationCacheService {
       DateTime? oldestAccess;
 
       _cache.forEach((key, entry) {
-        if (oldestAccess == null || entry.lastAccessed.isBefore(oldestAccess!)) {
+        if (oldestAccess == null ||
+            entry.lastAccessed.isBefore(oldestAccess!)) {
           lruKey = key;
           oldestAccess = entry.lastAccessed;
         }
@@ -137,7 +141,6 @@ class VerificationCacheService {
 }
 
 class _CacheEntry {
-
   _CacheEntry({
     required this.result,
     required this.timestamp,
@@ -186,14 +189,18 @@ extension OptimizedImageVerificationService on ImageVerificationService {
   }
 
   /// Stream with cache-aware updates
-  Stream<VerificationResult> streamVerificationStatusOptimized(String docId) async* {
+  Stream<VerificationResult> streamVerificationStatusOptimized(
+    String docId,
+  ) async* {
     // Emit cached value first if available
     final cachedResult = _cache.getVerification(docId);
-    
-    if (cachedResult != null && cachedResult.status != VerificationStatus.pending) {
+
+    if (cachedResult != null &&
+        cachedResult.status != VerificationStatus.pending) {
       yield cachedResult;
-      yield* streamVerificationStatus(docId)
-          .takeWhile((result) => result.status == cachedResult.status);
+      yield* streamVerificationStatus(
+        docId,
+      ).takeWhile((result) => result.status == cachedResult.status);
       return;
     }
 
@@ -217,7 +224,6 @@ extension OptimizedImageVerificationService on ImageVerificationService {
 /// Track verification performance metrics for optimization
 
 class VerificationPerformanceMonitor {
-
   factory VerificationPerformanceMonitor() {
     return _singleton;
   }
@@ -254,13 +260,15 @@ class VerificationPerformanceMonitor {
       };
     }
 
-    final avgFetch = _metrics.values
+    final avgFetch =
+        _metrics.values
             .where((e) => e.fetchTime != null)
             .fold<Duration>(Duration.zero, (acc, e) => acc + e.fetchTime!)
             .inMilliseconds /
         _metrics.length;
 
-    final avgRender = _metrics.values
+    final avgRender =
+        _metrics.values
             .where((e) => e.renderTime != null)
             .fold<Duration>(Duration.zero, (acc, e) => acc + e.renderTime!)
             .inMilliseconds /
@@ -270,10 +278,14 @@ class VerificationPerformanceMonitor {
       'average_fetch_ms': avgFetch.toStringAsFixed(2),
       'average_render_ms': avgRender.toStringAsFixed(2),
       'total_operations': _metrics.length,
-        'slowest_fetch_ms': _metrics.values
+      'slowest_fetch_ms': _metrics.values
           .where((e) => e.fetchTime != null)
-          .fold<Duration>(Duration.zero, (maxAcc, e) =>
-              e.fetchTime!.inMilliseconds > maxAcc.inMilliseconds ? e.fetchTime! : maxAcc)
+          .fold<Duration>(
+            Duration.zero,
+            (maxAcc, e) => e.fetchTime!.inMilliseconds > maxAcc.inMilliseconds
+                ? e.fetchTime!
+                : maxAcc,
+          )
           .inMilliseconds,
     };
   }
@@ -285,7 +297,6 @@ class VerificationPerformanceMonitor {
 }
 
 class _PerformanceEntry {
-
   _PerformanceEntry({
     required this.docId,
     this.fetchTime,
@@ -296,8 +307,3 @@ class _PerformanceEntry {
   Duration? renderTime;
   final DateTime timestamp;
 }
-
-
-
-
-

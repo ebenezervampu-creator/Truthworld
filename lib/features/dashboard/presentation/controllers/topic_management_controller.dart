@@ -36,9 +36,14 @@ class TopicManagementController extends GetxController {
 
   // Summary Metrics Getters
   int get totalTopicsCount => topicsList.length;
-  int get totalVideosCount => topicsList.fold(0, (acc, t) => acc + t.videoCount);
-  int get publicTopicsCount => topicsList.where((t) => t.visibilityType == TopicVisibilityType.public).length;
-  int get privateTopicsCount => topicsList.where((t) => t.visibilityType == TopicVisibilityType.private).length;
+  int get totalVideosCount =>
+      topicsList.fold(0, (acc, t) => acc + t.videoCount);
+  int get publicTopicsCount => topicsList
+      .where((t) => t.visibilityType == TopicVisibilityType.public)
+      .length;
+  int get privateTopicsCount => topicsList
+      .where((t) => t.visibilityType == TopicVisibilityType.private)
+      .length;
 
   Future<void> _ensureStorageAuthReady() async {
     try {
@@ -98,9 +103,7 @@ class TopicManagementController extends GetxController {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs
-              .map(Topic.fromDocumentSnapshot)
-              .toList(),
+          (snapshot) => snapshot.docs.map(Topic.fromDocumentSnapshot).toList(),
         );
   }
 
@@ -443,7 +446,9 @@ class TopicManagementController extends GetxController {
 
     Get.dialog(
       AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+        backgroundColor: isDark
+            ? const Color(0xFF161B22)
+            : AppColors.textPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
@@ -453,7 +458,11 @@ class TopicManagementController extends GetxController {
                 color: AppColors.error.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 22),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.error,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -462,7 +471,9 @@ class TopicManagementController extends GetxController {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                  color: isDark
+                      ? AppColors.textPrimary
+                      : const Color(0xFF111827),
                 ),
               ),
             ),
@@ -485,7 +496,9 @@ class TopicManagementController extends GetxController {
               'This will remove the topic knowledge hub from your studio. Linked videos will remain safe on your channel.',
               style: TextStyle(
                 fontSize: 13,
-                color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                color: isDark
+                    ? const Color(0xFF9CA3AF)
+                    : const Color(0xFF6B7280),
                 height: 1.4,
               ),
             ),
@@ -515,7 +528,9 @@ class TopicManagementController extends GetxController {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: AppColors.textPrimary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 0,
             ),
           ),
@@ -532,14 +547,16 @@ class TopicManagementController extends GetxController {
     final isOwner =
         Get.isRegistered<AuthService>() &&
         ((topic.channelId != null &&
-            topic.channelId!.isNotEmpty &&
-            AuthService.to.userChannel?.id == topic.channelId) ||
-         (topic.creatorId != null &&
-            topic.creatorId!.isNotEmpty &&
-            AuthService.to.uid == topic.creatorId));
+                topic.channelId!.isNotEmpty &&
+                AuthService.to.userChannel?.id == topic.channelId) ||
+            (topic.creatorId != null &&
+                topic.creatorId!.isNotEmpty &&
+                AuthService.to.uid == topic.creatorId));
 
     if (!isOwner) {
-      SnackbarService.error(message: 'Only the topic creator channel can edit this topic.');
+      SnackbarService.error(
+        message: 'Only the topic creator channel can edit this topic.',
+      );
       return;
     }
 

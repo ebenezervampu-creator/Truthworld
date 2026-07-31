@@ -299,7 +299,11 @@ class ShimmerDiscoverChannelCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Banner (Height 72)
-            Container(height: 72, width: double.infinity, color: AppColors.textPrimary),
+            Container(
+              height: 72,
+              width: double.infinity,
+              color: AppColors.textPrimary,
+            ),
             // Channel details
             Expanded(
               child: Padding(
@@ -885,7 +889,6 @@ class ShimmerVideoScreen extends StatelessWidget {
 
 /// A shimmering text widget typically used inside a button when in a loading/submitting state.
 class ShimmerButtonText extends StatelessWidget {
-
   const ShimmerButtonText(
     this.text, {
     super.key,
@@ -913,7 +916,6 @@ class ShimmerButtonText extends StatelessWidget {
 }
 
 class ShimmerVideoGrid extends StatelessWidget {
-
   const ShimmerVideoGrid({
     super.key,
     this.itemCount = 6,

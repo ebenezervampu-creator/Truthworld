@@ -31,8 +31,12 @@ class MentionsHelper {
 
     final currentUser = FirebaseAuth.instance.currentUser;
     final currentUserId = currentUser?.uid ?? '';
-    final rawName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'Someone';
-    final currentUserName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+    final rawName = AuthService.to.activeDisplayName.isNotEmpty
+        ? AuthService.to.activeDisplayName
+        : 'Someone';
+    final currentUserName = rawName.startsWith('@')
+        ? rawName.substring(1)
+        : rawName;
     final currentUserAvatar = AuthService.to.activePhotoUrl;
 
     final notificationService = UserNotificationService();
@@ -50,21 +54,25 @@ class MentionsHelper {
           final ownerId = channelDoc.data()['ownerId'] as String?;
 
           // Don't notify the user themselves
-          if (ownerId != null && ownerId.isNotEmpty && ownerId != currentUserId) {
+          if (ownerId != null &&
+              ownerId.isNotEmpty &&
+              ownerId != currentUserId) {
             var title = '';
             var message = '';
-            
+
             if (commentId != null) {
               if (replyId != null) {
                 title = 'Mentioned in a reply';
                 message = '@$currentUserName mentioned you in a reply: "$text"';
               } else {
                 title = 'Mentioned in a comment';
-                message = '@$currentUserName mentioned you in a comment: "$text"';
+                message =
+                    '@$currentUserName mentioned you in a comment: "$text"';
               }
             } else {
               title = 'Mentioned in a video';
-              message = '@$currentUserName mentioned you in the video: "$videoTitle"';
+              message =
+                  '@$currentUserName mentioned you in the video: "$videoTitle"';
             }
 
             await notificationService.createNotification(
@@ -83,7 +91,9 @@ class MentionsHelper {
                 'userAvatar': currentUserAvatar,
               },
             );
-            debugPrint('[MentionsHelper] Mentions notification sent successfully to ownerId: $ownerId');
+            debugPrint(
+              '[MentionsHelper] Mentions notification sent successfully to ownerId: $ownerId',
+            );
           }
         }
       } catch (e) {

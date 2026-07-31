@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SavedAdsPage extends StatefulWidget {
@@ -46,7 +47,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                   Text(
                     'Interacted Ads',
                     style: TextStyle(
-                      
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -56,7 +56,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                   Text(
                     'Your liked, bookmarked, and commented advertiser sponsor layers',
                     style: TextStyle(
-                      
                       fontSize: 14,
                       color: AppColors.textTertiary,
                     ),
@@ -241,7 +240,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                             Text(
                               ad.advertiser,
                               style: const TextStyle(
-                                
                                 color: AppColors.warning,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 11,
@@ -252,7 +250,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
@@ -291,16 +288,14 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                             const Text(
                               'Your Comment:',
                               style: TextStyle(
-                                
                                 color: AppColors.textTertiary,
                                 fontSize: 11,
                               ),
                             ),
                             const SizedBox(height: 2),
-                            Text(
-                              comment.text,
+                            ClickableUrlText(
+                              text: comment.text,
                               style: const TextStyle(
-                                
                                 color: AppColors.textSecondary,
                                 fontSize: 13,
                               ),
@@ -337,7 +332,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                               Text(
                                 '${comment.repliedBy ?? 'Sponsor'} (Advertiser Reply)',
                                 style: const TextStyle(
-                                  
                                   color: AppColors.warning,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11,
@@ -346,10 +340,9 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            comment.replyText!,
+                          ClickableUrlText(
+                            text: comment.replyText!,
                             style: const TextStyle(
-                              
                               color: AppColors.textPrimary,
                               fontSize: 13,
                             ),
@@ -383,7 +376,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
             Text(
               title,
               style: const TextStyle(
-                
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textSecondary,
@@ -394,7 +386,6 @@ class _SavedAdsPageState extends State<SavedAdsPage>
               subtitle,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                
                 fontSize: 13,
                 color: AppColors.textTertiary,
               ),

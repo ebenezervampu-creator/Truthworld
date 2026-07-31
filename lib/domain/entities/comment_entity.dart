@@ -1,12 +1,16 @@
 /// Pure domain entity for comments — no framework dependencies.
-class CommentEntity { // null for top-level comments
+class CommentEntity {
+  // null for top-level comments
 
   const CommentEntity({
     required this.id,
     required this.videoId,
     required this.userId,
     required this.userName,
-    required this.text, required this.createdAt, required this.updatedAt, this.userAvatarUrl = '',
+    required this.text,
+    required this.createdAt,
+    required this.updatedAt,
+    this.userAvatarUrl = '',
     this.likeCount = 0,
     this.replyCount = 0,
     this.isPinned = false,

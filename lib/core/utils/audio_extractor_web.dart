@@ -45,8 +45,7 @@ class AudioExtractorImpl implements AudioExtractorBase {
 
       final channels = <Float32List>[];
       for (var c = 0; c < numChannels; c++) {
-        final channelData =
-            audioBuffer.getChannelData(c) as Float32List;
+        final channelData = audioBuffer.getChannelData(c) as Float32List;
         channels.add(channelData);
       }
 

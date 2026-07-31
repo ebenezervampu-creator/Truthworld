@@ -4,10 +4,14 @@
 library;
 
 class PipelineConfig {
-
   PipelineConfig({
     // Metadata
-    required this.userId, required this.channelId, required this.videoTitle, required this.videoDescription, required this.videoDuration, required this.videoCategory, // Dubbing
+    required this.userId,
+    required this.channelId,
+    required this.videoTitle,
+    required this.videoDescription,
+    required this.videoDuration,
+    required this.videoCategory, // Dubbing
     this.enablePath1 = true,
     this.enablePath2 = false,
     this.dubbingLanguages = const [],
@@ -378,8 +382,3 @@ class PipelineTemplates {
     videoCategory: videoCategory,
   );
 }
-
-
-
-
-

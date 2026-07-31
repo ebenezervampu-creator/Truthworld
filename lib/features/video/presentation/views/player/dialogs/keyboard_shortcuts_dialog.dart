@@ -125,7 +125,9 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                           Expanded(
                             child: Text(
                               action,
-                              style: TS.bodySm.copyWith(color: AppColors.textSecondary),
+                              style: TS.bodySm.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
                           Wrap(
@@ -142,7 +144,9 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                                         alpha: 0.08,
                                       ),
                                       borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: AppColors.bgDivider),
+                                      border: Border.all(
+                                        color: AppColors.bgDivider,
+                                      ),
                                     ),
                                     child: Text(
                                       k,

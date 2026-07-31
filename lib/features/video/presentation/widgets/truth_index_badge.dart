@@ -3,9 +3,9 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class TruthIndexBadge extends StatelessWidget {
-
   const TruthIndexBadge({
-    required this.video, super.key,
+    required this.video,
+    super.key,
     this.showLabel = true,
   });
   final Video video;
@@ -37,13 +37,9 @@ class TruthIndexBadge extends StatelessWidget {
   Color _getScoreColor(double score) {
     if (score >= 90) return AppColors.success;
     if (score >= 75) return const Color(0xFFA3E635);
-    if (score >= 60) return Colors.yellowAccent;
+    if (score >= 60) return AppColors.brandHover;
     if (score >= 45) return AppColors.warning;
     if (score >= 30) return AppColors.error;
     return const Color(0xFF991B1B);
   }
 }
-
-
-
-

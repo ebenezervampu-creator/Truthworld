@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 
 class Comment {
-
   Comment({
     required this.id,
     required this.videoId,
@@ -10,7 +9,12 @@ class Comment {
     required this.userName,
     required this.userProfilePicUrl,
     required this.channelId,
-    required this.text, required this.likeCount, required this.dislikeCount, required this.reportCount, required this.createdAt, this.channelName,
+    required this.text,
+    required this.likeCount,
+    required this.dislikeCount,
+    required this.reportCount,
+    required this.createdAt,
+    this.channelName,
     this.channelProfilePicUrl,
     this.hasCreatorReply = false,
     this.creatorReply,
@@ -18,11 +22,16 @@ class Comment {
     this.isDislikedByCurrentUser = false,
     this.isHeartedByCreator = false,
     this.creatorHeartName,
+    this.donationAmount = 0.0,
+    this.donationCurrency = '\$',
+    this.isDonatedComment = false,
+    this.donationColorHex,
   });
 
   factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;
-    final extractedVideoId = (data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
+    final extractedVideoId =
+        (data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
         ? data['videoId'] as String
         : (doc.reference.parent.parent?.id ?? '');
 
@@ -47,6 +56,13 @@ class Comment {
       // likedBy/dislikedBy are no longer read from Firestore — check subcollection
       isHeartedByCreator: data['isHeartedByCreator'] ?? false,
       creatorHeartName: data['creatorHeartName'],
+      donationAmount: (data['donationAmount'] as num?)?.toDouble() ?? 0.0,
+      donationCurrency: data['donationCurrency'] ?? '\$',
+      isDonatedComment:
+          data['isDonatedComment'] ??
+          (data['donationAmount'] != null &&
+              (data['donationAmount'] as num) > 0),
+      donationColorHex: data['donationColorHex'],
     );
   }
   final String id;
@@ -64,7 +80,7 @@ class Comment {
   final Timestamp createdAt;
   final bool hasCreatorReply;
   final Reply? creatorReply;
-  
+
   // ⚡ SCALE FIX: likedBy/dislikedBy maps removed — they grow unbounded.
   // Like status is now checked via subcollection: comments/{id}/likes/{userId}
   // These local fields are for optimistic UI only (not persisted to Firestore).
@@ -75,8 +91,23 @@ class Comment {
   final bool isHeartedByCreator;
   final String? creatorHeartName;
 
-  String get displayName => (channelName != null && channelName!.isNotEmpty) ? channelName! : userName;
-  String get avatarUrl => (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) ? channelProfilePicUrl! : userProfilePicUrl;
+  // Super Thanks / Donated Comment
+  final double donationAmount;
+  final String donationCurrency;
+  final bool isDonatedComment;
+  final String? donationColorHex;
+
+  String get displayName {
+    if (channelName != null && channelName!.isNotEmpty) {
+      return channelName!.startsWith('@') ? channelName! : '@$channelName';
+    }
+    return userName;
+  }
+
+  String get avatarUrl =>
+      (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty)
+      ? channelProfilePicUrl!
+      : userProfilePicUrl;
 
   Map<String, dynamic> toMap() {
     return {
@@ -98,6 +129,10 @@ class Comment {
       // likedBy/dislikedBy maps removed for scale — use subcollection instead
       'isHeartedByCreator': isHeartedByCreator,
       'creatorHeartName': creatorHeartName,
+      'donationAmount': donationAmount,
+      'donationCurrency': donationCurrency,
+      'isDonatedComment': isDonatedComment,
+      'donationColorHex': donationColorHex,
     };
   }
 
@@ -121,6 +156,10 @@ class Comment {
     bool? isDislikedByCurrentUser,
     bool? isHeartedByCreator,
     String? creatorHeartName,
+    double? donationAmount,
+    String? donationCurrency,
+    bool? isDonatedComment,
+    String? donationColorHex,
   }) {
     return Comment(
       id: id ?? this.id,
@@ -139,14 +178,14 @@ class Comment {
       hasCreatorReply: hasCreatorReply ?? this.hasCreatorReply,
       creatorReply: creatorReply ?? this.creatorReply,
       isLikedByCurrentUser: isLikedByCurrentUser ?? this.isLikedByCurrentUser,
-      isDislikedByCurrentUser: isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
+      isDislikedByCurrentUser:
+          isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
       isHeartedByCreator: isHeartedByCreator ?? this.isHeartedByCreator,
       creatorHeartName: creatorHeartName ?? this.creatorHeartName,
+      donationAmount: donationAmount ?? this.donationAmount,
+      donationCurrency: donationCurrency ?? this.donationCurrency,
+      isDonatedComment: isDonatedComment ?? this.isDonatedComment,
+      donationColorHex: donationColorHex ?? this.donationColorHex,
     );
   }
 }
-
-
-
-
-

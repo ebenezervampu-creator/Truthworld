@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic motion and transition tokens.
 class TWMotion extends ThemeExtension<TWMotion> {
-
   const TWMotion({
     required this.fast,
     required this.normal,

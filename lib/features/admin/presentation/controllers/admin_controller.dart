@@ -56,9 +56,11 @@ class AdminController extends GetxController {
   // ═══════════════════════════════════════════════════════════════════════════
   // FEATURE: User Management
   // ═══════════════════════════════════════════════════════════════════════════
-  final RxList<Map<String, dynamic>> searchedUsers = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> searchedUsers =
+      <Map<String, dynamic>>[].obs;
   final Rxn<Map<String, dynamic>> selectedUser = Rxn<Map<String, dynamic>>();
-  final Rxn<Map<String, dynamic>> userSafetyProfile = Rxn<Map<String, dynamic>>();
+  final Rxn<Map<String, dynamic>> userSafetyProfile =
+      Rxn<Map<String, dynamic>>();
   final RxBool isSearchingUsers = false.obs;
   final RxBool isLoadingProfile = false.obs;
   final RxInt pendingAppeals = 0.obs;
@@ -73,7 +75,8 @@ class AdminController extends GetxController {
   // ═══════════════════════════════════════════════════════════════════════════
   // FEATURE: Alerts & Escalation
   // ═══════════════════════════════════════════════════════════════════════════
-  final RxList<Map<String, dynamic>> activeAlerts = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> activeAlerts =
+      <Map<String, dynamic>>[].obs;
   final RxList<Map<String, dynamic>> alertRules = <Map<String, dynamic>>[].obs;
   final RxBool isLoadingAlerts = false.obs;
 
@@ -88,8 +91,10 @@ class AdminController extends GetxController {
   // FEATURE: Security & Anti-Abuse
   // ═══════════════════════════════════════════════════════════════════════════
   final RxMap<String, dynamic> securityMetrics = <String, dynamic>{}.obs;
-  final RxList<Map<String, dynamic>> anomalyAlerts = <Map<String, dynamic>>[].obs;
-  final RxList<Map<String, dynamic>> accountClusters = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> anomalyAlerts =
+      <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> accountClusters =
+      <Map<String, dynamic>>[].obs;
   final RxBool isLockdownMode = false.obs;
   final RxBool isLoadingSecurity = false.obs;
 
@@ -203,146 +208,179 @@ class AdminController extends GetxController {
     final isSaving = false.obs;
     final dialogError = ''.obs;
 
-    unawaited(Get.dialog(
-      Dialog(
-        backgroundColor: AppColors.bgSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          width: 420,
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Set Admin Password',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+    unawaited(
+      Get.dialog(
+        Dialog(
+          backgroundColor: AppColors.bgSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            width: 420,
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Set Admin Password',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Create a secure password for ebenezervampu4@gmail.com to sign in directly to the Admin Portal.',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  height: 1.4,
+                const SizedBox(height: 8),
+                const Text(
+                  'Create a secure password for ebenezervampu4@gmail.com to sign in directly to the Admin Portal.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: newPassCtrl,
-                obscureText: true,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: 'New Admin Password',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: AppColors.bgInput,
-                  prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.textPrimary),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: newPassCtrl,
+                  obscureText: true,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'New Admin Password',
+                    labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    filled: true,
+                    fillColor: AppColors.bgInput,
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppColors.textPrimary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.bgDivider),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: confirmPassCtrl,
-                obscureText: true,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: 'Confirm Admin Password',
-                  labelStyle: const TextStyle(color: AppColors.textSecondary),
-                  filled: true,
-                  fillColor: AppColors.bgInput,
-                  prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.textPrimary),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.bgDivider),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: confirmPassCtrl,
+                  obscureText: true,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Confirm Admin Password',
+                    labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    filled: true,
+                    fillColor: AppColors.bgInput,
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppColors.textPrimary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.bgDivider),
+                    ),
                   ),
                 ),
-              ),
-              Obx(() => dialogError.value.isNotEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Text(
-                        dialogError.value,
-                        style: const TextStyle(color: AppColors.error, fontSize: 13),
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  : const SizedBox.shrink()),
-              const SizedBox(height: 28),
-              Obx(() => ElevatedButton(
-                onPressed: isSaving.value
-                    ? null
-                    : () async {
-                        final pass = newPassCtrl.text.trim();
-                        final confirm = confirmPassCtrl.text.trim();
-                        if (pass.length < 6) {
-                          dialogError.value = 'Password must be at least 6 characters.';
-                          return;
-                        }
-                        if (pass != confirm) {
-                          dialogError.value = 'Passwords do not match.';
-                          return;
-                        }
-                        dialogError.value = '';
-                        isSaving.value = true;
+                Obx(
+                  () => dialogError.value.isNotEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Text(
+                            dialogError.value,
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 13,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 28),
+                Obx(
+                  () => ElevatedButton(
+                    onPressed: isSaving.value
+                        ? null
+                        : () async {
+                            final pass = newPassCtrl.text.trim();
+                            final confirm = confirmPassCtrl.text.trim();
+                            if (pass.length < 6) {
+                              dialogError.value =
+                                  'Password must be at least 6 characters.';
+                              return;
+                            }
+                            if (pass != confirm) {
+                              dialogError.value = 'Passwords do not match.';
+                              return;
+                            }
+                            dialogError.value = '';
+                            isSaving.value = true;
 
-                        try {
-                          final currentUser = FirebaseAuth.instance.currentUser;
-                          if (currentUser != null) {
-                            await currentUser.updatePassword(pass);
-                            await FirebaseFirestore.instance
-                                .collection('admin_settings')
-                                .doc('owner_config')
-                                .set({
-                              'ownerEmail': currentUser.email,
-                              'isPasswordSet': true,
-                              'updatedAt': FieldValue.serverTimestamp(),
-                            }, SetOptions(merge: true));
-                          }
-                          needsPasswordSetup.value = false;
-                          Get.back();
-                          Get.snackbar(
-                            'Password Saved',
-                            'Admin password set successfully! You can now log in with your email and password.',
-                            backgroundColor: const Color(0xFF2BA640),
-                            colorText: AppColors.textPrimary,
-                            snackPosition: SnackPosition.BOTTOM,
-                          );
-                        } catch (e) {
-                          dialogError.value = e.toString().replaceAll(RegExp(r'\[.*?\]\s*'), '');
-                        } finally {
-                          isSaving.value = false;
-                        }
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            try {
+                              final currentUser =
+                                  FirebaseAuth.instance.currentUser;
+                              if (currentUser != null) {
+                                await currentUser.updatePassword(pass);
+                                await FirebaseFirestore.instance
+                                    .collection('admin_settings')
+                                    .doc('owner_config')
+                                    .set({
+                                      'ownerEmail': currentUser.email,
+                                      'isPasswordSet': true,
+                                      'updatedAt': FieldValue.serverTimestamp(),
+                                    }, SetOptions(merge: true));
+                              }
+                              needsPasswordSetup.value = false;
+                              Get.back();
+                              Get.snackbar(
+                                'Password Saved',
+                                'Admin password set successfully! You can now log in with your email and password.',
+                                backgroundColor: const Color(0xFF2BA640),
+                                colorText: AppColors.textPrimary,
+                                snackPosition: SnackPosition.BOTTOM,
+                              );
+                            } catch (e) {
+                              dialogError.value = e.toString().replaceAll(
+                                RegExp(r'\[.*?\]\s*'),
+                                '',
+                              );
+                            } finally {
+                              isSaving.value = false;
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: isSaving.value
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Save Admin Password',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
                 ),
-                child: isSaving.value
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation(Colors.white)),
-                      )
-                    : const Text('Save Admin Password', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              )),
-            ],
+              ],
+            ),
           ),
         ),
+        barrierDismissible: false,
       ),
-      barrierDismissible: false,
-    ));
+    );
   }
 
   /// Start Firestore real-time synchronization
@@ -355,27 +393,33 @@ class AdminController extends GetxController {
         .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
-        .listen((snapshot) {
-      final list = snapshot.docs.map((doc) {
-        return {'id': doc.id, ...doc.data()};
-      }).toList();
-      videos.assignAll(list);
+        .listen(
+          (snapshot) {
+            final list = snapshot.docs.map((doc) {
+              return {'id': doc.id, ...doc.data()};
+            }).toList();
+            videos.assignAll(list);
 
-      // Recalculate pending videos
-      final pendingCount = list.where((v) {
-        final mod = v['moderation'] as Map<String, dynamic>?;
-        if (mod == null) return false;
-        final status = mod['status'] as String?;
-        final violations = mod['violationCategories'] as List<dynamic>?;
-        return status == 'processing' || status == 'error' || 
-               (status == 'approved' && violations != null && violations.contains('timeout_passthrough'));
-      }).length;
+            // Recalculate pending videos
+            final pendingCount = list.where((v) {
+              final mod = v['moderation'] as Map<String, dynamic>?;
+              if (mod == null) return false;
+              final status = mod['status'] as String?;
+              final violations = mod['violationCategories'] as List<dynamic>?;
+              return status == 'processing' ||
+                  status == 'error' ||
+                  (status == 'approved' &&
+                      violations != null &&
+                      violations.contains('timeout_passthrough'));
+            }).length;
 
-      pendingVideos.value = pendingCount;
-      totalVideos.value = list.length;
-    }, onError: (e) {
-      debugPrint('AdminController Video Stream Error: $e');
-    });
+            pendingVideos.value = pendingCount;
+            totalVideos.value = list.length;
+          },
+          onError: (e) {
+            debugPrint('AdminController Video Stream Error: $e');
+          },
+        );
 
     // 2. Monitor flagged images queue
     _imagesSub = FirebaseFirestore.instance
@@ -383,18 +427,23 @@ class AdminController extends GetxController {
         .orderBy('flaggedAt', descending: true)
         .limit(100)
         .snapshots()
-        .listen((snapshot) {
-      final list = snapshot.docs.map((doc) {
-        return {'id': doc.id, ...doc.data()};
-      }).toList();
-      images.assignAll(list);
+        .listen(
+          (snapshot) {
+            final list = snapshot.docs.map((doc) {
+              return {'id': doc.id, ...doc.data()};
+            }).toList();
+            images.assignAll(list);
 
-      final pendingCount = list.where((img) => img['status'] == 'PENDING_REVIEW').length;
-      pendingImages.value = pendingCount;
-      totalImages.value = list.length;
-    }, onError: (e) {
-      debugPrint('AdminController Image Stream Error: $e');
-    });
+            final pendingCount = list
+                .where((img) => img['status'] == 'PENDING_REVIEW')
+                .length;
+            pendingImages.value = pendingCount;
+            totalImages.value = list.length;
+          },
+          onError: (e) {
+            debugPrint('AdminController Image Stream Error: $e');
+          },
+        );
 
     // 3. Monitor rejection / audit logs
     _logsSub = FirebaseFirestore.instance
@@ -402,75 +451,106 @@ class AdminController extends GetxController {
         .orderBy('rejectedAt', descending: true)
         .limit(50)
         .snapshots()
-        .listen((snapshot) {
-      final list = snapshot.docs.map((doc) {
-        return {'id': doc.id, ...doc.data()};
-      }).toList();
-      auditLogs.assignAll(list);
-    }, onError: (e) {
-      debugPrint('AdminController Audit Log Stream Error: $e');
-    });
+        .listen(
+          (snapshot) {
+            final list = snapshot.docs.map((doc) {
+              return {'id': doc.id, ...doc.data()};
+            }).toList();
+            auditLogs.assignAll(list);
+          },
+          onError: (e) {
+            debugPrint('AdminController Audit Log Stream Error: $e');
+          },
+        );
 
     // 4. Monitor channels collection
     _channelsSub = FirebaseFirestore.instance
         .collection('channels')
         .limit(100)
         .snapshots()
-        .listen((snapshot) {
-      final list = snapshot.docs.map((doc) {
-        return {'id': doc.id, ...doc.data()};
-      }).toList();
-      
-      // Sort by updatedAt descending in memory to handle missing fields gracefully
-      list.sort((a, b) {
-        final timeA = a['updatedAt'];
-        final timeB = b['updatedAt'];
-        if (timeA == null && timeB == null) return 0;
-        if (timeA == null) return 1;
-        if (timeB == null) return -1;
-        final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
-        final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
-        return dtB.compareTo(dtA);
-      });
-      
-      channels.assignAll(list);
+        .listen(
+          (snapshot) {
+            final list = snapshot.docs.map((doc) {
+              return {'id': doc.id, ...doc.data()};
+            }).toList();
 
-      final pendingCount = list.where((c) => c['status'] == 'underReview' || c['status'] == 'verificationRejected').length;
-      pendingChannels.value = pendingCount;
-      totalChannels.value = list.length;
-    }, onError: (e) {
-      debugPrint('AdminController Channels Stream Error: $e');
-    });
+            // Sort by updatedAt descending in memory to handle missing fields gracefully
+            list.sort((a, b) {
+              final timeA = a['updatedAt'];
+              final timeB = b['updatedAt'];
+              if (timeA == null && timeB == null) return 0;
+              if (timeA == null) return 1;
+              if (timeB == null) return -1;
+              final dtA = timeA is Timestamp
+                  ? timeA.toDate()
+                  : (DateTime.tryParse(timeA.toString()) ??
+                        DateTime.fromMillisecondsSinceEpoch(0));
+              final dtB = timeB is Timestamp
+                  ? timeB.toDate()
+                  : (DateTime.tryParse(timeB.toString()) ??
+                        DateTime.fromMillisecondsSinceEpoch(0));
+              return dtB.compareTo(dtA);
+            });
+
+            channels.assignAll(list);
+
+            final pendingCount = list
+                .where(
+                  (c) =>
+                      c['status'] == 'underReview' ||
+                      c['status'] == 'verificationRejected',
+                )
+                .length;
+            pendingChannels.value = pendingCount;
+            totalChannels.value = list.length;
+          },
+          onError: (e) {
+            debugPrint('AdminController Channels Stream Error: $e');
+          },
+        );
 
     // 5. Monitor reports collection
     _reportsSub = FirebaseFirestore.instance
         .collection('reports')
         .limit(100)
         .snapshots()
-        .listen((snapshot) {
-      final list = snapshot.docs.map((doc) {
-        return {'id': doc.id, ...doc.data()};
-      }).toList();
+        .listen(
+          (snapshot) {
+            final list = snapshot.docs.map((doc) {
+              return {'id': doc.id, ...doc.data()};
+            }).toList();
 
-      list.sort((a, b) {
-        final timeA = a['createdAt'];
-        final timeB = b['createdAt'];
-        if (timeA == null && timeB == null) return 0;
-        if (timeA == null) return 1;
-        if (timeB == null) return -1;
-        final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
-        final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
-        return dtB.compareTo(dtA);
-      });
+            list.sort((a, b) {
+              final timeA = a['createdAt'];
+              final timeB = b['createdAt'];
+              if (timeA == null && timeB == null) return 0;
+              if (timeA == null) return 1;
+              if (timeB == null) return -1;
+              final dtA = timeA is Timestamp
+                  ? timeA.toDate()
+                  : (DateTime.tryParse(timeA.toString()) ??
+                        DateTime.fromMillisecondsSinceEpoch(0));
+              final dtB = timeB is Timestamp
+                  ? timeB.toDate()
+                  : (DateTime.tryParse(timeB.toString()) ??
+                        DateTime.fromMillisecondsSinceEpoch(0));
+              return dtB.compareTo(dtA);
+            });
 
-      reports.assignAll(list);
+            reports.assignAll(list);
 
-      final pendingCount = list.where((r) => r['status'] == 'pending' || r['status'] == 'PENDING').length;
-      pendingReports.value = pendingCount;
-      totalReports.value = list.length;
-    }, onError: (e) {
-      debugPrint('AdminController Reports Stream Error: $e');
-    });
+            final pendingCount = list
+                .where(
+                  (r) => r['status'] == 'pending' || r['status'] == 'PENDING',
+                )
+                .length;
+            pendingReports.value = pendingCount;
+            totalReports.value = list.length;
+          },
+          onError: (e) {
+            debugPrint('AdminController Reports Stream Error: $e');
+          },
+        );
   }
 
   /// Cancels all active Firestore listeners
@@ -527,15 +607,22 @@ class AdminController extends GetxController {
   }
 
   /// Executes manual video moderation action (Approve/Reject)
-  Future<bool> moderateVideo(String videoId, String action, String reason) async {
+  Future<bool> moderateVideo(
+    String videoId,
+    String action,
+    String reason,
+  ) async {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Session expired. Please log in again.');
+      if (user == null)
+        throw Exception('Session expired. Please log in again.');
 
       final idToken = await user.getIdToken();
       final response = await http.post(
-        Uri.parse('https://asia-south1-truthworld-1.cloudfunctions.net/moderateVideoManual'),
+        Uri.parse(
+          'https://asia-south1-truthworld-1.cloudfunctions.net/moderateVideoManual',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -576,15 +663,22 @@ class AdminController extends GetxController {
   }
 
   /// Executes manual image moderation action (Approve/Reject)
-  Future<bool> moderateImage(String verificationId, String action, String reason) async {
+  Future<bool> moderateImage(
+    String verificationId,
+    String action,
+    String reason,
+  ) async {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Session expired. Please log in again.');
+      if (user == null)
+        throw Exception('Session expired. Please log in again.');
 
       final idToken = await user.getIdToken();
       final response = await http.post(
-        Uri.parse('https://asia-south1-truthworld-1.cloudfunctions.net/moderateImageManual'),
+        Uri.parse(
+          'https://asia-south1-truthworld-1.cloudfunctions.net/moderateImageManual',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -625,18 +719,27 @@ class AdminController extends GetxController {
   }
 
   /// Executes manual channel moderation action (Approve/Reject)
-  Future<bool> moderateChannel(String channelId, String action, String reason) async {
+  Future<bool> moderateChannel(
+    String channelId,
+    String action,
+    String reason,
+  ) async {
     isActionSubmitting.value = true;
     try {
       final status = action == 'approve' ? 'active' : 'verificationRejected';
-      
+
       // Update the channel document in Firestore directly
-      await FirebaseFirestore.instance.collection('channels').doc(channelId).update({
-        'status': status,
-        'moderationReason': action == 'approve' ? FieldValue.delete() : reason,
-        'geminiApproved': action == 'approve',
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection('channels')
+          .doc(channelId)
+          .update({
+            'status': status,
+            'moderationReason': action == 'approve'
+                ? FieldValue.delete()
+                : reason,
+            'geminiApproved': action == 'approve',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       Get.snackbar(
         'Success',
@@ -683,7 +786,11 @@ class AdminController extends GetxController {
   }
 
   /// Executes bulk moderation action on selected items
-  Future<void> bulkModerate(String contentType, String action, String reason) async {
+  Future<void> bulkModerate(
+    String contentType,
+    String action,
+    String reason,
+  ) async {
     if (selectedItemIds.isEmpty) return;
     isBulkActionSubmitting.value = true;
     try {
@@ -692,7 +799,9 @@ class AdminController extends GetxController {
       final idToken = await user.getIdToken();
 
       final response = await http.post(
-        Uri.parse('https://asia-south1-truthworld-1.cloudfunctions.net/adminBulkModerate'),
+        Uri.parse(
+          'https://asia-south1-truthworld-1.cloudfunctions.net/adminBulkModerate',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -711,7 +820,11 @@ class AdminController extends GetxController {
       }
 
       final result = jsonDecode(response.body);
-      final successCount = (result['results'] as List?)?.where((r) => r['success'] == true).length ?? 0;
+      final successCount =
+          (result['results'] as List?)
+              ?.where((r) => r['success'] == true)
+              .length ??
+          0;
 
       Get.snackbar(
         'Bulk Action Complete',
@@ -751,7 +864,9 @@ class AdminController extends GetxController {
       final idToken = await user.getIdToken();
 
       final response = await http.post(
-        Uri.parse('https://asia-south1-truthworld-1.cloudfunctions.net/adminSearchUsers'),
+        Uri.parse(
+          'https://asia-south1-truthworld-1.cloudfunctions.net/adminSearchUsers',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -761,7 +876,9 @@ class AdminController extends GetxController {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        searchedUsers.assignAll(List<Map<String, dynamic>>.from(data['users'] ?? []));
+        searchedUsers.assignAll(
+          List<Map<String, dynamic>>.from(data['users'] ?? []),
+        );
       } else {
         throw Exception('Search failed.');
       }
@@ -781,7 +898,9 @@ class AdminController extends GetxController {
       final idToken = await user.getIdToken();
 
       final response = await http.post(
-        Uri.parse('https://asia-south1-truthworld-1.cloudfunctions.net/adminGetUserSafetyProfile'),
+        Uri.parse(
+          'https://asia-south1-truthworld-1.cloudfunctions.net/adminGetUserSafetyProfile',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -802,7 +921,12 @@ class AdminController extends GetxController {
   }
 
   /// Executes a moderation action on a user account
-  Future<bool> moderateUser(String userId, String action, String reason, {int? durationDays}) async {
+  Future<bool> moderateUser(
+    String userId,
+    String action,
+    String reason, {
+    int? durationDays,
+  }) async {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -817,7 +941,9 @@ class AdminController extends GetxController {
       if (durationDays != null) body['duration'] = durationDays;
 
       final response = await http.post(
-        Uri.parse('https://asia-south1-truthworld-1.cloudfunctions.net/adminModerateUser'),
+        Uri.parse(
+          'https://asia-south1-truthworld-1.cloudfunctions.net/adminModerateUser',
+        ),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
@@ -865,14 +991,22 @@ class AdminController extends GetxController {
     try {
       // Compute analytics from existing real-time data
       final now = DateTime.now();
-      final rangeDays = analyticsTimeRange.value == '7d' ? 7 : (analyticsTimeRange.value == '30d' ? 30 : 90);
+      final rangeDays = analyticsTimeRange.value == '7d'
+          ? 7
+          : (analyticsTimeRange.value == '30d' ? 30 : 90);
       final cutoff = now.subtract(Duration(days: rangeDays));
 
       // Image stats
       final totalModeratedImages = images.length;
-      final approvedImages = images.where((img) => img['status'] == 'APPROVED').length;
-      final rejectedImages = images.where((img) => img['status'] == 'REJECTED').length;
-      final pendingImgCount = images.where((img) => img['status'] == 'PENDING_REVIEW').length;
+      final approvedImages = images
+          .where((img) => img['status'] == 'APPROVED')
+          .length;
+      final rejectedImages = images
+          .where((img) => img['status'] == 'REJECTED')
+          .length;
+      final pendingImgCount = images
+          .where((img) => img['status'] == 'PENDING_REVIEW')
+          .length;
 
       // Video stats
       final totalModeratedVideos = videos.length;
@@ -900,24 +1034,34 @@ class AdminController extends GetxController {
 
       final totalModerated = totalModeratedImages + totalModeratedVideos;
       final totalApproved = approvedImages + approvedVideos;
-      final autoApprovalRate = totalModerated > 0 ? (totalApproved / totalModerated * 100).round() : 0;
+      final autoApprovalRate = totalModerated > 0
+          ? (totalApproved / totalModerated * 100).round()
+          : 0;
 
       // Compute safety score (0-100)
-      final rejectionRate = totalModerated > 0 ? ((rejectedImages + rejectedVideos) / totalModerated) : 0.0;
-      final queueHealth = (pendingImgCount + pendingVideos.value) < 50 ? 1.0 : 0.5;
-      final safetyScore = ((1 - rejectionRate) * 70 + queueHealth * 30).round().clamp(0, 100);
+      final rejectionRate = totalModerated > 0
+          ? ((rejectedImages + rejectedVideos) / totalModerated)
+          : 0.0;
+      final queueHealth = (pendingImgCount + pendingVideos.value) < 50
+          ? 1.0
+          : 0.5;
+      final safetyScore = ((1 - rejectionRate) * 70 + queueHealth * 30)
+          .round()
+          .clamp(0, 100);
 
       analyticsData.assignAll({
         'safetyScore': safetyScore,
         'totalModerated24h': totalModerated,
         'autoApprovalRate': autoApprovalRate,
-        'avgReviewTimeMinutes': 12, // Placeholder — would need timestamp diff calculation
+        'avgReviewTimeMinutes':
+            12, // Placeholder — would need timestamp diff calculation
         'activeViolations': pendingImgCount + pendingVideos.value,
         'violationCategories': violationCounts,
         'totalApproved': totalApproved,
         'totalRejected': rejectedImages + rejectedVideos,
         'totalPending': pendingImgCount + pendingVideos.value,
-        'topOffenders': <Map<String, dynamic>>[], // Would need userTrust aggregation
+        'topOffenders':
+            <Map<String, dynamic>>[], // Would need userTrust aggregation
       });
     } catch (e) {
       debugPrint('Analytics fetch error: $e');
@@ -940,7 +1084,9 @@ class AdminController extends GetxController {
           .orderBy('triggeredAt', descending: true)
           .limit(50)
           .get();
-      activeAlerts.assignAll(alertsSnap.docs.map((d) => {'id': d.id, ...d.data()}));
+      activeAlerts.assignAll(
+        alertsSnap.docs.map((d) => {'id': d.id, ...d.data()}),
+      );
 
       // Load alert rules configuration
       final rulesDoc = await FirebaseFirestore.instance
@@ -948,16 +1094,48 @@ class AdminController extends GetxController {
           .doc('alert_rules')
           .get();
       if (rulesDoc.exists && rulesDoc.data()?['rules'] != null) {
-        alertRules.assignAll(List<Map<String, dynamic>>.from(rulesDoc.data()!['rules']));
+        alertRules.assignAll(
+          List<Map<String, dynamic>>.from(rulesDoc.data()!['rules']),
+        );
       } else {
         // Default alert rules
         alertRules.assignAll([
-          {'name': 'Queue Backlog Alert', 'threshold': 500, 'enabled': true, 'channels': ['push']},
-          {'name': 'Repeat Offender Alert', 'threshold': 3, 'enabled': true, 'channels': ['push', 'email']},
-          {'name': 'Vision API Error Rate', 'threshold': 10, 'enabled': true, 'channels': ['push']},
-          {'name': 'DLQ Depth Alert', 'threshold': 50, 'enabled': true, 'channels': ['push']},
-          {'name': 'Safety Score Drop', 'threshold': 80, 'enabled': true, 'channels': ['push', 'email']},
-          {'name': 'Tier 4 Emergency (CSAM)', 'threshold': 1, 'enabled': true, 'channels': ['push', 'email', 'sms']},
+          {
+            'name': 'Queue Backlog Alert',
+            'threshold': 500,
+            'enabled': true,
+            'channels': ['push'],
+          },
+          {
+            'name': 'Repeat Offender Alert',
+            'threshold': 3,
+            'enabled': true,
+            'channels': ['push', 'email'],
+          },
+          {
+            'name': 'Vision API Error Rate',
+            'threshold': 10,
+            'enabled': true,
+            'channels': ['push'],
+          },
+          {
+            'name': 'DLQ Depth Alert',
+            'threshold': 50,
+            'enabled': true,
+            'channels': ['push'],
+          },
+          {
+            'name': 'Safety Score Drop',
+            'threshold': 80,
+            'enabled': true,
+            'channels': ['push', 'email'],
+          },
+          {
+            'name': 'Tier 4 Emergency (CSAM)',
+            'threshold': 1,
+            'enabled': true,
+            'channels': ['push', 'email', 'sms'],
+          },
         ]);
       }
     } catch (e) {
@@ -973,7 +1151,10 @@ class AdminController extends GetxController {
       await FirebaseFirestore.instance
           .collection('admin_settings')
           .doc('alert_rules')
-          .set({'rules': alertRules.toList(), 'updatedAt': FieldValue.serverTimestamp()});
+          .set({
+            'rules': alertRules.toList(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
       Get.snackbar(
         'Alert Rules Saved',
         'Alert configuration updated successfully.',
@@ -1000,7 +1181,9 @@ class AdminController extends GetxController {
           .limit(100)
           .get();
       appeals.assignAll(snap.docs.map((d) => {'id': d.id, ...d.data()}));
-      pendingAppeals.value = appeals.where((a) => a['status'] == 'pending').length;
+      pendingAppeals.value = appeals
+          .where((a) => a['status'] == 'pending')
+          .length;
     } catch (e) {
       debugPrint('Appeals fetch error: $e');
     } finally {
@@ -1009,15 +1192,24 @@ class AdminController extends GetxController {
   }
 
   /// Resolves an appeal with the given action
-  Future<bool> resolveAppeal(String appealId, String action, String reason) async {
+  Future<bool> resolveAppeal(
+    String appealId,
+    String action,
+    String reason,
+  ) async {
     isActionSubmitting.value = true;
     try {
-      await FirebaseFirestore.instance.collection('content_appeals').doc(appealId).update({
-        'status': action == 'overturn' ? 'overturned' : (action == 'escalate' ? 'escalated' : 'upheld'),
-        'resolvedAt': FieldValue.serverTimestamp(),
-        'resolvedBy': FirebaseAuth.instance.currentUser?.uid,
-        'resolutionNote': reason,
-      });
+      await FirebaseFirestore.instance
+          .collection('content_appeals')
+          .doc(appealId)
+          .update({
+            'status': action == 'overturn'
+                ? 'overturned'
+                : (action == 'escalate' ? 'escalated' : 'upheld'),
+            'resolvedAt': FieldValue.serverTimestamp(),
+            'resolvedBy': FirebaseAuth.instance.currentUser?.uid,
+            'resolutionNote': reason,
+          });
 
       Get.snackbar(
         'Appeal Resolved',
@@ -1057,7 +1249,9 @@ class AdminController extends GetxController {
           .orderBy('detectedAt', descending: true)
           .limit(50)
           .get();
-      anomalyAlerts.assignAll(alertsSnap.docs.map((d) => {'id': d.id, ...d.data()}));
+      anomalyAlerts.assignAll(
+        alertsSnap.docs.map((d) => {'id': d.id, ...d.data()}),
+      );
 
       // Load account clusters
       final clustersSnap = await FirebaseFirestore.instance
@@ -1065,7 +1259,9 @@ class AdminController extends GetxController {
           .orderBy('detectedAt', descending: true)
           .limit(20)
           .get();
-      accountClusters.assignAll(clustersSnap.docs.map((d) => {'id': d.id, ...d.data()}));
+      accountClusters.assignAll(
+        clustersSnap.docs.map((d) => {'id': d.id, ...d.data()}),
+      );
 
       // Load lockdown status
       final settingsDoc = await FirebaseFirestore.instance
@@ -1113,12 +1309,17 @@ class AdminController extends GetxController {
       await FirebaseFirestore.instance
           .collection('admin_settings')
           .doc('security_config')
-          .set({'lockdownMode': newState, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+          .set({
+            'lockdownMode': newState,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
       isLockdownMode.value = newState;
       Get.snackbar(
         newState ? 'Lockdown Activated' : 'Lockdown Deactivated',
         newState ? 'All uploads are now paused.' : 'Uploads have been resumed.',
-        backgroundColor: newState ? const Color(0xFFCF6679) : const Color(0xFF2BA640),
+        backgroundColor: newState
+            ? const Color(0xFFCF6679)
+            : const Color(0xFF2BA640),
         colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
@@ -1128,10 +1329,16 @@ class AdminController extends GetxController {
   }
 
   /// Executes manual report moderation action (resolve_keep/resolve_reject)
-  Future<bool> moderateReport(String reportId, String action, String reviewReason) async {
+  Future<bool> moderateReport(
+    String reportId,
+    String action,
+    String reviewReason,
+  ) async {
     isActionSubmitting.value = true;
     try {
-      final reportRef = FirebaseFirestore.instance.collection('reports').doc(reportId);
+      final reportRef = FirebaseFirestore.instance
+          .collection('reports')
+          .doc(reportId);
       final reportSnap = await reportRef.get();
       if (!reportSnap.exists) {
         throw Exception('Report not found');
@@ -1143,12 +1350,16 @@ class AdminController extends GetxController {
         // Reject the video as well (this will call moderateVideoCloudFunction)
         final success = await moderateVideo(videoId, 'reject', reviewReason);
         if (!success) {
-          throw Exception('Failed to reject the video associated with this report.');
+          throw Exception(
+            'Failed to reject the video associated with this report.',
+          );
         }
       }
 
       await reportRef.update({
-        'status': action == 'reject' ? 'resolved_rejected' : 'resolved_dismissed',
+        'status': action == 'reject'
+            ? 'resolved_rejected'
+            : 'resolved_dismissed',
         'resolvedAt': FieldValue.serverTimestamp(),
         'resolutionComment': reviewReason,
       });

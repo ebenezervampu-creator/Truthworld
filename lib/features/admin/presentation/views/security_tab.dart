@@ -33,11 +33,11 @@ class SecurityTab extends StatelessWidget {
                   const SizedBox(width: 24),
                   Expanded(child: _buildRateLimitControls()),
                 ],
-              )
+              ),
             ],
           ),
         );
-      }
+      },
     );
   }
 
@@ -47,11 +47,21 @@ class SecurityTab extends StatelessWidget {
       children: [
         const Text(
           'Security & Fraud Detection',
-          style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Row(
           children: [
-            const Text('Lockdown Mode', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+            const Text(
+              'Lockdown Mode',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(width: 8),
             Switch(
               value: false,
@@ -59,7 +69,7 @@ class SecurityTab extends StatelessWidget {
               activeColor: AppColors.error,
             ),
           ],
-        )
+        ),
       ],
     );
   }
@@ -75,7 +85,14 @@ class SecurityTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Upload Velocity (Last 24h)', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Upload Velocity (Last 24h)',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 24),
           SizedBox(
             height: 200,
@@ -89,12 +106,14 @@ class SecurityTab extends StatelessWidget {
                   height: height,
                   decoration: BoxDecoration(
                     color: height > 120 ? AppColors.error : AppColors.brand,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(4),
+                    ),
                   ),
                 );
               }),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -111,7 +130,14 @@ class SecurityTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Anomaly Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Anomaly Alerts',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           ListView.builder(
             shrinkWrap: true,
@@ -122,13 +148,28 @@ class SecurityTab extends StatelessWidget {
                 color: Colors.transparent,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.warning_amber_rounded, color: AppColors.error),
-                  title: Text('Bot Net Pattern Detected', style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-                  subtitle: Text('IP Range: 192.168.1.x', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  leading: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.error,
+                  ),
+                  title: Text(
+                    'Bot Net Pattern Detected',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'IP Range: 192.168.1.x',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               );
             },
-          )
+          ),
         ],
       ),
     );
@@ -145,11 +186,24 @@ class SecurityTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Account Clusters', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Account Clusters',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
-          _buildClusterItem('Cluster A (Spam Ring)', '45 accounts linked by IP'),
+          _buildClusterItem(
+            'Cluster A (Spam Ring)',
+            '45 accounts linked by IP',
+          ),
           const Divider(color: AppColors.bgDivider),
-          _buildClusterItem('Cluster B (Ban Evasion)', '12 accounts linked by Device ID'),
+          _buildClusterItem(
+            'Cluster B (Ban Evasion)',
+            '12 accounts linked by Device ID',
+          ),
         ],
       ),
     );
@@ -165,13 +219,22 @@ class SecurityTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: const TextStyle(color: AppColors.textPrimary)),
-              Text(desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              Text(
+                desc,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
           TextButton(
             onPressed: () {},
-            child: const Text('Investigate', style: TextStyle(color: Colors.blue)),
-          )
+            child: const Text(
+              'Investigate',
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
         ],
       ),
     );
@@ -188,17 +251,29 @@ class SecurityTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Rate Limit Controls', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Rate Limit Controls',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 16),
           _buildRateLimitInput('Per-User (Uploads/hr)', '50'),
           const SizedBox(height: 12),
           _buildRateLimitInput('Global (Uploads/min)', '5000'),
           const SizedBox(height: 16),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.bgElevated),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.bgElevated,
+            ),
             onPressed: () {},
-            child: const Text('Apply Changes', style: TextStyle(color: AppColors.textPrimary)),
-          )
+            child: const Text(
+              'Apply Changes',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+          ),
         ],
       ),
     );
@@ -219,10 +294,13 @@ class SecurityTab extends StatelessWidget {
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               filled: true,
               fillColor: AppColors.bgInput,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
-        )
+        ),
       ],
     );
   }

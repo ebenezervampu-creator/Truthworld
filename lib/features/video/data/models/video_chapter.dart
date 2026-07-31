@@ -1,6 +1,4 @@
-
 class VideoChapter {
-
   VideoChapter({
     required this.title,
     required this.startTime,
@@ -47,7 +45,3 @@ class VideoChapter {
   @override
   int get hashCode => title.hashCode ^ startTime.hashCode;
 }
-
-
-
-

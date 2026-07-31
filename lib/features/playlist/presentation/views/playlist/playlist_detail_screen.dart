@@ -113,12 +113,17 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 1000;
-        final isTablet = constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
+        final isTablet =
+            constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
 
         if (isDesktop) {
           return _buildDesktopLayout(context, playlist);
         } else {
-          return _buildMobileTabletLayout(context, playlist, isTablet: isTablet);
+          return _buildMobileTabletLayout(
+            context,
+            playlist,
+            isTablet: isTablet,
+          );
         }
       },
     );
@@ -147,7 +152,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // MOBILE/TABLET LAYOUT (stacked)
   // ==========================================================================
-  Widget _buildMobileTabletLayout(BuildContext context, PlaylistModel playlist, {bool isTablet = false}) {
+  Widget _buildMobileTabletLayout(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isTablet = false,
+  }) {
     return CustomScrollView(
       slivers: [
         // Playlist header section
@@ -173,7 +182,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // PLAYLIST SIDEBAR (Desktop)
   // ==========================================================================
-  Widget _buildPlaylistSidebar(BuildContext context, PlaylistModel playlist, {bool isDesktop = false}) {
+  Widget _buildPlaylistSidebar(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+  }) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -204,8 +217,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           _buildActionButtons(context, playlist, isDesktop: true),
           const SizedBox(height: 16),
           // Description
-          if (playlist.description.isNotEmpty)
-            _buildDescription(playlist),
+          if (playlist.description.isNotEmpty) _buildDescription(playlist),
         ],
       ),
     );
@@ -214,7 +226,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // PLAYLIST HEADER (Mobile/Tablet)
   // ==========================================================================
-  Widget _buildPlaylistHeader(BuildContext context, PlaylistModel playlist, {bool isTablet = false}) {
+  Widget _buildPlaylistHeader(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isTablet = false,
+  }) {
     final horizontalPadding = isTablet ? 24.0 : 16.0;
 
     return Container(
@@ -287,7 +303,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
   Widget _buildThumbnail(PlaylistModel playlist, {bool isTablet = false}) {
     final width = isTablet ? 200.0 : 160.0;
-    
+
     return SizedBox(
       width: width,
       child: AspectRatio(
@@ -338,10 +354,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       builder: (context, snapshot) {
         var channelName = 'Unknown Channel';
         var avatarUrl = '';
-        
+
         if (snapshot.hasData && snapshot.data!.exists) {
           final channelData = snapshot.data!.data()! as Map<String, dynamic>;
-          channelName = (channelData['name'] ?? channelData['channelName']) ?? 'Unknown Channel';
+          channelName =
+              (channelData['name'] ?? channelData['channelName']) ??
+              'Unknown Channel';
           avatarUrl = channelData['avatarUrl'] ?? '';
         }
 
@@ -385,7 +403,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       future: _fetchVideos(playlist),
       builder: (context, snapshot) {
         final videoCount = playlist.videoCount;
-        final viewCount = snapshot.hasData 
+        final viewCount = snapshot.hasData
             ? snapshot.data!.fold<int>(0, (total, v) => total + v.views)
             : 0;
         final lastUpdated = timeago.format(playlist.updatedAt.toDate());
@@ -406,7 +424,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // ACTION BUTTONS
   // ==========================================================================
-  Widget _buildActionButtons(BuildContext context, PlaylistModel playlist, {bool isDesktop = false, bool isTablet = false}) {
+  Widget _buildActionButtons(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
     return Row(
       children: [
         // Play all button (white)
@@ -599,8 +622,8 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   Widget _buildFilterTabs() {
     return Obx(() {
       final filters = ['All', 'Videos'];
-      final selectedFilter = controller.filterValue.value.isEmpty 
-          ? 'All' 
+      final selectedFilter = controller.filterValue.value.isEmpty
+          ? 'All'
           : controller.filterValue.value;
 
       return Container(
@@ -631,7 +654,10 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                     color: isSelected ? ytTextPrimary : Colors.transparent,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
               ),
             );
           }).toList(),
@@ -643,7 +669,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // VIDEO LIST SECTION
   // ==========================================================================
-  Widget _buildVideoListSection(BuildContext context, PlaylistModel playlist, {bool isDesktop = false}) {
+  Widget _buildVideoListSection(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+  }) {
     return Column(
       children: [
         // Filter tabs
@@ -660,7 +690,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // VIDEO LIST
   // ==========================================================================
-  Widget _buildVideoList(BuildContext context, PlaylistModel playlist, {bool isDesktop = false, bool isTablet = false}) {
+  Widget _buildVideoList(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
     if (playlist.videoCount == 0 && playlist.videoIds.isEmpty) {
       return _buildEmptyState();
     }
@@ -673,11 +708,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         }
 
         if (snapshot.hasError || !snapshot.hasData) {
-          return _buildErrorState('Failed to load videos', () => controller.setLoading(true));
+          return _buildErrorState(
+            'Failed to load videos',
+            () => controller.setLoading(true),
+          );
         }
 
         final videos = snapshot.data!;
-        
+
         // Apply filter
         final filteredVideos = videos.where((video) {
           final filter = controller.filterValue.value.toLowerCase();
@@ -765,7 +803,10 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                       width: thumbnailWidth,
                       height: thumbnailWidth * 9 / 16,
                       color: ytSurfaceLight,
-                      child: const Icon(Icons.play_circle_outline, color: ytTextSecondary),
+                      child: const Icon(
+                        Icons.play_circle_outline,
+                        color: ytTextSecondary,
+                      ),
                     ),
                   ),
                 ),
@@ -1017,22 +1058,34 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.play_arrow, color: ytTextPrimary),
-              title: const Text('Play next', style: TextStyle(color: ytTextPrimary)),
+              title: const Text(
+                'Play next',
+                style: TextStyle(color: ytTextPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Icon(Icons.playlist_add, color: ytTextPrimary),
-              title: const Text('Add to queue', style: TextStyle(color: ytTextPrimary)),
+              title: const Text(
+                'Add to queue',
+                style: TextStyle(color: ytTextPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Icon(Icons.download, color: ytTextPrimary),
-              title: const Text('Download', style: TextStyle(color: ytTextPrimary)),
+              title: const Text(
+                'Download',
+                style: TextStyle(color: ytTextPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
               leading: const Icon(Icons.share, color: ytTextPrimary),
-              title: const Text('Share', style: TextStyle(color: ytTextPrimary)),
+              title: const Text(
+                'Share',
+                style: TextStyle(color: ytTextPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -1092,7 +1145,6 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 // FILTER TAB DELEGATE
 // ==========================================================================
 class _FilterTabDelegate extends SliverPersistentHeaderDelegate {
-
   _FilterTabDelegate(this.child, {required this.maxHeight});
   final Widget child;
   final double maxHeight;
@@ -1118,8 +1170,3 @@ class _FilterTabDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
       true;
 }
-
-
-
-
-

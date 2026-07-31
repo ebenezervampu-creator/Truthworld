@@ -4,8 +4,8 @@ import 'package:truthworld/shared/skeletons/skeleton_base.dart';
 
 /// Skeleton loading state for the home video feed grid.
 class VideoFeedSkeleton extends StatelessWidget {
-
   const VideoFeedSkeleton({super.key, this.itemCount = 12});
+
   /// Number of placeholder cards to display.
   final int itemCount;
 

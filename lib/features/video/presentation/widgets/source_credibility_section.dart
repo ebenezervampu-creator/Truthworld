@@ -23,9 +23,9 @@ class SourceCredibilityController extends GetxController {
 }
 
 class SourceCredibilitySection extends StatelessWidget {
-
   const SourceCredibilitySection({
-    required this.sources, super.key,
+    required this.sources,
+    super.key,
     this.claims = const [],
     this.isCompact = false,
   });
@@ -87,7 +87,6 @@ class SourceCredibilitySection extends StatelessWidget {
         const Text(
           'EVIDENCE SOURCES',
           style: TextStyle(
-            
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -133,7 +132,6 @@ class SourceCredibilitySection extends StatelessWidget {
                     Text(
                       '$_uniqueDomains',
                       style: const TextStyle(
-                        
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -143,7 +141,6 @@ class SourceCredibilitySection extends StatelessWidget {
                     const Text(
                       'INDEPENDENT SOURCES',
                       style: TextStyle(
-                        
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textTertiary,
@@ -167,7 +164,6 @@ class SourceCredibilitySection extends StatelessWidget {
                       child: Text(
                         _diversityLabel.toUpperCase(),
                         style: TextStyle(
-                          
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: _diversityColor,
@@ -179,7 +175,6 @@ class SourceCredibilitySection extends StatelessWidget {
                     const Text(
                       'Evidence Diversity',
                       style: TextStyle(
-                        
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -195,7 +190,6 @@ class SourceCredibilitySection extends StatelessWidget {
               Text(
                 '${sources.fold<int>(0, (sum, s) => sum + s.citationCount)}',
                 style: const TextStyle(
-                  
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -252,7 +246,6 @@ class SourceCredibilitySection extends StatelessWidget {
                 Text(
                   '$count',
                   style: TextStyle(
-                    
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -261,7 +254,6 @@ class SourceCredibilitySection extends StatelessWidget {
                 Text(
                   '${(fraction * 100).toInt()}%',
                   style: const TextStyle(
-                    
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textTertiary,
@@ -319,7 +311,9 @@ class SourceCredibilitySection extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.05),
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -351,7 +345,6 @@ class SourceCredibilitySection extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary.withValues(alpha: 0.9),
@@ -370,7 +363,6 @@ class SourceCredibilitySection extends StatelessWidget {
                             Text(
                               source.domain!,
                               style: const TextStyle(
-                                
                                 fontSize: 11,
                                 color: AppColors.textTertiary,
                               ),
@@ -385,7 +377,6 @@ class SourceCredibilitySection extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  
                                   fontSize: 11,
                                   color: AppColors.textTertiary.withValues(
                                     alpha: 0.6,
@@ -410,7 +401,6 @@ class SourceCredibilitySection extends StatelessWidget {
                       Text(
                         '${source.citationCount} claims',
                         style: const TextStyle(
-                          
                           fontSize: 11,
                           color: AppColors.textTertiary,
                           fontWeight: FontWeight.w500,
@@ -457,7 +447,7 @@ class SourceCredibilitySection extends StatelessWidget {
       icon: const Icon(Icons.expand_more_rounded, size: 16),
       label: Text(
         'Show all ${sources.length} sources',
-        style: const TextStyle( fontSize: 12),
+        style: const TextStyle(fontSize: 12),
       ),
       style: TextButton.styleFrom(
         foregroundColor: AppColors.textTertiary,
@@ -472,7 +462,7 @@ class SourceCredibilitySection extends StatelessWidget {
       icon: const Icon(Icons.expand_less_rounded, size: 16),
       label: const Text(
         'Show fewer',
-        style: TextStyle( fontSize: 12),
+        style: TextStyle(fontSize: 12),
       ),
       style: TextButton.styleFrom(
         foregroundColor: AppColors.textTertiary,

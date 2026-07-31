@@ -154,7 +154,7 @@ export class CostEngine {
 
   async getSystemOverview(month?: string): Promise<any> {
     const monthKey = month || this.currentMonthKey();
-    const snap = await db().collection("cost_rollups").where("month", "==", monthKey).get();
+    const snap = await db().collection("cost_rollups").where("month", "==", monthKey).limit(500).get();
     
     let total = 0;
     let jobs = 0;
@@ -167,7 +167,7 @@ export class CostEngine {
   }
 
   async getJobBreakdown(jobId: string): Promise<any | null> {
-    const snap = await db().collection("cost_events").where("jobId", "==", jobId).get();
+    const snap = await db().collection("cost_events").where("jobId", "==", jobId).limit(100).get();
     if (snap.empty) return null;
 
     const items = snap.docs.map(doc => doc.data());

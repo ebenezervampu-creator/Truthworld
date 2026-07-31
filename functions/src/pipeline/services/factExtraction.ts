@@ -1,6 +1,7 @@
 import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
 import * as admin from "firebase-admin";
 import { PIPELINE_CONFIG } from "../config";
+import { getVertexAI } from "../utils/ai-client";
 import { 
   ExtractedClaim, 
   GeminiExtractionSchema, 
@@ -34,7 +35,7 @@ export class FactExtractionService {
   private genAI: VertexAI;
 
   constructor(apiKey: string) {
-    this.genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+    this.genAI = getVertexAI();
   }
 
   private static readonly LONGFORM_THRESHOLD_MINUTES = 30;

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
@@ -15,11 +16,13 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
+import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
 import 'package:truthworld/features/video/presentation/controllers/player_lock_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -33,7 +36,6 @@ import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
 class TowerPlayerController extends GetxController {
-
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     try {
       _rxValue = videoPlayerController.value.obs;
@@ -41,7 +43,8 @@ class TowerPlayerController extends GetxController {
       aspectRatio.value = videoPlayerController.value.aspectRatio;
       isPlaying.value = videoPlayerController.value.isPlaying;
       hasError.value = videoPlayerController.value.hasError;
-      errorDescription.value = videoPlayerController.value.errorDescription ?? '';
+      errorDescription.value =
+          videoPlayerController.value.errorDescription ?? '';
     } catch (_) {
       _rxValue = const VideoPlayerValue.uninitialized().obs;
       isInitialized.value = false;
@@ -49,7 +52,9 @@ class TowerPlayerController extends GetxController {
   }
   // ── Global registry ───────────────────────────────────────
   static final List<TowerPlayerController> _activePlayers = [];
-  static const MethodChannel _pipChannel = MethodChannel('com.example.truthworld/pip');
+  static const MethodChannel _pipChannel = MethodChannel(
+    'com.example.truthworld/pip',
+  );
 
   // Persistent media preferences
   static final _box = GetStorage();
@@ -79,7 +84,8 @@ class TowerPlayerController extends GetxController {
   static set globalQualityPreference(String? value) =>
       _box.write('pref_global_quality_preference', value);
 
-  static void Function(BuildContext context, TowerPlayerController ctrl)? showMobileSettingsCallback;
+  static void Function(BuildContext context, TowerPlayerController ctrl)?
+  showMobileSettingsCallback;
 
   static void pauseAllActivePlayers({TowerPlayerController? except}) {
     for (final p in _activePlayers) {
@@ -104,7 +110,7 @@ class TowerPlayerController extends GetxController {
       placeholder: const ColoredBox(
         color: AppColors.bgPage,
         child: Center(
-          child: CircularProgressIndicator(color: Color(0xFF9B30FF)),
+          child: CircularProgressIndicator(color: AppColors.brand),
         ),
       ),
       errorBuilder: (context, errorMessage) {
@@ -113,23 +119,26 @@ class TowerPlayerController extends GetxController {
             padding: const EdgeInsets.all(16),
             child: Text(
               errorMessage,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
         );
       },
       materialProgressColors: ChewieProgressColors(
-        playedColor: const Color(0xFF9B30FF),
-        handleColor: const Color(0xFF9B30FF),
-        bufferedColor: const Color(0x559B30FF),
-        backgroundColor: const Color(0x339B30FF),
+        playedColor: AppColors.brand,
+        handleColor: AppColors.brand,
+        bufferedColor: AppColors.brand.withValues(alpha: 0.33),
+        backgroundColor: AppColors.brand.withValues(alpha: 0.2),
       ),
       cupertinoProgressColors: ChewieProgressColors(
-        playedColor: const Color(0xFF9B30FF),
-        handleColor: const Color(0xFF9B30FF),
-        bufferedColor: const Color(0x559B30FF),
-        backgroundColor: const Color(0x339B30FF),
+        playedColor: AppColors.brand,
+        handleColor: AppColors.brand,
+        bufferedColor: AppColors.brand.withValues(alpha: 0.33),
+        backgroundColor: AppColors.brand.withValues(alpha: 0.2),
       ),
       deviceOrientationsOnEnterFullScreen:
           videoPlayerController.value.aspectRatio > 1.0
@@ -146,8 +155,11 @@ class TowerPlayerController extends GetxController {
       if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
         return Get.find<VideoController>(tag: tag);
       }
-      final formattedTag = tag != null ? (tag!.startsWith('video_') ? tag! : 'video_$tag') : null;
-      if (formattedTag != null && Get.isRegistered<VideoController>(tag: formattedTag)) {
+      final formattedTag = tag != null
+          ? (tag!.startsWith('video_') ? tag! : 'video_$tag')
+          : null;
+      if (formattedTag != null &&
+          Get.isRegistered<VideoController>(tag: formattedTag)) {
         return Get.find<VideoController>(tag: formattedTag);
       }
       if (Get.isRegistered<VideoController>()) {
@@ -171,10 +183,38 @@ class TowerPlayerController extends GetxController {
   final RxBool showFactOverlay = true.obs;
   final RxBool showFullscreenActionsDock = true.obs;
   final RxBool isZoomToFill = false.obs;
+  final RxDouble zoomScale = 1.0.obs;
+
+  String get zoomLabel {
+    if (isZoomToFill.value) return 'Fill screen';
+    if (zoomScale.value == 1.0) return 'Fit (1.0x)';
+    final valStr = zoomScale.value % 1 == 0
+        ? zoomScale.value.toInt().toString()
+        : zoomScale.value.toStringAsFixed(1);
+    return '${valStr}x';
+  }
+
+  void setZoomScale(double scale, {bool fill = false}) {
+    if (fill) {
+      isZoomToFill.value = true;
+      zoomScale.value = 1.0;
+      showToast('Zoom to Fill');
+    } else {
+      isZoomToFill.value = false;
+      zoomScale.value = scale;
+      final valStr = scale % 1 == 0
+          ? scale.toInt().toString()
+          : scale.toStringAsFixed(1);
+      showToast(scale == 1.0 ? 'Original (Fit)' : 'Zoom ${valStr}x');
+    }
+  }
 
   void toggleZoomToFill() {
-    isZoomToFill.toggle();
-    showToast(isZoomToFill.value ? 'Zoom to Fill' : 'Original (Fit)');
+    if (isZoomToFill.value) {
+      setZoomScale(1.0);
+    } else {
+      setZoomScale(1.0, fill: true);
+    }
   }
 
   // ── UI ────────────────────────────────────────────────────
@@ -191,6 +231,58 @@ class TowerPlayerController extends GetxController {
   final RxBool progressBarHovered = false.obs; // desktop hover
   final RxBool showCommentsPopup = false.obs;
   final RxBool showTranscriptPopup = false.obs;
+  final RxBool isCommentsAutoPlay = false.obs;
+  final RxBool isTranscriptAutoPlay = false.obs;
+  final Rxn<Comment> currentAutoPlayComment = Rxn<Comment>();
+  final RxInt activeAutoPlayCommentIndex = 0.obs;
+  Timer? _commentsAutoPlayTimer;
+
+  void toggleCommentsAutoPlay() {
+    isCommentsAutoPlay.toggle();
+    if (isCommentsAutoPlay.value) {
+      showCommentsPopup.value = false;
+      _startCommentsAutoPlay();
+    } else {
+      _stopCommentsAutoPlay();
+    }
+  }
+
+  void _startCommentsAutoPlay() {
+    _stopCommentsAutoPlay();
+    _updateAutoPlayComment();
+    _commentsAutoPlayTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _updateAutoPlayComment();
+    });
+  }
+
+  void _stopCommentsAutoPlay() {
+    _commentsAutoPlayTimer?.cancel();
+    _commentsAutoPlayTimer = null;
+    currentAutoPlayComment.value = null;
+  }
+
+  void _updateAutoPlayComment() {
+    try {
+      final t = 'video_$tag';
+      if (Get.isRegistered<CommentsController>(tag: t)) {
+        final cc = Get.find<CommentsController>(tag: t);
+        if (cc.comments.isNotEmpty) {
+          final nextIdx =
+              (activeAutoPlayCommentIndex.value + 1) % cc.comments.length;
+          activeAutoPlayCommentIndex.value = nextIdx;
+          currentAutoPlayComment.value = cc.comments[nextIdx];
+        }
+      }
+    } catch (_) {}
+  }
+
+  void toggleTranscriptAutoPlay() {
+    isTranscriptAutoPlay.toggle();
+    if (isTranscriptAutoPlay.value) {
+      showTranscriptPopup.value = false;
+      subtitlesEnabled.value = true;
+    }
+  }
 
   // ── Ad Player State ────────────────────────────────────────
   final RxBool isShowingAd = false.obs;
@@ -277,7 +369,8 @@ class TowerPlayerController extends GetxController {
   bool _isSwitchingModes = false;
 
   PlaybackSource get activePlayback {
-    if (playbackMode.value == PlaybackMode.audio && _audioPlaybackSource != null) {
+    if (playbackMode.value == PlaybackMode.audio &&
+        _audioPlaybackSource != null) {
       return _audioPlaybackSource!;
     }
     return _videoPlaybackSource ?? VideoPlaybackSource(videoPlayerController);
@@ -289,6 +382,76 @@ class TowerPlayerController extends GetxController {
   final RxList<SubtitleTrack> subtitleTracks = <SubtitleTrack>[].obs;
   final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
   final RxString currentSubtitle = ''.obs;
+
+  // ── Global Subtitle Appearance Options (Industry Standards) ──
+  static final RxString globalSubtitleFontSizeOption = 'Normal'.obs;
+  static final Rx<Color> globalSubtitleTextColor = Colors.white.obs;
+  static final Rx<Color> globalSubtitleBgColor = Colors.black.obs;
+  static final RxDouble globalSubtitleBgOpacity = 0.75.obs;
+  static final RxString globalSubtitleEdgeStyle = 'Drop Shadow'.obs;
+  static final RxString globalSubtitleFontFamily = 'Roboto'.obs;
+
+  static void resetSubtitleStyleToDefault() {
+    globalSubtitleFontSizeOption.value = 'Normal';
+    globalSubtitleTextColor.value = Colors.white;
+    globalSubtitleBgColor.value = Colors.black;
+    globalSubtitleBgOpacity.value = 0.75;
+    globalSubtitleEdgeStyle.value = 'Drop Shadow';
+    globalSubtitleFontFamily.value = 'Roboto';
+  }
+
+  static TextStyle getSubtitleTextStyle({
+    required String fontFamily,
+    required Color color,
+    required double fontSize,
+    required FontWeight fontWeight,
+    required double height,
+    required List<Shadow> shadows,
+  }) {
+    switch (fontFamily) {
+      case 'Merriweather':
+        return GoogleFonts.merriweather(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          height: height,
+          shadows: shadows,
+        );
+      case 'Roboto Mono':
+        return GoogleFonts.robotoMono(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          height: height,
+          shadows: shadows,
+        );
+      case 'Oswald':
+        return GoogleFonts.oswald(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          height: height,
+          shadows: shadows,
+        );
+      case 'Outfit':
+        return GoogleFonts.outfit(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          height: height,
+          shadows: shadows,
+        );
+      case 'Roboto':
+      default:
+        return GoogleFonts.roboto(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          height: height,
+          shadows: shadows,
+        );
+    }
+  }
 
   // ── Audio tracks ──────────────────────────────────────────
   final RxString activeAudioLang = 'English'.obs;
@@ -589,18 +752,11 @@ class TowerPlayerController extends GetxController {
         if (videoPlayerController.value.volume > 0.0) {
           videoPlayerController.setVolume(0);
         }
-        
+
         // Sync volume
         final targetVol = isMuted.value ? 0.0 : volume.value;
         if (audioCtrl.value.volume != targetVol) {
           audioCtrl.setVolume(targetVol);
-        }
-
-        // Sync Play/Pause
-        if (val.isPlaying && !audioCtrl.value.isPlaying) {
-          audioCtrl.play();
-        } else if (!val.isPlaying && audioCtrl.value.isPlaying) {
-          audioCtrl.pause();
         }
 
         // Sync Speed
@@ -608,10 +764,26 @@ class TowerPlayerController extends GetxController {
           audioCtrl.setPlaybackSpeed(val.playbackSpeed);
         }
 
-        // Sync Position if drift > 300ms
-        final drift = (val.position - audioCtrl.value.position).inMilliseconds.abs();
-        if (drift > 300) {
-          audioCtrl.seekTo(val.position);
+        final audioDur = audioCtrl.value.duration;
+        if (audioDur > Duration.zero && val.position > audioDur) {
+          // Main video position has surpassed the audio track duration (e.g., 40s track on 4:42 video)
+          if (audioCtrl.value.isPlaying) {
+            audioCtrl.pause();
+          }
+        } else {
+          // Sync Play/Pause
+          if (val.isPlaying && !audioCtrl.value.isPlaying) {
+            audioCtrl.play();
+          } else if (!val.isPlaying && audioCtrl.value.isPlaying) {
+            audioCtrl.pause();
+          }
+
+          // Sync Position if drift > 300ms
+          final drift = (val.position - audioCtrl.value.position).inMilliseconds
+              .abs();
+          if (drift > 300) {
+            audioCtrl.seekTo(val.position);
+          }
         }
       }
 
@@ -706,7 +878,10 @@ class TowerPlayerController extends GetxController {
       // Update sleep timer remaining seconds if it is set to "End of video"
       if (sleepTimerService.mode.value == SleepTimerMode.endOfVideo) {
         final rem = (val.duration - val.position).inSeconds;
-        sleepTimerService.remainingSeconds.value = rem.clamp(0, double.maxFinite.toInt());
+        sleepTimerService.remainingSeconds.value = rem.clamp(
+          0,
+          double.maxFinite.toInt(),
+        );
       }
 
       // Ended → autoplay (guarded to fire exactly once)
@@ -752,6 +927,7 @@ class TowerPlayerController extends GetxController {
 
   @override
   void onClose() {
+    _stopCommentsAutoPlay();
     try {
       chewieController?.removeListener(_onInternalChewieChanged);
     } catch (_) {}
@@ -841,12 +1017,16 @@ class TowerPlayerController extends GetxController {
 
       if (vc.availableSubtitles.isNotEmpty && subtitleTracks.isEmpty) {
         subtitleTracks.assignAll(
-          vc.availableSubtitles.map((t) => SubtitleTrack(
-            label: t.label,
-            langCode: t.langCode,
-            url: t.url,
-            isDefault: t.isDefault,
-          )).toList(),
+          vc.availableSubtitles
+              .map(
+                (t) => SubtitleTrack(
+                  label: t.label,
+                  langCode: t.langCode,
+                  url: t.url,
+                  isDefault: t.isDefault,
+                ),
+              )
+              .toList(),
         );
 
         SubtitleTrack? bestTrack;
@@ -901,12 +1081,16 @@ class TowerPlayerController extends GetxController {
 
       if (vc.availableAudioTracks.isNotEmpty && audioTracks.isEmpty) {
         audioTracks.assignAll(
-          vc.availableAudioTracks.map((t) => AudioTrack(
-            label: t.label,
-            langCode: t.langCode,
-            type: t.type,
-            url: t.url,
-          )).toList(),
+          vc.availableAudioTracks
+              .map(
+                (t) => AudioTrack(
+                  label: t.label,
+                  langCode: t.langCode,
+                  type: t.type,
+                  url: t.url,
+                ),
+              )
+              .toList(),
         );
 
         AudioTrack? bestAudio;
@@ -1022,10 +1206,14 @@ class TowerPlayerController extends GetxController {
         await _audioTrackController?.pause();
         _stopWatchTimer();
         _trackAnalytics(
-          PlayerEvent('pause', data: {'position': activePlayback.position.inSeconds}),
+          PlayerEvent(
+            'pause',
+            data: {'position': activePlayback.position.inSeconds},
+          ),
         );
       } else {
-        if (activePlayback.duration > Duration.zero && activePlayback.position >= activePlayback.duration) {
+        if (activePlayback.duration > Duration.zero &&
+            activePlayback.position >= activePlayback.duration) {
           await activePlayback.seek(Duration.zero);
           await _audioTrackController?.seekTo(Duration.zero);
         }
@@ -1035,7 +1223,10 @@ class TowerPlayerController extends GetxController {
         await _audioTrackController?.play();
         _startWatchTimer();
         _trackAnalytics(
-          PlayerEvent('play', data: {'position': activePlayback.position.inSeconds}),
+          PlayerEvent(
+            'play',
+            data: {'position': activePlayback.position.inSeconds},
+          ),
         );
       }
       onInteraction();
@@ -1048,7 +1239,15 @@ class TowerPlayerController extends GetxController {
     try {
       _hasEnded = false; // Reset ended guard on seek
       await activePlayback.seek(pos);
-      await _audioTrackController?.seekTo(pos);
+      if (_audioTrackController != null &&
+          _audioTrackController!.value.isInitialized) {
+        final audioDur = _audioTrackController!.value.duration;
+        if (audioDur > Duration.zero && pos <= audioDur) {
+          await _audioTrackController!.seekTo(pos);
+        } else {
+          await _audioTrackController!.pause();
+        }
+      }
       onInteraction();
     } catch (e) {
       debugPrint('[TowerPlayer] Seek error: $e');
@@ -1155,12 +1354,12 @@ class TowerPlayerController extends GetxController {
     }
 
     if (isLooping.value) return; // Looping is handled by VideoPlayerController
-    
+
     // Reset overlay hidden state so it shows initially
     isEndScreenOverlayHidden.value = false;
     // Show End Screen overlay
     showEndScreen.value = true;
-    
+
     if (isAutoplay.value) {
       startAutoplayCountdown();
     }
@@ -1343,7 +1542,9 @@ class TowerPlayerController extends GetxController {
       }
     } catch (e) {
       debugPrint('[TowerPlayer] Mode switch error: $e');
-      playbackMode.value = isAudioOnly.value ? PlaybackMode.audio : PlaybackMode.video;
+      playbackMode.value = isAudioOnly.value
+          ? PlaybackMode.audio
+          : PlaybackMode.video;
     } finally {
       _isSwitchingModes = false;
     }
@@ -1441,8 +1642,6 @@ class TowerPlayerController extends GetxController {
     closeSettings();
     try {
       if (Get.isRegistered<VideoController>(tag: tag)) {
-        final vc = Get.find<VideoController>(tag: tag);
-
         // 1. Dispose old audio track controller if exists
         if (_audioTrackController != null) {
           try {
@@ -1451,51 +1650,39 @@ class TowerPlayerController extends GetxController {
           _audioTrackController = null;
         }
 
-        // 2. Handle type-specific switching
-        if (track.type == 'Audio' && track.url != null && track.url!.isNotEmpty) {
-          // Switch main player back to original video resolution if it's currently on a dubbed video
-          if (vc.currentResolution.value?.url != vc.availableResolutions.first.url) {
-            vc.setResolution(vc.availableResolutions.first);
-          }
-          
-          // Mute main video player
+        // 2. Industry Standard Multi-Audio Track overlay
+        if (track.url != null && track.url!.isNotEmpty) {
+          // Mute main video player (master video duration & stream remain master authority)
           videoPlayerController.setVolume(0);
 
           // Initialize secondary audio player
-          _audioTrackController = VideoPlayerController.networkUrl(Uri.parse(track.url!));
+          _audioTrackController = VideoPlayerController.networkUrl(
+            Uri.parse(track.url!),
+          );
           _audioTrackController!.initialize().then((_) {
             if (_audioTrackController == null) return;
-            
+
             // Sync initial settings
-            _audioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
-            _audioTrackController!.setPlaybackSpeed(videoPlayerController.value.playbackSpeed);
-            _audioTrackController!.seekTo(videoPlayerController.value.position);
-            
+            _audioTrackController!.setVolume(
+              isMuted.value ? 0.0 : volume.value,
+            );
+            _audioTrackController!.setPlaybackSpeed(
+              videoPlayerController.value.playbackSpeed,
+            );
+
+            final currentPos = videoPlayerController.value.position;
+            final audioDur = _audioTrackController!.value.duration;
+            if (audioDur > Duration.zero && currentPos <= audioDur) {
+              _audioTrackController!.seekTo(currentPos);
+            }
+
             if (videoPlayerController.value.isPlaying) {
               _audioTrackController!.play();
             }
           });
-        } else if (track.type == 'Video' && track.url != null && track.url!.isNotEmpty) {
-          // Unmute main video player
-          videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
-
-          final curr = vc.currentResolution.value;
-          vc.setResolution(
-            VideoResolutionV2(
-              label: '${curr?.label ?? 'Auto'} (Dubbed)',
-              url: track.url!,
-              width: curr?.width ?? 0,
-              height: curr?.height ?? 0,
-              bitrate: curr?.bitrate ?? 0,
-            ),
-          );
         } else {
-          // 'Original' or fallback
-          // Unmute main video player
+          // 'Original' audio track selected: unmute master video player
           videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
-          if (vc.availableResolutions.isNotEmpty) {
-            vc.setResolution(vc.availableResolutions.first);
-          }
         }
       }
     } catch (e) {
@@ -1547,8 +1734,9 @@ class TowerPlayerController extends GetxController {
 
   void openSettings([BuildContext? context]) {
     final ctx = context ?? Get.context;
-    final isMobilePlatform = defaultTargetPlatform == TargetPlatform.android ||
-                             defaultTargetPlatform == TargetPlatform.iOS;
+    final isMobilePlatform =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     final isMobileWidth = ctx != null && (MediaQuery.of(ctx).size.width < 600);
     final isMobile = isMobilePlatform || isMobileWidth;
 
@@ -1578,7 +1766,7 @@ class TowerPlayerController extends GetxController {
     focusNode.requestFocus();
     final nextState = !isFullScreen.value;
     isFullScreen.value = nextState;
-    
+
     // Sync with videoController if registered
     try {
       final vc = videoController;
@@ -1621,9 +1809,11 @@ class TowerPlayerController extends GetxController {
         debugPrint('[TowerPlayer] Native Fullscreen error: $e');
       }
     }
-    
+
     onInteraction();
-    _trackAnalytics(PlayerEvent(nextState ? 'fullscreen_enter' : 'fullscreen_exit'));
+    _trackAnalytics(
+      PlayerEvent(nextState ? 'fullscreen_enter' : 'fullscreen_exit'),
+    );
   }
 
   void _setupChewieListeners() {
@@ -1654,7 +1844,8 @@ class TowerPlayerController extends GetxController {
   Future<void> togglePiP() async {
     if (kIsWeb) {
       try {
-        final video = html.document.querySelector('video') as html.VideoElement?;
+        final video =
+            html.document.querySelector('video') as html.VideoElement?;
         if (video == null) return;
         final docJs = js.JsObject.fromBrowserObject(html.document);
         if (docJs['pictureInPictureElement'] == null) {
@@ -1839,7 +2030,11 @@ class TowerPlayerController extends GetxController {
   void setSleepTimer(Duration duration, {bool isEndOfVideo = false}) {
     sleepTimerService.setActivePlayback(activePlayback);
     sleepTimerService.startTimer(duration, isEndOfVideo: isEndOfVideo);
-    showToast(isEndOfVideo ? 'Sleep timer: End of video' : 'Sleep timer: ${duration.inMinutes} min');
+    showToast(
+      isEndOfVideo
+          ? 'Sleep timer: End of video'
+          : 'Sleep timer: ${duration.inMinutes} min',
+    );
   }
 
   void extendSleepTimer(Duration addDuration) {
@@ -1859,24 +2054,26 @@ class TowerPlayerController extends GetxController {
   }
 
   static Future<void> triggerGlobalSleepPause() async {
-    final playersToPause = _activePlayers.where((p) => p.isPlaying.value).toList();
+    final playersToPause = _activePlayers
+        .where((p) => p.isPlaying.value)
+        .toList();
     if (playersToPause.isEmpty) {
       playersToPause.addAll(_activePlayers.where((p) => p.isInitialized.value));
     }
-    
+
     if (playersToPause.isNotEmpty) {
       final originalVolumes = <TowerPlayerController, double>{};
       for (final p in playersToPause) {
         originalVolumes[p] = p.volume.value;
       }
-      
+
       for (var i = 10; i >= 0; i--) {
         for (final p in playersToPause) {
           p.setVolume(originalVolumes[p]! * (i / 10));
         }
         await Future.delayed(const Duration(milliseconds: 100));
       }
-      
+
       for (final p in playersToPause) {
         await p.videoPlayerController.pause();
         p.setVolume(originalVolumes[p]!);
@@ -2012,8 +2209,7 @@ class TowerPlayerController extends GetxController {
 
     String? resolvedUrl;
     if (selectedAd.resolutions != null && selectedAd.resolutions!.isNotEmpty) {
-      final resList =
-          List<Map<String, dynamic>>.from(selectedAd.resolutions!);
+      final resList = List<Map<String, dynamic>>.from(selectedAd.resolutions!);
 
       // Select resolution based on global quality preference if set and not Auto
       final pref = TowerPlayerController.globalQualityPreference;
@@ -2032,14 +2228,14 @@ class TowerPlayerController extends GetxController {
         }
       }
 
-      // If Auto or no direct match, pick optimal/highest resolution <= 720p
+      // If Auto or no direct match, pick optimal/highest resolution <= 1040p
       if (selectedResolution == null) {
         resList.sort(
           (a, b) =>
               (b['height'] as int? ?? 0).compareTo(a['height'] as int? ?? 0),
         );
         selectedResolution = resList.firstWhere(
-          (res) => (res['height'] as int? ?? 0) <= 720,
+          (res) => (res['height'] as int? ?? 0) <= 1040,
           orElse: () => resList.first,
         );
       }

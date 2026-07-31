@@ -57,8 +57,3 @@ class FeedbackController extends GetxController {
     }
   }
 }
-
-
-
-
-

@@ -36,8 +36,3 @@ class MainPresentationBinding extends Bindings {
     Get.lazyPut<SubscriptionController>(SubscriptionController.new);
   }
 }
-
-
-
-
-

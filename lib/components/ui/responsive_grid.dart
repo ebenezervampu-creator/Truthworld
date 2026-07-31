@@ -8,9 +8,9 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Consistent spacing using tokens
 /// - Accessibility support
 class ResponsiveGrid extends StatelessWidget {
-
   const ResponsiveGrid({
-    required this.children, super.key,
+    required this.children,
+    super.key,
     this.columnsDesktop = 4,
     this.columnsTablet = 3,
     this.columnsMobile = 2,
@@ -66,8 +66,3 @@ class ResponsiveGrid extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

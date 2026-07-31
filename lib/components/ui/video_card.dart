@@ -15,6 +15,7 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
@@ -24,9 +25,9 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 /// Reusable Modern Avatar Widget matching the homescreen design
 class _ModernAvatar extends StatelessWidget {
-
   const _ModernAvatar({
-    required this.radius, this.imageUrl,
+    required this.radius,
+    this.imageUrl,
     this.placeholderText,
   });
   final String? imageUrl;
@@ -84,13 +85,12 @@ class _ModernAvatar extends StatelessWidget {
 class HoverPreviewCoordinator {
   static final RxBool globalMute = true.obs;
   static _VideoCardState? _activeCardState;
-  static bool _hasInitializedListener = false;
+  static Worker? _muteWorker;
 
   static void setActiveCard(dynamic cardState) {
     if (cardState is! _VideoCardState) return;
-    if (!_hasInitializedListener) {
-      _hasInitializedListener = true;
-      ever(globalMute, (bool isMuted) {
+    if (_muteWorker == null) {
+      _muteWorker = ever(globalMute, (bool isMuted) {
         if (!isMuted) {
           pauseAllMainPlayers();
         }
@@ -123,16 +123,18 @@ class HoverPreviewCoordinator {
     try {
       TowerPlayerController.pauseAllActivePlayers();
     } catch (e) {
-      debugPrint('[HoverPreviewCoordinator] Error pausing active tower players: $e');
+      debugPrint(
+        '[HoverPreviewCoordinator] Error pausing active tower players: $e',
+      );
     }
   }
 }
 
 @immutable
 class VideoCard extends StatefulWidget {
-
   const VideoCard({
-    required this.video, super.key,
+    required this.video,
+    super.key,
     this.isGrid = false,
     this.heroPrefix = 'video_card',
     this.onTap,
@@ -151,7 +153,8 @@ class VideoCard extends StatefulWidget {
 class _VideoCardState extends State<VideoCard> {
   final RxBool _isHovered = false.obs;
   Timer? _hoverTimer;
-  final Rxn<VideoPlayerController> _videoPlayerController = Rxn<VideoPlayerController>();
+  final Rxn<VideoPlayerController> _videoPlayerController =
+      Rxn<VideoPlayerController>();
   final RxBool _isControllerInitialized = false.obs;
   final RxBool _isLoadingVideo = false.obs;
   late final Worker _muteWorker;
@@ -166,7 +169,8 @@ class _VideoCardState extends State<VideoCard> {
     _realChannelName.value = widget.video.channelName;
     _loadRealChannelData();
     _muteWorker = ever(HoverPreviewCoordinator.globalMute, (bool isMuted) {
-      if (_videoPlayerController.value != null && _isControllerInitialized.value) {
+      if (_videoPlayerController.value != null &&
+          _isControllerInitialized.value) {
         _videoPlayerController.value!.setVolume(isMuted ? 0.0 : 1.0);
       }
     });
@@ -175,7 +179,9 @@ class _VideoCardState extends State<VideoCard> {
   Future<void> _loadRealChannelData() async {
     if (widget.video.channelId.isEmpty) return;
     // Only query Firestore if Video model lacks avatar or name
-    if (_realChannelAvatarUrl.value.isNotEmpty && _realChannelName.value.isNotEmpty) return;
+    if (_realChannelAvatarUrl.value.isNotEmpty &&
+        _realChannelName.value.isNotEmpty)
+      return;
     try {
       final doc = await FirebaseFirestore.instance
           .collection('channels')
@@ -295,9 +301,13 @@ class _VideoCardState extends State<VideoCard> {
 
       await controller.initialize();
 
-      if (mounted && _isHovered.value && _videoPlayerController.value == controller) {
+      if (mounted &&
+          _isHovered.value &&
+          _videoPlayerController.value == controller) {
         HoverPreviewCoordinator.setActiveCard(this);
-        await controller.setVolume(HoverPreviewCoordinator.globalMute.value ? 0.0 : 1.0);
+        await controller.setVolume(
+          HoverPreviewCoordinator.globalMute.value ? 0.0 : 1.0,
+        );
         await controller.setLooping(true);
         await controller.play();
         _isControllerInitialized.value = true;
@@ -336,8 +346,9 @@ class _VideoCardState extends State<VideoCard> {
   void _handleVisibilityChanged(double visibleFraction) {
     if (!mounted || widget.disableHoverPreview) return;
     // Only apply visibility-based preview on mobile platforms (Android/iOS)
-    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
-                     defaultTargetPlatform == TargetPlatform.iOS;
+    final isMobile =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     if (!isMobile || !mounted) return;
 
     if (visibleFraction >= 0.8) {
@@ -355,7 +366,10 @@ class _VideoCardState extends State<VideoCard> {
     // Register controller in handoff if initialized to prevent re-buffering
     final controller = _videoPlayerController.value;
     if (controller != null && _isControllerInitialized.value) {
-      VideoPlaybackHandoff.registerActiveController(widget.video.id, controller);
+      VideoPlaybackHandoff.registerActiveController(
+        widget.video.id,
+        controller,
+      );
       // Clear references to prevent disposal on exit
       _videoPlayerController.value = null;
       _isControllerInitialized.value = false;
@@ -433,7 +447,9 @@ class _VideoCardState extends State<VideoCard> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _handleTap(context),
-                    borderRadius: widget.isGrid ? BorderRadius.circular(16) : null,
+                    borderRadius: widget.isGrid
+                        ? BorderRadius.circular(16)
+                        : null,
                     child: widget.isGrid
                         ? _buildGridContent(context, theme)
                         : _buildListContent(context, theme),
@@ -468,7 +484,11 @@ class _VideoCardState extends State<VideoCard> {
             width: AppTheme.sizes.thumbnailMediumWidth,
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: _buildGridVideoThumbnail(context, theme, borderRadius: BorderRadius.circular(8)),
+              child: _buildGridVideoThumbnail(
+                context,
+                theme,
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -505,8 +525,13 @@ class _VideoCardState extends State<VideoCard> {
     );
   }
 
-  Widget _buildGridVideoThumbnail(BuildContext context, ThemeData theme, {BorderRadius? borderRadius}) {
-    final effectiveBorderRadius = borderRadius ?? const BorderRadius.vertical(top: Radius.circular(16));
+  Widget _buildGridVideoThumbnail(
+    BuildContext context,
+    ThemeData theme, {
+    BorderRadius? borderRadius,
+  }) {
+    final effectiveBorderRadius =
+        borderRadius ?? const BorderRadius.vertical(top: Radius.circular(16));
 
     return Hero(
       tag: '${widget.heroPrefix}_${widget.video.id}',
@@ -523,25 +548,30 @@ class _VideoCardState extends State<VideoCard> {
             return Stack(
               fit: StackFit.expand,
               children: [
-                if (isInitialized && controller != null) ClipRect(
-                        child: FittedBox(
-                          fit: BoxFit.cover,
-                          child: SizedBox(
-                            width: controller.value.size.width > 0
-                                ? controller.value.size.width
-                                : 160,
-                            height: controller.value.size.height > 0
-                                ? controller.value.size.height
-                                : 90,
-                            child: VideoPlayer(controller),
-                          ),
-                        ),
-                      ) else CachedNetworkImage(
-                        imageUrl: widget.video.thumbnailUrl,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => _buildThumbnailShimmer(theme),
-                        errorWidget: (context, url, error) => _buildThumbnailError(theme),
+                if (isInitialized && controller != null)
+                  ClipRect(
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: controller.value.size.width > 0
+                            ? controller.value.size.width
+                            : 160,
+                        height: controller.value.size.height > 0
+                            ? controller.value.size.height
+                            : 90,
+                        child: VideoPlayer(controller),
                       ),
+                    ),
+                  )
+                else
+                  CachedNetworkImage(
+                    imageUrl: widget.video.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        _buildThumbnailShimmer(theme),
+                    errorWidget: (context, url, error) =>
+                        _buildThumbnailError(theme),
+                  ),
                 if (!isInitialized)
                   Container(
                     decoration: BoxDecoration(
@@ -566,7 +596,9 @@ class _VideoCardState extends State<VideoCard> {
                         vertical: AppTheme.spacing.xs / 2,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.95), // Emerald green
+                        color: const Color(
+                          0xFF10B981,
+                        ).withValues(alpha: 0.95), // Emerald green
                         borderRadius: AppTheme.radius.circularMd,
                         border: Border.all(
                           color: AppColors.textPrimary.withValues(alpha: 0.15),
@@ -577,7 +609,7 @@ class _VideoCardState extends State<VideoCard> {
                             color: Colors.black26,
                             blurRadius: 4,
                             offset: Offset(0, 2),
-                          )
+                          ),
                         ],
                       ),
                       child: const Row(
@@ -608,7 +640,10 @@ class _VideoCardState extends State<VideoCard> {
                     bottom: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.bgPage.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(4),
@@ -639,7 +674,9 @@ class _VideoCardState extends State<VideoCard> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isMutedVal ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                          isMutedVal
+                              ? Icons.volume_off_rounded
+                              : Icons.volume_up_rounded,
                           color: AppColors.textPrimary,
                           size: 16,
                         ),
@@ -654,22 +691,36 @@ class _VideoCardState extends State<VideoCard> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Builder(builder: (context) {
-                          final playlistCtrl = Get.isRegistered<PlaylistController>()
-                              ? Get.find<PlaylistController>()
-                              : Get.put(PlaylistController());
-                          return Obx(() {
-                            final isSaved = playlistCtrl.isInWatchLater(widget.video.id);
-                            return _buildHoverActionIconButton(
-                              icon: isSaved ? Icons.check_circle_rounded : Icons.watch_later_outlined,
-                              iconColor: isSaved ? theme.colorScheme.primary : AppColors.textPrimary,
-                              tooltip: isSaved ? 'Saved to Watch Later' : 'Watch later',
-                              onTap: () async {
-                                await playlistCtrl.toggleWatchLater(widget.video.id);
-                              },
-                            );
-                          });
-                        }),
+                        Builder(
+                          builder: (context) {
+                            final playlistCtrl =
+                                Get.isRegistered<PlaylistController>()
+                                ? Get.find<PlaylistController>()
+                                : Get.put(PlaylistController());
+                            return Obx(() {
+                              final isSaved = playlistCtrl.isInWatchLater(
+                                widget.video.id,
+                              );
+                              return _buildHoverActionIconButton(
+                                icon: isSaved
+                                    ? Icons.check_circle_rounded
+                                    : Icons.watch_later_outlined,
+                                iconColor: isSaved
+                                    ? theme.colorScheme.primary
+                                    : AppColors.textPrimary,
+                                tooltip: isSaved
+                                    ? 'Saved to Watch Later'
+                                    : 'Watch later',
+                                onTap: () {
+                                  showModernizedPlaylistDialog(
+                                    context: context,
+                                    videoId: widget.video.id,
+                                  );
+                                },
+                              );
+                            });
+                          },
+                        ),
                         const SizedBox(height: 6),
                         _buildHoverActionIconButton(
                           icon: Icons.playlist_add_rounded,
@@ -679,7 +730,8 @@ class _VideoCardState extends State<VideoCard> {
                               'Added to queue',
                               "'${widget.video.title}' has been added to your play queue.",
                               snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.8),
+                              backgroundColor: theme.colorScheme.primary
+                                  .withValues(alpha: 0.8),
                               colorText: AppColors.textPrimary,
                               margin: const EdgeInsets.all(20),
                               borderRadius: 16,
@@ -694,27 +746,31 @@ class _VideoCardState extends State<VideoCard> {
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: Builder(builder: (context) {
-                    return Obx(() {
-                      final progress = WatchHistoryService.to.getProgress(widget.video.id);
-                      if (progress <= 0) return const SizedBox.shrink();
+                  child: Builder(
+                    builder: (context) {
+                      return Obx(() {
+                        final progress = WatchHistoryService.to.getProgress(
+                          widget.video.id,
+                        );
+                        if (progress <= 0) return const SizedBox.shrink();
 
-                      return Container(
-                        height: 3,
-                        width: double.infinity,
-                        color: AppColors.textPrimary.withValues(alpha: 0.2),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: (progress / 100).clamp(0.0, 1.0),
-                            child: Container(
-                              color: AppColors.error,
+                        return Container(
+                          height: 3,
+                          width: double.infinity,
+                          color: AppColors.textPrimary.withValues(alpha: 0.2),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: FractionallySizedBox(
+                              widthFactor: (progress / 100).clamp(0.0, 1.0),
+                              child: Container(
+                                color: AppColors.error,
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    });
-                  }),
+                        );
+                      });
+                    },
+                  ),
                 ),
               ],
             );
@@ -780,7 +836,7 @@ class _VideoCardState extends State<VideoCard> {
       ),
     );
   }
- 
+
   Widget _buildListVideoInfo(BuildContext context, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -809,7 +865,9 @@ class _VideoCardState extends State<VideoCard> {
                       radius: 10,
                       placeholderText: _realChannelName.value.isEmpty
                           ? '?'
-                          : _realChannelName.value.substring(0, 1).toUpperCase(),
+                          : _realChannelName.value
+                                .substring(0, 1)
+                                .toUpperCase(),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
@@ -854,8 +912,12 @@ class _VideoCardState extends State<VideoCard> {
 
   Widget _buildThumbnailShimmer(ThemeData theme) {
     return Shimmer.fromColors(
-      baseColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      highlightColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
+      baseColor: theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.3,
+      ),
+      highlightColor: theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.1,
+      ),
       child: Container(
         color: theme.colorScheme.surfaceContainerHighest,
       ),

@@ -156,17 +156,31 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
           Expanded(
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search followed topics...',
-                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
+                hintStyle: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 14,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
                 suffixIcon: ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _searchController,
                   builder: (context, value, child) {
                     if (value.text.isNotEmpty) {
                       return IconButton(
-                        icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary, size: 20),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: AppColors.textSecondary,
+                          size: 20,
+                        ),
                         onPressed: () {
                           _searchController.clear();
                           controller.updateSearchQuery('');
@@ -182,7 +196,10 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
               ),
             ),
           ),
@@ -225,9 +242,14 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                   onTap: () => controller.selectTopic(null),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isAllSelected ? AppColors.textPrimary : const Color(0xFF272727),
+                      color: isAllSelected
+                          ? AppColors.textPrimary
+                          : const Color(0xFF272727),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     alignment: Alignment.center,
@@ -235,8 +257,12 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                       'All Topics',
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: isAllSelected ? FontWeight.bold : FontWeight.w500,
-                        color: isAllSelected ? AppColors.bgPage : AppColors.textPrimary,
+                        fontWeight: isAllSelected
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color: isAllSelected
+                            ? AppColors.bgPage
+                            : AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -259,10 +285,15 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   constraints: const BoxConstraints(maxWidth: 240),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.textPrimary : const Color(0xFF272727),
+                    color: isSelected
+                        ? AppColors.textPrimary
+                        : const Color(0xFF272727),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   alignment: Alignment.center,
@@ -276,8 +307,12 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? AppColors.bgPage
+                                : AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -359,9 +394,16 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                     value: 'view_topic',
                     child: Row(
                       children: [
-                        Icon(Icons.visibility_outlined, color: AppColors.textPrimary, size: 20),
+                        Icon(
+                          Icons.visibility_outlined,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
                         SizedBox(width: 12),
-                        Text('View Topic Details', style: TextStyle(color: AppColors.textPrimary)),
+                        Text(
+                          'View Topic Details',
+                          style: TextStyle(color: AppColors.textPrimary),
+                        ),
                       ],
                     ),
                   ),
@@ -369,9 +411,16 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                     value: 'unfollow',
                     child: Row(
                       children: [
-                        Icon(Icons.bookmark_remove_outlined, color: AppColors.textPrimary, size: 20),
+                        Icon(
+                          Icons.bookmark_remove_outlined,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
                         SizedBox(width: 12),
-                        Text('Unfollow Topic', style: TextStyle(color: AppColors.textPrimary)),
+                        Text(
+                          'Unfollow Topic',
+                          style: TextStyle(color: AppColors.textPrimary),
+                        ),
                       ],
                     ),
                   ),
@@ -403,7 +452,11 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.topic_rounded, color: Colors.white, size: 36),
+                      const Icon(
+                        Icons.topic_rounded,
+                        color: Colors.white,
+                        size: 36,
+                      ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -428,7 +481,10 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textSecondary,
+                      ),
                     ],
                   ),
                 ),
@@ -519,7 +575,10 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                   child: GestureDetector(
                     onTap: () => _navigateToTopicDetails(topic),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(12),
@@ -528,7 +587,11 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.topic_rounded, color: Colors.white, size: 12),
+                          const Icon(
+                            Icons.topic_rounded,
+                            color: Colors.white,
+                            size: 12,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             topic.title,
@@ -550,7 +613,10 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                     top: 36,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981),
                         borderRadius: BorderRadius.circular(4),
@@ -558,7 +624,11 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 10),
+                          Icon(
+                            Icons.verified_rounded,
+                            color: AppColors.textPrimary,
+                            size: 10,
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'Fact Checked',
@@ -578,7 +648,10 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                   bottom: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
@@ -596,62 +669,66 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
               ],
             ),
           ),
-            const SizedBox(height: 10),
+          const SizedBox(height: 10),
 
-            // Video Title & Options Menu
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                      height: 1.25,
-                    ),
+          // Video Title & Options Menu
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  video.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    height: 1.25,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textSecondary),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => VideoOptionsSheet.show(context, video),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.more_vert,
+                  size: 18,
+                  color: AppColors.textSecondary,
                 ),
-              ],
-            ),
-
-            const SizedBox(height: 4),
-
-            // Channel Name
-            Text(
-              video.channelName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w400,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => VideoOptionsSheet.show(context, video),
               ),
-            ),
+            ],
+          ),
 
-            const SizedBox(height: 2),
+          const SizedBox(height: 4),
 
-            // Views & Upload Time
-            Text(
-              '${FormatUtils.formatCount(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textTertiary,
-              ),
+          // Channel Name
+          Text(
+            video.channelName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w400,
             ),
-          ],
-        ),
-      );
-    }
+          ),
+
+          const SizedBox(height: 2),
+
+          // Views & Upload Time
+          Text(
+            '${FormatUtils.formatCount(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildHorizontalVideoSkeleton(bool isMobile) {
     final cardWidth = isMobile ? 280.0 : 320.0;
@@ -681,11 +758,23 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Container(width: double.infinity, height: 14, color: AppColors.textPrimary),
+                  Container(
+                    width: double.infinity,
+                    height: 14,
+                    color: AppColors.textPrimary,
+                  ),
                   const SizedBox(height: 6),
-                  Container(width: 140, height: 12, color: AppColors.textPrimary),
+                  Container(
+                    width: 140,
+                    height: 12,
+                    color: AppColors.textPrimary,
+                  ),
                   const SizedBox(height: 4),
-                  Container(width: 100, height: 12, color: AppColors.textPrimary),
+                  Container(
+                    width: 100,
+                    height: 12,
+                    color: AppColors.textPrimary,
+                  ),
                 ],
               ),
             ),
@@ -819,7 +908,11 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: () => Get.toNamed<void>('/explore-topics'),
-              icon: const Icon(Icons.explore_rounded, color: AppColors.bgPage, size: 18),
+              icon: const Icon(
+                Icons.explore_rounded,
+                color: AppColors.bgPage,
+                size: 18,
+              ),
               label: const Text(
                 'Explore Topics',
                 style: TextStyle(

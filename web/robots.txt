@@ -9,9 +9,13 @@ Allow: /playlist
 Allow: /feeds/
 Allow: /trending
 Allow: /browse
+Allow: /studio
+Allow: /advertiser
+Allow: /advertisements
+Allow: /ads
+Allow: /post/
+Allow: /community/
 
-Disallow: /studio/
-Disallow: /dashboard
 Disallow: /settings
 Disallow: /myvideos
 Disallow: /uploadscreen

@@ -28,7 +28,10 @@ void showMoreOptionsBottomSheet(
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.flag_outlined, color: AppColors.textPrimary),
+            leading: const Icon(
+              Icons.flag_outlined,
+              color: AppColors.textPrimary,
+            ),
             title: const Text('Report'),
             onTap: () {
               Navigator.pop(context);
@@ -36,16 +39,25 @@ void showMoreOptionsBottomSheet(
             },
           ),
           ListTile(
-            leading: const Icon(Icons.visibility_off_outlined, color: AppColors.textPrimary),
+            leading: const Icon(
+              Icons.visibility_off_outlined,
+              color: AppColors.textPrimary,
+            ),
             title: const Text('Not interested'),
             onTap: () {
               Navigator.pop(context);
               UserPreferencesService.to.hideVideo(videoId);
-              Get.snackbar('Not interested', "We won't show this video anymore.");
+              Get.snackbar(
+                'Not interested',
+                "We won't show this video anymore.",
+              );
             },
           ),
           ListTile(
-            leading: const Icon(Icons.download_outlined, color: AppColors.textPrimary),
+            leading: const Icon(
+              Icons.download_outlined,
+              color: AppColors.textPrimary,
+            ),
             title: const Text('Save video'),
             onTap: () {
               Navigator.pop(context);
@@ -65,14 +77,20 @@ void showMoreOptionsBottomSheet(
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.rotate_left, color: AppColors.textPrimary),
+                      icon: const Icon(
+                        Icons.rotate_left,
+                        color: AppColors.textPrimary,
+                      ),
                       onPressed: () {
                         rotateCallback(false);
                         Navigator.pop(context);
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.rotate_right, color: AppColors.textPrimary),
+                      icon: const Icon(
+                        Icons.rotate_right,
+                        color: AppColors.textPrimary,
+                      ),
                       onPressed: () {
                         rotateCallback(true);
                         Navigator.pop(context);
@@ -88,8 +106,3 @@ void showMoreOptionsBottomSheet(
     ),
   );
 }
-
-
-
-
-

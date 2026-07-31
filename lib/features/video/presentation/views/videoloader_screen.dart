@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/services/video_hydration_service.dart';
 
 // Constants for consistent styling
@@ -69,12 +70,16 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
             hlsUrl: injectedData['hlsUrl'] as String? ?? '',
             dashUrl: injectedData['dashUrl'] as String? ?? '',
             ownerId: injectedData['creatorId'] as String? ?? 'unknown',
-            channelId: injectedData['channelId'] as String? ?? (injectedData['creatorId'] as String? ?? 'unknown'),
+            channelId:
+                injectedData['channelId'] as String? ??
+                (injectedData['creatorId'] as String? ?? 'unknown'),
             channelName: injectedData['creatorName'] as String? ?? 'Creator',
             category: injectedData['category'] as String? ?? 'General',
             tags: List<String>.from(injectedData['tags'] as List? ?? []),
             viewCount: injectedData['viewCount'] as int? ?? 0,
-            vDurationValue: Duration(seconds: injectedData['duration'] as int? ?? 0),
+            vDurationValue: Duration(
+              seconds: injectedData['duration'] as int? ?? 0,
+            ),
             createdAt: Timestamp.now(), // Fallback
           );
 
@@ -105,6 +110,33 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       final rawArgs = Get.arguments;
       if (rawArgs is Map && rawArgs['clip'] != null) {
         args['clip'] = rawArgs['clip'];
+      } else {
+        final startStr = Get.parameters['start'] ?? Get.parameters['clipStart'];
+        final endStr = Get.parameters['end'] ?? Get.parameters['clipEnd'];
+        final clipTitleParam =
+            Get.parameters['clipTitle'] ?? Get.parameters['title'];
+        if (startStr != null && endStr != null) {
+          final start = double.tryParse(startStr);
+          final end = double.tryParse(endStr);
+          if (start != null && end != null && end > start) {
+            args['clip'] = VideoClip(
+              id:
+                  Get.parameters['clipId'] ??
+                  'temp_${DateTime.now().millisecondsSinceEpoch}',
+              videoId: video.id,
+              userId: '',
+              title: clipTitleParam != null
+                  ? Uri.decodeComponent(clipTitleParam)
+                  : '${video.title} Clip',
+              startTime: start,
+              endTime: end,
+              thumbnailUrl: video.thumbnailUrl,
+              videoTitle: video.title,
+              channelName: video.channelName,
+              createdAt: DateTime.now(),
+            );
+          }
+        }
       }
       Get.offNamed<void>('/watch?v=${video.id}', arguments: args);
       debugPrint('🧭 Video loaded and navigating to video screen');
@@ -187,8 +219,3 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
     );
   }
 }
-
-
-
-
-

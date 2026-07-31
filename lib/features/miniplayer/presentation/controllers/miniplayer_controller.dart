@@ -39,17 +39,20 @@ class MiniplayerController extends GetxController
   // ═══════════════════════════════════════════════════════════════════════════
 
   static MiniplayerController get to {
-    try {
+    if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
       return Get.find<MiniplayerController>(tag: 'miniplayer');
-    } catch (e) {
-      // If not registered, register it on the fly (failsafe)
-      debugPrint('MiniplayerController.to: Controller not found, registering failsafe.');
-      return Get.put<MiniplayerController>(
-        MiniplayerController(),
-        tag: 'miniplayer',
-        permanent: true,
-      );
     }
+    if (Get.isRegistered<MiniplayerController>()) {
+      return Get.find<MiniplayerController>();
+    }
+    debugPrint(
+      'MiniplayerController.to: Registering default MiniplayerController.',
+    );
+    return Get.put<MiniplayerController>(
+      MiniplayerController(),
+      tag: 'miniplayer',
+      permanent: true,
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -105,6 +108,9 @@ class MiniplayerController extends GetxController
   /// Used to fade controls in/out like YouTube.
   final RxBool isHovering = false.obs;
 
+  /// Whether mobile touch controls are currently visible on top of the video frame.
+  final RxBool showMobileControls = false.obs;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // NON-REACTIVE STATE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -112,6 +118,7 @@ class MiniplayerController extends GetxController
   VideoPlayerController? _vpc;
   ChewieController? _chewie;
   Timer? _positionTimer;
+  Timer? _hideControlsTimer;
   bool _isClosed = false;
   StreamSubscription? _connectivitySubscription;
 
@@ -134,18 +141,21 @@ class MiniplayerController extends GetxController
     _connectivitySubscription = Get.find<ConnectivityService>()
         .onConnectivityChanged
         .listen((results) {
-      final isConnected = results.any((r) => r != ConnectivityResult.none);
-      if (isConnected && error.value.isNotEmpty) {
-        debugPrint('[MiniplayerController] 🌐 Internet restored. Attempting recovery...');
-        attemptRecovery();
-      }
-    });
+          final isConnected = results.any((r) => r != ConnectivityResult.none);
+          if (isConnected && error.value.isNotEmpty) {
+            debugPrint(
+              '[MiniplayerController] 🌐 Internet restored. Attempting recovery...',
+            );
+            attemptRecovery();
+          }
+        });
   }
 
   @override
   void onClose() {
     _isClosed = true;
     _stopPositionTimer();
+    _hideControlsTimer?.cancel();
     _connectivitySubscription?.cancel();
     _disposeVideoControllers();
     super.onClose();
@@ -210,15 +220,21 @@ class MiniplayerController extends GetxController
       final wasHandoff = handoffVpc != null;
 
       if (wasHandoff) {
-        debugPrint('[MiniplayerController] Found active handoff controller for: ${video.id}');
+        debugPrint(
+          '[MiniplayerController] Found active handoff controller for: ${video.id}',
+        );
         vpc = handoffVpc;
-        await vpc.setLooping(false); // Disable looping which was enabled for hover previews
+        await vpc.setLooping(
+          false,
+        ); // Disable looping which was enabled for hover previews
         await vpc.setVolume(1); // Reset volume to unmute
       } else {
         // Resolve gs:// URLs if needed
         if (url.startsWith('gs://')) {
           try {
-            url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
+            url = await FirebaseStorage.instance
+                .refFromURL(url)
+                .getDownloadURL();
           } catch (_) {
             // If import fails or resolution fails, let it fall through to networkUrl to fail naturally
           }
@@ -262,7 +278,8 @@ class MiniplayerController extends GetxController
       final errorMsg = e.toString();
       if (errorMsg.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
           errorMsg.contains('Format error')) {
-        error.value = 'Video format not supported by browser. Please use H.264 encoded videos.';
+        error.value =
+            'Video format not supported by browser. Please use H.264 encoded videos.';
       } else {
         error.value = 'Failed to load video: $e';
       }
@@ -420,7 +437,31 @@ class MiniplayerController extends GetxController
   }
 
   void seekTo(Duration position) {
+    currentPosition.value = position;
     _vpc?.seekTo(position);
+  }
+
+  void seekToRatio(double ratio) {
+    final vpc = _vpc;
+    if (vpc == null) return;
+    final totalMs = totalDuration.value.inMilliseconds;
+    if (totalMs <= 0) return;
+    final targetMs = (totalMs * ratio.clamp(0.0, 1.0)).toInt();
+    final targetDuration = Duration(milliseconds: targetMs);
+    currentPosition.value = targetDuration;
+    vpc.seekTo(targetDuration);
+  }
+
+  void toggleMobileControls() {
+    showMobileControls.value = !showMobileControls.value;
+    _hideControlsTimer?.cancel();
+    if (showMobileControls.value) {
+      _hideControlsTimer = Timer(const Duration(seconds: 3), () {
+        if (!_isClosed) {
+          showMobileControls.value = false;
+        }
+      });
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -443,24 +484,27 @@ class MiniplayerController extends GetxController
     if (mode.value == MiniplayerMode.dismissed) return;
     mode.value = MiniplayerMode.dragging;
     // Delta is negative when dragging up (expanding)
-    final newProgress =
-        (dragProgress.value - delta / screenHeight).clamp(0.0, 1.0);
+    final newProgress = (dragProgress.value - delta / screenHeight).clamp(
+      0.0,
+      1.0,
+    );
     dragProgress.value = newProgress;
   }
 
   void onDragEnd() {
     if (mode.value != MiniplayerMode.dragging) return;
-    
+
     // If dragging down from collapsed state past dismiss threshold, dismiss
     if (dragProgress.value < 0.15 && mode.value == MiniplayerMode.dragging) {
       // Check if we were collapsed and dragged down
       final previousMode = mode.value;
-      if (previousMode == MiniplayerMode.dragging && dragProgress.value < MiniplayerConfig.dismissThreshold) {
+      if (previousMode == MiniplayerMode.dragging &&
+          dragProgress.value < MiniplayerConfig.dismissThreshold) {
         dismiss();
         return;
       }
     }
-    
+
     // Otherwise, snap to nearest state based on snap threshold
     if (dragProgress.value > MiniplayerConfig.snapThreshold) {
       expand();
@@ -480,9 +524,16 @@ class MiniplayerController extends GetxController
         mode.value != MiniplayerMode.dragging) {
       return;
     }
-    final current = dragOffset.value ?? _defaultDockOffset(cardSize, screenSize);
-    final maxX = (screenSize.width - cardSize.width).clamp(0.0, double.infinity);
-    final maxY = (screenSize.height - cardSize.height).clamp(0.0, double.infinity);
+    final current =
+        dragOffset.value ?? _defaultDockOffset(cardSize, screenSize);
+    final maxX = (screenSize.width - cardSize.width).clamp(
+      0.0,
+      double.infinity,
+    );
+    final maxY = (screenSize.height - cardSize.height).clamp(
+      0.0,
+      double.infinity,
+    );
     dragOffset.value = Offset(
       (current.dx + delta.dx).clamp(0.0, maxX),
       (current.dy + delta.dy).clamp(0.0, maxY),
@@ -494,8 +545,14 @@ class MiniplayerController extends GetxController
   Offset effectiveOffset(Size cardSize, Size screenSize) {
     final stored = dragOffset.value;
     if (stored == null) return _defaultDockOffset(cardSize, screenSize);
-    final maxX = (screenSize.width - cardSize.width).clamp(0.0, double.infinity);
-    final maxY = (screenSize.height - cardSize.height).clamp(0.0, double.infinity);
+    final maxX = (screenSize.width - cardSize.width).clamp(
+      0.0,
+      double.infinity,
+    );
+    final maxY = (screenSize.height - cardSize.height).clamp(
+      0.0,
+      double.infinity,
+    );
     return Offset(
       stored.dx.clamp(0.0, maxX),
       stored.dy.clamp(0.0, maxY),
@@ -534,10 +591,13 @@ class MiniplayerController extends GetxController
       Get.until((route) => route.settings.name?.contains('/watch') ?? false);
     } else {
       // Navigate first, then dismiss so the miniplayer doesn't flash
-      Get.toNamed('/watch?v=${video.id}', arguments: {
-        'video': video,
-        'resumePosition': pos.inMilliseconds,
-      });
+      Get.toNamed(
+        '/watch?v=${video.id}',
+        arguments: {
+          'video': video,
+          'resumePosition': pos.inMilliseconds,
+        },
+      );
     }
 
     // Short delay to let the navigation start before disposing
@@ -618,7 +678,11 @@ class MiniplayerController extends GetxController
     return const ColoredBox(
       color: AppColors.bgPage,
       child: Center(
-        child: Icon(Icons.error_outline, color: AppColors.textSecondary, size: 32),
+        child: Icon(
+          Icons.error_outline,
+          color: AppColors.textSecondary,
+          size: 32,
+        ),
       ),
     );
   }
@@ -634,7 +698,9 @@ class MiniplayerController extends GetxController
     final currentPos = currentPosition.value;
     final wasPlaying = isPlaying.value;
 
-    debugPrint('[MiniplayerController] 🔄 Attempting recovery from ${currentPos.inSeconds}s...');
+    debugPrint(
+      '[MiniplayerController] 🔄 Attempting recovery from ${currentPos.inSeconds}s...',
+    );
 
     error.value = '';
     isBuffering.value = true;
@@ -662,14 +728,8 @@ class MiniplayerController extends GetxController
   }
 
   /// Check if the miniplayer is in a healthy state.
-  bool get isHealthy => 
-      !_isClosed && 
-      error.value.isEmpty && 
+  bool get isHealthy =>
+      !_isClosed &&
+      error.value.isEmpty &&
       (mode.value == MiniplayerMode.dismissed || _vpc != null);
 }
-
-
-
-
-
-

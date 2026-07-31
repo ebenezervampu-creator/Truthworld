@@ -2,9 +2,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 class UploadState {
-
   const UploadState({
-    required this.scheduledDate, this.selectedCategory = 'Music',
+    required this.scheduledDate,
+    this.selectedCategory = 'Music',
     this.selectedChannel,
     this.selectedVisibility = 'public',
     this.isKidFriendly = false,
@@ -14,7 +14,7 @@ class UploadState {
     this.allowRatings = false,
     this.selectedPlaylist = '',
     this.isScheduled = false,
-    
+
     this.aiTranscriptEnabled = true,
     this.aiChaptersEnabled = false,
     this.aiGenerateSubtitles = false,
@@ -42,7 +42,7 @@ class UploadState {
   final String selectedPlaylist;
   final bool isScheduled;
   final DateTime scheduledDate;
-  
+
   // AI Features
   final bool aiTranscriptEnabled;
   final bool aiChaptersEnabled;

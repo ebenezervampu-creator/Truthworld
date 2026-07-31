@@ -1,6 +1,7 @@
 import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
 import { PIPELINE_CONFIG } from "../config";
 import { telemetryService } from "./telemetry";
+import { getVertexAI } from "../utils/ai-client";
 import { normalizeClaimText, hashClaimText } from "../utils/claim-normalization";
 import {
   ClaimStatus,
@@ -94,7 +95,7 @@ export class ClaimVerificationService {
   private confidenceThreshold: number;
 
   constructor(apiKey: string, confidenceThreshold: number = 0.6) {
-    this.genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+    this.genAI = getVertexAI();
     this.confidenceThreshold = confidenceThreshold;
   }
 
@@ -353,6 +354,7 @@ export class ClaimVerificationService {
       minSourcesRequired: number;
       sourceDiversityRequired: boolean;
       isDiscoverySensitive?: boolean;
+      providedSources?: string[];
     } = {
         groundingMode: 'sensitive_only',
         forcePro: false,
@@ -367,8 +369,6 @@ export class ClaimVerificationService {
     }
 
     // Format claims for batch processing
-
-
 
     try {
       const remainingToVerify = claims;
@@ -385,8 +385,13 @@ export class ClaimVerificationService {
         tier0Injection = `\n### TIER-0 KNOWLEDGE RECOVERY (WIKIPEDIA):\n${validContexts.map(c => `[ID: ${c.claimId}] ${c.context}`).join('\n')}\n`;
       }
 
-      const prompt = `ROLE: TruthWorld Institutional Verification Engine.
+      let providedSourcesInjection = "";
+      if (options.providedSources && options.providedSources.length > 0) {
+        providedSourcesInjection = `\n### CHANNEL-PROVIDED SOURCES & EVIDENCE (PRIMARY CANDIDATES):\nThe channel creator provided the following sources/references for this video:\n${options.providedSources.map((s, i) => `[Source ${i + 1}] ${s}`).join('\n')}\nCROSS-REFERENCE PROTOCOL: Evaluate and verify the video claims against these channel-provided sources alongside search and institutional knowledge.\n`;
+      }
 
+      const prompt = `ROLE: TruthWorld Institutional Verification Engine.
+${providedSourcesInjection}
 OBJECTIVE: Verify the following batch of claims with world-class source attribution.
 
 PROTOCOL:
@@ -523,7 +528,7 @@ RETURN JSON:
       const hasSensitiveClaims = options.isDiscoverySensitive || options.forcePro || remainingToVerify.some(c => this.isSensitiveClaim(c, options.isDiscoverySensitive));
 
       const standardChain = {
-        primary: PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-pro",
+        primary: PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash",
         fallback: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
         forcePrimary: false,
       };
@@ -532,7 +537,7 @@ RETURN JSON:
       // meaning if Pro failed (rate limit, safety filter), ALL retries hit Pro again.
       // Now Pro falls back to Flash, ensuring verification always has a path forward.
       const sensitiveChain = {
-        primary: PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-pro",
+        primary: PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-flash",
         fallback: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash",
         forcePrimary: false,
       };
@@ -857,6 +862,7 @@ RETURN JSON:
       isDiscoverySensitive?: boolean;
       isRetryPass?: boolean; // v10.6: flag for retry pass routing
       jobId?: string; // v11.5: for circuit breaker logging
+      providedSources?: string[];
     } = {
         groundingMode: 'auto' as any,
         forcePro: false,

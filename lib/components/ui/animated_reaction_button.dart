@@ -4,9 +4,14 @@ import 'package:flutter/services.dart';
 export 'animated_interaction_buttons.dart';
 
 class AnimatedReactionButton extends StatefulWidget {
-
   const AnimatedReactionButton({
-    required this.icon, required this.isActive, required this.activeColor, required this.inactiveColor, required this.onTap, required this.borderRadius, super.key,
+    required this.icon,
+    required this.isActive,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.onTap,
+    required this.borderRadius,
+    super.key,
   });
   final IconData icon;
   final bool isActive;
@@ -33,13 +38,17 @@ class _AnimatedReactionButtonState extends State<AnimatedReactionButton>
     );
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.35)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.35,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 45,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.35, end: 1)
-            .chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween<double>(
+          begin: 1.35,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
         weight: 55,
       ),
     ]).animate(_controller);
@@ -84,4 +93,3 @@ class _AnimatedReactionButtonState extends State<AnimatedReactionButton>
     );
   }
 }
-

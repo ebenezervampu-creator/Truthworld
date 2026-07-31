@@ -9,8 +9,3 @@ export 'data/services/search_service.dart';
 export 'presentation/controllers/search_controller.dart';
 export 'presentation/pages/search_page.dart';
 export 'presentation/widgets/search_widgets.dart';
-
-
-
-
-

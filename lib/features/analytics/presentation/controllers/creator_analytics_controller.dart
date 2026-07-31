@@ -27,7 +27,9 @@ class CreatorAnalyticsController extends GetxController {
   final selectedGeoTab = RxString('states');
 
   // Date range filter
-  final selectedDateRange = Rx<AnalyticsDateRange>(AnalyticsDateRange.last28Days);
+  final selectedDateRange = Rx<AnalyticsDateRange>(
+    AnalyticsDateRange.last28Days,
+  );
   final customStartDate = Rx<DateTime?>(null);
   final customEndDate = Rx<DateTime?>(null);
 
@@ -157,8 +159,11 @@ class CreatorAnalyticsController extends GetxController {
       // Start live viewer polling
       _startLiveViewerPolling(videoId);
     } catch (e, stackTrace) {
-      logger.error('Error loading video analytics: $e',
-          stackTrace: stackTrace, tag: _tag);
+      logger.error(
+        'Error loading video analytics: $e',
+        stackTrace: stackTrace,
+        tag: _tag,
+      );
       videoLoadingError.value = 'Error loading analytics: $e';
     } finally {
       isLoadingVideoAnalytics.value = false;
@@ -169,8 +174,10 @@ class CreatorAnalyticsController extends GetxController {
   // CHANNEL ANALYTICS
   // ---------------------------------------------------------------------------
 
-  Future<void> loadChannelAnalytics(String channelId,
-      {String? channelName}) async {
+  Future<void> loadChannelAnalytics(
+    String channelId, {
+    String? channelName,
+  }) async {
     try {
       isLoadingChannelAnalytics.value = true;
       channelLoadingError.value = '';
@@ -184,7 +191,8 @@ class CreatorAnalyticsController extends GetxController {
       );
 
       if (analytics.totalVideoWatches == 0) {
-        channelLoadingError.value = 'No watch data available for this channel yet';
+        channelLoadingError.value =
+            'No watch data available for this channel yet';
       }
 
       channelAnalytics.value = analytics;
@@ -192,8 +200,11 @@ class CreatorAnalyticsController extends GetxController {
       _updateChannelInsights(analytics);
       _updateChannelSummaryMetrics(analytics);
     } catch (e, stackTrace) {
-      logger.error('Error loading channel analytics: $e',
-          stackTrace: stackTrace, tag: _tag);
+      logger.error(
+        'Error loading channel analytics: $e',
+        stackTrace: stackTrace,
+        tag: _tag,
+      );
       channelLoadingError.value = 'Error loading analytics: $e';
     } finally {
       isLoadingChannelAnalytics.value = false;
@@ -209,8 +220,7 @@ class CreatorAnalyticsController extends GetxController {
     _liveViewerTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) async {
-        final count =
-            await _videoAnalyticsService.getLiveViewerCount(videoId);
+        final count = await _videoAnalyticsService.getLiveViewerCount(videoId);
         liveViewerCount.value = count;
       },
     );
@@ -222,8 +232,9 @@ class CreatorAnalyticsController extends GetxController {
       const Duration(seconds: 30),
       (_) async {
         if (selectedVideoId.isEmpty) {
-          final count = await _videoAnalyticsService
-              .getChannelLiveViewerCount(channelId);
+          final count = await _videoAnalyticsService.getChannelLiveViewerCount(
+            channelId,
+          );
           liveViewerCount.value = count;
         }
       },
@@ -240,7 +251,7 @@ class CreatorAnalyticsController extends GetxController {
     const colors = [
       0xFFEF4444, // Red: < 20 seconds (bounced)
       0xFFF97316, // Orange: < 25%
-      0xFFEAB308, // Yellow: < 50%
+      0xFF8B5CF6, // Purple: < 50%
       0xFF3B82F6, // Blue: < 75%
       0xFF22C55E, // Green: 100%
     ];
@@ -249,55 +260,69 @@ class CreatorAnalyticsController extends GetxController {
     for (final category in WatchtimeCategory.values) {
       final count = analytics.watchtimeCategoryCount[category] ?? 0;
       if (count > 0) {
-        chartData.add(PieChartDataModel(
-          title: category.label,
-          value: count.toDouble(),
-          percentage: analytics.totalViews > 0
-              ? (count / analytics.totalViews) * 100
-              : 0,
-          color: colors[colorIdx % colors.length],
-        ));
+        chartData.add(
+          PieChartDataModel(
+            title: category.label,
+            value: count.toDouble(),
+            percentage: analytics.totalViews > 0
+                ? (count / analytics.totalViews) * 100
+                : 0,
+            color: colors[colorIdx % colors.length],
+          ),
+        );
       }
       colorIdx++;
     }
     watchtimeChartData.value = chartData;
 
     // State traffic chart
-    _buildStateTrafficChart(analytics.stateTrafficPercentage,
-        analytics.stateTraffic);
+    _buildStateTrafficChart(
+      analytics.stateTrafficPercentage,
+      analytics.stateTraffic,
+    );
 
     // City traffic chart (bar chart)
     _buildCityTrafficChart(analytics.cityTraffic);
 
     // Traffic source chart
-    _buildTrafficSourceChart(analytics.trafficSourceBreakdown,
-        analytics.totalViews);
+    _buildTrafficSourceChart(
+      analytics.trafficSourceBreakdown,
+      analytics.totalViews,
+    );
 
     // Area type chart (urban vs rural)
     _buildAreaTypeChart(analytics.urbanViewers, analytics.ruralViewers);
   }
 
   void _updateChannelChartData(ChannelAnalyticsSnapshot analytics) {
-    _buildStateTrafficChart(analytics.stateTrafficPercentage,
-        analytics.stateTraffic);
+    _buildStateTrafficChart(
+      analytics.stateTrafficPercentage,
+      analytics.stateTraffic,
+    );
     _buildCityTrafficChart(analytics.cityTraffic);
-    _buildTrafficSourceChart(analytics.trafficSourceBreakdown,
-        analytics.totalVideoWatches);
+    _buildTrafficSourceChart(
+      analytics.trafficSourceBreakdown,
+      analytics.totalVideoWatches,
+    );
     _buildAreaTypeChart(analytics.urbanViewers, analytics.ruralViewers);
   }
 
   void _buildStateTrafficChart(
-      Map<String, double> pct, Map<String, int> counts) {
+    Map<String, double> pct,
+    Map<String, int> counts,
+  ) {
     final data = <PieChartDataModel>[];
     final stateColors = _generateColors(pct.length);
     var i = 0;
     for (final entry in pct.entries) {
-      data.add(PieChartDataModel(
-        title: entry.key,
-        value: counts[entry.key]?.toDouble() ?? 0,
-        percentage: entry.value,
-        color: stateColors[i % stateColors.length],
-      ));
+      data.add(
+        PieChartDataModel(
+          title: entry.key,
+          value: counts[entry.key]?.toDouble() ?? 0,
+          percentage: entry.value,
+          color: stateColors[i % stateColors.length],
+        ),
+      );
       i++;
     }
     stateTrafficChartData.value = data;
@@ -321,8 +346,7 @@ class CreatorAnalyticsController extends GetxController {
     }).toList();
   }
 
-  void _buildTrafficSourceChart(
-      Map<String, int> sources, int totalViews) {
+  void _buildTrafficSourceChart(Map<String, int> sources, int totalViews) {
     const sourceColors = {
       'search': 0xFF3B82F6,
       'suggested': 0xFF8B5CF6,
@@ -376,11 +400,13 @@ class CreatorAnalyticsController extends GetxController {
     final sortedStates = analytics.stateTrafficPercentage.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final e in sortedStates.take(5)) {
-      stateData.add(StateTrafficStat(
-        stateName: e.key,
-        viewCount: analytics.stateTraffic[e.key] ?? 0,
-        percentage: e.value,
-      ));
+      stateData.add(
+        StateTrafficStat(
+          stateName: e.key,
+          viewCount: analytics.stateTraffic[e.key] ?? 0,
+          percentage: e.value,
+        ),
+      );
     }
     topStates.value = stateData;
 
@@ -389,11 +415,13 @@ class CreatorAnalyticsController extends GetxController {
     final sortedCountries = analytics.countryTrafficPercentage.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final e in sortedCountries.take(5)) {
-      countryData.add(CountryTrafficStat(
-        countryName: e.key,
-        viewCount: analytics.countryTraffic[e.key] ?? 0,
-        percentage: e.value,
-      ));
+      countryData.add(
+        CountryTrafficStat(
+          countryName: e.key,
+          viewCount: analytics.countryTraffic[e.key] ?? 0,
+          percentage: e.value,
+        ),
+      );
     }
     topCountries.value = countryData;
 
@@ -401,51 +429,62 @@ class CreatorAnalyticsController extends GetxController {
     final cityData = <CityTrafficStat>[];
     final sortedCities = analytics.cityTraffic.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final cityTotal =
-        analytics.cityTraffic.values.fold<int>(0, (a, b) => a + b);
+    final cityTotal = analytics.cityTraffic.values.fold<int>(
+      0,
+      (a, b) => a + b,
+    );
     for (final e in sortedCities.take(10)) {
-      cityData.add(CityTrafficStat(
-        cityName: e.key,
-        viewCount: e.value,
-        percentage: cityTotal > 0 ? (e.value / cityTotal) * 100 : 0,
-      ));
+      cityData.add(
+        CityTrafficStat(
+          cityName: e.key,
+          viewCount: e.value,
+          percentage: cityTotal > 0 ? (e.value / cityTotal) * 100 : 0,
+        ),
+      );
     }
     topCities.value = cityData;
 
     // Devices
     deviceBreakdownStats.value = analytics.deviceTypeBreakdown.entries
-        .map((e) => DeviceStatStat(
-              deviceType: e.key,
-              count: e.value,
-              percentage: analytics.totalViews > 0
-                  ? (e.value / analytics.totalViews) * 100
-                  : 0,
-            ))
+        .map(
+          (e) => DeviceStatStat(
+            deviceType: e.key,
+            count: e.value,
+            percentage: analytics.totalViews > 0
+                ? (e.value / analytics.totalViews) * 100
+                : 0,
+          ),
+        )
         .toList();
 
     // Quality
     qualityStats.value = analytics.qualityBreakdown.entries
-        .map((e) => QualityStatStat(
-              quality: e.key,
-              count: e.value,
-              percentage: analytics.totalViews > 0
-                  ? (e.value / analytics.totalViews) * 100
-                  : 0,
-            ))
+        .map(
+          (e) => QualityStatStat(
+            quality: e.key,
+            count: e.value,
+            percentage: analytics.totalViews > 0
+                ? (e.value / analytics.totalViews) * 100
+                : 0,
+          ),
+        )
         .toList();
 
     // Traffic sources
-    trafficSourceStats.value = analytics.trafficSourceBreakdown.entries
-        .map((e) => TrafficSourceStat(
-              source: _formatSourceLabel(e.key),
-              sourceKey: e.key,
-              count: e.value,
-              percentage: analytics.totalViews > 0
-                  ? (e.value / analytics.totalViews) * 100
-                  : 0,
-            ))
-        .toList()
-      ..sort((a, b) => b.count.compareTo(a.count));
+    trafficSourceStats.value =
+        analytics.trafficSourceBreakdown.entries
+            .map(
+              (e) => TrafficSourceStat(
+                source: _formatSourceLabel(e.key),
+                sourceKey: e.key,
+                count: e.value,
+                percentage: analytics.totalViews > 0
+                    ? (e.value / analytics.totalViews) * 100
+                    : 0,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => b.count.compareTo(a.count));
   }
 
   void _updateChannelInsights(ChannelAnalyticsSnapshot analytics) {
@@ -453,11 +492,13 @@ class CreatorAnalyticsController extends GetxController {
     final sortedStates = analytics.stateTrafficPercentage.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final e in sortedStates.take(5)) {
-      stateData.add(StateTrafficStat(
-        stateName: e.key,
-        viewCount: analytics.stateTraffic[e.key] ?? 0,
-        percentage: e.value,
-      ));
+      stateData.add(
+        StateTrafficStat(
+          stateName: e.key,
+          viewCount: analytics.stateTraffic[e.key] ?? 0,
+          percentage: e.value,
+        ),
+      );
     }
     topStates.value = stateData;
 
@@ -466,11 +507,13 @@ class CreatorAnalyticsController extends GetxController {
     final sortedCountries = analytics.countryTrafficPercentage.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     for (final e in sortedCountries.take(5)) {
-      countryData.add(CountryTrafficStat(
-        countryName: e.key,
-        viewCount: analytics.countryTraffic[e.key] ?? 0,
-        percentage: e.value,
-      ));
+      countryData.add(
+        CountryTrafficStat(
+          countryName: e.key,
+          viewCount: analytics.countryTraffic[e.key] ?? 0,
+          percentage: e.value,
+        ),
+      );
     }
     topCountries.value = countryData;
 
@@ -478,29 +521,36 @@ class CreatorAnalyticsController extends GetxController {
     final cityData = <CityTrafficStat>[];
     final sortedCities = analytics.cityTraffic.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final cityTotal =
-        analytics.cityTraffic.values.fold<int>(0, (a, b) => a + b);
+    final cityTotal = analytics.cityTraffic.values.fold<int>(
+      0,
+      (a, b) => a + b,
+    );
     for (final e in sortedCities.take(10)) {
-      cityData.add(CityTrafficStat(
-        cityName: e.key,
-        viewCount: e.value,
-        percentage: cityTotal > 0 ? (e.value / cityTotal) * 100 : 0,
-      ));
+      cityData.add(
+        CityTrafficStat(
+          cityName: e.key,
+          viewCount: e.value,
+          percentage: cityTotal > 0 ? (e.value / cityTotal) * 100 : 0,
+        ),
+      );
     }
     topCities.value = cityData;
 
     // Traffic sources
-    trafficSourceStats.value = analytics.trafficSourceBreakdown.entries
-        .map((e) => TrafficSourceStat(
-              source: _formatSourceLabel(e.key),
-              sourceKey: e.key,
-              count: e.value,
-              percentage: analytics.totalVideoWatches > 0
-                  ? (e.value / analytics.totalVideoWatches) * 100
-                  : 0,
-            ))
-        .toList()
-      ..sort((a, b) => b.count.compareTo(a.count));
+    trafficSourceStats.value =
+        analytics.trafficSourceBreakdown.entries
+            .map(
+              (e) => TrafficSourceStat(
+                source: _formatSourceLabel(e.key),
+                sourceKey: e.key,
+                count: e.value,
+                percentage: analytics.totalVideoWatches > 0
+                    ? (e.value / analytics.totalVideoWatches) * 100
+                    : 0,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => b.count.compareTo(a.count));
   }
 
   // ---------------------------------------------------------------------------
@@ -510,8 +560,9 @@ class CreatorAnalyticsController extends GetxController {
   void _updateVideoSummaryMetrics(VideoAnalyticsSnapshot analytics) {
     engagementScore.value = analytics.getEngagementScore();
     completionRate.value = analytics.getCompletionRate();
-    averageWatchTime.value =
-        _formatSeconds(analytics.averageWatchDuration.toInt());
+    averageWatchTime.value = _formatSeconds(
+      analytics.averageWatchDuration.toInt(),
+    );
     totalWatchTime.value = analytics.totalWatchTimeFormatted;
     ctrValue.value = analytics.ctr;
     liveViewerCount.value = analytics.liveViewerCount;
@@ -521,31 +572,40 @@ class CreatorAnalyticsController extends GetxController {
     ruralPercentage.value = analytics.ruralPercentage;
 
     // Update watch time trend
-    watchTimeTrendData.value = analytics.dailyWatchTime.entries
-        .map((e) => WatchTimeTrendModel(
-              date: e.key,
-              watchTimeHours: e.value / 3600,
-            ))
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    watchTimeTrendData.value =
+        analytics.dailyWatchTime.entries
+            .map(
+              (e) => WatchTimeTrendModel(
+                date: e.key,
+                watchTimeHours: e.value / 3600,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     // Update views trend
-    viewsTrendData.value = analytics.dailyViews.entries
-        .map((e) => ViewsTrendModel(
-              date: e.key,
-              views: e.value,
-            ))
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    viewsTrendData.value =
+        analytics.dailyViews.entries
+            .map(
+              (e) => ViewsTrendModel(
+                date: e.key,
+                views: e.value,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     // Update subscribers trend
-    subscribersTrendData.value = analytics.dailySubscribers.entries
-        .map((e) => SubscribersTrendModel(
-              date: e.key,
-              subscribers: e.value,
-            ))
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    subscribersTrendData.value =
+        analytics.dailySubscribers.entries
+            .map(
+              (e) => SubscribersTrendModel(
+                date: e.key,
+                subscribers: e.value,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     // Populate country chart
     _populateCountryChart(analytics.countryTrafficPercentage);
@@ -562,24 +622,28 @@ class CreatorAnalyticsController extends GetxController {
 
     countryData.forEach((country, pct) {
       if (country == 'IN' || country == 'India') {
-        data.add(PieChartDataModel(
-          title: 'India',
-          value: pct,
-          percentage: pct,
-          color: 0xFF22C55E, // Green
-        ));
+        data.add(
+          PieChartDataModel(
+            title: 'India',
+            value: pct,
+            percentage: pct,
+            color: 0xFF22C55E, // Green
+          ),
+        );
       } else {
         othersPct += pct;
       }
     });
 
     if (othersPct > 0) {
-      data.add(PieChartDataModel(
-        title: 'Others',
-        value: othersPct,
-        percentage: othersPct,
-        color: 0xFF3B82F6, // Blue
-      ));
+      data.add(
+        PieChartDataModel(
+          title: 'Others',
+          value: othersPct,
+          percentage: othersPct,
+          color: 0xFF3B82F6, // Blue
+        ),
+      );
     }
 
     countryTrafficChartData.value = data;
@@ -606,8 +670,9 @@ class CreatorAnalyticsController extends GetxController {
     completionRate.value = analytics.totalVideoWatches > 0
         ? (analytics.totalUniqueViewers / analytics.totalVideoWatches) * 100
         : 0;
-    averageWatchTime.value =
-        _formatSeconds(analytics.averageWatchDuration.toInt());
+    averageWatchTime.value = _formatSeconds(
+      analytics.averageWatchDuration.toInt(),
+    );
     totalWatchTime.value = analytics.totalWatchTimeFormatted;
     ctrValue.value = analytics.ctr;
     subscriberConversionRate.value = analytics.subscriberConversionRate;
@@ -616,37 +681,45 @@ class CreatorAnalyticsController extends GetxController {
     ruralPercentage.value = analytics.ruralPercentage;
 
     // Update watch time trend
-    watchTimeTrendData.value = analytics.dailyWatchTime.entries
-        .map((e) => WatchTimeTrendModel(
-              date: e.key,
-              watchTimeHours: e.value / 3600,
-            ))
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    watchTimeTrendData.value =
+        analytics.dailyWatchTime.entries
+            .map(
+              (e) => WatchTimeTrendModel(
+                date: e.key,
+                watchTimeHours: e.value / 3600,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     // Update views trend
-    viewsTrendData.value = analytics.dailyViews.entries
-        .map((e) => ViewsTrendModel(
-              date: e.key,
-              views: e.value,
-            ))
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    viewsTrendData.value =
+        analytics.dailyViews.entries
+            .map(
+              (e) => ViewsTrendModel(
+                date: e.key,
+                views: e.value,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     // Update subscribers trend
-    subscribersTrendData.value = analytics.dailySubscribers.entries
-        .map((e) => SubscribersTrendModel(
-              date: e.key,
-              subscribers: e.value,
-            ))
-        .toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    subscribersTrendData.value =
+        analytics.dailySubscribers.entries
+            .map(
+              (e) => SubscribersTrendModel(
+                date: e.key,
+                subscribers: e.value,
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
 
     liveViewerCount.value = analytics.liveViewerCount;
     // Populate country chart
     _populateCountryChart(analytics.countryTrafficPercentage);
   }
-
 
   // ---------------------------------------------------------------------------
   // REFRESH
@@ -691,22 +764,34 @@ class CreatorAnalyticsController extends GetxController {
 
   List<int> _generateColors(int count) {
     const base = [
-      0xFF3B82F6, 0xFF22C55E, 0xFFF97316, 0xFFEF4444, 0xFF8B5CF6,
-      0xFF06B6D4, 0xFFEC4899, 0xFFEAB308, 0xFF64748B, 0xFF14B8A6,
+      0xFF3B82F6,
+      0xFF22C55E,
+      0xFFF97316,
+      0xFFEF4444,
+      0xFF8B5CF6,
+      0xFF06B6D4,
+      0xFFEC4899,
+      0xFFEAB308,
+      0xFF64748B,
+      0xFF14B8A6,
     ];
-    if (count <= base.length) return base.sublist(0, count.clamp(0, base.length));
+    if (count <= base.length)
+      return base.sublist(0, count.clamp(0, base.length));
     final extra = <int>[];
     for (var i = base.length; i < count; i++) {
       final hue = (i * 360 / count).toInt();
-      extra.add(HSVColor.fromAHSV(1, hue.toDouble(), 0.7, 0.8).toColor().toARGB32());
+      extra.add(
+        HSVColor.fromAHSV(1, hue.toDouble(), 0.7, 0.8).toColor().toARGB32(),
+      );
     }
     return [...base, ...extra];
   }
 
   String getStateName(String stateCode) {
-    return _geolocationService
-        .getAllIndianStates()
-        .firstWhere((s) => s.startsWith(stateCode), orElse: () => stateCode);
+    return _geolocationService.getAllIndianStates().firstWhere(
+      (s) => s.startsWith(stateCode),
+      orElse: () => stateCode,
+    );
   }
 
   List<double>? getCoordinates(String name) {
@@ -798,7 +883,6 @@ class CreatorAnalyticsController extends GetxController {
 // =============================================================================
 
 class PieChartDataModel {
-
   PieChartDataModel({
     required this.title,
     required this.value,
@@ -812,7 +896,6 @@ class PieChartDataModel {
 }
 
 class BarChartDataModel {
-
   BarChartDataModel({
     required this.label,
     required this.value,
@@ -826,7 +909,6 @@ class BarChartDataModel {
 }
 
 class StateTrafficStat {
-
   StateTrafficStat({
     required this.stateName,
     required this.viewCount,
@@ -838,7 +920,6 @@ class StateTrafficStat {
 }
 
 class CountryTrafficStat {
-
   CountryTrafficStat({
     required this.countryName,
     required this.viewCount,
@@ -850,7 +931,6 @@ class CountryTrafficStat {
 }
 
 class CityTrafficStat {
-
   CityTrafficStat({
     required this.cityName,
     required this.viewCount,
@@ -862,7 +942,6 @@ class CityTrafficStat {
 }
 
 class DeviceStatStat {
-
   DeviceStatStat({
     required this.deviceType,
     required this.count,
@@ -874,7 +953,6 @@ class DeviceStatStat {
 }
 
 class QualityStatStat {
-
   QualityStatStat({
     required this.quality,
     required this.count,
@@ -886,7 +964,6 @@ class QualityStatStat {
 }
 
 class TrafficSourceStat {
-
   TrafficSourceStat({
     required this.source,
     required this.sourceKey,
@@ -900,7 +977,6 @@ class TrafficSourceStat {
 }
 
 class WatchTimeTrendModel {
-
   WatchTimeTrendModel({
     required this.date,
     required this.watchTimeHours,
@@ -910,7 +986,6 @@ class WatchTimeTrendModel {
 }
 
 class ViewsTrendModel {
-
   ViewsTrendModel({
     required this.date,
     required this.views,
@@ -920,7 +995,6 @@ class ViewsTrendModel {
 }
 
 class SubscribersTrendModel {
-
   SubscribersTrendModel({
     required this.date,
     required this.subscribers,
@@ -928,8 +1002,3 @@ class SubscribersTrendModel {
   final DateTime date;
   final int subscribers;
 }
-
-
-
-
-

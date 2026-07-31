@@ -1,7 +1,6 @@
 enum Environment { development, staging, production }
 
 class AppConfig {
-
   const AppConfig({
     required this.environment,
     required this.appTitle,
@@ -32,7 +31,8 @@ class AppConfig {
       environment: environment,
       appTitle: appTitle ?? 'TruthWorld',
       apiBaseUrl: apiBaseUrl ?? 'https://truthworld.app/api',
-      enableDebugLogs: enableDebugLogs ?? (environment == Environment.development),
+      enableDebugLogs:
+          enableDebugLogs ?? (environment == Environment.development),
       enablePerformanceMonitoring: enablePerformanceMonitoring ?? true,
       defaultPlayerPoolSize: defaultPlayerPoolSize ?? 3,
     );

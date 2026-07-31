@@ -10,7 +10,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS (Standardized)
 // ==========================================================================
@@ -39,7 +38,6 @@ class _WatchHistoryState extends State<WatchHistory>
     super.initState();
     _controller = Get.put(WatchHistoryController());
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -71,10 +69,16 @@ class _WatchHistoryState extends State<WatchHistory>
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.textPrimary,
+                      ),
                       onPressed: () {
                         if (widget.isDashboard) {
-                          Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                          Get.find<HomeController>()
+                                  .sideNavSelectedIndex
+                                  .value =
+                              HomeController.indexLibrary;
                         } else {
                           Get.back();
                         }
@@ -150,14 +154,20 @@ class _WatchHistoryState extends State<WatchHistory>
 
             final videos = snapshot.data!.docs.map((doc) {
               final data = doc.data()! as Map<String, dynamic>;
-              final durationRaw = (data['duration'] != null && data['duration'] != '0:00' && data['duration'] != '00:00')
+              final durationRaw =
+                  (data['duration'] != null &&
+                      data['duration'] != '0:00' &&
+                      data['duration'] != '00:00')
                   ? data['duration']
                   : (data['videoDuration'] ?? data['durationMs']);
               return Video(
                 id: (data['videoId'] as String?) ?? doc.id,
                 channelId: (data['channelId'] as String?) ?? '',
                 channelName: (data['channelName'] as String?) ?? '',
-                channelAvatarUrl: (data['channelImage'] as String?) ?? (data['channelAvatarUrl'] as String?) ?? '',
+                channelAvatarUrl:
+                    (data['channelImage'] as String?) ??
+                    (data['channelAvatarUrl'] as String?) ??
+                    '',
                 title: (data['title'] as String?) ?? 'Unknown Video',
                 description: (data['description'] as String?) ?? '',
                 thumbnailUrl: (data['thumbnailUrl'] as String?) ?? '',
@@ -171,7 +181,9 @@ class _WatchHistoryState extends State<WatchHistory>
                     DateTime.now(),
                 language: (data['language'] as String?) ?? 'en',
                 category: (data['category'] as String?) ?? 'General',
-                tags: List<String>.from((data['tags'] as Iterable<dynamic>?) ?? []),
+                tags: List<String>.from(
+                  (data['tags'] as Iterable<dynamic>?) ?? [],
+                ),
                 factCheckUrl: (data['factCheckUrl'] as String?) ?? '',
                 mediaSubtitles: {},
                 audioTracks: {},
@@ -272,7 +284,10 @@ class _WatchHistoryState extends State<WatchHistory>
                   fontWeight: FontWeight.w500,
                   fontSize: 14,
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -544,8 +559,8 @@ class _WatchHistoryListCard extends StatelessWidget {
                           VideoOptionsSheet.show(
                             context,
                             video,
-                            onRemoveFromHistory:
-                                () => controller.deleteHistoryItem(video.id),
+                            onRemoveFromHistory: () =>
+                                controller.deleteHistoryItem(video.id),
                           );
                         },
                         padding: EdgeInsets.zero,
@@ -570,9 +585,3 @@ class _WatchHistoryListCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

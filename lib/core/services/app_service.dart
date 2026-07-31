@@ -6,7 +6,7 @@ import 'package:get_storage/get_storage.dart';
 /// This service is permanent and shared across all features.
 class AppService extends GetxService {
   final _storage = GetStorage();
-  
+
   // Persistent settings
   final isDarkMode = true.obs;
   final languageCode = 'en'.obs;
@@ -16,12 +16,16 @@ class AppService extends GetxService {
     // Load initial values from persistent storage
     isDarkMode.value = _storage.read('isDarkMode') ?? true;
     languageCode.value = _storage.read('languageCode') ?? 'en';
-    hasFinishedOnboarding.value = _storage.read('hasFinishedOnboarding') ?? false;
+    hasFinishedOnboarding.value =
+        _storage.read('hasFinishedOnboarding') ?? false;
 
     // Listen for changes and persist them
     ever(isDarkMode, (val) => _storage.write('isDarkMode', val));
     ever(languageCode, (val) => _storage.write('languageCode', val));
-    ever(hasFinishedOnboarding, (val) => _storage.write('hasFinishedOnboarding', val));
+    ever(
+      hasFinishedOnboarding,
+      (val) => _storage.write('hasFinishedOnboarding', val),
+    );
 
     return this;
   }
@@ -35,8 +39,3 @@ class AppService extends GetxService {
     hasFinishedOnboarding.value = true;
   }
 }
-
-
-
-
-

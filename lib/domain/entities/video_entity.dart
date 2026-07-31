@@ -4,11 +4,14 @@
 /// It is decoupled from data layer models (which handle serialization)
 /// and from the presentation layer (which handles UI state).
 class VideoEntity {
-
   const VideoEntity({
     required this.id,
     required this.title,
-    required this.ownerId, required this.channelId, required this.createdAt, required this.updatedAt, this.description = '',
+    required this.ownerId,
+    required this.channelId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.description = '',
     this.channelName = '',
     this.channelAvatarUrl = '',
     this.thumbnailUrl = '',

@@ -1,12 +1,93 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
-enum ChannelStatus { active, suspended, underReview, deleted, verificationPending, verificationRejected }
+enum ChannelStatus {
+  active,
+  suspended,
+  underReview,
+  deleted,
+  verificationPending,
+  verificationRejected,
+}
 
 enum MonetizationTier { none, eligible, basic, premium, pro }
 
-class ChannelMetricsV2 {
+enum ChannelType { standard, custom }
 
+enum LossPreventionMode { active, warning, autoScaled, suspended }
+
+class CustomChannelInfraConfig {
+  CustomChannelInfraConfig({
+    required this.stripeConnectAccountId,
+    required this.subscriptionId,
+    this.storageUsedBytes = 0,
+    this.storageQuotaBytes = 53687091200, // 50 GB
+    this.bandwidthUsedBytesThisMonth = 0,
+    this.bandwidthQuotaBytesThisMonth = 214748364800, // 200 GB
+    this.currentMonthInfraCost = 0.0,
+    this.flatPlatformFee = 15.0,
+    this.trialCreditUSD = 10.0,
+    this.trialCreditRemainingUSD = 10.0,
+    this.planTier = 'starter_15',
+    this.lossPreventionMode = LossPreventionMode.active,
+  });
+
+  factory CustomChannelInfraConfig.fromMap(Map<String, dynamic> map) {
+    return CustomChannelInfraConfig(
+      stripeConnectAccountId: map['stripeConnectAccountId'] as String? ?? '',
+      subscriptionId: map['subscriptionId'] as String? ?? '',
+      storageUsedBytes: (map['storageUsedBytes'] as num?)?.toInt() ?? 0,
+      storageQuotaBytes:
+          (map['storageQuotaBytes'] as num?)?.toInt() ?? 53687091200,
+      bandwidthUsedBytesThisMonth:
+          (map['bandwidthUsedBytesThisMonth'] as num?)?.toInt() ?? 0,
+      bandwidthQuotaBytesThisMonth:
+          (map['bandwidthQuotaBytesThisMonth'] as num?)?.toInt() ??
+          214748364800,
+      currentMonthInfraCost:
+          (map['currentMonthInfraCost'] as num?)?.toDouble() ?? 0.0,
+      flatPlatformFee: (map['flatPlatformFee'] as num?)?.toDouble() ?? 15.0,
+      trialCreditUSD: (map['trialCreditUSD'] as num?)?.toDouble() ?? 10.0,
+      trialCreditRemainingUSD:
+          (map['trialCreditRemainingUSD'] as num?)?.toDouble() ?? 10.0,
+      planTier: map['planTier'] as String? ?? 'starter_15',
+      lossPreventionMode: LossPreventionMode.values.firstWhere(
+        (e) => e.name == (map['lossPreventionMode'] ?? 'active'),
+        orElse: () => LossPreventionMode.active,
+      ),
+    );
+  }
+
+  final String stripeConnectAccountId;
+  final String subscriptionId;
+  final int storageUsedBytes;
+  final int storageQuotaBytes;
+  final int bandwidthUsedBytesThisMonth;
+  final int bandwidthQuotaBytesThisMonth;
+  final double currentMonthInfraCost;
+  final double flatPlatformFee;
+  final double trialCreditUSD;
+  final double trialCreditRemainingUSD;
+  final String planTier;
+  final LossPreventionMode lossPreventionMode;
+
+  Map<String, dynamic> toMap() => {
+    'stripeConnectAccountId': stripeConnectAccountId,
+    'subscriptionId': subscriptionId,
+    'storageUsedBytes': storageUsedBytes,
+    'storageQuotaBytes': storageQuotaBytes,
+    'bandwidthUsedBytesThisMonth': bandwidthUsedBytesThisMonth,
+    'bandwidthQuotaBytesThisMonth': bandwidthQuotaBytesThisMonth,
+    'currentMonthInfraCost': currentMonthInfraCost,
+    'flatPlatformFee': flatPlatformFee,
+    'trialCreditUSD': trialCreditUSD,
+    'trialCreditRemainingUSD': trialCreditRemainingUSD,
+    'planTier': planTier,
+    'lossPreventionMode': lossPreventionMode.name,
+  };
+}
+
+class ChannelMetricsV2 {
   ChannelMetricsV2({
     this.totalViews = 0,
     this.totalWatchTimeMinutes = 0,
@@ -16,7 +97,8 @@ class ChannelMetricsV2 {
   factory ChannelMetricsV2.fromMap(Map<String, dynamic> map) =>
       ChannelMetricsV2(
         totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
-        totalWatchTimeMinutes: (map['totalWatchTimeMinutes'] as num?)?.toInt() ?? 0,
+        totalWatchTimeMinutes:
+            (map['totalWatchTimeMinutes'] as num?)?.toInt() ?? 0,
         averageRetention: (map['averageRetention'] as num?)?.toDouble() ?? 0.0,
       );
   final int totalViews;
@@ -31,7 +113,6 @@ class ChannelMetricsV2 {
 }
 
 class Channel {
-
   Channel({
     required this.id,
     required this.name,
@@ -41,7 +122,10 @@ class Channel {
     required this.description,
     required this.avatarUrl,
     required this.bannerUrl,
-    required this.ownerId, required this.createdAt, required this.updatedAt, this.avatarVariants = const [],
+    required this.ownerId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.avatarVariants = const [],
     this.avatarFileId,
     this.bannerFileId,
     this.avatarStatus,
@@ -60,6 +144,11 @@ class Channel {
     this.socialLinks,
     this.featuredVideoIds = const [],
     this.moderationReason = '',
+    this.channelType = ChannelType.standard,
+    this.infraConfig,
+    this.pendingChannelType,
+    this.pendingTypeEffectiveDate,
+    this.nextBillingCycleDate,
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
@@ -94,12 +183,12 @@ class Channel {
       categories: data['categories'] != null
           ? List<String>.from(data['categories'])
           : (data['category'] != null && (data['category'] as String).isNotEmpty
-              ? (data['category'] as String)
-                  .split(',')
-                  .map((e) => e.trim())
-                  .where((e) => e.isNotEmpty)
-                  .toList()
-              : ['other']),
+                ? (data['category'] as String)
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList()
+                : ['other']),
       language: data['language'] ?? 'en',
       monetizationTier: MonetizationTier.values.firstWhere(
         (e) => e.name == (data['monetizationTier'] ?? 'none'),
@@ -110,6 +199,27 @@ class Channel {
       socialLinks: data['socialLinks'],
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
       moderationReason: data['moderationReason'] as String?,
+      channelType: ChannelType.values.firstWhere(
+        (e) => e.name == (data['channelType'] ?? 'standard'),
+        orElse: () => ChannelType.standard,
+      ),
+      infraConfig: data['infraConfig'] != null
+          ? CustomChannelInfraConfig.fromMap(
+              Map<String, dynamic>.from(data['infraConfig']),
+            )
+          : null,
+      pendingChannelType: data['pendingChannelType'] != null
+          ? ChannelType.values.firstWhere(
+              (e) => e.name == data['pendingChannelType'],
+              orElse: () => ChannelType.standard,
+            )
+          : null,
+      pendingTypeEffectiveDate: data['pendingTypeEffectiveDate'] != null
+          ? TimestampUtils.parse(data['pendingTypeEffectiveDate'])
+          : null,
+      nextBillingCycleDate: data['nextBillingCycleDate'] != null
+          ? TimestampUtils.parse(data['nextBillingCycleDate'])
+          : null,
     );
   }
 
@@ -150,9 +260,16 @@ class Channel {
   final String language;
   final String? moderationReason;
 
-  // Monetization
+  // Monetization & Infrastructure
   final MonetizationTier monetizationTier;
   final Map<String, dynamic>? monetizationSettings;
+  final ChannelType channelType;
+  final CustomChannelInfraConfig? infraConfig;
+
+  // Billing Cycle Lock & Scheduled Tier Switch
+  final ChannelType? pendingChannelType;
+  final Timestamp? pendingTypeEffectiveDate;
+  final Timestamp? nextBillingCycleDate;
 
   // Advanced Branding
   final Map<String, dynamic>?
@@ -172,6 +289,17 @@ class Channel {
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
   String get websiteUrl => socialLinks?['website'] ?? '';
+
+  // Standard Channel Constraints (Up to 5 videos, 2 min to 10 min duration, 10 min total accumulated limit)
+  int get maxAllowedVideos => channelType == ChannelType.standard ? 5 : 999999;
+  int get minVideoDurationSeconds =>
+      channelType == ChannelType.standard ? 120 : 0; // 2 minutes (120s)
+  int get maxVideoDurationSeconds =>
+      channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s)
+  int get maxTotalVideoDurationSeconds => channelType == ChannelType.standard
+      ? 600
+      : 8640000; // 10 minutes total (600s)
+
   String get channelRoute {
     if (handle.isNotEmpty) {
       return handle.startsWith('@') ? '/$handle' : '/@$handle';
@@ -207,6 +335,11 @@ class Channel {
       'language': language,
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,
+      'channelType': channelType.name,
+      'infraConfig': infraConfig?.toMap(),
+      'pendingChannelType': pendingChannelType?.name,
+      'pendingTypeEffectiveDate': pendingTypeEffectiveDate,
+      'nextBillingCycleDate': nextBillingCycleDate,
       'brandingSettings': brandingSettings,
       'socialLinks': socialLinks,
       'featuredVideoIds': featuredVideoIds,
@@ -214,8 +347,3 @@ class Channel {
     };
   }
 }
-
-
-
-
-

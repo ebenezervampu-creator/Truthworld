@@ -68,8 +68,3 @@ class PlaylistDetailController extends GetxController {
     showFilterMenu.value = false;
   }
 }
-
-
-
-
-

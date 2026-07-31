@@ -13,7 +13,6 @@ import 'package:truthworld/theme/app_theme.dart';
 // DASHBOARD WRAPPER CONTROLLER
 // ==========================================================================
 class DashboardWrapperController extends GetxController {
-
   DashboardWrapperController({
     required this.dashboardType,
     this.initialTabIndex = 0,
@@ -68,9 +67,9 @@ class DashboardWrapperController extends GetxController {
 // DASHBOARD WRAPPER SCREEN
 // ==========================================================================
 class DashboardWrapper extends StatefulWidget {
-
   const DashboardWrapper({
-    required this.dashboardType, super.key,
+    required this.dashboardType,
+    super.key,
     this.initialTabIndex = 0,
   });
   final String dashboardType;
@@ -158,7 +157,10 @@ class _DashboardWrapperState extends State<DashboardWrapper>
           child: Center(
             child: Text(
               'Explore Pages - Tab ${index + 1}',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+              ),
             ),
           ),
         );
@@ -195,7 +197,10 @@ class _DashboardWrapperState extends State<DashboardWrapper>
           child: Center(
             child: Text(
               'Support - Tab ${index + 1}',
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+              ),
             ),
           ),
         );
@@ -283,10 +288,3 @@ class _DashboardWrapperState extends State<DashboardWrapper>
     }
   }
 }
-
-
-
-
-
-
-

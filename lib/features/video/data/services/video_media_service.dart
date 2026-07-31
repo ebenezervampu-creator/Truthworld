@@ -28,7 +28,8 @@ class VideoMediaService {
   /// Fetch localization data (subtitles, dubbing, audio tracks)
   /// Called when player starts or when user switches language
   Future<VideoMediaLocalization> getLocalization(String videoId) async {
-    if (localizationCache.containsKey(videoId)) {
+    if (localizationCache.containsKey(videoId) &&
+        !localizationCache[videoId]!.isEmpty) {
       return localizationCache[videoId]!;
     }
 
@@ -121,13 +122,13 @@ class VideoMediaService {
         .doc('credibility')
         .snapshots()
         .map((doc) {
-      if (doc.exists && doc.data() != null) {
-        final result = VideoMediaCredibility.fromMap(doc.data()!);
-        credibilityCache[videoId] = result;
-        return result;
-      }
-      return const VideoMediaCredibility();
-    });
+          if (doc.exists && doc.data() != null) {
+            final result = VideoMediaCredibility.fromMap(doc.data()!);
+            credibilityCache[videoId] = result;
+            return result;
+          }
+          return const VideoMediaCredibility();
+        });
   }
 
   /// Stream localization data for real-time updates as subtitles/dubbing complete
@@ -139,13 +140,13 @@ class VideoMediaService {
         .doc('localization')
         .snapshots()
         .map((doc) {
-      if (doc.exists && doc.data() != null) {
-        final result = VideoMediaLocalization.fromMap(doc.data()!);
-        localizationCache[videoId] = result;
-        return result;
-      }
-      return const VideoMediaLocalization();
-    });
+          if (doc.exists && doc.data() != null) {
+            final result = VideoMediaLocalization.fromMap(doc.data()!);
+            localizationCache[videoId] = result;
+            return result;
+          }
+          return const VideoMediaLocalization();
+        });
   }
 
   /// Clear cache for a specific video (e.g., on dispose)
@@ -177,9 +178,15 @@ class VideoMediaService {
       // Try legacy nested media map first, then top-level fields
       final media = data['media'] as Map<String, dynamic>? ?? {};
 
-      final subtitles = _extractStringMap(media['subtitles'] ?? data['subtitles']);
-      final dubbedVideos = _extractStringMap(media['dubbedVideos'] ?? data['dubbedVideos']);
-      final audioTracks = _extractStringMap(media['audioTracks'] ?? data['audioTracks']);
+      final subtitles = _extractStringMap(
+        media['subtitles'] ?? data['subtitles'],
+      );
+      final dubbedVideos = _extractStringMap(
+        media['dubbedVideos'] ?? data['dubbedVideos'],
+      );
+      final audioTracks = _extractStringMap(
+        media['audioTracks'] ?? data['audioTracks'],
+      );
 
       final result = VideoMediaLocalization(
         subtitles: subtitles,
@@ -187,20 +194,25 @@ class VideoMediaService {
         audioTracks: audioTracks,
       );
 
-      if (!result.isEmpty) {
-        localizationCache[videoId] = result;
-      }
+      // Always populate cache to prevent repeating fallback reads
+      localizationCache[videoId] = result;
       return result;
     } catch (e) {
       debugPrint('[VideoMediaService] Fallback localization error: $e');
-      return const VideoMediaLocalization();
+      final emptyResult = const VideoMediaLocalization();
+      localizationCache[videoId] = emptyResult;
+      return emptyResult;
     }
   }
 
   Future<VideoMediaCredibility> _fallbackCredibility(String videoId) async {
     try {
       final doc = await _firestore.collection('videos').doc(videoId).get();
-      if (!doc.exists) return const VideoMediaCredibility();
+      if (!doc.exists) {
+        final emptyResult = const VideoMediaCredibility();
+        credibilityCache[videoId] = emptyResult;
+        return emptyResult;
+      }
       final data = doc.data()!;
 
       // Read legacy credibility fields from main doc
@@ -209,7 +221,9 @@ class VideoMediaService {
       return result;
     } catch (e) {
       debugPrint('[VideoMediaService] Fallback credibility error: $e');
-      return const VideoMediaCredibility();
+      final emptyResult = const VideoMediaCredibility();
+      credibilityCache[videoId] = emptyResult;
+      return emptyResult;
     }
   }
 

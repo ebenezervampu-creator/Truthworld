@@ -5,9 +5,11 @@ import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Structured cache metadata container
 class CacheMetadata {
-
   CacheMetadata({
-    required this.cacheType, required this.generatedAt, required this.expiresAt, this.schemaVersion = 2,
+    required this.cacheType,
+    required this.generatedAt,
+    required this.expiresAt,
+    this.schemaVersion = 2,
     this.feedVersion = 1,
     this.queryHash = '',
   });
@@ -32,18 +34,17 @@ class CacheMetadata {
   bool get isExpired => DateTime.now().millisecondsSinceEpoch > expiresAt;
 
   Map<String, dynamic> toMap() => {
-        'schemaVersion': schemaVersion,
-        'cacheType': cacheType,
-        'generatedAt': generatedAt,
-        'expiresAt': expiresAt,
-        'feedVersion': feedVersion,
-        'queryHash': queryHash,
-      };
+    'schemaVersion': schemaVersion,
+    'cacheType': cacheType,
+    'generatedAt': generatedAt,
+    'expiresAt': expiresAt,
+    'feedVersion': feedVersion,
+    'queryHash': queryHash,
+  };
 }
 
 /// Decoupled cache manager for managing scoped feeds, TTL versioning, and sanitization.
 class FeedCacheManager {
-
   FeedCacheManager([GetStorage? storage]) : _storage = storage ?? GetStorage();
   final GetStorage _storage;
   static const int currentSchemaVersion = 2;
@@ -68,15 +69,22 @@ class FeedCacheManager {
       final metadataMap = cacheMap['metadata'];
       final videosListRaw = cacheMap['videos'];
 
-      if (metadataMap == null || videosListRaw == null || videosListRaw is! List) {
+      if (metadataMap == null ||
+          videosListRaw == null ||
+          videosListRaw is! List) {
         return null;
       }
 
-      final metadata = CacheMetadata.fromMap(Map<String, dynamic>.from(metadataMap));
+      final metadata = CacheMetadata.fromMap(
+        Map<String, dynamic>.from(metadataMap),
+      );
 
       // Check schema version compatibility and TTL expiration
-      if (metadata.schemaVersion != currentSchemaVersion || metadata.isExpired) {
-        debugPrint('[FeedCacheManager] Cache for $cacheKey expired or schema mismatch. Evicting.');
+      if (metadata.schemaVersion != currentSchemaVersion ||
+          metadata.isExpired) {
+        debugPrint(
+          '[FeedCacheManager] Cache for $cacheKey expired or schema mismatch. Evicting.',
+        );
         _storage.remove(cacheKey);
         return null;
       }
@@ -91,7 +99,9 @@ class FeedCacheManager {
         blockedChannelIds: blockedChannelIds,
       );
 
-      debugPrint('[FeedCacheManager] Loaded ${sanitized.length} valid cached videos for $cacheKey');
+      debugPrint(
+        '[FeedCacheManager] Loaded ${sanitized.length} valid cached videos for $cacheKey',
+      );
       return sanitized;
     } catch (e) {
       debugPrint('[FeedCacheManager] Error loading cache for $cacheKey: $e');
@@ -117,7 +127,9 @@ class FeedCacheManager {
         expiresAt: expiresMs,
       );
 
-      final sanitizedVideos = VideoSanitizer.sanitizeForFeed(videos).take(maxItems).toList();
+      final sanitizedVideos = VideoSanitizer.sanitizeForFeed(
+        videos,
+      ).take(maxItems).toList();
       final serializedVideos = sanitizedVideos.map((v) => v.toMap()).toList();
 
       final cacheData = {
@@ -126,7 +138,9 @@ class FeedCacheManager {
       };
 
       _storage.write(cacheKey, cacheData);
-      debugPrint('[FeedCacheManager] Saved ${sanitizedVideos.length} videos to cache key: $cacheKey');
+      debugPrint(
+        '[FeedCacheManager] Saved ${sanitizedVideos.length} videos to cache key: $cacheKey',
+      );
     } catch (e) {
       debugPrint('[FeedCacheManager] Error saving cache for $cacheKey: $e');
     }

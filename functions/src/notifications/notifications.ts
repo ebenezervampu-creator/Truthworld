@@ -63,11 +63,25 @@ async function _sendPushNotification(
   if (!userDoc.exists) return;
 
   const userData = userDoc.data();
-  const fcmTokensMap = userData?.fcmTokens as Record<string, string> | undefined;
+  const fcmTokensMap = userData?.fcmTokens as Record<string, any> | undefined;
   if (!fcmTokensMap) return;
 
-  const tokens = Object.values(fcmTokensMap).filter(t => typeof t === "string" && t.length > 0);
-  if (tokens.length === 0) return;
+  // Extract tokens safely whether stored as object { token: "..." } or plain string
+  const deviceEntries: { deviceId: string; token: string }[] = [];
+  for (const [deviceId, val] of Object.entries(fcmTokensMap)) {
+    let tokenStr = "";
+    if (typeof val === "string") {
+      tokenStr = val;
+    } else if (val && typeof val === "object" && typeof val.token === "string") {
+      tokenStr = val.token;
+    }
+    if (tokenStr.trim().length > 0) {
+      deviceEntries.push({ deviceId, token: tokenStr });
+    }
+  }
+
+  if (deviceEntries.length === 0) return;
+  const tokens = deviceEntries.map(e => e.token);
 
   const payload = {
     tokens,
@@ -84,7 +98,6 @@ async function _sendPushNotification(
     },
     android: {
       priority: "high" as const,
-      ttl: 0, // 0s TTL requests immediate delivery or discard (low latency)
       notification: {
         sound: "default",
         channelId: "truthworld_notifications",
@@ -111,6 +124,31 @@ async function _sendPushNotification(
 
   const response = await admin.messaging().sendEachForMulticast(payload);
   logger.info(`[FCM] Sent to ${tokens.length} devices for user ${params.userId}. OK: ${response.successCount}, Fail: ${response.failureCount}`);
+
+  // Cleanup invalid or unregistered FCM tokens
+  if (response.failureCount > 0) {
+    const tokensToRemove: Record<string, any> = {};
+    response.responses.forEach((res, index) => {
+      if (!res.success && res.error) {
+        const errCode = res.error.code;
+        if (
+          errCode === "messaging/invalid-registration-token" ||
+          errCode === "messaging/registration-token-not-registered"
+        ) {
+          const deviceId = deviceEntries[index]?.deviceId;
+          if (deviceId) {
+            tokensToRemove[`fcmTokens.${deviceId}`] = admin.firestore.FieldValue.delete();
+          }
+        }
+      }
+    });
+
+    if (Object.keys(tokensToRemove).length > 0) {
+      await db.collection("users").doc(params.userId).update(tokensToRemove).catch(err => {
+        logger.warn("[FCM] Failed to cleanup stale tokens:", { userId: params.userId, err: String(err) });
+      });
+    }
+  }
 }
 
 /**

@@ -47,27 +47,48 @@ class MainActivity : FlutterActivity() {
         if (isDebug) {
             val tokenResId = resources.getIdentifier("firebase_app_check_debug_token", "string", packageName)
             val debugToken = if (tokenResId != 0) getString(tokenResId) else "26B7C98E-FC8F-4580-BA97-455ADBE131BC"
-            val prefsKeys = mutableListOf<String>()
+            val prefsKeys = mutableSetOf<String>()
 
-            // 1. Try dynamic generation using resource lookup for google_app_id
+            // 1. Standard FirebaseApp.getInstance().persistenceKey via reflection (exact key used by Firebase SDK)
+            try {
+                val firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp")
+                val getAppsMethod = firebaseAppClass.getMethod("getApps", Context::class.java)
+                val apps = getAppsMethod.invoke(null, this) as List<*>
+                if (apps.isEmpty()) {
+                    val initializeAppMethod = firebaseAppClass.getMethod("initializeApp", Context::class.java)
+                    initializeAppMethod.invoke(null, this)
+                }
+                val getInstanceMethod = firebaseAppClass.getMethod("getInstance")
+                val app = getInstanceMethod.invoke(null)
+                val getPersistenceKeyMethod = firebaseAppClass.getMethod("getPersistenceKey")
+                val persistenceKey = getPersistenceKeyMethod.invoke(app) as String
+                prefsKeys.add("com.google.firebase.appcheck.debug.store.$persistenceKey")
+            } catch (e: Throwable) {
+                android.util.Log.e("MainActivity", "Reflection getPersistenceKey failed: ${e.message}")
+            }
+
+            // 2. Dynamic key variants based on google_app_id
             try {
                 val appIdResId = resources.getIdentifier("google_app_id", "string", packageName)
                 if (appIdResId != 0) {
                     val appId = getString(appIdResId)
                     val nameBytes = "[DEFAULT]".toByteArray(Charsets.UTF_8)
                     val appIdBytes = appId.toByteArray(Charsets.UTF_8)
-                    val nameBase64 = android.util.Base64.encodeToString(nameBytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP).trim()
-                    val appIdBase64 = android.util.Base64.encodeToString(appIdBytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP).trim()
-                    prefsKeys.add("com.google.firebase.appcheck.debug.store.$nameBase64+$appIdBase64")
+
+                    val nameB64Def = android.util.Base64.encodeToString(nameBytes, android.util.Base64.DEFAULT)
+                    val appIdB64Def = android.util.Base64.encodeToString(appIdBytes, android.util.Base64.DEFAULT)
+                    prefsKeys.add("com.google.firebase.appcheck.debug.store.$nameB64Def+$appIdB64Def")
+
+                    val nameB64NoWrap = android.util.Base64.encodeToString(nameBytes, android.util.Base64.NO_WRAP)
+                    val appIdB64NoWrap = android.util.Base64.encodeToString(appIdBytes, android.util.Base64.NO_WRAP)
+                    prefsKeys.add("com.google.firebase.appcheck.debug.store.$nameB64NoWrap+$appIdB64NoWrap")
                 }
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "Failed to resolve google_app_id dynamically: ${e.message}", e)
             }
 
-            // 2. Add pre-calculated key for current config
+            // 3. Fallback pre-calculated keys
             prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDplNWM5OGRkM2ZiNmM2Nzg4MTQzYWYy")
-
-            // 3. Keep old keys just in case
             prefsKeys.add("com.google.firebase.appcheck.debug.store.[DEFAULT]")
             prefsKeys.add("com.google.firebase.appcheck.debug.store.truthworld-1")
 
@@ -77,7 +98,7 @@ class MainActivity : FlutterActivity() {
                     prefs.edit()
                         .putString("com.google.firebase.appcheck.debug.DEBUG_SECRET", debugToken)
                         .apply()
-                    android.util.Log.d("MainActivity", "Set App Check debug token in prefs: $prefsKey")
+                    android.util.Log.d("MainActivity", "Set App Check debug token ($debugToken) in prefs: $prefsKey")
                 } catch (e: Exception) {
                     android.util.Log.e("MainActivity", "Failed to write to prefs $prefsKey: ${e.message}")
                 }

@@ -26,7 +26,6 @@ import 'package:truthworld/theme/app_theme.dart';
 ///
 /// Responsive: desktop, tablet, mobile
 class TopicPage extends StatefulWidget {
-
   const TopicPage({super.key, this.slug});
   final String? slug;
 
@@ -144,15 +143,21 @@ class _TopicPageState extends State<TopicPage> {
 
             // Search Bar (if visible)
             SliverToBoxAdapter(
-              child: Obx(() => controller.isSearchVisible.value
-                  ? Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
-                        vertical: 16,
-                      ),
-                      child: _buildSearchBar(context, isDesktop: isDesktop, isTablet: isTablet),
-                    )
-                  : const SizedBox.shrink()),
+              child: Obx(
+                () => controller.isSearchVisible.value
+                    ? Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+                          vertical: 16,
+                        ),
+                        child: _buildSearchBar(
+                          context,
+                          isDesktop: isDesktop,
+                          isTablet: isTablet,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ),
 
             // Featured Video Section
@@ -192,13 +197,18 @@ class _TopicPageState extends State<TopicPage> {
                     const SizedBox(height: 16),
                     Obx(() {
                       var emptyTitle = 'No videos yet';
-                      var emptySubtitle = 'Videos related to this topic will appear here';
-                      if (controller.selectedTab.value == 'From Subscribed channels') {
+                      var emptySubtitle =
+                          'Videos related to this topic will appear here';
+                      if (controller.selectedTab.value ==
+                          'From Subscribed channels') {
                         emptyTitle = 'No subscribed videos';
-                        emptySubtitle = 'Videos from channels you subscribe to will appear here';
-                      } else if (controller.selectedTab.value == 'Fact checked') {
+                        emptySubtitle =
+                            'Videos from channels you subscribe to will appear here';
+                      } else if (controller.selectedTab.value ==
+                          'Fact checked') {
                         emptyTitle = 'No fact-checked videos';
-                        emptySubtitle = 'Videos with verified fact-checking will appear here';
+                        emptySubtitle =
+                            'Videos with verified fact-checking will appear here';
                       }
 
                       return TopicVideoGrid(
@@ -257,20 +267,25 @@ class _TopicPageState extends State<TopicPage> {
       ),
       actions: [
         // Search icon at the last position replacing refresh icon
-        Obx(() => IconButton(
-          onPressed: () {
-            controller.isSearchVisible.value = !controller.isSearchVisible.value;
-            if (!controller.isSearchVisible.value) {
-              _searchController.clear();
-              controller.clearSearch();
-            }
-          },
-          icon: Icon(
-            controller.isSearchVisible.value ? Icons.close_rounded : Icons.search_rounded,
-            color: AppColors.textPrimary,
+        Obx(
+          () => IconButton(
+            onPressed: () {
+              controller.isSearchVisible.value =
+                  !controller.isSearchVisible.value;
+              if (!controller.isSearchVisible.value) {
+                _searchController.clear();
+                controller.clearSearch();
+              }
+            },
+            icon: Icon(
+              controller.isSearchVisible.value
+                  ? Icons.close_rounded
+                  : Icons.search_rounded,
+              color: AppColors.textPrimary,
+            ),
+            tooltip: 'Search Videos',
           ),
-          tooltip: 'Search Videos',
-        )),
+        ),
         SizedBox(width: isDesktop ? 24 : 8),
       ],
     );
@@ -306,20 +321,25 @@ class _TopicPageState extends State<TopicPage> {
             Icons.search_rounded,
             color: AppColors.textTertiary,
           ),
-          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    color: AppColors.textTertiary,
-                  ),
-                  onPressed: () {
-                    _searchController.clear();
-                    controller.clearSearch();
-                  },
-                )
-              : const SizedBox.shrink()),
+          suffixIcon: Obx(
+            () => controller.searchQuery.value.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.textTertiary,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      controller.clearSearch();
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
       ),
     );
@@ -339,7 +359,11 @@ class _TopicPageState extends State<TopicPage> {
           _buildSectionHeader('Featured Content', isDesktop, isTablet),
           const SizedBox(height: 16),
           if (controller.featuredVideos.length == 1)
-            _buildFeaturedCard(controller.featuredVideos.first, isDesktop, isTablet)
+            _buildFeaturedCard(
+              controller.featuredVideos.first,
+              isDesktop,
+              isTablet,
+            )
           else
             SizedBox(
               height: isDesktop ? 320.0 : (isTablet ? 260.0 : 200.0),
@@ -394,7 +418,9 @@ class _TopicPageState extends State<TopicPage> {
                           radius: 28,
                           photoUrl: channel['avatarUrl'],
                           displayName: channel['name'] ?? '',
-                          backgroundColor: AppColors.brand.withValues(alpha: 0.2),
+                          backgroundColor: AppColors.brand.withValues(
+                            alpha: 0.2,
+                          ),
                           textColor: AppColors.brand,
                         ),
                         const SizedBox(height: 8),
@@ -467,9 +493,14 @@ class _TopicPageState extends State<TopicPage> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.textPrimary : const Color(0xFF272727),
+                    color: isSelected
+                        ? AppColors.textPrimary
+                        : const Color(0xFF272727),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   alignment: Alignment.center,
@@ -477,8 +508,12 @@ class _TopicPageState extends State<TopicPage> {
                     tab,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.w500,
+                      color: isSelected
+                          ? AppColors.bgPage
+                          : AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -709,8 +744,3 @@ class _TopicPageState extends State<TopicPage> {
     );
   }
 }
-
-
-
-
-

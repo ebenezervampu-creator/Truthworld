@@ -23,11 +23,16 @@ class UserManagementTab extends StatelessWidget {
               const SizedBox(width: 24),
               Expanded(
                 flex: 1,
-                child: Obx(() => controller.selectedUser.value != null
-                    ? _buildDetailPanel(context, controller.selectedUser.value!)
-                    : _buildEmptyDetail(context)),
+                child: Obx(
+                  () => controller.selectedUser.value != null
+                      ? _buildDetailPanel(
+                          context,
+                          controller.selectedUser.value!,
+                        )
+                      : _buildEmptyDetail(context),
+                ),
               ),
-            ]
+            ],
           ],
         );
       },
@@ -55,7 +60,10 @@ class UserManagementTab extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Search users by email or name...',
                 hintStyle: const TextStyle(color: AppColors.textTertiary),
-                prefixIcon: const Icon(Icons.search, color: AppColors.textPrimary),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textPrimary,
+                ),
                 filled: true,
                 fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(
@@ -81,7 +89,8 @@ class UserManagementTab extends StatelessWidget {
               }
               return ListView.separated(
                 itemCount: controller.searchedUsers.length,
-                separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+                separatorBuilder: (context, index) =>
+                    const Divider(color: AppColors.bgDivider, height: 1),
                 itemBuilder: (context, index) {
                   final user = controller.searchedUsers[index];
                   return Material(
@@ -165,7 +174,10 @@ class UserManagementTab extends StatelessWidget {
                   backgroundColor: AppColors.bgElevated,
                   child: Text(
                     user['name']?.substring(0, 1).toUpperCase() ?? 'U',
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 24),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 24,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -175,7 +187,11 @@ class UserManagementTab extends StatelessWidget {
                     children: [
                       Text(
                         user['name'] ?? 'Unknown User',
-                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         user['email'] ?? '',
@@ -189,7 +205,8 @@ class UserManagementTab extends StatelessWidget {
             const SizedBox(height: 24),
             Obx(() {
               final safetyProfile = controller.userSafetyProfile.value;
-              if (safetyProfile == null) return const CircularProgressIndicator();
+              if (safetyProfile == null)
+                return const CircularProgressIndicator();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -204,19 +221,44 @@ class UserManagementTab extends StatelessWidget {
             const SizedBox(height: 24),
             const Text(
               'Actions',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildActionButton(context, 'Warn', user['id'], color: Colors.amber),
-                _buildActionButton(context, 'Suspend 7d', user['id'], duration: 7, color: Colors.orange),
-                _buildActionButton(context, 'Ban', user['id'], color: AppColors.error),
-                _buildActionButton(context, 'Reset Trust', user['id'], color: Colors.blue),
+                _buildActionButton(
+                  context,
+                  'Warn',
+                  user['id'],
+                  color: Colors.amber,
+                ),
+                _buildActionButton(
+                  context,
+                  'Suspend 7d',
+                  user['id'],
+                  duration: 7,
+                  color: Colors.orange,
+                ),
+                _buildActionButton(
+                  context,
+                  'Ban',
+                  user['id'],
+                  color: AppColors.error,
+                ),
+                _buildActionButton(
+                  context,
+                  'Reset Trust',
+                  user['id'],
+                  color: Colors.blue,
+                ),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -225,9 +267,12 @@ class UserManagementTab extends StatelessWidget {
 
   Widget _buildTrustScoreCard(int score) {
     Color scoreColor = Colors.red;
-    if (score >= 75) scoreColor = Colors.green;
-    else if (score >= 40) scoreColor = Colors.amber;
-    else if (score >= 10) scoreColor = Colors.orange;
+    if (score >= 75)
+      scoreColor = Colors.green;
+    else if (score >= 40)
+      scoreColor = Colors.amber;
+    else if (score >= 10)
+      scoreColor = Colors.orange;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -238,7 +283,10 @@ class UserManagementTab extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Trust Score', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+          const Text(
+            'Trust Score',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
@@ -250,7 +298,7 @@ class UserManagementTab extends StatelessWidget {
               score.toString(),
               style: TextStyle(color: scoreColor, fontWeight: FontWeight.bold),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -266,8 +314,18 @@ class UserManagementTab extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Strikes', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-          Text(strikes.toString(), style: const TextStyle(color: AppColors.error, fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'Strikes',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          ),
+          Text(
+            strikes.toString(),
+            style: const TextStyle(
+              color: AppColors.error,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -283,11 +341,23 @@ class UserManagementTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Upload Statistics', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+          const Text(
+            'Upload Statistics',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          ),
           const SizedBox(height: 8),
-          Text('Total Uploads: ${stats['totalUploads'] ?? 0}', style: const TextStyle(color: AppColors.textSecondary)),
-          Text('Approval Rate: ${stats['approvalRate'] ?? 0}%', style: const TextStyle(color: AppColors.textSecondary)),
-          Text('Rejection Rate: ${stats['rejectionRate'] ?? 0}%', style: const TextStyle(color: AppColors.textSecondary)),
+          Text(
+            'Total Uploads: ${stats['totalUploads'] ?? 0}',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          Text(
+            'Approval Rate: ${stats['approvalRate'] ?? 0}%',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          Text(
+            'Rejection Rate: ${stats['rejectionRate'] ?? 0}%',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
         ],
       ),
     );
@@ -295,9 +365,12 @@ class UserManagementTab extends StatelessWidget {
 
   Widget _buildTrustScoreBadge(int score) {
     Color scoreColor = Colors.red;
-    if (score >= 75) scoreColor = Colors.green;
-    else if (score >= 40) scoreColor = Colors.amber;
-    else if (score >= 10) scoreColor = Colors.orange;
+    if (score >= 75)
+      scoreColor = Colors.green;
+    else if (score >= 40)
+      scoreColor = Colors.amber;
+    else if (score >= 10)
+      scoreColor = Colors.orange;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -306,7 +379,10 @@ class UserManagementTab extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: scoreColor),
       ),
-      child: Text(score.toString(), style: TextStyle(color: scoreColor, fontSize: 12)),
+      child: Text(
+        score.toString(),
+        style: TextStyle(color: scoreColor, fontSize: 12),
+      ),
     );
   }
 
@@ -319,29 +395,47 @@ class UserManagementTab extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color),
       ),
-      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 12)),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(color: color, fontSize: 12),
+      ),
     );
   }
 
-  Widget _buildActionButton(BuildContext context, String action, String userId, {int? duration, required Color color}) {
+  Widget _buildActionButton(
+    BuildContext context,
+    String action,
+    String userId, {
+    int? duration,
+    required Color color,
+  }) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: color.withOpacity(0.2),
         foregroundColor: color,
         side: BorderSide(color: color),
       ),
-      onPressed: () => _showActionDialog(context, action, userId, duration: duration),
+      onPressed: () =>
+          _showActionDialog(context, action, userId, duration: duration),
       child: Text(action),
     );
   }
 
-  void _showActionDialog(BuildContext context, String action, String userId, {int? duration}) {
+  void _showActionDialog(
+    BuildContext context,
+    String action,
+    String userId, {
+    int? duration,
+  }) {
     final reasonController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        title: Text('Confirm $action', style: const TextStyle(color: AppColors.textPrimary)),
+        title: Text(
+          'Confirm $action',
+          style: const TextStyle(color: AppColors.textPrimary),
+        ),
         content: TextField(
           controller: reasonController,
           style: const TextStyle(color: AppColors.textPrimary),
@@ -356,16 +450,27 @@ class UserManagementTab extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () {
-              controller.moderateUser(userId, action, reasonController.text, durationDays: duration);
+              controller.moderateUser(
+                userId,
+                action,
+                reasonController.text,
+                durationDays: duration,
+              );
               Navigator.pop(context);
             },
-            child: const Text('Confirm', style: TextStyle(color: AppColors.textPrimary)),
-          )
+            child: const Text(
+              'Confirm',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+          ),
         ],
       ),
     );

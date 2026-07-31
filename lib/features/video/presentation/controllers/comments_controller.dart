@@ -14,7 +14,6 @@ import 'package:truthworld/features/video/data/services/comment_service.dart';
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
 class CommentsController extends BaseController {
-
   CommentsController({this.video, this.isOffline = false});
   final CommentService _commentService = CommentService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -84,12 +83,43 @@ class CommentsController extends BaseController {
   // INITIALIZATION
   // ============================================================================
 
+  final RxBool isCounterArgumentFlipped = false.obs;
+
   void sortComments(bool newest) {
     isSortNewest.value = newest;
+    isCounterArgumentFlipped.value = false;
     if (newest) {
       comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     } else {
       comments.sort((a, b) => b.likeCount.compareTo(a.likeCount));
+    }
+  }
+
+  void toggleCounterArgumentSort() {
+    isCounterArgumentFlipped.toggle();
+    if (isCounterArgumentFlipped.value) {
+      comments.sort((a, b) {
+        final textA = a.text.toLowerCase();
+        final textB = b.text.toLowerCase();
+        final contrastA =
+            textA.contains('however') ||
+            textA.contains('disagree') ||
+            textA.contains('perspective') ||
+            textA.contains('contrary') ||
+            textA.contains('evidence');
+        final contrastB =
+            textB.contains('however') ||
+            textB.contains('disagree') ||
+            textB.contains('perspective') ||
+            textB.contains('contrary') ||
+            textB.contains('evidence');
+
+        if (contrastA && !contrastB) return -1;
+        if (!contrastA && contrastB) return 1;
+        return b.likeCount.compareTo(a.likeCount);
+      });
+    } else {
+      sortComments(isSortNewest.value);
     }
   }
 
@@ -144,36 +174,41 @@ class CommentsController extends BaseController {
     // Stream comments
     _commentService
         .getCommentsStream(
-      videoId: video!.id,
-    )
+          videoId: video!.id,
+        )
         .listen(
-      (loadedComments) async {
-        final targetId = targetCommentId.value;
-        if (targetId != null && targetId.isNotEmpty) {
-          final containsTarget = loadedComments.any((c) => c.id == targetId);
-          if (!containsTarget) {
-            try {
-              final targetComment = await _commentService.getComment(video!.id, targetId);
-              if (targetComment != null) {
-                loadedComments.insert(0, targetComment);
+          (loadedComments) async {
+            final targetId = targetCommentId.value;
+            if (targetId != null && targetId.isNotEmpty) {
+              final containsTarget = loadedComments.any(
+                (c) => c.id == targetId,
+              );
+              if (!containsTarget) {
+                try {
+                  final targetComment = await _commentService.getComment(
+                    video!.id,
+                    targetId,
+                  );
+                  if (targetComment != null) {
+                    loadedComments.insert(0, targetComment);
+                  }
+                } catch (e) {
+                  debugPrint('⚠️ Error fetching deep-linked comment: $e');
+                }
               }
-            } catch (e) {
-              debugPrint('⚠️ Error fetching deep-linked comment: $e');
             }
-          }
-        }
 
-        comments.value = loadedComments;
-        sortComments(isSortNewest.value);
-        isLoadingComments.value = false;
-        hasMoreComments.value = loadedComments.length >= _commentsPerPage;
-        commentsError.value = null;
-      },
-      onError: (e) {
-        commentsError.value = e.toString();
-        isLoadingComments.value = false;
-      },
-    );
+            comments.value = loadedComments;
+            sortComments(isSortNewest.value);
+            isLoadingComments.value = false;
+            hasMoreComments.value = loadedComments.length >= _commentsPerPage;
+            commentsError.value = null;
+          },
+          onError: (e) {
+            commentsError.value = e.toString();
+            isLoadingComments.value = false;
+          },
+        );
   }
 
   // ============================================================================
@@ -183,9 +218,14 @@ class CommentsController extends BaseController {
   /// Submit a new comment
   Future<void> submitComment({
     required String text,
-    required String userProfilePicUrl, String? channelId,
+    String? channelId,
     String? channelName,
     String? channelProfilePicUrl,
+    String? userProfilePicUrl,
+    double donationAmount = 0.0,
+    String donationCurrency = '\$',
+    bool isDonatedComment = false,
+    String? donationColorHex,
   }) async {
     if (text.trim().isEmpty) {
       throw Exception('Comment cannot be empty');
@@ -204,13 +244,24 @@ class CommentsController extends BaseController {
       commentError.value = null;
 
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final hasChannel =
+          authService.hasChannel.value && authService.userChannel != null;
 
       final finalUserName = authService.activeDisplayName;
-      final finalUserProfilePicUrl = authService.activePhotoUrl;
-      final finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
-      final finalChannelName = authService.activeDisplayName;
-      final finalChannelProfilePicUrl = authService.activePhotoUrl;
+      final finalUserProfilePicUrl =
+          userProfilePicUrl ?? authService.activePhotoUrl;
+      final finalChannelId = (channelId != null && channelId.isNotEmpty)
+          ? channelId
+          : (hasChannel ? authService.userChannel!.id : channelId);
+      final finalChannelName = (channelName != null && channelName.isNotEmpty)
+          ? channelName
+          : (hasChannel
+                ? (authService.userChannel?.handle.isNotEmpty == true
+                      ? authService.userChannel!.handle
+                      : authService.userChannel!.name)
+                : authService.activeDisplayName);
+      final finalChannelProfilePicUrl =
+          channelProfilePicUrl ?? authService.activePhotoUrl;
 
       final commentId = await _commentService.addComment(
         videoId: video!.id,
@@ -221,7 +272,32 @@ class CommentsController extends BaseController {
         channelName: finalChannelName,
         channelProfilePicUrl: finalChannelProfilePicUrl,
         text: text.trim(),
+        donationAmount: donationAmount,
+        donationCurrency: donationCurrency,
+        isDonatedComment: isDonatedComment,
+        donationColorHex: donationColorHex,
       );
+
+      if (donationAmount > 0 && video?.channelId.isNotEmpty == true) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('channels')
+              .doc(video!.channelId)
+              .collection('donations')
+              .add({
+                'amount': donationAmount,
+                'currency': donationCurrency,
+                'donorId': currentUserId,
+                'donorName': finalUserName,
+                'videoId': video!.id,
+                'commentId': commentId,
+                'donatedAt': FieldValue.serverTimestamp(),
+                'type': 'super_thanks',
+              });
+        } catch (e) {
+          debugPrint('⚠️ Error recording creator donation payout: $e');
+        }
+      }
 
       try {
         await MentionsHelper.processAndNotifyMentions(
@@ -279,7 +355,10 @@ class CommentsController extends BaseController {
     } else {
       newLikeCount += 1;
       if (currentStatus?['isDisliked'] ?? false) {
-        newDislikeCount = (newDislikeCount - 1).clamp(0, double.maxFinite.toInt());
+        newDislikeCount = (newDislikeCount - 1).clamp(
+          0,
+          double.maxFinite.toInt(),
+        );
       }
       userCommentInteractions[commentId] = {
         'isLiked': true,
@@ -288,7 +367,9 @@ class CommentsController extends BaseController {
     }
 
     final isVideoCreator = video != null && currentUserId == video!.ownerId;
-    final creatorName = video?.channelName.isNotEmpty ?? false ? video!.channelName : 'Creator';
+    final creatorName = video?.channelName.isNotEmpty ?? false
+        ? video!.channelName
+        : 'Creator';
     var newIsHeartedByCreator = comment.isHeartedByCreator;
     var newCreatorHeartName = comment.creatorHeartName;
 
@@ -333,10 +414,12 @@ class CommentsController extends BaseController {
     } catch (e) {
       // Revert on error
       comments[index] = comment;
-      userCommentInteractions[commentId] = currentStatus ?? {
-        'isLiked': false,
-        'isDisliked': false,
-      };
+      userCommentInteractions[commentId] =
+          currentStatus ??
+          {
+            'isLiked': false,
+            'isDisliked': false,
+          };
       comments.refresh();
       Get.snackbar('Error', 'Failed to update interaction');
     }
@@ -364,7 +447,10 @@ class CommentsController extends BaseController {
     var newLikeCount = comment.likeCount;
     var newDislikeCount = comment.dislikeCount;
     if (wasDisliked) {
-      newDislikeCount = (newDislikeCount - 1).clamp(0, double.maxFinite.toInt());
+      newDislikeCount = (newDislikeCount - 1).clamp(
+        0,
+        double.maxFinite.toInt(),
+      );
       userCommentInteractions[commentId] = {
         'isLiked': false,
         'isDisliked': false,
@@ -418,10 +504,12 @@ class CommentsController extends BaseController {
     } catch (e) {
       // Revert on error
       comments[index] = comment;
-      userCommentInteractions[commentId] = currentStatus ?? {
-        'isLiked': false,
-        'isDisliked': false,
-      };
+      userCommentInteractions[commentId] =
+          currentStatus ??
+          {
+            'isLiked': false,
+            'isDisliked': false,
+          };
       comments.refresh();
       Get.snackbar('Error', 'Failed to update interaction');
     }
@@ -477,7 +565,8 @@ class CommentsController extends BaseController {
   Future<void> submitReply({
     required String commentId,
     required String text,
-    required String userProfilePicUrl, String? channelId,
+    required String userProfilePicUrl,
+    String? channelId,
     String? channelName,
     String? channelProfilePicUrl,
     String? commentAuthorId,
@@ -489,12 +578,19 @@ class CommentsController extends BaseController {
       commentError.value = null;
 
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final hasChannel =
+          authService.hasChannel.value && authService.userChannel != null;
 
       final finalUserName = authService.activeDisplayName;
       final finalUserProfilePicUrl = authService.activePhotoUrl;
-      final finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
-      final finalChannelName = authService.activeDisplayName;
+      final finalChannelId = hasChannel
+          ? authService.userChannel!.id
+          : channelId;
+      final finalChannelName = hasChannel
+          ? (authService.userChannel?.handle.isNotEmpty == true
+                ? authService.userChannel!.handle
+                : authService.userChannel!.name)
+          : authService.activeDisplayName;
       final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final replyId = await _commentService.addReply(
@@ -509,9 +605,15 @@ class CommentsController extends BaseController {
         text: text.trim(),
       );
 
-      if (commentAuthorId != null && commentAuthorId.isNotEmpty && commentAuthorId != currentUserId) {
+      if (commentAuthorId != null &&
+          commentAuthorId.isNotEmpty &&
+          commentAuthorId != currentUserId) {
         final notificationService = UserNotificationService();
-        final displayHandle = hasChannel ? authService.activeHandle : (currentUserName.startsWith('@') ? currentUserName : '@$currentUserName');
+        final displayHandle = hasChannel
+            ? authService.activeHandle
+            : (currentUserName.startsWith('@')
+                  ? currentUserName
+                  : '@$currentUserName');
 
         notificationService.createNotification(
           userId: commentAuthorId,
@@ -591,8 +693,15 @@ class CommentsController extends BaseController {
           userId: userId,
         );
       } else {
-        if (replyAuthorId != null && replyAuthorId.isNotEmpty && replyAuthorId != userId) {
-          _triggerReplyLikeNotification(commentId, replyId, replyAuthorId, replyText);
+        if (replyAuthorId != null &&
+            replyAuthorId.isNotEmpty &&
+            replyAuthorId != userId) {
+          _triggerReplyLikeNotification(
+            commentId,
+            replyId,
+            replyAuthorId,
+            replyText,
+          );
         }
         await _commentService.likeReply(
           videoId: video!.id,
@@ -603,10 +712,12 @@ class CommentsController extends BaseController {
         );
       }
     } catch (e) {
-      userCommentInteractions[replyId] = currentStatus ?? {
-        'isLiked': false,
-        'isDisliked': false,
-      };
+      userCommentInteractions[replyId] =
+          currentStatus ??
+          {
+            'isLiked': false,
+            'isDisliked': false,
+          };
       Get.snackbar('Error', 'Failed to like reply');
     }
   }
@@ -656,10 +767,12 @@ class CommentsController extends BaseController {
         );
       }
     } catch (e) {
-      userCommentInteractions[replyId] = currentStatus ?? {
-        'isLiked': false,
-        'isDisliked': false,
-      };
+      userCommentInteractions[replyId] =
+          currentStatus ??
+          {
+            'isLiked': false,
+            'isDisliked': false,
+          };
       Get.snackbar('Error', 'Failed to dislike reply');
     }
   }
@@ -696,8 +809,11 @@ class CommentsController extends BaseController {
   }
 
   void _triggerLikeNotification(Comment comment) {
-    if (video == null || currentUserId.isEmpty || currentUserId == comment.userId) return;
-    
+    if (video == null ||
+        currentUserId.isEmpty ||
+        currentUserId == comment.userId)
+      return;
+
     final authService = AuthService.to;
     final notificationService = UserNotificationService();
     notificationService.createNotification(
@@ -705,7 +821,8 @@ class CommentsController extends BaseController {
       type: 'comment_like',
       severity: NotificationSeverity.info,
       title: 'Comment Liked',
-      message: '${authService.activeHandle} liked your comment: "${comment.text}"',
+      message:
+          '${authService.activeHandle} liked your comment: "${comment.text}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,
@@ -717,9 +834,19 @@ class CommentsController extends BaseController {
     );
   }
 
-  void _triggerReplyLikeNotification(String commentId, String replyId, String? replyAuthorId, String? replyText) {
-    if (video == null || currentUserId.isEmpty || replyAuthorId == null || replyAuthorId.isEmpty || currentUserId == replyAuthorId) return;
-    
+  void _triggerReplyLikeNotification(
+    String commentId,
+    String replyId,
+    String? replyAuthorId,
+    String? replyText,
+  ) {
+    if (video == null ||
+        currentUserId.isEmpty ||
+        replyAuthorId == null ||
+        replyAuthorId.isEmpty ||
+        currentUserId == replyAuthorId)
+      return;
+
     final authService = AuthService.to;
     final notificationService = UserNotificationService();
     notificationService.createNotification(
@@ -727,7 +854,8 @@ class CommentsController extends BaseController {
       type: 'reply_like',
       severity: NotificationSeverity.info,
       title: 'Reply Liked',
-      message: '${authService.activeHandle} liked your reply: "${replyText ?? ''}"',
+      message:
+          '${authService.activeHandle} liked your reply: "${replyText ?? ''}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,

@@ -48,20 +48,20 @@ class SavedCommentsController extends GetxController {
         .orderBy('savedAt', descending: true)
         .snapshots()
         .listen(
-      (snapshot) {
-        final list = <SavedCommentModel>[];
-        for (final doc in snapshot.docs) {
-          list.add(SavedCommentModel.fromMap(doc.data(), doc.id));
-        }
-        comments.value = list;
-        isLoading.value = false;
-      },
-      onError: (Object error) {
-        errorMessage.value = error.toString();
-        isLoading.value = false;
-        debugPrint('Error listening to saved comments: $error');
-      },
-    );
+          (snapshot) {
+            final list = <SavedCommentModel>[];
+            for (final doc in snapshot.docs) {
+              list.add(SavedCommentModel.fromMap(doc.data(), doc.id));
+            }
+            comments.value = list;
+            isLoading.value = false;
+          },
+          onError: (Object error) {
+            errorMessage.value = error.toString();
+            isLoading.value = false;
+            debugPrint('Error listening to saved comments: $error');
+          },
+        );
   }
 
   Future<void> unsaveComment(String commentId) async {
@@ -99,12 +99,14 @@ class SavedCommentsController extends GetxController {
     }
   }
 
-  final RxString selectedCategory = 'all'.obs; // 'all', 'video', 'topic', 'community_post'
+  final RxString selectedCategory =
+      'all'.obs; // 'all', 'video', 'topic', 'community_post'
 
   int get totalCount => comments.length;
   int get videoCount => comments.where((c) => c.sourceType == 'video').length;
   int get topicCount => comments.where((c) => c.sourceType == 'topic').length;
-  int get communityCount => comments.where((c) => c.sourceType == 'community_post').length;
+  int get communityCount =>
+      comments.where((c) => c.sourceType == 'community_post').length;
 
   void setSelectedCategory(String category) {
     if (selectedCategory.value != category) {
@@ -135,7 +137,9 @@ class SavedCommentsController extends GetxController {
 
     // Category filter
     if (selectedCategory.value != 'all') {
-      list = list.where((item) => item.sourceType == selectedCategory.value).toList();
+      list = list
+          .where((item) => item.sourceType == selectedCategory.value)
+          .toList();
     }
 
     // Search query filter

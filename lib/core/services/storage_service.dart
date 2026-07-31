@@ -149,8 +149,3 @@ class StorageService extends GetxService {
     errorMessage.value = '';
   }
 }
-
-
-
-
-

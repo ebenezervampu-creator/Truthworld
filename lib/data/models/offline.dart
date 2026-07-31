@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
-class OfflineVideo { // optional: only when playing offline
+class OfflineVideo {
+  // optional: only when playing offline
 
   OfflineVideo({
     required this.id,
@@ -38,12 +39,8 @@ class OfflineVideo { // optional: only when playing offline
     channelImage: json['channelImage'],
     views: json['views'],
     thumbnailUrl: json['thumbnailUrl'],
-    downloadedAt: json['downloadedAt'] != null 
-        ? DateTime.parse(json['downloadedAt']) 
+    downloadedAt: json['downloadedAt'] != null
+        ? DateTime.parse(json['downloadedAt'])
         : DateTime.now(),
   );
 }
-
-
-
-

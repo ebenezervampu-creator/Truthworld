@@ -4,7 +4,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Wraps [child] in a shimmer animation using the app's dark-theme palette.
 class SkeletonBase extends StatelessWidget {
-
   const SkeletonBase({required this.child, super.key});
   final Widget child;
 
@@ -20,7 +19,6 @@ class SkeletonBase extends StatelessWidget {
 
 /// A rectangular placeholder box used inside [SkeletonBase].
 class SkeletonBox extends StatelessWidget {
-
   const SkeletonBox({
     super.key,
     this.width,
@@ -46,7 +44,6 @@ class SkeletonBox extends StatelessWidget {
 
 /// A circular placeholder (avatars, profile pictures).
 class SkeletonCircle extends StatelessWidget {
-
   const SkeletonCircle({super.key, this.size = 40});
   final double size;
 

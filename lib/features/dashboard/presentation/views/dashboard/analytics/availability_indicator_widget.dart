@@ -6,9 +6,10 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Widget that displays availability status with animated indicators
 class AvailabilityIndicatorWidget extends StatelessWidget {
-
   const AvailabilityIndicatorWidget({
-    required this.status, required this.isDarkMode, super.key,
+    required this.status,
+    required this.isDarkMode,
+    super.key,
     this.size = 20.0,
     this.showMessage = true,
   });
@@ -80,9 +81,15 @@ class AvailabilityIndicatorWidget extends StatelessWidget {
 
 /// Enhanced text field with real-time availability checking
 class AvailabilityTextField extends StatefulWidget {
-
   const AvailabilityTextField({
-    required this.controller, required this.labelText, required this.hintText, required this.icon, required this.isDarkMode, required this.onChanged, required this.availabilityStatus, super.key,
+    required this.controller,
+    required this.labelText,
+    required this.hintText,
+    required this.icon,
+    required this.isDarkMode,
+    required this.onChanged,
+    required this.availabilityStatus,
+    super.key,
     this.validator,
     this.maxLength,
     this.isRequired = false,
@@ -134,122 +141,136 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
   Widget build(BuildContext context) {
     return ScaleTransition(
       scale: _scaleAnimation,
-      child: Obx(() => Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: widget.isDarkMode
-                  ? Colors.black26
-                  : AppColors.bgPage.withValues(alpha: 0.08),
-              blurRadius: _isFocused.value ? 15 : 10,
-              spreadRadius: _isFocused.value ? 2 : 1,
-              offset: Offset(0, _isFocused.value ? 6 : 4),
-            ),
-          ],
-        ),
-        child: Focus(
-          onFocusChange: (hasFocus) {
-            _isFocused.value = hasFocus;
-            if (hasFocus) {
-              _animationController.forward();
-            } else {
-              _animationController.reverse();
-            }
-          },
-          child: TextFormField(
-            controller: widget.controller,
-            maxLength: widget.maxLength,
-            inputFormatters: widget.inputFormatters,
-            style: TextStyle(
-              fontSize: 16,
-              color: widget.isDarkMode ? AppColors.textPrimary : AppTheme.colors.surface,
-              fontWeight: FontWeight.w500,
-            ),
-            decoration: InputDecoration(
-              labelText: widget.isRequired
-                  ? '${widget.labelText} *'
-                  : widget.labelText,
-              hintText: widget.hintText,
-              prefixText: widget.prefixText,
-              prefixStyle: TextStyle(
+      child: Obx(
+        () => Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.isDarkMode
+                    ? Colors.black26
+                    : AppColors.bgPage.withValues(alpha: 0.08),
+                blurRadius: _isFocused.value ? 15 : 10,
+                spreadRadius: _isFocused.value ? 2 : 1,
+                offset: Offset(0, _isFocused.value ? 6 : 4),
+              ),
+            ],
+          ),
+          child: Focus(
+            onFocusChange: (hasFocus) {
+              _isFocused.value = hasFocus;
+              if (hasFocus) {
+                _animationController.forward();
+              } else {
+                _animationController.reverse();
+              }
+            },
+            child: TextFormField(
+              controller: widget.controller,
+              maxLength: widget.maxLength,
+              inputFormatters: widget.inputFormatters,
+              style: TextStyle(
                 fontSize: 16,
-                color: widget.isDarkMode ? AppColors.textSecondary : AppTheme.colors.surface,
+                color: widget.isDarkMode
+                    ? AppColors.textPrimary
+                    : AppTheme.colors.surface,
                 fontWeight: FontWeight.w500,
               ),
-              prefixIcon: Container(
-                margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppTheme.colors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+              decoration: InputDecoration(
+                labelText: widget.isRequired
+                    ? '${widget.labelText} *'
+                    : widget.labelText,
+                hintText: widget.hintText,
+                prefixText: widget.prefixText,
+                prefixStyle: TextStyle(
+                  fontSize: 16,
+                  color: widget.isDarkMode
+                      ? AppColors.textSecondary
+                      : AppTheme.colors.surface,
+                  fontWeight: FontWeight.w500,
                 ),
-                child: Icon(
-                  widget.icon,
-                  color: AppTheme.colors.primary,
-                  size: 20,
+                prefixIcon: Container(
+                  margin: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.colors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    color: AppTheme.colors.primary,
+                    size: 20,
+                  ),
+                ),
+                suffixIcon:
+                    widget.availabilityStatus != AvailabilityStatus.unknown
+                    ? Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: AvailabilityIndicatorWidget(
+                          status: widget.availabilityStatus,
+                          isDarkMode: widget.isDarkMode,
+                          showMessage: false,
+                        ),
+                      )
+                    : null,
+                labelStyle: TextStyle(
+                  color: widget.isDarkMode
+                      ? AppColors.textSecondary
+                      : AppTheme.colors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+                hintStyle: TextStyle(
+                  color: widget.isDarkMode
+                      ? AppColors.textTertiary
+                      : const Color(0xFFA0AEC0),
+                ),
+                filled: true,
+                fillColor: widget.isDarkMode
+                    ? AppTheme.colors.surface
+                    : AppColors.textPrimary,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: _getFocusedBorderColor(),
+                    width: 2,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: AppTheme.colors.error,
+                    width: 2,
+                  ),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: AppTheme.colors.error,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 20,
+                ),
+                counterStyle: TextStyle(
+                  color: widget.isDarkMode
+                      ? AppColors.textSecondary
+                      : AppTheme.colors.textSecondary,
+                  fontSize: 12,
                 ),
               ),
-              suffixIcon:
-                  widget.availabilityStatus != AvailabilityStatus.unknown
-                  ? Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: AvailabilityIndicatorWidget(
-                        status: widget.availabilityStatus,
-                        isDarkMode: widget.isDarkMode,
-                        showMessage: false,
-                      ),
-                    )
-                  : null,
-              labelStyle: TextStyle(
-                color: widget.isDarkMode
-                    ? AppColors.textSecondary
-                    : AppTheme.colors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-              hintStyle: TextStyle(
-                color: widget.isDarkMode ? AppColors.textTertiary : const Color(0xFFA0AEC0),
-              ),
-              filled: true,
-              fillColor: widget.isDarkMode
-                  ? AppTheme.colors.surface
-                  : AppColors.textPrimary,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: _getFocusedBorderColor(),
-                  width: 2,
-                ),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: AppTheme.colors.error, width: 2),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: AppTheme.colors.error, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 20,
-              ),
-              counterStyle: TextStyle(
-                color: widget.isDarkMode
-                    ? AppColors.textSecondary
-                    : AppTheme.colors.textSecondary,
-                fontSize: 12,
-              ),
+              onChanged: widget.onChanged,
+              validator: widget.validator,
+              textInputAction: TextInputAction.next,
             ),
-            onChanged: widget.onChanged,
-            validator: widget.validator,
-            textInputAction: TextInputAction.next,
           ),
         ),
-      )),
+      ),
     );
   }
 
@@ -271,9 +292,10 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
 
 /// Widget to display availability message below text field
 class AvailabilityMessageWidget extends StatelessWidget {
-
   const AvailabilityMessageWidget({
-    required this.status, required this.isDarkMode, super.key,
+    required this.status,
+    required this.isDarkMode,
+    super.key,
     this.customMessage,
   });
   final AvailabilityStatus status;
@@ -326,9 +348,11 @@ class AvailabilityMessageWidget extends StatelessWidget {
 
 /// Helper widget for channel creation limits display
 class ChannelLimitIndicatorWidget extends StatelessWidget {
-
   const ChannelLimitIndicatorWidget({
-    required this.currentCount, required this.maxCount, required this.isDarkMode, super.key,
+    required this.currentCount,
+    required this.maxCount,
+    required this.isDarkMode,
+    super.key,
   });
   final int currentCount;
   final int maxCount;
@@ -382,9 +406,11 @@ class ChannelLimitIndicatorWidget extends StatelessWidget {
 
 /// Advanced settings section widget
 class AdvancedSettingsSection extends StatefulWidget {
-
   const AdvancedSettingsSection({
-    required this.isDarkMode, required this.settings, required this.onSettingsChanged, super.key,
+    required this.isDarkMode,
+    required this.settings,
+    required this.onSettingsChanged,
+    super.key,
   });
   final bool isDarkMode;
   final Map<String, dynamic> settings;
@@ -440,7 +466,9 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
+              color: widget.isDarkMode
+                  ? AppTheme.colors.surface
+                  : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -494,16 +522,18 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
                     ],
                   ),
                 ),
-                Obx(() => AnimatedRotation(
-                  turns: _isExpanded.value ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 300),
-                  child: Icon(
-                    Icons.expand_more_rounded,
-                    color: widget.isDarkMode
-                        ? AppColors.textSecondary
-                        : AppTheme.colors.textSecondary,
+                Obx(
+                  () => AnimatedRotation(
+                    turns: _isExpanded.value ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    child: Icon(
+                      Icons.expand_more_rounded,
+                      color: widget.isDarkMode
+                          ? AppColors.textSecondary
+                          : AppTheme.colors.textSecondary,
+                    ),
                   ),
-                )),
+                ),
               ],
             ),
           ),
@@ -514,7 +544,9 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
             margin: const EdgeInsets.only(top: 16),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
+              color: widget.isDarkMode
+                  ? AppTheme.colors.surface
+                  : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -621,8 +653,3 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
     widget.onSettingsChanged(updatedSettings);
   }
 }
-
-
-
-
-

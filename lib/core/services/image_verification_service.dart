@@ -28,7 +28,6 @@ enum VerificationStatus {
 
 /// Result of image verification containing status and reason
 class VerificationResult {
-
   VerificationResult({
     required this.status,
     required this.reason,
@@ -54,10 +53,15 @@ class VerificationResult {
     }
 
     return VerificationResult(
-      status: VerificationStatus.fromString(data['status']?.toString() ?? 'ERROR'),
+      status: VerificationStatus.fromString(
+        data['status']?.toString() ?? 'ERROR',
+      ),
       reason: data['reason'] ?? 'No reason provided',
       filePath: data['filePath'],
-      approvedAt: (data['approvedAt'] as Timestamp? ?? data['processedAt'] as Timestamp?)?.toDate(),
+      approvedAt:
+          (data['approvedAt'] as Timestamp? ??
+                  data['processedAt'] as Timestamp?)
+              ?.toDate(),
       score: (data['score'] as num?)?.toDouble(),
     );
   }
@@ -217,7 +221,10 @@ class ImageVerificationService {
           final result = VerificationResult.fromFirestore(doc);
 
           if (result.status != VerificationStatus.pending) {
-            logger.info('Status received: ${result.status} after ${attempts + 1} attempts', tag: 'POLL');
+            logger.info(
+              'Status received: ${result.status} after ${attempts + 1} attempts',
+              tag: 'POLL',
+            );
             return result;
           }
         }
@@ -228,7 +235,10 @@ class ImageVerificationService {
         attempts++;
 
         if (attempts % 10 == 0) {
-          logger.info('Still waiting... attempt ${attempts + 1}/$maxAttempts', tag: 'POLL');
+          logger.info(
+            'Still waiting... attempt ${attempts + 1}/$maxAttempts',
+            tag: 'POLL',
+          );
         }
       } catch (e) {
         logger.error('Error checking status: $e', tag: 'POLL');
@@ -252,7 +262,8 @@ class ImageVerificationService {
           .doc(docId)
           .get();
 
-      return doc.exists && doc.get('status')?.toString().toUpperCase() == 'APPROVED';
+      return doc.exists &&
+          doc.get('status')?.toString().toUpperCase() == 'APPROVED';
     } catch (e) {
       logger.error('Check error: $e', tag: 'CHECK');
       return false;
@@ -271,7 +282,10 @@ class ImageVerificationService {
         .map((doc) {
           final data = doc.data();
           final statusValue = data?['status'] ?? 'unknown';
-          logger.debug('Doc: $docId | Status: $statusValue | Exists: ${doc.exists}', tag: 'IMAGE_VERIFICATION');
+          logger.debug(
+            'Doc: $docId | Status: $statusValue | Exists: ${doc.exists}',
+            tag: 'IMAGE_VERIFICATION',
+          );
           return VerificationResult.fromFirestore(doc);
         })
         .handleError((error) {
@@ -302,8 +316,3 @@ class ImageVerificationService {
     return sanitized;
   }
 }
-
-
-
-
-

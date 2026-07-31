@@ -21,6 +21,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 
 class AutoplayNextVideoService extends GetxService {
   // Observable state
@@ -77,7 +80,6 @@ class AutoplayNextVideoService extends GetxService {
       _handleNoRecommendations();
       return;
     }
-
 
     // Select next video using smart algorithm
     final nextVideo = _selectNextVideo(currentVideo, recommendations);
@@ -188,8 +190,8 @@ class AutoplayNextVideoService extends GetxService {
   void _startCountdown() {
     _stopCountdown();
 
-    countdownSeconds.value = GetStorage().read<int>(storageKeyTimeout) ??
-        defaultCountdownSeconds;
+    countdownSeconds.value =
+        GetStorage().read<int>(storageKeyTimeout) ?? defaultCountdownSeconds;
 
     _countdownTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -221,22 +223,33 @@ class AutoplayNextVideoService extends GetxService {
     if (recommendations.isEmpty) return null;
 
     try {
+      final candidates = recommendations
+          .where((v) => v.id != currentVideo.id)
+          .toList();
+      if (candidates.isEmpty) return null;
+
+      if (Get.isRegistered<TruthworldAlgorithm>()) {
+        final algorithm = Get.find<TruthworldAlgorithm>();
+        final ranked = algorithm.rankVideos(
+          candidates,
+          RecommendationSurface.autoplayNext,
+          diversityConfig: DiversityConfig.autoplayNext,
+        );
+        if (ranked.isNotEmpty) {
+          return ranked.first.video;
+        }
+      }
+
       // 1. Prefer videos from same channel (if not current video)
-      final channelVideos = recommendations
-          .where((v) => v.channelId == currentVideo.channelId && v.id != currentVideo.id)
+      final channelVideos = candidates
+          .where((v) => v.channelId == currentVideo.channelId)
           .toList();
       if (channelVideos.isNotEmpty) {
         return channelVideos.first;
       }
 
-      // 2. Fallback: any video except current
-      final differentVideos =
-          recommendations.where((v) => v.id != currentVideo.id).toList();
-      if (differentVideos.isNotEmpty) {
-        return differentVideos.first;
-      }
-
-      return null;
+      // 2. Fallback: any candidate video
+      return candidates.first;
     } catch (e) {
       debugPrint('[AutoplayNextVideoService] Error selecting next video: $e');
       return null;
@@ -283,10 +296,9 @@ class AutoplayNextVideoService extends GetxService {
   void _loadUserPreferences() {
     try {
       final storage = GetStorage();
-      isAutoplayEnabled.value =
-          storage.read<bool>(storageKeyAutoplay) ?? true;
-      countdownSeconds.value = storage.read<int>(storageKeyTimeout) ??
-          defaultCountdownSeconds;
+      isAutoplayEnabled.value = storage.read<bool>(storageKeyAutoplay) ?? true;
+      countdownSeconds.value =
+          storage.read<int>(storageKeyTimeout) ?? defaultCountdownSeconds;
 
       debugPrint(
         '[AutoplayNextVideoService] ✅ Loaded preferences: enabled=${isAutoplayEnabled.value}, timeout=${countdownSeconds.value}s',
@@ -311,8 +323,3 @@ class AutoplayNextVideoService extends GetxService {
     }
   }
 }
-
-
-
-
-

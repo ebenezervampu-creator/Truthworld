@@ -12,7 +12,6 @@ import 'package:truthworld/theme/app_theme.dart';
 // ------------------------------------------------------------
 
 class Comment {
-
   Comment({
     required this.id,
     required this.text,
@@ -79,7 +78,6 @@ class Comment {
 }
 
 class Reply {
-
   Reply({
     required this.id,
     required this.text,
@@ -109,7 +107,6 @@ class Reply {
 }
 
 class VideoComment {
-
   VideoComment({
     required this.videoId,
     required this.videoTitle,
@@ -159,7 +156,6 @@ Timestamp? _timestampFrom(dynamic val) {
 // ------------------------------------------------------------
 
 class StudioCommentsController extends GetxController {
-
   StudioCommentsController({
     required this.channelId,
     required this.channelImageUrl,
@@ -475,7 +471,6 @@ class StudioCommentsController extends GetxController {
 // ------------------------------------------------------------
 
 class ReplyController extends GetxController {
-
   ReplyController({
     required this.videoId,
     required this.commentId,
@@ -506,9 +501,7 @@ class ReplyController extends GetxController {
           .orderBy('createdAt')
           .get();
 
-      replies.value = snapshot.docs
-          .map(Reply.fromDocumentSnapshot)
-          .toList();
+      replies.value = snapshot.docs.map(Reply.fromDocumentSnapshot).toList();
     } catch (e) {
       debugPrint('Error loading replies: $e');
     } finally {
@@ -547,9 +540,11 @@ class ReplyController extends GetxController {
 // ------------------------------------------------------------
 
 class StudioCommentsScreen extends StatefulWidget {
-
   const StudioCommentsScreen({
-    required this.channelId, required this.channelImageUrl, required this.channelName, super.key,
+    required this.channelId,
+    required this.channelImageUrl,
+    required this.channelName,
+    super.key,
     this.searchQuery = '',
   });
   final String channelId;
@@ -699,7 +694,10 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
                         : controller.selectedFilter.value == 'questions'
                         ? 'No questions'
                         : 'No comments yet',
-                    style: const TextStyle(fontSize: 18, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -732,7 +730,6 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
 // ------------------------------------------------------------
 
 class _FilterChip extends StatelessWidget {
-
   const _FilterChip({
     required this.label,
     required this.count,
@@ -775,7 +772,9 @@ class _FilterChip extends StatelessWidget {
               child: Text(
                 '$count',
                 style: TextStyle(
-                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                  color: isSelected
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -793,9 +792,12 @@ class _FilterChip extends StatelessWidget {
 // ------------------------------------------------------------
 
 class CommentCard extends StatelessWidget {
-
   const CommentCard({
-    required this.videoComment, required this.controller, required this.channelImageUrl, required this.channelName, super.key,
+    required this.videoComment,
+    required this.controller,
+    required this.channelImageUrl,
+    required this.channelName,
+    super.key,
   });
   final VideoComment videoComment;
   final StudioCommentsController controller;
@@ -895,8 +897,11 @@ class CommentCard extends StatelessWidget {
     return Obx(() {
       final comment = videoComment.comment;
       final isExpanded = controller.expandedCommentIds.contains(comment.id);
-      final hasLiked = controller.userCommentInteractions[comment.id]?['isLiked'] ?? false;
-      final hasDisliked = controller.userCommentInteractions[comment.id]?['isDisliked'] ?? false;
+      final hasLiked =
+          controller.userCommentInteractions[comment.id]?['isLiked'] ?? false;
+      final hasDisliked =
+          controller.userCommentInteractions[comment.id]?['isDisliked'] ??
+          false;
 
       return Container(
         decoration: BoxDecoration(
@@ -908,358 +913,369 @@ class CommentCard extends StatelessWidget {
                 : const Color(0xFF2F2F2F),
           ),
         ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Video header
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFF171717),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    videoComment.videoThumbnail,
-                    width: 60,
-                    height: 45,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const ColoredBox(
-                      color: Color(0xFF2F2F2F),
-                      child: Icon(Icons.video_library),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Video header
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF171717),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Image.network(
+                      videoComment.videoThumbnail,
+                      width: 60,
+                      height: 45,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const ColoredBox(
+                        color: Color(0xFF2F2F2F),
+                        child: Icon(Icons.video_library),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    videoComment.videoTitle,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      videoComment.videoTitle,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (comment.hasCreatorReply)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.textLink.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.textLink),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: AppColors.textLink,
+                            size: 14,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Replied',
+                            style: TextStyle(
+                              color: AppColors.textLink,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  PopupMenuButton<String>(
+                    onSelected: (v) {
+                      if (v == 'delete') {
+                        controller.deleteComment(
+                          videoComment.videoId,
+                          comment.id,
+                        );
+                      }
+                      if (v == 'hide') _showHideDialog(context);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete comment'),
+                      ),
+                      PopupMenuItem(
+                        value: 'hide',
+                        child: Text('Hide from list'),
+                      ),
+                    ],
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Comment body
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundImage: NetworkImage(
+                          comment.userProfilePicUrl,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              comment.userName,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w500,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              timeago.format(comment.createdAt.toDate()),
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    comment.text,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      height: 1.4,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                if (comment.hasCreatorReply)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.textLink.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppColors.textLink),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          color: AppColors.textLink,
-                          size: 14,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      InkWell(
+                        onTap: () => controller.toggleLike(
+                          videoComment.videoId,
+                          comment.id,
+                          true,
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Replied',
+                        child: _StatItem(
+                          icon: hasLiked
+                              ? Icons.thumb_up
+                              : Icons.thumb_up_outlined,
+                          count: comment.likeCount,
+                          color: hasLiked
+                              ? AppColors.textLink
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      InkWell(
+                        onTap: () => controller.toggleLike(
+                          videoComment.videoId,
+                          comment.id,
+                          false,
+                        ),
+                        child: _StatItem(
+                          icon: hasDisliked
+                              ? Icons.thumb_down
+                              : Icons.thumb_down_outlined,
+                          count: comment.dislikeCount,
+                          color: hasDisliked
+                              ? AppColors.textLink
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      _StatItem(
+                        icon: Icons.comment_outlined,
+                        count: videoComment.totalReplyCount,
+                        color: AppColors.textSecondary,
+                      ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () => _showReplySheet(context),
+                        child: const Text(
+                          'Reply',
                           style: TextStyle(
                             color: AppColors.textLink,
-                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      if (videoComment.totalReplyCount > 0)
+                        InkWell(
+                          onTap: () =>
+                              controller.toggleCommentExpansion(comment.id),
+                          child: Row(
+                            children: [
+                              Text(
+                                isExpanded ? 'Hide' : 'View',
+                                style: const TextStyle(
+                                  color: AppColors.textLink,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                isExpanded
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.keyboard_arrow_down,
+                                color: AppColors.textLink,
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
-                PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == 'delete') {
-                      controller.deleteComment(
-                        videoComment.videoId,
-                        comment.id,
-                      );
-                    }
-                    if (v == 'hide') _showHideDialog(context);
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete comment'),
-                    ),
-                    PopupMenuItem(value: 'hide', child: Text('Hide from list')),
-                  ],
-                  icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Comment body
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            // Creator reply preview
+            if (comment.hasCreatorReply && comment.creatorReply != null)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.textLink.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.textLink.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
                   children: [
                     CircleAvatar(
                       radius: 16,
-                      backgroundImage: NetworkImage(comment.userProfilePicUrl),
+                      backgroundImage: NetworkImage(channelImageUrl),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            comment.userName,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 14,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                comment.creatorReply!.userName,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.textLink,
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Text(
+                                  'CREATOR',
+                                  style: TextStyle(
+                                    color: AppColors.bgPage,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                          const SizedBox(height: 6),
                           Text(
-                            timeago.format(comment.createdAt.toDate()),
+                            comment.creatorReply!.text,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
-                              fontSize: 12,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            timeago.format(
+                              comment.creatorReply!.createdAt.toDate(),
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const Icon(
+                      Icons.push_pin,
+                      color: AppColors.textLink,
+                      size: 16,
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  comment.text,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
+              ),
+
+            // Replies (using GetX to avoid setState during build)
+            if (isExpanded)
+              GetX<ReplyController>(
+                tag: comment.id,
+                init: ReplyController(
+                  videoId: videoComment.videoId,
+                  commentId: comment.id,
+                  channelId: controller.channelId,
                 ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: () => controller.toggleLike(
-                        videoComment.videoId,
-                        comment.id,
-                        true,
-                      ),
-                      child: _StatItem(
-                        icon: hasLiked
-                            ? Icons.thumb_up
-                            : Icons.thumb_up_outlined,
-                        count: comment.likeCount,
-                        color: hasLiked
-                            ? AppColors.textLink
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    InkWell(
-                      onTap: () => controller.toggleLike(
-                        videoComment.videoId,
-                        comment.id,
-                        false,
-                      ),
-                      child: _StatItem(
-                        icon: hasDisliked
-                            ? Icons.thumb_down
-                            : Icons.thumb_down_outlined,
-                        count: comment.dislikeCount,
-                        color: hasDisliked
-                            ? AppColors.textLink
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    _StatItem(
-                      icon: Icons.comment_outlined,
-                      count: videoComment.totalReplyCount,
-                      color: AppColors.textSecondary,
-                    ),
-                    const Spacer(),
-                    InkWell(
-                      onTap: () => _showReplySheet(context),
-                      child: const Text(
-                        'Reply',
-                        style: TextStyle(
+                builder: (replyCtrl) {
+                  if (replyCtrl.isLoading.value) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
                           color: AppColors.textLink,
-                          fontWeight: FontWeight.w500,
                         ),
+                      ),
+                    );
+                  }
+                  return Container(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF171717),
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(12),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    if (videoComment.totalReplyCount > 0)
-                      InkWell(
-                        onTap: () =>
-                            controller.toggleCommentExpansion(comment.id),
-                        child: Row(
-                          children: [
-                            Text(
-                              isExpanded ? 'Hide' : 'View',
-                              style: const TextStyle(
-                                color: AppColors.textLink,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              isExpanded
-                                  ? Icons.keyboard_arrow_up
-                                  : Icons.keyboard_arrow_down,
-                              color: AppColors.textLink,
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Creator reply preview
-          if (comment.hasCreatorReply && comment.creatorReply != null)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.textLink.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: AppColors.textLink.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundImage: NetworkImage(channelImageUrl),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              comment.creatorReply!.userName,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.textLink,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: const Text(
-                                'CREATOR',
-                                style: TextStyle(
-                                  color: AppColors.bgPage,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          comment.creatorReply!.text,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          timeago.format(
-                            comment.creatorReply!.createdAt.toDate(),
-                          ),
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.push_pin,
-                    color: AppColors.textLink,
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-
-          // Replies (using GetX to avoid setState during build)
-          if (isExpanded)
-            GetX<ReplyController>(
-              tag: comment.id,
-              init: ReplyController(
-                videoId: videoComment.videoId,
-                commentId: comment.id,
-                channelId: controller.channelId,
-              ),
-              builder: (replyCtrl) {
-                if (replyCtrl.isLoading.value) {
-                  return const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.textLink,
-                      ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: replyCtrl.replies.length,
+                      separatorBuilder: (_, _) =>
+                          const Divider(color: Color(0xFF2F2F2F), height: 24),
+                      itemBuilder: (_, i) {
+                        final reply = replyCtrl.replies[i];
+                        final isCreator = reply.userId == controller.channelId;
+                        return ReplyCard(
+                          reply: reply,
+                          isCreator: isCreator,
+                          channelImageUrl: channelImageUrl,
+                          replyController: replyCtrl,
+                        );
+                      },
                     ),
                   );
-                }
-                return Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF171717),
-                    borderRadius: BorderRadius.vertical(
-                      bottom: Radius.circular(12),
-                    ),
-                  ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    itemCount: replyCtrl.replies.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(color: Color(0xFF2F2F2F), height: 24),
-                    itemBuilder: (_, i) {
-                      final reply = replyCtrl.replies[i];
-                      final isCreator = reply.userId == controller.channelId;
-                      return ReplyCard(
-                        reply: reply,
-                        isCreator: isCreator,
-                        channelImageUrl: channelImageUrl,
-                        replyController: replyCtrl,
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
-    );
+                },
+              ),
+          ],
+        ),
+      );
     });
   }
 }
@@ -1269,7 +1285,6 @@ class CommentCard extends StatelessWidget {
 // ------------------------------------------------------------
 
 class _StatItem extends StatelessWidget {
-
   const _StatItem({
     required this.icon,
     required this.count,
@@ -1302,9 +1317,12 @@ class _StatItem extends StatelessWidget {
 // ------------------------------------------------------------
 
 class ReplyCard extends StatelessWidget {
-
   const ReplyCard({
-    required this.reply, required this.isCreator, required this.channelImageUrl, required this.replyController, super.key,
+    required this.reply,
+    required this.isCreator,
+    required this.channelImageUrl,
+    required this.replyController,
+    super.key,
   });
   final Reply reply;
   final bool isCreator;
@@ -1362,7 +1380,9 @@ class ReplyCard extends StatelessWidget {
                   Text(
                     reply.userName,
                     style: TextStyle(
-                      color: isCreator ? AppColors.textLink : AppColors.textPrimary,
+                      color: isCreator
+                          ? AppColors.textLink
+                          : AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
                     ),
@@ -1370,7 +1390,10 @@ class ReplyCard extends StatelessWidget {
                   if (isCreator) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.textLink,
                         borderRadius: BorderRadius.circular(3),
@@ -1411,12 +1434,18 @@ class ReplyCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 reply.text,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 timeago.format(reply.createdAt.toDate()),
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
               ),
             ],
           ),
@@ -1425,10 +1454,3 @@ class ReplyCard extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

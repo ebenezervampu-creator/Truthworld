@@ -5,10 +5,10 @@ import 'package:truthworld/theme/app_colors.dart';
 
 /// ---------------------------------------------------------------------------
 /// Industry Standard Micro-Interaction Animations for Truthworld
-/// 
+///
 /// Guidelines:
 /// 1. Animations trigger ONLY on direct user action (taps/clicks).
-/// 2. Performance: 0 external package dependencies, using lightweight Flutter 
+/// 2. Performance: 0 external package dependencies, using lightweight Flutter
 ///    AnimationControllers and CustomPainters for 60/120 FPS performance.
 /// 3. Like: Elastic scale pop + radial particle burst.
 /// 4. Dislike: Tactile tilt / press shift (subdued).
@@ -18,7 +18,6 @@ import 'package:truthworld/theme/app_colors.dart';
 
 /// Radial particle burst painter for Like animation
 class _ParticleBurstPainter extends CustomPainter {
-
   _ParticleBurstPainter({
     required this.progress,
     required this.color,
@@ -37,7 +36,8 @@ class _ParticleBurstPainter extends CustomPainter {
 
     // Expand distance with easeOut
     final currentDistance =
-        minRadius + (maxRadius - minRadius) * Curves.easeOut.transform(progress);
+        minRadius +
+        (maxRadius - minRadius) * Curves.easeOut.transform(progress);
 
     // Opacity fades near the end of progress
     final opacity = (1.0 - progress).clamp(0.0, 1.0);
@@ -65,9 +65,10 @@ class _ParticleBurstPainter extends CustomPainter {
 
 /// Professional Animated Like Button
 class AnimatedLikeButton extends StatefulWidget {
-
   const AnimatedLikeButton({
-    required this.isLiked, required this.onTap, super.key,
+    required this.isLiked,
+    required this.onTap,
+    super.key,
     this.icon,
     this.activeIcon,
     this.size = 22,
@@ -111,13 +112,17 @@ class _AnimatedLikeButtonState extends State<AnimatedLikeButton>
 
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.35)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.35,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 45,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.35, end: 1)
-            .chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween<double>(
+          begin: 1.35,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
         weight: 55,
       ),
     ]).animate(_scaleController);
@@ -181,7 +186,8 @@ class _AnimatedLikeButtonState extends State<AnimatedLikeButton>
           },
           child: ScaleTransition(
             scale: _scaleAnimation,
-            child: widget.child ??
+            child:
+                widget.child ??
                 Icon(
                   defaultIcon,
                   size: widget.size,
@@ -196,9 +202,10 @@ class _AnimatedLikeButtonState extends State<AnimatedLikeButton>
 
 /// Professional Animated Dislike Button
 class AnimatedDislikeButton extends StatefulWidget {
-
   const AnimatedDislikeButton({
-    required this.isDisliked, required this.onTap, super.key,
+    required this.isDisliked,
+    required this.onTap,
+    super.key,
     this.icon,
     this.activeIcon,
     this.size = 22,
@@ -235,18 +242,24 @@ class _AnimatedDislikeButtonState extends State<AnimatedDislikeButton>
 
     _tiltAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0, end: -0.18)
-            .chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(
+          begin: 0,
+          end: -0.18,
+        ).chain(CurveTween(curve: Curves.easeOut)),
         weight: 35,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: -0.18, end: 0.08)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: -0.18,
+          end: 0.08,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 35,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.08, end: 0)
-            .chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween<double>(
+          begin: 0.08,
+          end: 0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
         weight: 30,
       ),
     ]).animate(_controller);
@@ -305,7 +318,8 @@ class _AnimatedDislikeButtonState extends State<AnimatedDislikeButton>
               angle: _tiltAnimation.value,
               child: Transform.scale(
                 scale: _scaleAnimation.value,
-                child: widget.child ??
+                child:
+                    widget.child ??
                     Icon(
                       defaultIcon,
                       size: widget.size,
@@ -322,9 +336,10 @@ class _AnimatedDislikeButtonState extends State<AnimatedDislikeButton>
 
 /// Professional Animated Channel Subscribe Button
 class AnimatedSubscribeButton extends StatefulWidget {
-
   const AnimatedSubscribeButton({
-    required this.isSubscribed, required this.onPressed, super.key,
+    required this.isSubscribed,
+    required this.onPressed,
+    super.key,
     this.subscribedText = 'Subscribed',
     this.unsubscribedText = 'Subscribe',
     this.notificationsEnabled = false,
@@ -342,7 +357,8 @@ class AnimatedSubscribeButton extends StatefulWidget {
   final bool compact;
 
   @override
-  State<AnimatedSubscribeButton> createState() => _AnimatedSubscribeButtonState();
+  State<AnimatedSubscribeButton> createState() =>
+      _AnimatedSubscribeButtonState();
 }
 
 class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
@@ -367,31 +383,41 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
 
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.08)
-            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.08,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.08, end: 1)
-            .chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween<double>(
+          begin: 1.08,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
         weight: 60,
       ),
     ]).animate(_scaleController);
 
     _bellSwingAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0, end: -0.22)
-            .chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween<double>(
+          begin: 0,
+          end: -0.22,
+        ).chain(CurveTween(curve: Curves.easeOut)),
         weight: 25,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: -0.22, end: 0.22)
-            .chain(CurveTween(curve: Curves.easeInOut)),
+        tween: Tween<double>(
+          begin: -0.22,
+          end: 0.22,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.22, end: 0)
-            .chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween<double>(
+          begin: 0.22,
+          end: 0,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
         weight: 35,
       ),
     ]).animate(_bellController);
@@ -428,9 +454,7 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
     final bgColor = isSub
         ? AppColors.bgSurfaceContainerHighest
         : AppColors.textPrimary;
-    final fgColor = isSub
-        ? AppColors.textPrimary
-        : AppColors.bgPage;
+    final fgColor = isSub ? AppColors.textPrimary : AppColors.bgPage;
 
     final padding = widget.compact
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
@@ -533,9 +557,10 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
 
 /// Professional Animated Follow Topic Chip / Button
 class AnimatedFollowTopicButton extends StatefulWidget {
-
   const AnimatedFollowTopicButton({
-    required this.isFollowed, required this.onPressed, super.key,
+    required this.isFollowed,
+    required this.onPressed,
+    super.key,
     this.topicName,
     this.compact = false,
   });
@@ -545,7 +570,8 @@ class AnimatedFollowTopicButton extends StatefulWidget {
   final bool compact;
 
   @override
-  State<AnimatedFollowTopicButton> createState() => _AnimatedFollowTopicButtonState();
+  State<AnimatedFollowTopicButton> createState() =>
+      _AnimatedFollowTopicButtonState();
 }
 
 class _AnimatedFollowTopicButtonState extends State<AnimatedFollowTopicButton>
@@ -570,13 +596,17 @@ class _AnimatedFollowTopicButtonState extends State<AnimatedFollowTopicButton>
 
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.09)
-            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 1.09,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.09, end: 1)
-            .chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween<double>(
+          begin: 1.09,
+          end: 1,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
         weight: 60,
       ),
     ]).animate(_scaleController);
@@ -621,9 +651,7 @@ class _AnimatedFollowTopicButtonState extends State<AnimatedFollowTopicButton>
     final bgColor = isFollowed
         ? AppColors.textPrimary.withValues(alpha: 0.12)
         : AppColors.textPrimary;
-    final fgColor = isFollowed
-        ? AppColors.textPrimary
-        : AppColors.bgPage;
+    final fgColor = isFollowed ? AppColors.textPrimary : AppColors.bgPage;
 
     final padding = widget.compact
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)

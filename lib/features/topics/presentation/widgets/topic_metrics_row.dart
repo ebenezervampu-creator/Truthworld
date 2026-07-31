@@ -4,9 +4,10 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Reusable Topic Metrics Display Row (Followers count & Videos count)
 class TopicMetricsRow extends StatelessWidget {
-
   const TopicMetricsRow({
-    required this.followerCount, required this.videoCount, super.key,
+    required this.followerCount,
+    required this.videoCount,
+    super.key,
     this.isCompact = false,
     this.textColor,
   });
@@ -18,7 +19,9 @@ class TopicMetricsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultColor = textColor ?? (isDark ? AppColors.textSecondary : const Color(0xFF4B5563));
+    final defaultColor =
+        textColor ??
+        (isDark ? AppColors.textSecondary : const Color(0xFF4B5563));
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -48,7 +51,10 @@ class TopicMetricsRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Text(
             '•',
-            style: TextStyle(color: defaultColor, fontSize: isCompact ? 11 : 13),
+            style: TextStyle(
+              color: defaultColor,
+              fontSize: isCompact ? 11 : 13,
+            ),
           ),
         ),
 

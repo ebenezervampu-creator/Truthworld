@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/device_state.dart';
 
 class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
-
   const TWLayoutTokens({
     required this.sidebarWidth,
     required this.compactSidebarWidth,
@@ -128,15 +127,35 @@ class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
     if (other is! TWLayoutTokens) return this;
     return TWLayoutTokens(
       sidebarWidth: _lerp(sidebarWidth, other.sidebarWidth, t),
-      compactSidebarWidth: _lerp(compactSidebarWidth, other.compactSidebarWidth, t),
-      navigationRailWidth: _lerp(navigationRailWidth, other.navigationRailWidth, t),
+      compactSidebarWidth: _lerp(
+        compactSidebarWidth,
+        other.compactSidebarWidth,
+        t,
+      ),
+      navigationRailWidth: _lerp(
+        navigationRailWidth,
+        other.navigationRailWidth,
+        t,
+      ),
       contentMaxWidth: _lerp(contentMaxWidth, other.contentMaxWidth, t),
       dialogMaxWidth: _lerp(dialogMaxWidth, other.dialogMaxWidth, t),
       sheetMaxWidth: _lerp(sheetMaxWidth, other.sheetMaxWidth, t),
-      bottomSheetMaxWidth: _lerp(bottomSheetMaxWidth, other.bottomSheetMaxWidth, t),
-      videoPlayerMaxWidth: _lerp(videoPlayerMaxWidth, other.videoPlayerMaxWidth, t),
+      bottomSheetMaxWidth: _lerp(
+        bottomSheetMaxWidth,
+        other.bottomSheetMaxWidth,
+        t,
+      ),
+      videoPlayerMaxWidth: _lerp(
+        videoPlayerMaxWidth,
+        other.videoPlayerMaxWidth,
+        t,
+      ),
       feedMaxWidth: _lerp(feedMaxWidth, other.feedMaxWidth, t),
-      analyticsPanelWidth: _lerp(analyticsPanelWidth, other.analyticsPanelWidth, t),
+      analyticsPanelWidth: _lerp(
+        analyticsPanelWidth,
+        other.analyticsPanelWidth,
+        t,
+      ),
     );
   }
 
@@ -144,5 +163,6 @@ class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
 }
 
 extension TWLayoutTokensExtension on BuildContext {
-  TWLayoutTokens get layoutTokens => Theme.of(this).extension<TWLayoutTokens>()!;
+  TWLayoutTokens get layoutTokens =>
+      Theme.of(this).extension<TWLayoutTokens>()!;
 }

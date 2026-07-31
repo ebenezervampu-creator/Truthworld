@@ -7,7 +7,8 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
 /// Represents a single selectable audio track (base or dubbed language).
-class AudioTrackOption { // true => original video audio
+class AudioTrackOption {
+  // true => original video audio
 
   const AudioTrackOption({
     required this.code,
@@ -107,7 +108,7 @@ class MultiAudioPlayerController extends GetxController {
         placeholder: const ColoredBox(
           color: AppColors.bgPage,
           child: Center(
-            child: CircularProgressIndicator(color: Color(0xFF9B30FF)),
+            child: CircularProgressIndicator(color: AppColors.brand),
           ),
         ),
         errorBuilder: (context, errorMessage) {
@@ -116,23 +117,26 @@ class MultiAudioPlayerController extends GetxController {
               padding: const EdgeInsets.all(12),
               child: Text(
                 errorMessage,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
           );
         },
         materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF9B30FF),
-          handleColor: const Color(0xFF9B30FF),
-          bufferedColor: const Color(0x559B30FF),
-          backgroundColor: const Color(0x339B30FF),
+          playedColor: AppColors.brand,
+          handleColor: AppColors.brand,
+          bufferedColor: AppColors.brand.withValues(alpha: 0.33),
+          backgroundColor: AppColors.brand.withValues(alpha: 0.2),
         ),
         cupertinoProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF9B30FF),
-          handleColor: const Color(0xFF9B30FF),
-          bufferedColor: const Color(0x559B30FF),
-          backgroundColor: const Color(0x339B30FF),
+          playedColor: AppColors.brand,
+          handleColor: AppColors.brand,
+          bufferedColor: AppColors.brand.withValues(alpha: 0.33),
+          backgroundColor: AppColors.brand.withValues(alpha: 0.2),
         ),
       );
 
@@ -191,7 +195,14 @@ class MultiAudioPlayerController extends GetxController {
   Future<void> seekTo(Duration pos) async {
     _seeking = true;
     await _videoCtrl?.seekTo(pos);
-    if (_dubMode) await _dubPlayer.seek(pos);
+    if (_dubMode) {
+      final dubDur = _dubPlayer.duration ?? Duration.zero;
+      if (dubDur > Duration.zero && pos <= dubDur) {
+        await _dubPlayer.seek(pos);
+      } else {
+        await _dubPlayer.pause();
+      }
+    }
     position.value = pos;
     _seeking = false;
   }
@@ -258,10 +269,17 @@ class MultiAudioPlayerController extends GetxController {
 
     // Sync dub player if it drifts more than 300 ms
     if (_dubMode && v.isPlaying) {
-      final dubPos = _dubPlayer.position;
-      final drift = (v.position - dubPos).abs();
-      if (drift > const Duration(milliseconds: 300)) {
-        _dubPlayer.seek(v.position);
+      final dubDur = _dubPlayer.duration ?? Duration.zero;
+      if (dubDur > Duration.zero && v.position > dubDur) {
+        if (_dubPlayer.playing) {
+          _dubPlayer.pause();
+        }
+      } else {
+        final dubPos = _dubPlayer.position;
+        final drift = (v.position - dubPos).abs();
+        if (drift > const Duration(milliseconds: 300)) {
+          _dubPlayer.seek(v.position);
+        }
       }
     }
 

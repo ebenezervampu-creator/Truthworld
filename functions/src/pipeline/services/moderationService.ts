@@ -2,6 +2,7 @@ import { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
+import { getVertexAI } from "../utils/ai-client";
 
 const ModerationResponseSchema = z.object({
   approved: z.boolean(),
@@ -26,7 +27,7 @@ export class ModerationService {
   private readonly genAI: VertexAI;
 
   constructor(apiKey: string) {
-    this.genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
+    this.genAI = getVertexAI();
   }
 
   async checkAndSummarize(text: string): Promise<ModerationResult> {

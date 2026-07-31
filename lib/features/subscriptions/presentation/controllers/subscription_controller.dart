@@ -14,6 +14,8 @@ import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/data/models/subscriptions.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
 
 enum ContentFilter {
   all,
@@ -49,7 +51,8 @@ class SubscriptionController extends GetxController {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   final RxList<SubscriptionContent> allContent = <SubscriptionContent>[].obs;
-  final RxList<SubscriptionContent> filteredContent = <SubscriptionContent>[].obs;
+  final RxList<SubscriptionContent> filteredContent =
+      <SubscriptionContent>[].obs;
   final RxList<Subscription> subscriptions = <Subscription>[].obs;
   final RxList<Channel> subscribedChannels = <Channel>[].obs;
 
@@ -62,33 +65,43 @@ class SubscriptionController extends GetxController {
   final RxBool hasError = false.obs;
   final RxString errorMessage = ''.obs;
 
-  String? get currentUserId => AuthService.to.uid.isNotEmpty ? AuthService.to.uid : null;
+  String? get currentUserId =>
+      AuthService.to.uid.isNotEmpty ? AuthService.to.uid : null;
 
   @override
   void onInit() {
     super.onInit();
-    
+
     // Initial load
     refresh();
 
     // Setup auth listener to automatically refresh on auth status change
     ever(AuthService.to.currentUser, (user) {
-      debugPrint('[SubscriptionController] Auth state changed. Refreshing subscriptions...');
+      debugPrint(
+        '[SubscriptionController] Auth state changed. Refreshing subscriptions...',
+      );
       refresh();
     });
 
     // Setup connectivity listener for automatic recovery
     try {
       if (Get.isRegistered<ConnectivityService>()) {
-        _connectivitySubscription = Get.find<ConnectivityService>().onConnectivityChanged.listen((results) {
-          if (results.isNotEmpty && results.first != ConnectivityResult.none) {
-            debugPrint('[SubscriptionController] Network restored. Refreshing subscriptions...');
-            refresh();
-          }
-        });
+        _connectivitySubscription = Get.find<ConnectivityService>()
+            .onConnectivityChanged
+            .listen((results) {
+              if (results.isNotEmpty &&
+                  results.first != ConnectivityResult.none) {
+                debugPrint(
+                  '[SubscriptionController] Network restored. Refreshing subscriptions...',
+                );
+                refresh();
+              }
+            });
       }
     } on Object catch (e) {
-      debugPrint('[SubscriptionController] Connectivity listener setup skipped: $e');
+      debugPrint(
+        '[SubscriptionController] Connectivity listener setup skipped: $e',
+      );
     }
   }
 
@@ -151,7 +164,9 @@ class SubscriptionController extends GetxController {
           }
         }
       } on Object catch (e) {
-        debugPrint('[SubscriptionController] Query primary subscriptions failed: $e');
+        debugPrint(
+          '[SubscriptionController] Query primary subscriptions failed: $e',
+        );
       }
 
       // 2. Alternative: Subscriptions doc subcollection (subscriptions/{uid}/list)
@@ -219,24 +234,30 @@ class SubscriptionController extends GetxController {
     }
     final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     try {
-      final channels = <Channel>[];
+      final batchFutures = <Future<List<Channel>>>[];
       const batchSize = 10;
       for (var i = 0; i < channelIds.length; i += batchSize) {
         final batch = channelIds.sublist(
           i,
           i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
         );
-        try {
-          final snapshot = await _firestore
-              .collection('channels')
-              .where(FieldPath.documentId, whereIn: batch)
-              .get();
-          channels.addAll(snapshot.docs.map(Channel.fromDocumentSnapshot));
-        } on Object catch (e) {
-          debugPrint('[SubscriptionController] Batch channel fetch failed for $batch: $e');
-        }
+        batchFutures.add(() async {
+          try {
+            final snapshot = await _firestore
+                .collection('channels')
+                .where(FieldPath.documentId, whereIn: batch)
+                .get();
+            return snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
+          } on Object catch (e) {
+            debugPrint(
+              '[SubscriptionController] Batch channel fetch failed for $batch: $e',
+            );
+            return <Channel>[];
+          }
+        }());
       }
-      subscribedChannels.value = channels;
+      final results = await Future.wait(batchFutures);
+      subscribedChannels.value = results.expand((c) => c).toList();
     } on Object catch (e) {
       debugPrint('Error loading subscribed channels: $e');
     }
@@ -250,10 +271,10 @@ class SubscriptionController extends GetxController {
     }
 
     final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
-    
+
     try {
       final contentMap = <String, SubscriptionContent>{};
-      
+
       // Load videos
       try {
         final videos = await _loadVideos(channelIds);
@@ -264,7 +285,7 @@ class SubscriptionController extends GetxController {
       } on Object catch (e) {
         debugPrint('Error loading subscription videos: $e');
       }
-      
+
       // Load playlists
       try {
         final playlists = await _loadPlaylists(channelIds);
@@ -275,7 +296,7 @@ class SubscriptionController extends GetxController {
       } on Object catch (e) {
         debugPrint('Error loading subscription playlists: $e');
       }
-      
+
       // Load community posts
       try {
         final communityPosts = await _loadCommunityPosts(channelIds);
@@ -286,7 +307,7 @@ class SubscriptionController extends GetxController {
       } on Object catch (e) {
         debugPrint('Error loading subscription community posts: $e');
       }
-      
+
       final contentList = contentMap.values.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -302,14 +323,14 @@ class SubscriptionController extends GetxController {
   Future<List<Video>> _loadVideos(List<String> channelIds) async {
     final videos = <Video>[];
     if (channelIds.isEmpty) return videos;
-    
+
     const batchSize = 10;
     for (var i = 0; i < channelIds.length; i += batchSize) {
       final batch = channelIds.sublist(
         i,
         i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
       );
-      
+
       final docs = <DocumentSnapshot>[];
 
       // Attempt 1: Fetch channel batch without fragile multi-field composite index constraints
@@ -321,7 +342,9 @@ class SubscriptionController extends GetxController {
             .get();
         docs.addAll(snapshot.docs);
       } on Object catch (e) {
-        debugPrint('[SubscriptionController] Batch video query failed ($e). Falling back to per-channel query.');
+        debugPrint(
+          '[SubscriptionController] Batch video query failed ($e). Falling back to per-channel query.',
+        );
         for (final cid in batch) {
           try {
             final snap = await _firestore
@@ -331,7 +354,9 @@ class SubscriptionController extends GetxController {
                 .get();
             docs.addAll(snap.docs);
           } on Object catch (err) {
-            debugPrint('[SubscriptionController] Per-channel video query failed for $cid: $err');
+            debugPrint(
+              '[SubscriptionController] Per-channel video query failed for $cid: $err',
+            );
           }
         }
       }
@@ -347,14 +372,14 @@ class SubscriptionController extends GetxController {
         }
       }
     }
-    
+
     return videos;
   }
 
   Future<List<PlaylistModel>> _loadPlaylists(List<String> channelIds) async {
     final playlists = <PlaylistModel>[];
     if (channelIds.isEmpty) return playlists;
-    
+
     const batchSize = 10;
     for (var i = 0; i < channelIds.length; i += batchSize) {
       final batch = channelIds.sublist(
@@ -398,14 +423,16 @@ class SubscriptionController extends GetxController {
         }
       }
     }
-    
+
     return playlists;
   }
 
-  Future<List<CommunityPostModel>> _loadCommunityPosts(List<String> channelIds) async {
+  Future<List<CommunityPostModel>> _loadCommunityPosts(
+    List<String> channelIds,
+  ) async {
     final posts = <CommunityPostModel>[];
     if (channelIds.isEmpty) return posts;
-    
+
     const batchSize = 10;
     for (var i = 0; i < channelIds.length; i += batchSize) {
       final batch = channelIds.sublist(
@@ -423,7 +450,9 @@ class SubscriptionController extends GetxController {
             .get();
         docs.addAll(snapshot.docs);
       } on Object catch (e) {
-        debugPrint('[SubscriptionController] Batch community post query failed: $e');
+        debugPrint(
+          '[SubscriptionController] Batch community post query failed: $e',
+        );
         for (final cid in batch) {
           try {
             final snap = await _firestore
@@ -444,7 +473,10 @@ class SubscriptionController extends GetxController {
           final post = CommunityPostModel.fromMap(data);
           final vis = (data['visibility'] as String? ?? 'public').toLowerCase();
           final ownerId = data['ownerId'] as String? ?? '';
-          if (vis == 'public' || vis == 'subscribers' || vis == 'members' || ownerId == currentUid) {
+          if (vis == 'public' ||
+              vis == 'subscribers' ||
+              vis == 'members' ||
+              ownerId == currentUid) {
             posts.add(post);
           }
         } on Object catch (e) {
@@ -452,7 +484,7 @@ class SubscriptionController extends GetxController {
         }
       }
     }
-    
+
     return posts;
   }
 
@@ -464,7 +496,7 @@ class SubscriptionController extends GetxController {
       (e) => e.name == selectedContentFilter.value,
       orElse: () => ContentFilter.all,
     );
-    
+
     if (contentFilter != ContentFilter.all) {
       switch (contentFilter) {
         case ContentFilter.videos:
@@ -472,7 +504,9 @@ class SubscriptionController extends GetxController {
         case ContentFilter.playlists:
           filteredContent.retainWhere((c) => c.type == ContentType.playlist);
         case ContentFilter.communityPosts:
-          filteredContent.retainWhere((c) => c.type == ContentType.communityPost);
+          filteredContent.retainWhere(
+            (c) => c.type == ContentType.communityPost,
+          );
         case ContentFilter.all:
           break;
       }
@@ -483,7 +517,7 @@ class SubscriptionController extends GetxController {
       (e) => e.name == selectedDurationFilter.value,
       orElse: () => DurationFilter.all,
     );
-    
+
     if (durationFilter != DurationFilter.all) {
       filteredContent.retainWhere((c) {
         if (c.type != ContentType.video) return false;
@@ -506,7 +540,7 @@ class SubscriptionController extends GetxController {
       (e) => e.name == selectedDateRangeFilter.value,
       orElse: () => DateRangeFilter.all,
     );
-    
+
     if (dateRangeFilter != DateRangeFilter.all) {
       final now = DateTime.now();
       filteredContent.retainWhere((c) {
@@ -514,13 +548,13 @@ class SubscriptionController extends GetxController {
         switch (dateRangeFilter) {
           case DateRangeFilter.today:
             return contentDate.day == now.day &&
-                   contentDate.month == now.month &&
-                   contentDate.year == now.year;
+                contentDate.month == now.month &&
+                contentDate.year == now.year;
           case DateRangeFilter.thisWeek:
             return now.difference(contentDate).inDays <= 7;
           case DateRangeFilter.thisMonth:
             return contentDate.month == now.month &&
-                   contentDate.year == now.year;
+                contentDate.year == now.year;
           case DateRangeFilter.thisYear:
             return contentDate.year == now.year;
           case DateRangeFilter.all:
@@ -534,10 +568,39 @@ class SubscriptionController extends GetxController {
       (e) => e.name == selectedSortFilter.value,
       orElse: () => SortFilter.trending,
     );
-    
+
     switch (sortFilter) {
       case SortFilter.trending:
-        filteredContent.sort((a, b) => b.algorithmicScore.compareTo(a.algorithmicScore));
+        if (Get.isRegistered<TruthworldAlgorithm>()) {
+          final algorithm = Get.find<TruthworldAlgorithm>();
+          filteredContent.sort((a, b) {
+            double scoreA = a.algorithmicScore;
+            double scoreB = b.algorithmicScore;
+            if (a.video != null) {
+              final s =
+                  algorithm.scoreVideo(
+                        a.video!,
+                        RecommendationSurface.subscriptionFeed,
+                      )
+                      as num?;
+              if (s != null) scoreA += s.toDouble() * 5.0;
+            }
+            if (b.video != null) {
+              final s =
+                  algorithm.scoreVideo(
+                        b.video!,
+                        RecommendationSurface.subscriptionFeed,
+                      )
+                      as num?;
+              if (s != null) scoreB += s.toDouble() * 5.0;
+            }
+            return scoreB.compareTo(scoreA);
+          });
+        } else {
+          filteredContent.sort(
+            (a, b) => b.algorithmicScore.compareTo(a.algorithmicScore),
+          );
+        }
       case SortFilter.popular:
         filteredContent.sort((a, b) {
           final aEngagement = _getEngagementScore(a);
@@ -564,7 +627,8 @@ class SubscriptionController extends GetxController {
 
   void setContentFilter(String filter) {
     selectedContentFilter.value = filter;
-    if (filter == ContentFilter.playlists.name || filter == ContentFilter.communityPosts.name) {
+    if (filter == ContentFilter.playlists.name ||
+        filter == ContentFilter.communityPosts.name) {
       selectedDurationFilter.value = DurationFilter.all.name;
     }
     applyFilters();
@@ -621,10 +685,12 @@ class SubscriptionController extends GetxController {
       }, maxAttempts: 3);
 
       // Optimistic local update instead of full reload
-      subscriptions.add(Subscription(
-        userId: currentUserId!,
-        channelId: channelId,
-      ));
+      subscriptions.add(
+        Subscription(
+          userId: currentUserId!,
+          channelId: channelId,
+        ),
+      );
       await loadSubscribedChannels();
       await loadAllContent();
       applyFilters();

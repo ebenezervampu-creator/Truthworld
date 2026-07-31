@@ -13,7 +13,9 @@ class LiveSubscribersScreen extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final controller = Get.isRegistered<DashboardController>()
         ? Get.find<DashboardController>()
-        : (uid.isNotEmpty ? Get.put(DashboardController(channelId: uid)) : null);
+        : (uid.isNotEmpty
+              ? Get.put(DashboardController(channelId: uid))
+              : null);
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -21,7 +23,10 @@ class LiveSubscribersScreen extends StatelessWidget {
         backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Get.back<void>(),
         ),
         title: const Text(
@@ -42,16 +47,25 @@ class LiveSubscribersScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.brand.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: AppColors.brand.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.sensors_rounded, color: Colors.white, size: 16),
+                        Icon(
+                          Icons.sensors_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'LIVE COUNT',
@@ -67,7 +81,8 @@ class LiveSubscribersScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 48),
                   Obx(() {
-                    final rawSubs = controller.channelStats['rawSubscribers'] ??
+                    final rawSubs =
+                        controller.channelStats['rawSubscribers'] ??
                         controller.currentChannel.value?.subscriberCount ??
                         0;
                     return Text(
@@ -92,7 +107,8 @@ class LiveSubscribersScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 48),
                   Obx(() {
-                    final channelName = controller.channelStats['name'] ??
+                    final channelName =
+                        controller.channelStats['name'] ??
                         controller.currentChannel.value?.channelName ??
                         'Your Channel';
                     return Text(

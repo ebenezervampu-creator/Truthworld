@@ -1,13 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Premium reply display widget matching comment styling
 class PremiumReplyWidget extends StatefulWidget {
-
   const PremiumReplyWidget({
     required this.reply,
     required this.controller,
@@ -37,7 +37,10 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
       vsync: this,
     );
     _likeScaleAnimation = Tween<double>(begin: 1, end: 1.3).animate(
-      CurvedAnimation(parent: _likeAnimationController, curve: Curves.elasticOut),
+      CurvedAnimation(
+        parent: _likeAnimationController,
+        curve: Curves.elasticOut,
+      ),
     );
   }
 
@@ -123,11 +126,10 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                 fit: BoxFit.cover,
                 placeholder: (_, _) =>
                     Container(color: AppColors.textSecondary),
-                errorWidget: (_, _, _) =>
-                    const ColoredBox(
-                      color: AppColors.textSecondary,
-                      child: Icon(Icons.person, size: 16),
-                    ),
+                errorWidget: (_, _, _) => const ColoredBox(
+                  color: AppColors.textSecondary,
+                  child: Icon(Icons.person, size: 16),
+                ),
               ),
             ),
           ),
@@ -177,7 +179,9 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                 timeago.format(widget.reply.createdAt.toDate()),
                 style: TextStyle(
                   fontSize: 11,
-                  color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
+                  color: isDark
+                      ? AppColors.textSecondary
+                      : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -188,8 +192,8 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
   }
 
   Widget _buildReplyText(bool isDark) {
-    return Text(
-      widget.reply.text,
+    return ClickableUrlText(
+      text: widget.reply.text,
       style: TextStyle(
         fontSize: 13,
         height: 1.4,
@@ -270,7 +274,9 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                   child: Icon(
                     Icons.flag_outlined,
                     size: 16,
-                    color: isDark ? AppColors.textTertiary : AppColors.textSecondary,
+                    color: isDark
+                        ? AppColors.textTertiary
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -292,7 +298,9 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
     return InkWell(
       onTap: onTap,
       child: ScaleTransition(
-        scale: label == 'Like' ? _likeScaleAnimation : const AlwaysStoppedAnimation(1),
+        scale: label == 'Like'
+            ? _likeScaleAnimation
+            : const AlwaysStoppedAnimation(1),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -318,9 +326,3 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
     );
   }
 }
-
-
-
-
-
-

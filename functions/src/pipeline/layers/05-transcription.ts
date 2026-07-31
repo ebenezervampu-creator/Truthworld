@@ -399,8 +399,8 @@ export class TranscriptionLayer {
         logger.info(`[Transcription Gateway] Credibility feature NOT requested by channel for job ${jobId} — skipping fact-checking`);
       }
 
-      // 2. Multi-Resolution Video Transcoding (1080p, 720p, 480p, 360p) & Reach Engine — ALWAYS REQUIRED for Approved Videos
-      logger.info(`[Transcription Gateway] Video approved & published in Firestore — ALWAYS launching multi-resolution transcoding (1080p, 720p, 480p, 360p) for job ${jobId}`);
+      // 2. Multi-Resolution Video Transcoding (1040p, 720p, 480p, 360p) & Reach Engine — ALWAYS REQUIRED for Approved Videos
+      logger.info(`[Transcription Gateway] Video approved & published in Firestore — ALWAYS launching multi-resolution transcoding (1040p, 720p, 480p, 360p) for job ${jobId}`);
       fanoutTasks.push(this.distribution.publish("dubbing-processing", {
         eventId: `dub_${jobId}`,
         eventType: "dubbing-processing",

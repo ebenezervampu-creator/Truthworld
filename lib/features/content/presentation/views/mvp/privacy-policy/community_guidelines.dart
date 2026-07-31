@@ -5,7 +5,6 @@ import 'package:truthworld/theme/app_theme.dart';
 
 // A simple class to hold our parsed guidelines sections
 class GuidelineSection {
-
   GuidelineSection({
     required this.title,
     required this.content,
@@ -107,7 +106,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
               return ListTile(
                 title: Text(
                   section.title,
-                  style: const TextStyle( fontSize: 14),
+                  style: const TextStyle(fontSize: 14),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -130,20 +129,19 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
   /// Builds the main content area that displays the guidelines text
   Widget _buildContentArea(BuildContext context) {
     final bodyTextStyle = TextStyle(
-      
       fontSize: 14,
       height: 1.6,
       color: Theme.of(context).textTheme.bodyMedium?.color,
     );
     final headingTextStyle = TextStyle(
-      
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: Theme.of(context).textTheme.titleLarge?.color,
     );
 
     final arguments = Get.arguments as Map<String, dynamic>?;
-    final fromRejectedChannelId = arguments?['fromRejectedChannelId'] as String?;
+    final fromRejectedChannelId =
+        arguments?['fromRejectedChannelId'] as String?;
     final ownerId = arguments?['ownerId'] as String?;
 
     return SingleChildScrollView(
@@ -178,10 +176,14 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.2),
                     width: 1.5,
                   ),
                 ),
@@ -191,7 +193,6 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                     Text(
                       'Guidelines Agreement Required',
                       style: TextStyle(
-                        
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,
@@ -212,7 +213,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                         },
                         title: const Text(
                           'I have read and agree to comply with all the community guidelines listed above.',
-                          style: TextStyle( fontSize: 14),
+                          style: TextStyle(fontSize: 14),
                         ),
                         controlAffinity: ListTileControlAffinity.leading,
                         contentPadding: EdgeInsets.zero,
@@ -226,13 +227,16 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                         ElevatedButton(
                           onPressed: _guidelinesAccepted.value
                               ? () {
-                                  Get.offAllNamed('/studio', arguments: {
-                                    'channel': {
-                                      'id': fromRejectedChannelId,
-                                      'ownerId': ownerId,
+                                  Get.offAllNamed(
+                                    '/studio',
+                                    arguments: {
+                                      'channel': {
+                                        'id': fromRejectedChannelId,
+                                        'ownerId': ownerId,
+                                      },
+                                      'tab': 6, // Customization page
                                     },
-                                    'tab': 6, // Customization page
-                                  });
+                                  );
                                 }
                               : null,
                           style: ElevatedButton.styleFrom(
@@ -247,7 +251,6 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                           child: const Text(
                             'Accept & Customize Channel',
                             style: TextStyle(
-                              
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -274,59 +277,60 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
 
         return Scaffold(
           appBar: AppBar(
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  elevation: 1,
-                  shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-                  leading: (widget.isDashboard || isDesktop)
-                      ? IconButton(
-                          icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
-                          onPressed: () {
-                            if (widget.isDashboard) {
-                              Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
-                            } else {
-                              Get.back();
-                            }
-                          },
-                        )
-                      : null,
-                  title: Text(
-                    'Community Guidelines | Truthworld',
-                    style: TextStyle(
-                      
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).textTheme.titleLarge?.color,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 1,
+            shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
+            leading: (widget.isDashboard || isDesktop)
+                ? IconButton(
+                    icon: Icon(
+                      Icons.arrow_back,
+                      color: Theme.of(context).iconTheme.color,
                     ),
+                    onPressed: () {
+                      if (widget.isDashboard) {
+                        Get.find<HomeController>().sideNavSelectedIndex.value =
+                            HomeController.indexSettings;
+                      } else {
+                        Get.back();
+                      }
+                    },
+                  )
+                : null,
+            title: Text(
+              'Community Guidelines | Truthworld',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.titleLarge?.color,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Get.toNamed('/terms');
+                },
+                child: Text(
+                  'Terms of Service',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Get.toNamed('/terms');
-                      },
-                      child: Text(
-                        'Terms of Service',
-                        style: TextStyle(
-                          
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Get.toNamed('/privacy');
-                      },
-                      child: Text(
-                        'Privacy Policy',
-                        style: TextStyle(
-                          
-                          fontWeight: FontWeight.w500,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                 ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Get.toNamed('/privacy');
+                },
+                child: Text(
+                  'Privacy Policy',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
           drawer: isDesktop
               ? null
               : Drawer(child: _buildNavigationMenu(context, isDrawer: true)),

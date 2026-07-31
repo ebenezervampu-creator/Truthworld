@@ -98,15 +98,14 @@ class PremiumController extends GetxController {
     try {
       isSimulating.value = true;
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(auth.uid)
-          .update({
-            'isPremium': true,
-            'monetizationTier': 'premium',
-            'premiumPlanId': planId,
-            'premiumUpdatedAt': DateTime.now().millisecondsSinceEpoch,
-          });
+      await FirebaseFirestore.instance.collection('users').doc(auth.uid).update(
+        {
+          'isPremium': true,
+          'monetizationTier': 'premium',
+          'premiumPlanId': planId,
+          'premiumUpdatedAt': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
 
       AppSnackbar.show(
         'Subscription Activated',

@@ -22,101 +22,134 @@ import 'package:truthworld/main.dart';
 void main() {
   unawaited(
     runZonedGuarded(
-    () async {
-      setPathUrlStrategy();
-      WidgetsFlutterBinding.ensureInitialized();
+      () async {
+        setPathUrlStrategy();
+        WidgetsFlutterBinding.ensureInitialized();
 
-      logger.init(
-        minLogLevel: kDebugMode ? 2 : 4,
-      );
-
-      try {
-        try {
-          await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform,
-          );
-          FirebaseFirestore.instance.settings = const Settings(
-            persistenceEnabled: true,
-            cacheSizeBytes: 100 * 1024 * 1024,
-          );
-          try {
-            await FirebaseAppCheck.instance.activate(
-              webProvider: ReCaptchaEnterpriseProvider(
-                '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
-              ),
-              androidProvider: kDebugMode
-                  ? AndroidProvider.debug
-                  : AndroidProvider.playIntegrity,
-              appleProvider: kDebugMode
-                  ? AppleProvider.debug
-                  : AppleProvider.deviceCheck,
-            );
-          } catch (e) {
-            logger.error('Firebase App Check initialization error: $e', tag: 'Startup');
-          }
-        } on FirebaseException catch (e) {
-          logger.error('Firebase initialization error: ${e.code}', tag: 'Firebase', error: e);
-          rethrow;
-        }
-
-        if (!kIsWeb) {
-          await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
-          FirebaseCrashlytics.instance.setCustomKey('platform', defaultTargetPlatform.name);
-          await FirebasePerformance.instance.setPerformanceCollectionEnabled(!kDebugMode);
-        }
-
-        await GetStorage.init().catchError((e) {
-          logger.warning('GetStorage error: $e');
-          return false;
-        });
-
-        final authService = Get.put(AuthService(), permanent: true);
-        Get.put(AppService(), permanent: true);
-        Get.put(ConnectivityService(), permanent: true);
-        Get.put(PushNotificationService(), permanent: true);
-        Get.put(UserPreferencesService(), permanent: true);
-
-        await authService.init();
-
-        if (!kIsWeb) {
-          final uid = authService.user?.uid;
-          if (uid != null) {
-            FirebaseCrashlytics.instance.setUserIdentifier(uid);
-          }
-        }
-
-        runApp(const Truthworld(
-          overrideInitialRoute: '/advertiser',
-          title: 'Truthworld Advertiser',
-        ));
-
-        Future.wait([
-          Get.find<AppService>().init(),
-          Get.find<ConnectivityService>().init(),
-          Get.find<PushNotificationService>().init(),
-        ]).then((_) {
-          logger.info('All Advertiser background services initialized', tag: 'Startup');
-        });
-      } catch (error, stackTrace) {
-        logger.wtf(
-          'Fatal error during Advertiser startup',
-          error: error,
-          stackTrace: stackTrace,
-          tag: 'Startup',
+        logger.init(
+          minLogLevel: kDebugMode ? 2 : 4,
         );
-        runApp(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Text('Advertiser Initialization Error: $error'),
+
+        try {
+          try {
+            await Firebase.initializeApp(
+              options: DefaultFirebaseOptions.currentPlatform,
+            );
+            FirebaseFirestore.instance.settings = const Settings(
+              persistenceEnabled: true,
+              cacheSizeBytes: 100 * 1024 * 1024,
+            );
+            try {
+              await FirebaseAppCheck.instance.activate(
+                webProvider: ReCaptchaEnterpriseProvider(
+                  '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
+                ),
+                androidProvider: AndroidProvider.debug,
+                appleProvider: kDebugMode
+                    ? AppleProvider.debug
+                    : AppleProvider.deviceCheck,
+              );
+              await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+              if (kDebugMode) {
+                try {
+                  final token = await FirebaseAppCheck.instance.getToken();
+                  logger.info(
+                    'Firebase App Check Debug Token: $token',
+                    tag: 'Startup',
+                  );
+                } catch (e) {
+                  logger.warning(
+                    'Could not retrieve App Check debug token: $e',
+                    tag: 'Startup',
+                  );
+                }
+              }
+            } catch (e) {
+              logger.error(
+                'Firebase App Check initialization error: $e',
+                tag: 'Startup',
+              );
+            }
+          } on FirebaseException catch (e) {
+            logger.error(
+              'Firebase initialization error: ${e.code}',
+              tag: 'Firebase',
+              error: e,
+            );
+            rethrow;
+          }
+
+          if (!kIsWeb) {
+            await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+              !kDebugMode,
+            );
+            FirebaseCrashlytics.instance.setCustomKey(
+              'platform',
+              defaultTargetPlatform.name,
+            );
+            await FirebasePerformance.instance.setPerformanceCollectionEnabled(
+              !kDebugMode,
+            );
+          }
+
+          await GetStorage.init().catchError((e) {
+            logger.warning('GetStorage error: $e');
+            return false;
+          });
+
+          final authService = Get.put(AuthService(), permanent: true);
+          Get.put(AppService(), permanent: true);
+          Get.put(ConnectivityService(), permanent: true);
+          Get.put(PushNotificationService(), permanent: true);
+          Get.put(UserPreferencesService(), permanent: true);
+
+          await authService.init();
+
+          if (!kIsWeb) {
+            final uid = authService.user?.uid;
+            if (uid != null) {
+              FirebaseCrashlytics.instance.setUserIdentifier(uid);
+            }
+          }
+
+          runApp(
+            const Truthworld(
+              overrideInitialRoute: '/advertiser',
+              title: 'Truthworld Advertiser',
+            ),
+          );
+
+          Future.wait([
+            Get.find<AppService>().init(),
+            Get.find<ConnectivityService>().init(),
+            Get.find<PushNotificationService>().init(),
+          ]).then((_) {
+            logger.info(
+              'All Advertiser background services initialized',
+              tag: 'Startup',
+            );
+          });
+        } catch (error, stackTrace) {
+          logger.wtf(
+            'Fatal error during Advertiser startup',
+            error: error,
+            stackTrace: stackTrace,
+            tag: 'Startup',
+          );
+          runApp(
+            MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Text('Advertiser Initialization Error: $error'),
+                ),
               ),
             ),
-          ),
-        );
-      }
-    },
-    (error, stackTrace) {
-      debugPrint('Zone error caught in Advertiser: $error');
-    },
-  ));
+          );
+        }
+      },
+      (error, stackTrace) {
+        debugPrint('Zone error caught in Advertiser: $error');
+      },
+    ),
+  );
 }

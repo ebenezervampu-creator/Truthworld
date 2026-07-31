@@ -28,43 +28,36 @@ class PT {
 // Pre-build expensive GoogleFonts lookups once.
 abstract class TS {
   static const body = TextStyle(
-    
     color: PT.text,
     fontSize: 14,
     fontWeight: FontWeight.w400,
   );
   static const bodySm = TextStyle(
-    
     color: PT.textDim,
     fontSize: 12,
   );
   static const bold = TextStyle(
-    
     color: PT.text,
     fontSize: 14,
     fontWeight: FontWeight.w700,
   );
   static const title = TextStyle(
-    
     color: PT.text,
     fontSize: 16,
     fontWeight: FontWeight.bold,
   );
   static const badge = TextStyle(
-    
     color: PT.primary,
     fontSize: 11,
     fontWeight: FontWeight.bold,
     letterSpacing: 0.5,
   );
   static const mono = TextStyle(
-    
     color: PT.text,
     fontSize: 11,
     fontWeight: FontWeight.w500,
   );
   static const time = TextStyle(
-    
     color: AppColors.textPrimary,
     fontSize: 13,
     fontWeight: FontWeight.w500,
@@ -163,7 +156,6 @@ class TimerBag {
 }
 
 class MockAd {
-
   const MockAd({
     required this.videoUrl,
     required this.title,
@@ -181,7 +173,6 @@ class MockAd {
 }
 
 class LanguageRequest {
-
   const LanguageRequest({
     required this.id,
     required this.language,
@@ -205,4 +196,3 @@ class LanguageRequest {
   final Timestamp createdAt;
   final int count;
 }
-

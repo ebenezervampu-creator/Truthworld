@@ -1,11 +1,15 @@
 /// Pure domain entity for channel — no framework dependencies.
-class ChannelEntity { // active, suspended, deleted
+class ChannelEntity {
+  // active, suspended, deleted
 
   const ChannelEntity({
     required this.id,
     required this.name,
     required this.handle,
-    required this.ownerId, required this.createdAt, required this.updatedAt, this.description = '',
+    required this.ownerId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.description = '',
     this.avatarUrl = '',
     this.bannerUrl = '',
     this.subscriberCount = 0,

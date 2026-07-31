@@ -26,7 +26,10 @@ class VideoContentDetailsScreen extends StatelessWidget {
         backgroundColor: AppColors.bgSurface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Get.back<void>(),
         ),
         title: Text(
@@ -63,13 +66,14 @@ class VideoContentDetailsScreen extends StatelessWidget {
                           ? CachedNetworkImage(
                               imageUrl: video.thumbnailUrl,
                               fit: BoxFit.cover,
-                              errorWidget: (context, url, error) => const ColoredBox(
-                                color: AppColors.bgInput,
-                                child: Icon(
-                                  Icons.movie_outlined,
-                                  color: AppColors.textTertiary,
-                                ),
-                              ),
+                              errorWidget: (context, url, error) =>
+                                  const ColoredBox(
+                                    color: AppColors.bgInput,
+                                    child: Icon(
+                                      Icons.movie_outlined,
+                                      color: AppColors.textTertiary,
+                                    ),
+                                  ),
                             )
                           : const ColoredBox(
                               color: AppColors.bgInput,
@@ -118,7 +122,9 @@ class VideoContentDetailsScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              DateFormat('MMM d, yyyy').format(video.uploadedAt.toDate()),
+                              DateFormat(
+                                'MMM d, yyyy',
+                              ).format(video.uploadedAt.toDate()),
                               style: AppTextStyles.caption.copyWith(
                                 color: AppColors.textSecondary,
                               ),
@@ -154,7 +160,9 @@ class VideoContentDetailsScreen extends StatelessWidget {
                       ),
                     ),
                     onPressed: () {
-                      MiniplayerNavigationHelper.navigateToVideoScreen(video: video);
+                      MiniplayerNavigationHelper.navigateToVideoScreen(
+                        video: video,
+                      );
                     },
                   ),
                 ),

@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 /// `borderRadius:` parameters. Use `smValue`, `mdValue`, `lgValue`, `xlValue`
 /// for the raw [double] values when needed (e.g. `BorderRadius.only(...)`).
 class TWRadius extends ThemeExtension<TWRadius> {
-
   const TWRadius({
     required this.smValue,
     required this.mdValue,

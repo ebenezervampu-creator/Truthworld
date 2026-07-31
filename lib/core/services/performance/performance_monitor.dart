@@ -47,14 +47,20 @@ class PerformanceMonitor {
   static void trackControllerInit(String controllerName) {
     _activeControllers++;
     if (kDebugMode) {
-      logger.debug('Active Controllers: $_activeControllers (+$controllerName)', tag: 'PERF');
+      logger.debug(
+        'Active Controllers: $_activeControllers (+$controllerName)',
+        tag: 'PERF',
+      );
     }
   }
 
   static void trackControllerDispose(String controllerName) {
     if (_activeControllers > 0) _activeControllers--;
     if (kDebugMode) {
-      logger.debug('Active Controllers: $_activeControllers (-$controllerName)', tag: 'PERF');
+      logger.debug(
+        'Active Controllers: $_activeControllers (-$controllerName)',
+        tag: 'PERF',
+      );
     }
   }
 
@@ -101,7 +107,10 @@ class PerformanceMonitor {
     _recordCacheHit(cached);
 
     if (kDebugMode) {
-      logger.debug('Image loaded: $url (${durationMs}ms, cached: $cached)', tag: 'PERF');
+      logger.debug(
+        'Image loaded: $url (${durationMs}ms, cached: $cached)',
+        tag: 'PERF',
+      );
     }
   }
 
@@ -119,7 +128,10 @@ class PerformanceMonitor {
     _sendMetric(kFirestoreReadTime, durationMs, {'collection': collection});
 
     if (kDebugMode) {
-      logger.debug('Firestore read: $collection (${durationMs}ms)', tag: 'PERF');
+      logger.debug(
+        'Firestore read: $collection (${durationMs}ms)',
+        tag: 'PERF',
+      );
     }
   }
 
@@ -162,7 +174,10 @@ class PerformanceMonitor {
         : '0.00';
 
     if (kDebugMode) {
-      logger.debug('Cache stats:\n  Hit rate: $hitRate%\n  Offline hits: $_offlineHits\n  Cache size: ${cacheSizeMb}MB', tag: 'PERF');
+      logger.debug(
+        'Cache stats:\n  Hit rate: $hitRate%\n  Offline hits: $_offlineHits\n  Cache size: ${cacheSizeMb}MB',
+        tag: 'PERF',
+      );
     }
   }
 
@@ -288,8 +303,3 @@ Future<int> measure(Future<void> Function() operation) async {
   await operation();
   return start.elapsedMilliseconds;
 }
-
-
-
-
-

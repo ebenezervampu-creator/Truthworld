@@ -90,7 +90,7 @@ class AboutPage extends StatelessWidget {
             onPressed: () => Get.toNamed('/channelscreen'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -185,7 +185,7 @@ class AboutPage extends StatelessWidget {
                   label: const Text('Start Creating'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 32,
                       vertical: 20,
@@ -1403,7 +1403,3 @@ class AboutPage extends StatelessWidget {
     );
   }
 }
-
-
-
-

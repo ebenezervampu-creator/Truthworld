@@ -20,7 +20,9 @@ class PrefetchController extends BaseController {
     try {
       final raw = _storage.read<List>(_kVideoCacheKey);
       if (raw != null) {
-        final list = raw.map((item) => Video.fromMap(Map<String, dynamic>.from(item))).toList();
+        final list = raw
+            .map((item) => Video.fromMap(Map<String, dynamic>.from(item)))
+            .toList();
         cachedVideos.assignAll(list);
         logCacheHit(_kVideoCacheKey);
       }

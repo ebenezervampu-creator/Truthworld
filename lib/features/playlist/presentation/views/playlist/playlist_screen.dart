@@ -12,6 +12,7 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
+
 const kPrimaryDark = AppColors.brand;
 const kSecondaryDark = AppColors.brandVariant;
 const kBorderRadius = 16.0;
@@ -54,7 +55,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   late TabController _tabController;
   late AnimationController _animationController;
   late AnimationController _fabAnimationController;
-
 
   @override
   void initState() {
@@ -117,46 +117,47 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       useSafeArea: true,
       showDragHandle: false,
       builder: (context) {
-        return Obx(() {
-          final isPublic = _selectedPlaylistType.value == 'public';
+        return Obx(
+          () {
+            final isPublic = _selectedPlaylistType.value == 'public';
 
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [kDarkBackground, Color(0xFF000000)],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(28),
-                topRight: Radius.circular(28),
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.08),
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [kDarkBackground, Color(0xFF000000)],
                 ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  blurRadius: 32,
-                  offset: const Offset(0, -8),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
                 ),
-              ],
-            ),
-            child: Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.9,
-                minHeight: MediaQuery.of(context).size.height * 0.6,
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 32,
+                    offset: const Offset(0, -8),
+                  ),
+                ],
               ),
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                left: isTablet ? 32 : 24,
-                right: isTablet ? 32 : 24,
-                top: 20,
-              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.9,
+                  minHeight: MediaQuery.of(context).size.height * 0.6,
+                ),
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                  left: isTablet ? 32 : 24,
+                  right: isTablet ? 32 : 24,
+                  top: 20,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,8 +294,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                       ),
                     ),
                     const SizedBox(height: 24),
-
-
 
                     // Modern section header
                     Row(
@@ -459,10 +458,11 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final video = videos[index];
-                              final isSelected =
-                                  _playlistController.selectedVideoIds.contains(
-                                video.id,
-                              );
+                              final isSelected = _playlistController
+                                  .selectedVideoIds
+                                  .contains(
+                                    video.id,
+                                  );
 
                               return AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
@@ -472,7 +472,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                   child: InkWell(
                                     key: ValueKey(video.id),
                                     onTap: () {
-                                      _playlistController.toggleVideoSelection(video.id);
+                                      _playlistController.toggleVideoSelection(
+                                        video.id,
+                                      );
                                     },
                                     borderRadius: BorderRadius.circular(16),
                                     child: AnimatedContainer(
@@ -570,33 +572,35 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                                   duration: const Duration(
                                                     milliseconds: 200,
                                                   ),
-                                                  padding: const EdgeInsets.all(4),
+                                                  padding: const EdgeInsets.all(
+                                                    4,
+                                                  ),
                                                   decoration: BoxDecoration(
                                                     color: isSelected
                                                         ? kPrimaryDark
                                                         : Colors.black
-                                                            .withValues(
-                                                              alpha: 0.5,
-                                                            ),
+                                                              .withValues(
+                                                                alpha: 0.5,
+                                                              ),
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                      12,
-                                                    ),
+                                                          12,
+                                                        ),
                                                     border: isSelected
                                                         ? null
                                                         : Border.all(
                                                             color: Colors.white
                                                                 .withValues(
-                                                              alpha: 0.6,
-                                                            ),
+                                                                  alpha: 0.6,
+                                                                ),
                                                             width: 1.5,
                                                           ),
                                                     boxShadow: [
                                                       BoxShadow(
                                                         color: Colors.black
                                                             .withValues(
-                                                          alpha: 0.2,
-                                                        ),
+                                                              alpha: 0.2,
+                                                            ),
                                                         blurRadius: 4,
                                                         offset: const Offset(
                                                           0,
@@ -812,8 +816,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           _playlistController.createPlayList(
                             playListNameController.text.trim(),
                             isPublic: isPublic,
-                            videoIds:
-                                _playlistController.selectedVideoIds.toList(),
+                            videoIds: _playlistController.selectedVideoIds
+                                .toList(),
                           );
 
                           playListNameController.clear();
@@ -1076,7 +1080,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     );
   }
 
-
   void _showSortBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -1169,9 +1172,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
               ? kPrimaryDark.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: kPrimaryDark)
-              : null,
+          border: isSelected ? Border.all(color: kPrimaryDark) : null,
         ),
         child: Row(
           children: [
@@ -1217,7 +1218,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.1),
+              color: isSelected
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -1255,8 +1258,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   }) {
     return Obx(() {
       final isLoaded = isPublic
-          ? (_playlistController.user.isEmpty || _playlistController.isPublicPlaylistsLoaded.value)
-          : (_playlistController.user.isEmpty || _playlistController.isPlaylistsLoaded.value);
+          ? (_playlistController.user.isEmpty ||
+                _playlistController.isPublicPlaylistsLoaded.value)
+          : (_playlistController.user.isEmpty ||
+                _playlistController.isPlaylistsLoaded.value);
 
       if (!isLoaded) {
         return _buildLoadingState(isMobile, isTablet, isDesktop);
@@ -1686,13 +1691,16 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                               size: 18,
                             ),
                             onPressed: () {
-                              _playlistController.isSearchExpanded.value = false;
+                              _playlistController.isSearchExpanded.value =
+                                  false;
                               _searchController.clear();
                               _playlistController.updateSearchQuery('');
                             },
                           ),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
@@ -1703,7 +1711,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                         icon: const Icon(Icons.arrow_back, color: Colors.white),
                         onPressed: () {
                           if (widget.isDashboard) {
-                            Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                            Get.find<HomeController>()
+                                    .sideNavSelectedIndex
+                                    .value =
+                                HomeController.indexLibrary;
                           } else {
                             Get.back();
                           }
@@ -1730,7 +1741,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           Icons.search,
                           color: Colors.white,
                         ),
-                        onPressed: () => _playlistController.isSearchExpanded.value = true,
+                        onPressed: () =>
+                            _playlistController.isSearchExpanded.value = true,
                       )
                     : const SizedBox.shrink(),
               ),
@@ -1809,7 +1821,10 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return ColoredBox(
       color: kDarkBackground,
       child: _tabBar,
@@ -1824,9 +1839,11 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 
 // Enhanced Playlist Item Widget
 class EnhancedPlaylistItem extends StatefulWidget {
-
   const EnhancedPlaylistItem({
-    required this.playlist, required this.index, required this.isGridView, super.key,
+    required this.playlist,
+    required this.index,
+    required this.isGridView,
+    super.key,
     this.videoId,
   });
   final PlaylistModel playlist;
@@ -1881,36 +1898,42 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
       },
       child: ScaleTransition(
         scale: _hoverAnimation,
-        child: Obx(() => Container(
-          margin: EdgeInsets.only(bottom: widget.isGridView ? 0 : 16),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: _isHovered.value ? 0.15 : 0.08),
-                blurRadius: _isHovered.value ? 20 : 10,
-                offset: Offset(0, _isHovered.value ? 8 : 4),
+        child: Obx(
+          () => Container(
+            margin: EdgeInsets.only(bottom: widget.isGridView ? 0 : 16),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: _isHovered.value ? 0.15 : 0.08,
+                  ),
+                  blurRadius: _isHovered.value ? 20 : 10,
+                  offset: Offset(0, _isHovered.value ? 8 : 4),
+                ),
+              ],
+            ),
+            child: InkWell(
+              onTap: () {
+                final firstVideoId = widget.playlist.videoIds.isNotEmpty
+                    ? widget.playlist.videoIds.first
+                    : '';
+                Get.toNamed(
+                  '/watch?v=$firstVideoId',
+                  arguments: {'playlist': widget.playlist},
+                );
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: widget.isGridView
+                    ? _buildGridContent(colorScheme)
+                    : _buildListContent(colorScheme),
               ),
-            ],
-          ),
-          child: InkWell(
-            onTap: () {
-              final firstVideoId = widget.playlist.videoIds.isNotEmpty ? widget.playlist.videoIds.first : '';
-              Get.toNamed(
-                '/watch?v=$firstVideoId',
-                arguments: {'playlist': widget.playlist},
-              );
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: widget.isGridView
-                  ? _buildGridContent(colorScheme)
-                  : _buildListContent(colorScheme),
             ),
           ),
-        )),
+        ),
       ),
     );
   }
@@ -1973,7 +1996,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                 child: StackedThumbnail(
                   thumbnailUrl: widget.playlist.thumbnailUrl,
                   videoCount: widget.playlist.videoCount,
-                  isPodcast: widget.playlist.playlistName.toLowerCase().contains('podcast'),
+                  isPodcast: widget.playlist.playlistName
+                      .toLowerCase()
+                      .contains('podcast'),
                 ),
               ),
               if (status != 'active')
@@ -2019,7 +2044,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
         const SizedBox(height: 6),
         InkWell(
           onTap: () {
-            final firstVideoId = widget.playlist.videoIds.isNotEmpty ? widget.playlist.videoIds.first : '';
+            final firstVideoId = widget.playlist.videoIds.isNotEmpty
+                ? widget.playlist.videoIds.first
+                : '';
             Get.toNamed(
               '/watch?v=$firstVideoId',
               arguments: {'playlist': widget.playlist},
@@ -2220,16 +2247,19 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: (widget.playlist.status == 'verificationRejected'
-                                  ? Colors.redAccent
-                                  : Colors.amber)
-                              .withValues(alpha: 0.1),
+                          color:
+                              (widget.playlist.status == 'verificationRejected'
+                                      ? Colors.redAccent
+                                      : Colors.amber)
+                                  .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: (widget.playlist.status == 'verificationRejected'
-                                    ? Colors.redAccent
-                                    : Colors.amber)
-                                .withValues(alpha: 0.25),
+                            color:
+                                (widget.playlist.status ==
+                                            'verificationRejected'
+                                        ? Colors.redAccent
+                                        : Colors.amber)
+                                    .withValues(alpha: 0.25),
                           ),
                         ),
                         child: Column(
@@ -2238,21 +2268,27 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                             Row(
                               children: [
                                 Icon(
-                                  widget.playlist.status == 'verificationRejected'
+                                  widget.playlist.status ==
+                                          'verificationRejected'
                                       ? Icons.error_outline_rounded
                                       : Icons.hourglass_empty_rounded,
-                                  color: widget.playlist.status == 'verificationRejected'
+                                  color:
+                                      widget.playlist.status ==
+                                          'verificationRejected'
                                       ? Colors.redAccent
                                       : Colors.amber,
                                   size: 16,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  widget.playlist.status == 'verificationRejected'
+                                  widget.playlist.status ==
+                                          'verificationRejected'
                                       ? 'REJECTED'
                                       : 'UNDER REVIEW',
                                   style: GoogleFonts.roboto(
-                                    color: widget.playlist.status == 'verificationRejected'
+                                    color:
+                                        widget.playlist.status ==
+                                            'verificationRejected'
                                         ? Colors.redAccent
                                         : Colors.amber,
                                     fontWeight: FontWeight.bold,
@@ -2262,7 +2298,10 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                               ],
                             ),
                             if (widget.playlist.moderationReason != null &&
-                                widget.playlist.moderationReason!.isNotEmpty) ...[
+                                widget
+                                    .playlist
+                                    .moderationReason!
+                                    .isNotEmpty) ...[
                               const SizedBox(height: 8),
                               Text(
                                 widget.playlist.moderationReason!,
@@ -2351,7 +2390,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
 
   void _showManageVideosSheet(BuildContext context) {
     final playlistController = Get.find();
-    
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -2392,17 +2431,36 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                   const SizedBox(height: 16),
                   Expanded(
                     child: FutureBuilder<List<Video>>(
-                      future: playlistController.fetchVideos(widget.playlist.videoIds),
+                      future: playlistController.fetchVideos(
+                        widget.playlist.videoIds,
+                      ),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator(color: kPrimaryDark));
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: kPrimaryDark,
+                            ),
+                          );
                         }
                         if (snapshot.hasError) {
-                          return Center(child: Text('Error loading videos', style: GoogleFonts.roboto(color: Colors.white)));
+                          return Center(
+                            child: Text(
+                              'Error loading videos',
+                              style: GoogleFonts.roboto(color: Colors.white),
+                            ),
+                          );
                         }
                         final videos = snapshot.data ?? [];
                         if (videos.isEmpty) {
-                          return Center(child: Text('No videos in this playlist', style: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7))));
+                          return Center(
+                            child: Text(
+                              'No videos in this playlist',
+                              style: GoogleFonts.roboto(
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          );
                         }
                         return ListView.builder(
                           controller: scrollController,
@@ -2410,34 +2468,53 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                           itemBuilder: (context, index) {
                             final video = videos[index];
                             return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 8,
+                              ),
                               leading: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: video.thumbnailUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: video.thumbnailUrl,
-                                      width: 80,
-                                      height: 45,
-                                      fit: BoxFit.cover,
-                                      errorWidget: (_, _, _) => Container(width: 80, height: 45, color: Colors.grey[800]),
-                                    )
-                                  : Container(width: 80, height: 45, color: Colors.grey[800]),
+                                    ? CachedNetworkImage(
+                                        imageUrl: video.thumbnailUrl,
+                                        width: 80,
+                                        height: 45,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (_, _, _) => Container(
+                                          width: 80,
+                                          height: 45,
+                                          color: Colors.grey[800],
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 80,
+                                        height: 45,
+                                        color: Colors.grey[800],
+                                      ),
                               ),
                               title: Text(
                                 video.title,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
+                                style: GoogleFonts.roboto(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
                               ),
                               trailing: IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.redAccent,
+                                ),
                                 onPressed: () {
                                   playlistController.removeVideoFromPlaylist(
                                     widget.playlist.id,
                                     video.id,
                                     widget.playlist.isPublic,
                                   );
-                                  Navigator.pop(context); // Close sheet so they can reopen with fresh data
+                                  Navigator.pop(
+                                    context,
+                                  ); // Close sheet so they can reopen with fresh data
                                   Get.snackbar(
                                     'Removed',
                                     'Video removed from playlist',
@@ -2488,9 +2565,13 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
             style: GoogleFonts.roboto(color: Colors.white),
             decoration: InputDecoration(
               labelText: 'Playlist Name',
-              labelStyle: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7)),
+              labelStyle: GoogleFonts.roboto(
+                color: Colors.white.withValues(alpha: 0.7),
+              ),
               hintText: 'Enter new name',
-              hintStyle: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.4)),
+              hintStyle: GoogleFonts.roboto(
+                color: Colors.white.withValues(alpha: 0.4),
+              ),
               filled: true,
               fillColor: kDarksurfaceContainerHighest,
               border: OutlineInputBorder(
@@ -2509,7 +2590,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Cancel',
-                style: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7)),
+                style: GoogleFonts.roboto(
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
               ),
             ),
             ElevatedButton(
@@ -2602,9 +2685,10 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
 // ==========================================================================
 
 class StackedThumbnail extends StatelessWidget {
-
   const StackedThumbnail({
-    required this.thumbnailUrl, required this.videoCount, super.key,
+    required this.thumbnailUrl,
+    required this.videoCount,
+    super.key,
     this.isPodcast = false,
   });
   final String thumbnailUrl;
@@ -2702,7 +2786,10 @@ class StackedThumbnail extends StatelessWidget {
                       bottom: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.8),
                           borderRadius: BorderRadius.circular(4),
@@ -2711,7 +2798,9 @@ class StackedThumbnail extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              isPodcast ? Icons.podcasts_rounded : Icons.playlist_play_rounded,
+                              isPodcast
+                                  ? Icons.podcasts_rounded
+                                  : Icons.playlist_play_rounded,
                               color: Colors.white,
                               size: 14,
                             ),
@@ -2745,9 +2834,3 @@ class AppTheme {
     // Preserve original theme configuration
   );
 }
-
-
-
-
-
-

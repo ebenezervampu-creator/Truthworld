@@ -3,7 +3,8 @@ import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 enum PlaylistVisibility { public, private, unlisted }
 
-class PlaylistItem { // For manual ordering
+class PlaylistItem {
+  // For manual ordering
 
   PlaylistItem({
     required this.videoId,
@@ -36,10 +37,11 @@ class PlaylistItem { // For manual ordering
 }
 
 class PlaylistModel {
-
   PlaylistModel({
     required this.id,
-    required this.ownerId, required this.channelId, String? name,
+    required this.ownerId,
+    required this.channelId,
+    String? name,
     String? playlistName,
     this.description = '',
     this.thumbnailUrl = '',
@@ -65,7 +67,10 @@ class PlaylistModel {
   factory PlaylistModel.fromMap(Map<String, dynamic> data, String docId) {
     return PlaylistModel(
       id: docId,
-      name: data['name'] ?? data['playlistName'] ?? '', // Handle both old and new field names
+      name:
+          data['name'] ??
+          data['playlistName'] ??
+          '', // Handle both old and new field names
       description: data['description'] ?? '',
       ownerId: data['ownerId'] ?? '',
       channelId: data['channelId'] ?? '',
@@ -136,8 +141,3 @@ class PlaylistModel {
     };
   }
 }
-
-
-
-
-

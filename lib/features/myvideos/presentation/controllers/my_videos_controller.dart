@@ -62,9 +62,7 @@ class MyVideosController extends GetxController {
     _subscription?.cancel();
     _subscription = query.snapshots().listen(
       (snapshot) {
-        videos.value = snapshot.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList();
+        videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
         isLoading.value = false;
       },
       onError: (error) {
@@ -127,7 +125,10 @@ class MyVideosController extends GetxController {
         colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
-        icon: const Icon(Icons.check_circle_outline, color: AppColors.textPrimary),
+        icon: const Icon(
+          Icons.check_circle_outline,
+          color: AppColors.textPrimary,
+        ),
       );
     } catch (e) {
       Get.snackbar(
@@ -158,7 +159,10 @@ class MyVideosController extends GetxController {
         colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
-        icon: const Icon(Icons.delete_sweep_rounded, color: AppColors.textPrimary),
+        icon: const Icon(
+          Icons.delete_sweep_rounded,
+          color: AppColors.textPrimary,
+        ),
       );
     } catch (e) {
       Get.snackbar(

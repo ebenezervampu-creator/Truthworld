@@ -48,22 +48,22 @@ class SavedCommunityPostsController extends GetxController {
         .orderBy('savedAt', descending: true)
         .snapshots()
         .listen(
-      (snapshot) {
-        final list = <CommunityPostModel>[];
-        for (final doc in snapshot.docs) {
-          final data = doc.data();
-          data['id'] = doc.id;
-          list.add(CommunityPostModel.fromMap(data));
-        }
-        posts.value = list;
-        isLoading.value = false;
-      },
-      onError: (Object error) {
-        errorMessage.value = error.toString();
-        isLoading.value = false;
-        debugPrint('Error listening to saved community posts: $error');
-      },
-    );
+          (snapshot) {
+            final list = <CommunityPostModel>[];
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              list.add(CommunityPostModel.fromMap(data));
+            }
+            posts.value = list;
+            isLoading.value = false;
+          },
+          onError: (Object error) {
+            errorMessage.value = error.toString();
+            isLoading.value = false;
+            debugPrint('Error listening to saved community posts: $error');
+          },
+        );
   }
 
   Future<void> unsavePost(String postId) async {

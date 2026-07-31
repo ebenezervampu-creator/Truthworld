@@ -5,6 +5,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -98,7 +100,10 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   backgroundColor: Colors.transparent,
                   elevation: 0,
                   leading: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: AppColors.textPrimary,
+                    ),
                     onPressed: Get.back,
                   ),
                   actions: [
@@ -216,35 +221,60 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildSearchBar() {
+    final flipService = Get.isRegistered<FlipCoinService>()
+        ? Get.find<FlipCoinService>()
+        : Get.put(FlipCoinService());
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
-      child: TextField(
-        controller: _searchController,
-        style: const TextStyle(color: AppColors.textPrimary),
-        decoration: InputDecoration(
-          hintText: 'Search topics by name...',
-          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-          suffixIcon: Obx(
-            () => controller.searchQuery.value.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(
-                      Icons.clear,
-                      color: AppColors.textSecondary,
-                    ),
-                    onPressed: () {
-                      _searchController.clear();
-                      controller.clearSearch();
-                    },
-                  )
-                : const SizedBox.shrink(),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Search topics by name...',
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textSecondary,
+                ),
+                suffixIcon: Obx(
+                  () => controller.searchQuery.value.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            controller.clearSearch();
+                          },
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Obx(
+            () => FlipCoinWidget(
+              isFlipped: flipService.isTopicsFlipped.value,
+              showLabel: true,
+              onTap: () {
+                flipService.toggleTopicsFlip();
+                controller.loadTopics(reset: true);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildCategoryGrid(BuildContext context) {
-    if (controller.isLoadingCategories.value && controller.availableCategories.isEmpty) {
+    if (controller.isLoadingCategories.value &&
+        controller.availableCategories.isEmpty) {
       return _buildCategorySkeletonGrid(context);
     }
     final categories = controller.availableCategories;
@@ -369,7 +399,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                 backgroundColor: AppColors.bgSurface,
                 selectedColor: AppColors.brand,
                 labelStyle: TextStyle(
-                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                  color: isSelected ? Colors.black : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
                 shape: RoundedRectangleBorder(
@@ -471,15 +501,24 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   }
                 },
                 itemBuilder: (context) {
-                  final isFollowed = followingController.isTopicFollowed(topic.id);
+                  final isFollowed = followingController.isTopicFollowed(
+                    topic.id,
+                  );
                   return [
                     const PopupMenuItem(
                       value: 'view_topic',
                       child: Row(
                         children: [
-                          Icon(Icons.visibility_outlined, color: AppColors.textPrimary, size: 20),
+                          Icon(
+                            Icons.visibility_outlined,
+                            color: AppColors.textPrimary,
+                            size: 20,
+                          ),
                           SizedBox(width: 12),
-                          Text('View Topic Details', style: TextStyle(color: AppColors.textPrimary)),
+                          Text(
+                            'View Topic Details',
+                            style: TextStyle(color: AppColors.textPrimary),
+                          ),
                         ],
                       ),
                     ),
@@ -488,14 +527,18 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       child: Row(
                         children: [
                           Icon(
-                            isFollowed ? Icons.bookmark_remove_outlined : Icons.bookmark_add_outlined,
+                            isFollowed
+                                ? Icons.bookmark_remove_outlined
+                                : Icons.bookmark_add_outlined,
                             color: AppColors.textPrimary,
                             size: 20,
                           ),
                           const SizedBox(width: 12),
                           Text(
                             isFollowed ? 'Unfollow Topic' : 'Follow Topic',
-                            style: const TextStyle(color: AppColors.textPrimary),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ],
                       ),
@@ -527,7 +570,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.ondemand_video_rounded, color: AppColors.textTertiary, size: 36),
+                    Icon(
+                      Icons.ondemand_video_rounded,
+                      color: AppColors.textTertiary,
+                      size: 36,
+                    ),
                     SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -639,7 +686,10 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981),
                         borderRadius: BorderRadius.circular(4),
@@ -647,7 +697,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 10),
+                          Icon(
+                            Icons.verified_rounded,
+                            color: AppColors.textPrimary,
+                            size: 10,
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'Fact Checked',
@@ -667,7 +721,10 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   bottom: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
@@ -705,7 +762,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textSecondary),
+                  icon: const Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: () => VideoOptionsSheet.show(context, video),
@@ -743,7 +804,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildHorizontalVideoSkeleton(bool isMobile, bool isTablet, bool isDesktop) {
+  Widget _buildHorizontalVideoSkeleton(
+    bool isMobile,
+    bool isTablet,
+    bool isDesktop,
+  ) {
     final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
     final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
     return SizedBox(
@@ -772,11 +837,23 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Container(width: double.infinity, height: 14, color: AppColors.textPrimary),
+                  Container(
+                    width: double.infinity,
+                    height: 14,
+                    color: AppColors.textPrimary,
+                  ),
                   const SizedBox(height: 6),
-                  Container(width: 140, height: 12, color: AppColors.textPrimary),
+                  Container(
+                    width: 140,
+                    height: 12,
+                    color: AppColors.textPrimary,
+                  ),
                   const SizedBox(height: 4),
-                  Container(width: 100, height: 12, color: AppColors.textPrimary),
+                  Container(
+                    width: 100,
+                    height: 12,
+                    color: AppColors.textPrimary,
+                  ),
                 ],
               ),
             ),
@@ -790,8 +867,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     final isMobile = context.isMobile;
     final bannerHeight = isMobile ? 360.0 : 540.0;
     final itemsCount = controller.topics.length;
-    final totalPages =
-        itemsCount + (controller.isLoadingMore.value ? 1 : 0);
+    final totalPages = itemsCount + (controller.isLoadingMore.value ? 1 : 0);
 
     return Container(
       height: bannerHeight,
@@ -885,12 +961,16 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       height: 8,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.textPrimary : AppColors.textTertiary,
+                        color: isSelected
+                            ? AppColors.textPrimary
+                            : AppColors.textTertiary,
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: AppColors.textPrimary.withValues(alpha: 0.5),
+                                  color: AppColors.textPrimary.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   blurRadius: 8,
                                 ),
                               ]
@@ -954,14 +1034,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     final isOwner =
         Get.isRegistered<AuthService>() &&
         ((topic.channelId != null &&
-            topic.channelId!.isNotEmpty &&
-            AuthService.to.userChannel?.id == topic.channelId) ||
-         (topic.creatorId != null &&
-            topic.creatorId!.isNotEmpty &&
-            AuthService.to.uid == topic.creatorId));
+                topic.channelId!.isNotEmpty &&
+                AuthService.to.userChannel?.id == topic.channelId) ||
+            (topic.creatorId != null &&
+                topic.creatorId!.isNotEmpty &&
+                AuthService.to.uid == topic.creatorId));
 
-    final bgUrl =
-        (topic.coverImage != null && topic.coverImage!.isNotEmpty)
+    final bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
         ? topic.coverImage
         : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
         ? topic.thumbnailUrl
@@ -1241,20 +1320,26 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                               isFollowed
                                   ? Icons.check_circle_outline_rounded
                                   : Icons.person_add_alt_1_outlined,
-                              color: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
+                              color: isFollowed
+                                  ? AppColors.textPrimary
+                                  : AppColors.bgPage,
                               size: btnIconSize,
                             ),
                             label: Text(
                               isFollowed ? 'Following' : 'Follow',
                               style: TextStyle(
-                                color: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
+                                color: isFollowed
+                                    ? AppColors.textPrimary
+                                    : AppColors.bgPage,
                                 fontWeight: FontWeight.w500,
                                 fontSize: btnFontSize,
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isFollowed
-                                  ? AppColors.textPrimary.withValues(alpha: 0.15)
+                                  ? AppColors.textPrimary.withValues(
+                                      alpha: 0.15,
+                                    )
                                   : AppColors.textPrimary,
                               foregroundColor: isFollowed
                                   ? AppColors.textPrimary
@@ -1311,7 +1396,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.textPrimary.withValues(alpha: 0.12),
+                          backgroundColor: AppColors.textPrimary.withValues(
+                            alpha: 0.12,
+                          ),
                           foregroundColor: AppColors.textPrimary,
                           padding: EdgeInsets.symmetric(
                             horizontal: btnPaddingH,
@@ -1366,7 +1453,10 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             Text(
               controller.errorMessage.value,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -1423,7 +1513,9 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F0F),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.05),
+        ),
       ),
       child: Shimmer.fromColors(
         baseColor: const Color(0xFF161618),

@@ -7,7 +7,7 @@ import 'package:truthworld/features/video/presentation/views/upload/models/uploa
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Upload Selection Screen
-/// 
+///
 /// A modern selection screen that allows users to choose between different
 /// content upload types. Features include:
 /// - Clean card-based layout
@@ -43,7 +43,7 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
   void _navigateToUpload(UploadType type) {
     // Save as last used
     _storage.write('last_upload_type', type.toStorageString());
-    
+
     // Navigate to specific upload screen
     Get.toNamed(type.routePath);
   }
@@ -153,7 +153,9 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
   }
 
   Widget _buildUploadOptions(BuildContext context) {
-    final availableTypes = UploadType.values.where((type) => type.isAvailable).toList();
+    final availableTypes = UploadType.values
+        .where((type) => type.isAvailable)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,15 +167,21 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
           ),
         ),
         const SizedBox(height: 12),
-        ...availableTypes.map((type) => Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: _buildUploadOptionCard(context, type),
-        )),
+        ...availableTypes.map(
+          (type) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildUploadOptionCard(context, type),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildUploadOptionCard(BuildContext context, UploadType type, {bool isLastUsed = false}) {
+  Widget _buildUploadOptionCard(
+    BuildContext context,
+    UploadType type, {
+    bool isLastUsed = false,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -184,12 +192,16 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
         child: Container(
           padding: EdgeInsets.all(context.layoutSpacing),
           decoration: BoxDecoration(
-            color: isLastUsed ? context.colors.surfaceContainer : context.colors.surface,
+            color: isLastUsed
+                ? context.colors.surfaceContainer
+                : context.colors.surface,
             borderRadius: context.radius.md,
-            border: isLastUsed ? Border.all(
-              color: context.colors.brand,
-              width: 2,
-            ) : null,
+            border: isLastUsed
+                ? Border.all(
+                    color: context.colors.brand,
+                    width: 2,
+                  )
+                : null,
           ),
           child: Row(
             children: [
@@ -197,17 +209,21 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isLastUsed ? context.colors.brandContainer : context.colors.surfaceContainer,
+                  color: isLastUsed
+                      ? context.colors.brandContainer
+                      : context.colors.surfaceContainer,
                   borderRadius: context.radius.sm,
                 ),
                 child: Icon(
                   type.icon,
-                  color: isLastUsed ? context.colors.brand : context.colors.textPrimary,
+                  color: isLastUsed
+                      ? context.colors.brand
+                      : context.colors.textPrimary,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 16),
-              
+
               // Title and subtitle
               Expanded(
                 child: Column(
@@ -225,11 +241,14 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
                   ],
                 ),
               ),
-              
+
               // Keyboard shortcut (web only)
               if (kIsWeb && type.keyboardShortcut != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: context.colors.surfaceContainerHigh,
                     borderRadius: context.radius.sm,
@@ -243,7 +262,7 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
                 ),
                 const SizedBox(width: 12),
               ],
-              
+
               // Chevron
               Icon(
                 Icons.chevron_right,
@@ -255,5 +274,4 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
       ),
     );
   }
-
 }

@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -23,7 +24,6 @@ import 'package:uuid/uuid.dart';
 // ContentValidationResult is now provided by content_validation_mixin.dart
 
 class TransactionResult {
-
   TransactionResult({
     this.success = false,
     this.errorMessage,
@@ -87,7 +87,6 @@ extension AvailabilityStatusExtension on AvailabilityStatus {
 }
 
 class ImageData {
-
   ImageData({
     required this.bytes,
     required this.name,
@@ -192,6 +191,7 @@ class ChannelController extends GetxController
   RxString errorMessage = ''.obs;
   RxDouble uploadProgress = 0.0.obs;
   final RxString channelNameMessage = ''.obs;
+  final selectedChannelType = ChannelType.standard.obs;
 
   // State for Channel Details Page
   final isAppBarExpanded = false.obs;
@@ -355,8 +355,9 @@ class ChannelController extends GetxController
     } else {
       selectedCategories.add(category);
     }
-    selectedCategory.value =
-        selectedCategories.isEmpty ? null : selectedCategories.first;
+    selectedCategory.value = selectedCategories.isEmpty
+        ? null
+        : selectedCategories.first;
     formChangeTrigger.value++;
   }
 
@@ -407,7 +408,6 @@ class ChannelController extends GetxController
 
       _setupTextFieldListeners();
       _setupFormValidationListeners();
-      fetchUserChannels();
       _loadDraft();
       startAnimations();
 
@@ -500,8 +500,8 @@ class ChannelController extends GetxController
         curve: Curves.easeIn,
       ),
     );
-    slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
-        .animate(
+    slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
           CurvedAnimation(
             parent: formSlideAnimationController,
             curve: Curves.easeOutCubic,
@@ -594,7 +594,9 @@ class ChannelController extends GetxController
     channelName.addListener(() {
       checkChannelNameAvailability(channelName.text);
       // Auto-fill custom URL if it's empty or was previously auto-filled
-      final slug = channelName.text.toLowerCase().trim()
+      final slug = channelName.text
+          .toLowerCase()
+          .trim()
           .replaceAll(RegExp('[^a-z0-9_-]'), '-')
           .replaceAll(RegExp('-+'), '-')
           .replaceAll(RegExp('_+'), '_');
@@ -1126,6 +1128,7 @@ class ChannelController extends GetxController
 
       final channelData = {
         // Core fields matching Channel model (V2)
+        'channelType': selectedChannelType.value.name,
         'name': channelNameText,
         'nameLowercase': channelNameText.toLowerCase(),
         'channelName': channelNameText,
@@ -1207,7 +1210,9 @@ class ChannelController extends GetxController
 
         // Update user document with channelId (use set+merge in case user doc doesn't exist yet)
         final userRef = _firestore.collection('users').doc(uid);
-        transaction.set(userRef, {'channelId': channelRef.id}, SetOptions(merge: true));
+        transaction.set(userRef, {
+          'channelId': channelRef.id,
+        }, SetOptions(merge: true));
 
         // Delete draft if exists
         if (draftId.value != null) {
@@ -1230,14 +1235,14 @@ class ChannelController extends GetxController
 
       _resetForm();
 
-      // Navigate directly to Creator Studio with a smooth transition
-      Get.offAllNamed(
-        '/studio',
+      // Navigate back to Home and open Creator Studio app externally
+      Get.offAllNamed('/home');
+      StudioLauncher.openStudio(
         arguments: {
           'channel': {
             'id': newChannelId,
             'name': channelNameText,
-          }
+          },
         },
       );
     } catch (e) {
@@ -1422,8 +1427,10 @@ class ChannelController extends GetxController
             isSubscribed.value = snapshot.exists;
             if (snapshot.exists) {
               final data = snapshot.data();
-              notificationsEnabled.value = data?['notificationsEnabled'] ?? true;
-              notificationOption.value = data?['notificationOption'] as String? ??
+              notificationsEnabled.value =
+                  data?['notificationsEnabled'] ?? true;
+              notificationOption.value =
+                  data?['notificationOption'] as String? ??
                   (notificationsEnabled.value ? 'all' : 'none');
             }
             isSubscriptionLoading.value = false;
@@ -1435,7 +1442,10 @@ class ChannelController extends GetxController
         );
   }
 
-  Future<void> updateNotificationPreference(String channelId, String option) async {
+  Future<void> updateNotificationPreference(
+    String channelId,
+    String option,
+  ) async {
     final user = _auth.currentUser;
     if (user == null) {
       _showErrorSnackbar('You must be logged in to update preferences.');
@@ -1456,8 +1466,8 @@ class ChannelController extends GetxController
       final msg = option == 'all'
           ? 'All notifications turned on'
           : (option == 'personalized'
-              ? 'Personalized notifications set'
-              : 'Notifications turned off');
+                ? 'Personalized notifications set'
+                : 'Notifications turned off');
       _showSuccessSnackbar(msg);
     } catch (e) {
       _showErrorSnackbar('Failed to update notification preferences');
@@ -1913,9 +1923,13 @@ class ChannelController extends GetxController
               if (result.status == VerificationStatus.approved ||
                   result.status == VerificationStatus.rejected ||
                   result.status == VerificationStatus.flagged) {
-                _firestore.collection(_channelsCol).doc(channel.id).update({
-                  'avatarStatus': result.status.name.toUpperCase(),
-                }).catchError((_) {});
+                _firestore
+                    .collection(_channelsCol)
+                    .doc(channel.id)
+                    .update({
+                      'avatarStatus': result.status.name.toUpperCase(),
+                    })
+                    .catchError((_) {});
               }
             });
       }
@@ -1932,9 +1946,13 @@ class ChannelController extends GetxController
               if (result.status == VerificationStatus.approved ||
                   result.status == VerificationStatus.rejected ||
                   result.status == VerificationStatus.flagged) {
-                _firestore.collection(_channelsCol).doc(channel.id).update({
-                  'bannerStatus': result.status.name.toUpperCase(),
-                }).catchError((_) {});
+                _firestore
+                    .collection(_channelsCol)
+                    .doc(channel.id)
+                    .update({
+                      'bannerStatus': result.status.name.toUpperCase(),
+                    })
+                    .catchError((_) {});
               }
             });
       }
@@ -2004,9 +2022,7 @@ class ChannelController extends GetxController
       final snapshot = await query.limit(12).get();
 
       if (snapshot.docs.isNotEmpty) {
-        videos.value = snapshot.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList();
+        videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
         lastVideoDocument.value = snapshot.docs.last;
         hasVideos.value = true;
         if (channelVideoCount.value == 0) {
@@ -2117,40 +2133,144 @@ class ChannelController extends GetxController
 
   Future<void> checkChannelContent(String channelId) async {
     try {
-      // Check if channel has videos
-      final videoSnap = await _firestore
-          .collection('videos')
-          .where('channelId', isEqualTo: channelId)
-          .limit(1)
-          .get();
-      hasVideos.value = videoSnap.docs.isNotEmpty;
-
-      // Check if channel has playlists
-      final playlistSnap = await _firestore
-          .collection('public_playlists')
-          .where('channelId', isEqualTo: channelId)
-          .limit(1)
-          .get();
-      hasPlaylists.value = playlistSnap.docs.isNotEmpty;
-
-      // Check if channel has posts (Community)
       final currentUser = _auth.currentUser;
-      final isOwner = currentUser != null && selectedChannel.value?.ownerId == currentUser.uid;
-      
+      final isOwner =
+          currentUser != null &&
+          selectedChannel.value?.ownerId == currentUser.uid;
+
       var postQuery = _firestore
           .collection('Community')
           .where('channelId', isEqualTo: channelId);
-          
+
       if (isOwner) {
         postQuery = postQuery.where('ownerId', isEqualTo: currentUser.uid);
       } else {
         postQuery = postQuery.where('visibility', isEqualTo: 'Public');
       }
 
-      final postSnap = await postQuery.limit(1).get();
-      hasPosts.value = postSnap.docs.isNotEmpty;
+      final results = await Future.wait([
+        _firestore
+            .collection('videos')
+            .where('channelId', isEqualTo: channelId)
+            .limit(1)
+            .get(),
+        _firestore
+            .collection('public_playlists')
+            .where('channelId', isEqualTo: channelId)
+            .limit(1)
+            .get(),
+        postQuery.limit(1).get(),
+      ]);
+
+      hasVideos.value = results[0].docs.isNotEmpty;
+      hasPlaylists.value = results[1].docs.isNotEmpty;
+      hasPosts.value = results[2].docs.isNotEmpty;
     } catch (e) {
       debugPrint('Error checking channel content: $e');
+    }
+  }
+
+  /// Updates channel monetization tier / channel type (Standard vs Custom)
+  Future<bool> updateChannelType(
+    String channelId,
+    ChannelType newType, {
+    CustomChannelInfraConfig? config,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'channelType': newType.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (newType == ChannelType.custom) {
+        final infra =
+            config ??
+            CustomChannelInfraConfig(
+              stripeConnectAccountId: 'acct_demo_${channelId.substring(0, 6)}',
+              subscriptionId: 'sub_demo_${channelId.substring(0, 6)}',
+              flatPlatformFee: 25.0,
+            );
+        updateData['infraConfig'] = infra.toMap();
+      }
+
+      await _firestore.collection('channels').doc(channelId).update(updateData);
+
+      if (selectedChannel.value?.id == channelId) {
+        final updatedDoc = await _firestore
+            .collection('channels')
+            .doc(channelId)
+            .get();
+        if (updatedDoc.exists) {
+          selectedChannel.value = Channel.fromDocumentSnapshot(updatedDoc);
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error updating channel type: $e');
+      return false;
+    }
+  }
+
+  /// Schedules a channel type change to take effect on the 1st of next month (Next Billing Cycle)
+  Future<bool> scheduleChannelTypeChange(
+    String channelId,
+    ChannelType targetType,
+  ) async {
+    try {
+      final now = DateTime.now();
+      // Calculate 1st of next month (e.g. July 10 -> August 1)
+      final effectiveDate = DateTime(now.year, now.month + 1, 1);
+      final effectiveTimestamp = Timestamp.fromDate(effectiveDate);
+
+      final updateData = <String, dynamic>{
+        'pendingChannelType': targetType.name,
+        'pendingTypeEffectiveDate': effectiveTimestamp,
+        'nextBillingCycleDate': effectiveTimestamp,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await _firestore.collection('channels').doc(channelId).update(updateData);
+
+      if (selectedChannel.value?.id == channelId) {
+        final updatedDoc = await _firestore
+            .collection('channels')
+            .doc(channelId)
+            .get();
+        if (updatedDoc.exists) {
+          selectedChannel.value = Channel.fromDocumentSnapshot(updatedDoc);
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error scheduling channel type change: $e');
+      return false;
+    }
+  }
+
+  /// Cancels a pending scheduled channel type change
+  Future<bool> cancelScheduledChannelTypeChange(String channelId) async {
+    try {
+      final updateData = <String, dynamic>{
+        'pendingChannelType': FieldValue.delete(),
+        'pendingTypeEffectiveDate': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      await _firestore.collection('channels').doc(channelId).update(updateData);
+
+      if (selectedChannel.value?.id == channelId) {
+        final updatedDoc = await _firestore
+            .collection('channels')
+            .doc(channelId)
+            .get();
+        if (updatedDoc.exists) {
+          selectedChannel.value = Channel.fromDocumentSnapshot(updatedDoc);
+        }
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error canceling scheduled channel type change: $e');
+      return false;
     }
   }
 }

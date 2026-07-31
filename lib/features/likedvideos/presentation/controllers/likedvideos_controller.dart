@@ -53,33 +53,33 @@ class LikedVideosController extends GetxController {
         .orderBy('timestamp', descending: !isAscending.value)
         .snapshots()
         .listen(
-      (snapshot) async {
-        if (snapshot.docs.isEmpty) {
-          videos.value = [];
-          isLoading.value = false;
-          return;
-        }
+          (snapshot) async {
+            if (snapshot.docs.isEmpty) {
+              videos.value = [];
+              isLoading.value = false;
+              return;
+            }
 
-        final videoIds = snapshot.docs.map((d) => d.id).toList();
-        final videoDocs = await _fetchVideosInBatches(videoIds);
-        
-        // Re-order to match the liked timestamp order from snapshot
-        // Use a map for faster lookup
-        final videoMap = {for (final v in videoDocs) v.id: v};
-        final orderedVideos = videoIds
-            .where(videoMap.containsKey)
-            .map((id) => videoMap[id]!)
-            .toList();
+            final videoIds = snapshot.docs.map((d) => d.id).toList();
+            final videoDocs = await _fetchVideosInBatches(videoIds);
 
-        videos.value = orderedVideos;
-        isLoading.value = false;
-      },
-      onError: (error) {
-        errorMessage.value = error.toString();
-        isLoading.value = false;
-        debugPrint('LikedVideos Firestore Error: $error');
-      },
-    );
+            // Re-order to match the liked timestamp order from snapshot
+            // Use a map for faster lookup
+            final videoMap = {for (final v in videoDocs) v.id: v};
+            final orderedVideos = videoIds
+                .where(videoMap.containsKey)
+                .map((id) => videoMap[id]!)
+                .toList();
+
+            videos.value = orderedVideos;
+            isLoading.value = false;
+          },
+          onError: (error) {
+            errorMessage.value = error.toString();
+            isLoading.value = false;
+            debugPrint('LikedVideos Firestore Error: $error');
+          },
+        );
   }
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
@@ -189,7 +189,9 @@ class LikedVideosController extends GetxController {
     if (searchQuery.isNotEmpty) {
       filtered = filtered.where((video) {
         return video.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-            video.description.toLowerCase().contains(searchQuery.toLowerCase()) ||
+            video.description.toLowerCase().contains(
+              searchQuery.toLowerCase(),
+            ) ||
             video.category.toLowerCase().contains(searchQuery.toLowerCase());
       }).toList();
     }
@@ -253,13 +255,19 @@ class LikedVideosController extends GetxController {
 
   String _getMonthName(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return months[month - 1];
   }
 }
-
-
-
-

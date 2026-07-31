@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Reply {
-
   Reply({
     required this.id,
     required this.commentId,
@@ -10,7 +9,12 @@ class Reply {
     required this.userName,
     required this.userProfilePicUrl,
     required this.channelId,
-    required this.text, required this.likeCount, required this.dislikeCount, required this.reportCount, required this.createdAt, this.channelName,
+    required this.text,
+    required this.likeCount,
+    required this.dislikeCount,
+    required this.reportCount,
+    required this.createdAt,
+    this.channelName,
     this.channelProfilePicUrl,
     this.isLikedByCurrentUser = false,
     this.isDislikedByCurrentUser = false,
@@ -50,13 +54,22 @@ class Reply {
   final int dislikeCount;
   final int reportCount;
   final Timestamp createdAt;
-  
+
   // ⚡ SCALE FIX: likedBy/dislikedBy maps removed — use subcollection pattern
   final bool isLikedByCurrentUser;
   final bool isDislikedByCurrentUser;
 
-  String get displayName => (channelName != null && channelName!.isNotEmpty) ? channelName! : userName;
-  String get avatarUrl => (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) ? channelProfilePicUrl! : userProfilePicUrl;
+  String get displayName {
+    if (channelName != null && channelName!.isNotEmpty) {
+      return channelName!.startsWith('@') ? channelName! : '@$channelName';
+    }
+    return userName;
+  }
+
+  String get avatarUrl =>
+      (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty)
+      ? channelProfilePicUrl!
+      : userProfilePicUrl;
 
   Map<String, dynamic> toMap() {
     return {
@@ -112,12 +125,8 @@ class Reply {
       reportCount: reportCount ?? this.reportCount,
       createdAt: createdAt ?? this.createdAt,
       isLikedByCurrentUser: isLikedByCurrentUser ?? this.isLikedByCurrentUser,
-      isDislikedByCurrentUser: isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
+      isDislikedByCurrentUser:
+          isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
     );
   }
 }
-
-
-
-
-

@@ -22,17 +22,22 @@ class TranscriptOverlay extends StatelessWidget {
         ),
         child: Column(
           children: [
-            PanelHeader(
-              title: 'Transcript',
-              onBack: null,
-              onClose: () {
-                ctrl.showTranscriptPopup.value = false;
-                ctrl.startHideTimer();
-              },
-              onContinue: () {
-                ctrl.showTranscriptPopup.value = false;
-                ctrl.startHideTimer();
-              },
+            Obx(
+              () => PanelHeader(
+                title: 'Transcript',
+                onBack: null,
+                onClose: () {
+                  ctrl.showTranscriptPopup.value = false;
+                  ctrl.startHideTimer();
+                },
+                onContinue: () {
+                  ctrl.toggleTranscriptAutoPlay();
+                  ctrl.startHideTimer();
+                },
+                continueLabel: ctrl.isTranscriptAutoPlay.value
+                    ? 'Pause'
+                    : 'Play',
+              ),
             ),
             Expanded(
               child: Obx(() {
@@ -81,7 +86,9 @@ class TranscriptOverlay extends StatelessWidget {
                               child: Text(
                                 seg.text,
                                 style: TS.body.copyWith(
-                                  color: isActive ? AppColors.textPrimary : PT.textDim,
+                                  color: isActive
+                                      ? AppColors.textPrimary
+                                      : PT.textDim,
                                   fontWeight: isActive
                                       ? FontWeight.w500
                                       : FontWeight.normal,

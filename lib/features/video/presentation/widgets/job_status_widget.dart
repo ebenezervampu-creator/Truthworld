@@ -3,12 +3,11 @@ import 'package:truthworld/features/video/data/models/content_verification.dart'
 import 'package:truthworld/features/video/data/models/pipeline_status.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 /// Job Status Widget - Displays real-time pipeline processing status
 class JobStatusWidget extends StatelessWidget {
-
   const JobStatusWidget({
-    required this.jobStatus, super.key,
+    required this.jobStatus,
+    super.key,
     this.onCancel,
     this.onRetry,
     this.showActions = true,
@@ -85,7 +84,10 @@ class JobStatusWidget extends StatelessWidget {
           children: [
             Text(
               'Job ID: ${jobStatus.jobId.substring(0, 8)}...',
-              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -300,7 +302,9 @@ class JobStatusWidget extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+              ),
               onPressed: onRetry,
             ),
           ),
@@ -335,9 +339,9 @@ class JobStatusWidget extends StatelessWidget {
 
 /// Content Verification Widget
 class VerificationWidget extends StatelessWidget {
-
   const VerificationWidget({
-    required this.verification, super.key,
+    required this.verification,
+    super.key,
     this.onRefresh,
   });
   final ContentVerification verification;
@@ -495,7 +499,9 @@ class VerificationWidget extends StatelessWidget {
                 SizedBox(
                   child: CircularProgressIndicator(
                     value: score / 100,
-                    backgroundColor: AppColors.textPrimary.withValues(alpha: 0.3),
+                    backgroundColor: AppColors.textPrimary.withValues(
+                      alpha: 0.3,
+                    ),
                     valueColor: const AlwaysStoppedAnimation<Color>(
                       AppColors.textPrimary,
                     ),
@@ -538,9 +544,17 @@ class VerificationWidget extends StatelessWidget {
                 if (item.hasFailed)
                   const Icon(Icons.close, color: AppColors.error, size: 20)
                 else if (item.isComplete)
-                  const Icon(Icons.check_circle, color: AppColors.success, size: 20)
+                  const Icon(
+                    Icons.check_circle,
+                    color: AppColors.success,
+                    size: 20,
+                  )
                 else
-                  const Icon(Icons.schedule, color: AppColors.warning, size: 20),
+                  const Icon(
+                    Icons.schedule,
+                    color: AppColors.warning,
+                    size: 20,
+                  ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -672,8 +686,3 @@ class VerificationWidget extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

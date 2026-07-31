@@ -32,7 +32,6 @@ const double kMobileBreakpoint = 600;
 const double kTabletBreakpoint = 1000;
 const double kDesktopBreakpoint = 1200;
 
-
 // ==========================================================================
 // MODERNIZED CATEGORY PAGE
 // ==========================================================================
@@ -270,7 +269,9 @@ class _CategoryPageState extends State<CategoryPage>
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          appBar: widget.isDashboard ? null : null, // Handle appbar separately if needed, but for now we use sliver app bar
+          appBar: widget.isDashboard
+              ? null
+              : null, // Handle appbar separately if needed, but for now we use sliver app bar
           body: SafeArea(
             child: CustomScrollView(
               controller: _scrollController,
@@ -318,7 +319,9 @@ class _CategoryPageState extends State<CategoryPage>
           borderRadius: BorderRadius.circular(12),
         ),
         child: IconButton(
-          icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface,
+          icon: Icon(
+            Icons.arrow_back,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
           onPressed: Get.back,
         ),
@@ -568,50 +571,55 @@ class _CategoryPageState extends State<CategoryPage>
           color: AppColors.bgSurfaceContainerHighest,
         ),
       ),
-      child: Obx(() => TextField(
-        controller: _searchController,
-        style: AppTokens.typography.body.copyWith(
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-        onChanged: (value) {
-          controller.searchQuery.value = value;
-        },
-        decoration: InputDecoration(
-          hintText: 'Search ${controller.category.toLowerCase()} content...',
-          hintStyle: AppTokens.typography.body.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+      child: Obx(
+        () => TextField(
+          controller: _searchController,
+          style: AppTokens.typography.body.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
           ),
-          prefixIcon: controller.isSearching.value
-              ? Container(
-                  width: 20,
-                  height: 20,
-                  margin: const EdgeInsets.all(12),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
+          onChanged: (value) {
+            controller.searchQuery.value = value;
+          },
+          decoration: InputDecoration(
+            hintText: 'Search ${controller.category.toLowerCase()} content...',
+            hintStyle: AppTokens.typography.body.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            prefixIcon: controller.isSearching.value
+                ? Container(
+                    width: 20,
+                    height: 20,
+                    margin: const EdgeInsets.all(12),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _getCategoryColor(),
+                    ),
+                  )
+                : Icon(
+                    Icons.search_rounded,
                     color: _getCategoryColor(),
+                    size: AppTokens.sizes.iconMd,
                   ),
-                )
-              : Icon(
-                  Icons.search_rounded,
-                  color: _getCategoryColor(),
-                  size: AppTokens.sizes.iconMd,
-                ),
-          suffixIcon: controller.searchQuery.value.isNotEmpty
-              ? IconButton(
-                  icon: Icon(
-                    Icons.clear_rounded,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: () {
-                    _searchController.clear();
-                    controller.clearSearch();
-                  },
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            suffixIcon: controller.searchQuery.value.isNotEmpty
+                ? IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      controller.clearSearch();
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+          ),
         ),
-      )),
+      ),
     );
   }
 
@@ -886,7 +894,10 @@ class _CategoryPageState extends State<CategoryPage>
                     top: 12,
                     right: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.bgPage.withValues(
                           alpha: 0.8,
@@ -1385,7 +1396,9 @@ class _CategoryPageState extends State<CategoryPage>
                         },
                         backgroundColor: AppColors.bgSurfaceContainerHighest
                             .withValues(alpha: 0.3),
-                        selectedColor: _getCategoryColor().withValues(alpha: 0.2),
+                        selectedColor: _getCategoryColor().withValues(
+                          alpha: 0.2,
+                        ),
                         checkmarkColor: _getCategoryColor(),
                         labelStyle: TextStyle(
                           color: controller.selectedGenre.value == genre
@@ -1506,7 +1519,6 @@ class _CategoryPageState extends State<CategoryPage>
 // ==========================================================================
 
 class _CategoryPatternPainter extends CustomPainter {
-
   _CategoryPatternPainter(this.color);
   final Color color;
 
@@ -1532,9 +1544,3 @@ class _CategoryPatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
-
-
-
-
-

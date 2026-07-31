@@ -1181,14 +1181,14 @@ class VideoAnalyticsService extends GetxService {
 
 /// Internal class for caching analytics with timestamp
 class _CachedAnalytics {
-
   _CachedAnalytics({required this.snapshot, required this.createdAt});
   final VideoAnalyticsSnapshot snapshot;
   final DateTime createdAt;
 }
 
 /// Fraud overview summary
-class FraudOverview { // percentage
+class FraudOverview {
+  // percentage
 
   const FraudOverview({
     required this.totalViews,

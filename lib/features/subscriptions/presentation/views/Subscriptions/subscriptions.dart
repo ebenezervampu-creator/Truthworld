@@ -10,15 +10,14 @@ import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-
 class SubscriptionsPage extends StatelessWidget {
   const SubscriptionsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
   SubscriptionController get controller =>
       Get.isRegistered<SubscriptionController>()
-          ? Get.find<SubscriptionController>()
-          : Get.put(SubscriptionController());
+      ? Get.find<SubscriptionController>()
+      : Get.put(SubscriptionController());
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +39,12 @@ class SubscriptionsPage extends StatelessWidget {
                   if (!isMobile || isDashboard)
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(spacing, spacing, spacing, spacing / 2),
+                        padding: EdgeInsets.fromLTRB(
+                          spacing,
+                          spacing,
+                          spacing,
+                          spacing / 2,
+                        ),
                         child: Text(
                           'Subscriptions',
                           style: GoogleFonts.roboto(
@@ -67,11 +71,13 @@ class SubscriptionsPage extends StatelessWidget {
 
                   // ── Content Grid / List ──
                   Obx(() {
-                    if (controller.isLoading.value && controller.allContent.isEmpty) {
+                    if (controller.isLoading.value &&
+                        controller.allContent.isEmpty) {
                       return _buildLoadingState(context);
                     }
 
-                    if (controller.hasError.value && controller.allContent.isEmpty) {
+                    if (controller.hasError.value &&
+                        controller.allContent.isEmpty) {
                       return _buildErrorState();
                     }
 
@@ -148,7 +154,9 @@ class SubscriptionsPage extends StatelessWidget {
         height: 110,
         padding: EdgeInsets.symmetric(vertical: context.layoutSpacing / 2),
         decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.bgDivider, width: 0.5)),
+          border: Border(
+            bottom: BorderSide(color: AppColors.bgDivider, width: 0.5),
+          ),
         ),
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
@@ -160,7 +168,10 @@ class SubscriptionsPage extends StatelessWidget {
               padding: const EdgeInsets.only(right: 20),
               child: GestureDetector(
                 onTap: () {
-                  Get.toNamed(channel.channelRoute, arguments: {'channel': channel});
+                  Get.toNamed(
+                    channel.channelRoute,
+                    arguments: {'channel': channel},
+                  );
                 },
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -204,29 +215,38 @@ class SubscriptionsPage extends StatelessWidget {
   Widget _buildFilterBar(BuildContext context) {
     return Container(
       color: AppColors.bgPage,
-      padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: context.layoutSpacing,
+        vertical: 12,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            Obx(() => _buildDropdown<ContentFilter>(
-              label: 'Content',
-              value: controller.selectedContentFilter.value,
-              values: ContentFilter.values,
-              onSelected: (val) => controller.setContentFilter(val.name),
-            )),
+            Obx(
+              () => _buildDropdown<ContentFilter>(
+                label: 'Content',
+                value: controller.selectedContentFilter.value,
+                values: ContentFilter.values,
+                onSelected: (val) => controller.setContentFilter(val.name),
+              ),
+            ),
             const SizedBox(width: 12),
-            Obx(() => _buildDropdown<SortFilter>(
-              label: 'Sort',
-              value: controller.selectedSortFilter.value,
-              values: SortFilter.values,
-              onSelected: (val) => controller.setSortFilter(val.name),
-            )),
+            Obx(
+              () => _buildDropdown<SortFilter>(
+                label: 'Sort',
+                value: controller.selectedSortFilter.value,
+                values: SortFilter.values,
+                onSelected: (val) => controller.setSortFilter(val.name),
+              ),
+            ),
             const SizedBox(width: 12),
             Obx(() {
               // Only show duration filter for videos
-              if (controller.selectedContentFilter.value != ContentFilter.playlists.name &&
-                  controller.selectedContentFilter.value != ContentFilter.communityPosts.name) {
+              if (controller.selectedContentFilter.value !=
+                      ContentFilter.playlists.name &&
+                  controller.selectedContentFilter.value !=
+                      ContentFilter.communityPosts.name) {
                 return _buildDropdown<DurationFilter>(
                   label: 'Duration',
                   value: controller.selectedDurationFilter.value,
@@ -237,12 +257,14 @@ class SubscriptionsPage extends StatelessWidget {
               return const SizedBox.shrink();
             }),
             const SizedBox(width: 12),
-            Obx(() => _buildDropdown<DateRangeFilter>(
-              label: 'Upload Date',
-              value: controller.selectedDateRangeFilter.value,
-              values: DateRangeFilter.values,
-              onSelected: (val) => controller.setDateRangeFilter(val.name),
-            )),
+            Obx(
+              () => _buildDropdown<DateRangeFilter>(
+                label: 'Upload Date',
+                value: controller.selectedDateRangeFilter.value,
+                values: DateRangeFilter.values,
+                onSelected: (val) => controller.setDateRangeFilter(val.name),
+              ),
+            ),
           ],
         ),
       ),
@@ -286,7 +308,11 @@ class SubscriptionsPage extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary, size: 18),
+            const Icon(
+              Icons.arrow_drop_down,
+              color: AppColors.textPrimary,
+              size: 18,
+            ),
           ],
         ),
       ),
@@ -351,7 +377,11 @@ class SubscriptionsPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.textPrimary),
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppColors.textPrimary,
+            ),
             const SizedBox(height: 16),
             Text(
               controller.errorMessage.value,
@@ -359,7 +389,10 @@ class SubscriptionsPage extends StatelessWidget {
             ),
             TextButton(
               onPressed: controller.refresh,
-              child: const Text('Try Again', style: TextStyle(color: AppColors.brand)),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(color: AppColors.brand),
+              ),
             ),
           ],
         ),
@@ -373,7 +406,11 @@ class SubscriptionsPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.subscriptions_outlined, size: 48, color: AppColors.textPrimary),
+            const Icon(
+              Icons.subscriptions_outlined,
+              size: 48,
+              color: AppColors.textPrimary,
+            ),
             const SizedBox(height: 16),
             const Text(
               'No content found for the selected filters',
@@ -382,12 +419,17 @@ class SubscriptionsPage extends StatelessWidget {
             TextButton(
               onPressed: () {
                 controller.selectedContentFilter.value = ContentFilter.all.name;
-                controller.selectedDurationFilter.value = DurationFilter.all.name;
+                controller.selectedDurationFilter.value =
+                    DurationFilter.all.name;
                 controller.selectedSortFilter.value = SortFilter.trending.name;
-                controller.selectedDateRangeFilter.value = DateRangeFilter.all.name;
+                controller.selectedDateRangeFilter.value =
+                    DateRangeFilter.all.name;
                 controller.applyFilters();
               },
-              child: const Text('Clear Filters', style: TextStyle(color: AppColors.brand)),
+              child: const Text(
+                'Clear Filters',
+                style: TextStyle(color: AppColors.brand),
+              ),
             ),
           ],
         ),
@@ -407,7 +449,11 @@ class _SliverFilterBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => 60;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return builder(context);
   }
 

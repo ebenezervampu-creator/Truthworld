@@ -54,8 +54,7 @@ class CustomController extends GetxController {
         return;
       }
 
-      final resolutions =
-          doc.data()?['resolutions'] as List<dynamic>?;
+      final resolutions = doc.data()?['resolutions'] as List<dynamic>?;
       if (resolutions == null || resolutions.isEmpty) {
         errorMessage.value = 'No resolutions found';
         return;
@@ -142,6 +141,7 @@ class CustomController extends GetxController {
       '360p': 1.0,
       '480p': 2.0,
       '720p': 3.5,
+      '1040p': 5.0,
       '1080p': 6.0,
       '1440p': 8.0,
       '2160p': 15.0,
@@ -386,7 +386,9 @@ class CustomController extends GetxController {
       videoPlayerController?.removeListener(_videoPlayerListener);
       await videoPlayerController?.dispose();
 
-      final newController = VideoPlayerController.networkUrl(Uri.parse(newSource));
+      final newController = VideoPlayerController.networkUrl(
+        Uri.parse(newSource),
+      );
 
       await newController.initialize();
 
@@ -605,6 +607,7 @@ class CustomController extends GetxController {
       case '480p':
         return Icons.signal_cellular_alt_2_bar;
       case '720p':
+      case '1040p':
         return Icons.hd;
       case '1080p':
         return Icons.high_quality;
@@ -622,6 +625,7 @@ class CustomController extends GetxController {
       case '480p':
         return AppColors.warning;
       case '720p':
+      case '1040p':
         return Colors.lightGreenAccent;
       case '1080p':
       case '1440p':
@@ -763,7 +767,9 @@ class VideoSettingsSheet extends StatelessWidget {
             child: SliderTheme(
               data: SliderTheme.of(Get.context!).copyWith(
                 activeTrackColor: AppColors.error,
-                inactiveTrackColor: AppColors.textPrimary.withValues(alpha: 0.2),
+                inactiveTrackColor: AppColors.textPrimary.withValues(
+                  alpha: 0.2,
+                ),
                 thumbColor: AppColors.error,
                 overlayColor: AppColors.error.withValues(alpha: 0.2),
                 trackHeight: 4,
@@ -805,14 +811,19 @@ class VideoSettingsSheet extends StatelessWidget {
               return InkWell(
                 onTap: () => controller.setPlaybackSpeed(speed),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.error
                         : AppColors.textPrimary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isSelected ? AppColors.error : AppColors.textDisabled,
+                      color: isSelected
+                          ? AppColors.error
+                          : AppColors.textDisabled,
                     ),
                   ),
                   child: Text(
@@ -862,7 +873,10 @@ class VideoSettingsSheet extends StatelessWidget {
               iconEnabledColor: AppColors.textPrimary,
               underline: const SizedBox(),
               isDense: true,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
               items: controller.availableQualities
                   .map(
                     (quality) => DropdownMenuItem(
@@ -883,7 +897,12 @@ class VideoSettingsSheet extends StatelessWidget {
                               color: controller.getQualityColor(quality),
                             ),
                           const SizedBox(width: 8),
-                          Text(quality, style: const TextStyle(color: AppColors.textPrimary)),
+                          Text(
+                            quality,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -936,9 +955,10 @@ class VideoSettingsSheet extends StatelessWidget {
 }
 
 class MyCustomControls extends StatefulWidget {
-
   const MyCustomControls({
-    required this.videoId, required this.videoPlayerController, super.key,
+    required this.videoId,
+    required this.videoPlayerController,
+    super.key,
   });
   final String videoId;
   final VideoPlayerController videoPlayerController;
@@ -1086,7 +1106,9 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                               duration: const Duration(milliseconds: 300),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: AppColors.bgPage.withValues(alpha: 0.5),
+                                  color: AppColors.bgPage.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(20),
@@ -1129,7 +1151,9 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                               duration: const Duration(milliseconds: 300),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: AppColors.bgPage.withValues(alpha: 0.5),
+                                  color: AppColors.bgPage.withValues(
+                                    alpha: 0.5,
+                                  ),
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(20),
@@ -1221,8 +1245,10 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                           allowScrubbing: true,
                                           colors: const VideoProgressColors(
                                             playedColor: AppColors.error,
-                                            bufferedColor: AppColors.textTertiary,
-                                            backgroundColor: AppColors.bgDivider,
+                                            bufferedColor:
+                                                AppColors.textTertiary,
+                                            backgroundColor:
+                                                AppColors.bgDivider,
                                           ),
                                           padding: EdgeInsets.zero,
                                         ),
@@ -1271,8 +1297,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                                         AppColors.error,
                                                     inactiveTrackColor:
                                                         AppColors.textTertiary,
-                                                    thumbColor:
-                                                        AppColors.error,
+                                                    thumbColor: AppColors.error,
                                                     overlayColor: Colors
                                                         .redAccent
                                                         .withValues(alpha: 0.2),
@@ -1402,7 +1427,3 @@ class _MyCustomControlsState extends State<MyCustomControls> {
     );
   }
 }
-
-
-
-
