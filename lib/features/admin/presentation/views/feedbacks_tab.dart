@@ -1,5 +1,7 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
@@ -15,7 +17,8 @@ class FeedbacksTab extends StatefulWidget {
 
 class _FeedbacksTabState extends State<FeedbacksTab> {
   final RxList<Map<String, dynamic>> feedbacks = <Map<String, dynamic>>[].obs;
-  final Rxn<Map<String, dynamic>> selectedFeedback = Rxn<Map<String, dynamic>>();
+  final Rxn<Map<String, dynamic>> selectedFeedback =
+      Rxn<Map<String, dynamic>>();
   final RxBool isLoading = true.obs;
   final RxString filterType = 'All'.obs;
   final RxString filterStatus = 'All'.obs;
@@ -30,11 +33,13 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
     isLoading.value = true;
     try {
       final snap = await FirebaseFirestore.instance
-          .collection('feedback')
+          .collection(FirestoreCollections.feedback)
           .orderBy('timestamp', descending: true)
           .limit(200)
           .get();
-      feedbacks.value = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      feedbacks.value = snap.docs
+          .map((d) => {'id': d.id, ...d.data()})
+          .toList();
       isLoading.value = false;
     } catch (e) {
       debugPrint('Error loading feedbacks: $e');
@@ -44,8 +49,10 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
 
   List<Map<String, dynamic>> get filteredFeedbacks {
     return feedbacks.where((fb) {
-      if (filterType.value != 'All' && fb['feedbackType'] != filterType.value) return false;
-      if (filterStatus.value != 'All' && fb['status'] != filterStatus.value) return false;
+      if (filterType.value != 'All' && fb['feedbackType'] != filterType.value)
+        return false;
+      if (filterStatus.value != 'All' && fb['status'] != filterStatus.value)
+        return false;
       return true;
     }).toList();
   }
@@ -64,13 +71,20 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
 
   Future<void> _updateFeedbackStatus(String id, String newStatus) async {
     try {
-      await FirebaseFirestore.instance.collection('feedback').doc(id).update({
-        'status': newStatus,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.feedback)
+          .doc(id)
+          .update({
+            'status': newStatus,
+            'reviewedAt': FieldValue.serverTimestamp(),
+          });
       await _loadFeedbacks();
-      if (selectedFeedback.value != null && selectedFeedback.value!['id'] == id) {
-        selectedFeedback.value = feedbacks.firstWhere((f) => f['id'] == id, orElse: () => selectedFeedback.value!);
+      if (selectedFeedback.value != null &&
+          selectedFeedback.value!['id'] == id) {
+        selectedFeedback.value = feedbacks.firstWhere(
+          (f) => f['id'] == id,
+          orElse: () => selectedFeedback.value!,
+        );
       }
     } catch (e) {
       debugPrint('Error updating feedback status: $e');
@@ -92,21 +106,26 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             final loading = isLoading.value;
             final selected = selectedFeedback.value;
             if (loading) {
-              return const Center(child: CircularProgressIndicator(color: AppColors.textPrimary));
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.textPrimary),
+              );
             }
             return isDesktop
                 ? Row(
                     children: [
                       Expanded(flex: 2, child: _buildFeedbackList()),
                       if (selected != null) ...[
-                        const VerticalDivider(color: AppColors.bgDivider, width: 1),
+                        const VerticalDivider(
+                          color: AppColors.bgDivider,
+                          width: 1,
+                        ),
                         Expanded(flex: 3, child: _buildFeedbackDetail()),
                       ],
                     ],
                   )
                 : selected != null
-                    ? _buildFeedbackDetail()
-                    : _buildFeedbackList();
+                ? _buildFeedbackDetail()
+                : _buildFeedbackList();
           }),
         ),
       ],
@@ -124,7 +143,11 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            const Icon(Icons.filter_list_rounded, color: Colors.white, size: 18),
+            const Icon(
+              Icons.filter_list_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
             const SizedBox(width: 12),
             // Type filter
             Container(
@@ -134,13 +157,20 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: DropdownButtonHideUnderline(
-                child: Obx(() => DropdownButton<String>(
-                  value: filterType.value,
-                  dropdownColor: AppColors.bgElevated,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                  items: types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) => filterType.value = v ?? 'All',
-                )),
+                child: Obx(
+                  () => DropdownButton<String>(
+                    value: filterType.value,
+                    dropdownColor: AppColors.bgElevated,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    items: types
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (v) => filterType.value = v ?? 'All',
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -152,24 +182,47 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: DropdownButtonHideUnderline(
-                child: Obx(() => DropdownButton<String>(
-                  value: filterStatus.value,
-                  dropdownColor: AppColors.bgElevated,
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                  items: statuses.map((s) => DropdownMenuItem(value: s, child: Text(s == 'new' ? 'New' : s[0].toUpperCase() + s.substring(1)))).toList(),
-                  onChanged: (v) => filterStatus.value = v ?? 'All',
-                )),
+                child: Obx(
+                  () => DropdownButton<String>(
+                    value: filterStatus.value,
+                    dropdownColor: AppColors.bgElevated,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                    items: statuses
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s,
+                            child: Text(
+                              s == 'new'
+                                  ? 'New'
+                                  : s[0].toUpperCase() + s.substring(1),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => filterStatus.value = v ?? 'All',
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 20),
             // Count
             Text(
               '${filteredFeedbacks.length} feedback${filteredFeedbacks.length != 1 ? 's' : ''}',
-              style: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(width: 12),
             IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.refresh_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               onPressed: _loadFeedbacks,
               tooltip: 'Refresh',
             ),
@@ -187,9 +240,16 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.feedback_outlined, color: AppColors.textTertiary, size: 48),
+              Icon(
+                Icons.feedback_outlined,
+                color: AppColors.textTertiary,
+                size: 48,
+              ),
               SizedBox(height: 16),
-              Text('No feedback found', style: TextStyle(color: AppColors.textTertiary, fontSize: 15)),
+              Text(
+                'No feedback found',
+                style: TextStyle(color: AppColors.textTertiary, fontSize: 15),
+              ),
             ],
           ),
         );
@@ -198,91 +258,127 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
       return ListView.separated(
         padding: const EdgeInsets.all(0),
         itemCount: items.length,
-        separatorBuilder: (_, __) => const Divider(color: AppColors.bgDivider, height: 1),
-      itemBuilder: (context, index) {
-        final fb = items[index];
-        final isSelected = selectedFeedback.value?['id'] == fb['id'];
-        final type = fb['feedbackType'] ?? 'General';
-        final status = fb['status'] ?? 'new';
-        final rating = (fb['rating'] as num?)?.toInt() ?? 0;
+        separatorBuilder: (_, __) =>
+            const Divider(color: AppColors.bgDivider, height: 1),
+        itemBuilder: (context, index) {
+          final fb = items[index];
+          final isSelected = selectedFeedback.value?['id'] == fb['id'];
+          final type = fb['feedbackType'] ?? 'General';
+          final status = fb['status'] ?? 'new';
+          final rating = (fb['rating'] as num?)?.toInt() ?? 0;
 
-        return Material(
-          color: isSelected ? AppColors.bgElevated : Colors.transparent,
-          child: InkWell(
-            onTap: () => selectedFeedback.value = fb,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                children: [
-                  // Type icon
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: _typeColor(type).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
+          return Material(
+            color: isSelected ? AppColors.bgElevated : Colors.transparent,
+            child: InkWell(
+              onTap: () => selectedFeedback.value = fb,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                child: Row(
+                  children: [
+                    // Type icon
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _typeColor(type).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _typeIcon(type),
+                        color: Colors.white,
+                        size: 18,
+                      ),
                     ),
-                    child: Icon(_typeIcon(type), color: Colors.white, size: 18),
-                  ),
-                  const SizedBox(width: 14),
-                  // Content
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                fb['userEmail'] ?? 'Anonymous',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                    const SizedBox(width: 14),
+                    // Content
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  fb['userEmail'] ?? 'Anonymous',
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            _buildStatusChip(status),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          fb['feedbackText'] ?? '',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(type, style: TextStyle(color: _typeColor(type), fontSize: 11, fontWeight: FontWeight.w500)),
-                            const SizedBox(width: 8),
-                            if (rating > 0) ...[
-                              ...List.generate(rating, (_) => const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 12)),
-                              ...List.generate(5 - rating, (_) => Icon(Icons.star_outline_rounded, color: AppColors.textTertiary, size: 12)),
-                              const SizedBox(width: 8),
+                              _buildStatusChip(status),
                             ],
-                            Expanded(
-                              child: Text(
-                                _formatTimestamp(fb['timestamp']),
-                                style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            fb['feedbackText'] ?? '',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
                             ),
-                          ],
-                        ),
-                      ],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                type,
+                                style: TextStyle(
+                                  color: _typeColor(type),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (rating > 0) ...[
+                                ...List.generate(
+                                  rating,
+                                  (_) => const Icon(
+                                    Icons.star_rounded,
+                                    color: Colors.white,
+                                    size: 12,
+                                  ),
+                                ),
+                                ...List.generate(
+                                  5 - rating,
+                                  (_) => const Icon(
+                                    Icons.star_outline_rounded,
+                                    color: AppColors.textTertiary,
+                                    size: 12,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  _formatTimestamp(fb['timestamp']),
+                                  style: const TextStyle(
+                                    color: AppColors.textTertiary,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-      },
-    );
+          );
+        },
+      );
     });
   }
 
@@ -305,8 +401,15 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
               padding: const EdgeInsets.only(bottom: 16),
               child: TextButton.icon(
                 onPressed: () => selectedFeedback.value = null,
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 18),
-                label: const Text('Back to list', style: TextStyle(color: AppColors.textSecondary)),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Back to list',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
               ),
             ),
 
@@ -328,7 +431,10 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                       backgroundColor: _typeColor(type).withValues(alpha: 0.2),
                       child: Text(
                         (fb['userEmail'] ?? 'A')[0].toUpperCase(),
-                        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -338,12 +444,19 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                         children: [
                           Text(
                             fb['userEmail'] ?? 'Anonymous',
-                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'User ID: ${fb['userId'] ?? 'N/A'}',
-                            style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
+                            style: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),
@@ -362,13 +475,39 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          ...List.generate(rating, (_) => const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 16)),
-                          ...List.generate(5 - rating, (_) => Icon(Icons.star_outline_rounded, color: AppColors.textTertiary, size: 16)),
+                          ...List.generate(
+                            rating,
+                            (_) => const Icon(
+                              Icons.star_rounded,
+                              color: Color(0xFFFFB800),
+                              size: 16,
+                            ),
+                          ),
+                          ...List.generate(
+                            5 - rating,
+                            (_) => Icon(
+                              Icons.star_outline_rounded,
+                              color: AppColors.textTertiary,
+                              size: 16,
+                            ),
+                          ),
                         ],
                       ),
-                    Text(_formatTimestamp(fb['timestamp']), style: const TextStyle(color: AppColors.textTertiary, fontSize: 12)),
+                    Text(
+                      _formatTimestamp(fb['timestamp']),
+                      style: const TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 12,
+                      ),
+                    ),
                     if (fb['appVersion'] != null)
-                      Text('v${fb['appVersion']}', style: const TextStyle(color: AppColors.textTertiary, fontSize: 12)),
+                      Text(
+                        'v${fb['appVersion']}',
+                        style: const TextStyle(
+                          color: AppColors.textTertiary,
+                          fontSize: 12,
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -388,11 +527,23 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Feedback Message', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                const Text(
+                  'Feedback Message',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   fb['feedbackText'] ?? 'No message provided.',
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, height: 1.6),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    height: 1.6,
+                  ),
                 ),
               ],
             ),
@@ -412,20 +563,42 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Attachments (${attachments.length})', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                  Text(
+                    'Attachments (${attachments.length})',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
                     children: attachments.map<Widget>((url) {
-                      final imgUrl = StorageUtils.getFastDownloadUrl(url.toString());
+                      final imgUrl = StorageUtils.getFastDownloadUrl(
+                        url.toString(),
+                      );
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.network(imgUrl, width: 120, height: 120, fit: BoxFit.cover,
+                        child: Image.network(
+                          imgUrl,
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                            width: 120, height: 120,
-                            decoration: BoxDecoration(color: AppColors.bgElevated, borderRadius: BorderRadius.circular(12)),
-                            child: const Icon(Icons.broken_image_outlined, color: Colors.white, size: 32),
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: AppColors.bgElevated,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.broken_image_outlined,
+                              color: Colors.white,
+                              size: 32,
+                            ),
                           ),
                         ),
                       );
@@ -450,17 +623,39 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Device Information', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                  const SizedBox(height: 12),
-                  ...deviceInfo.entries.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Text('${e.key}: ', style: const TextStyle(color: AppColors.textTertiary, fontSize: 13)),
-                        Text('${e.value}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-                      ],
+                  const Text(
+                    'Device Information',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
                     ),
-                  )),
+                  ),
+                  const SizedBox(height: 12),
+                  ...deviceInfo.entries.map(
+                    (e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Text(
+                            '${e.key}: ',
+                            style: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            '${e.value}',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -473,11 +668,26 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             runSpacing: 12,
             children: [
               if (status == 'new')
-                _buildActionButton('Mark Reviewed', Icons.check_circle_outline, const Color(0xFF2196F3), () => _updateFeedbackStatus(fb['id'], 'reviewed')),
+                _buildActionButton(
+                  'Mark Reviewed',
+                  Icons.check_circle_outline,
+                  const Color(0xFF2196F3),
+                  () => _updateFeedbackStatus(fb['id'], 'reviewed'),
+                ),
               if (status != 'resolved')
-                _buildActionButton('Resolve', Icons.done_all_rounded, const Color(0xFF2BA640), () => _updateFeedbackStatus(fb['id'], 'resolved')),
+                _buildActionButton(
+                  'Resolve',
+                  Icons.done_all_rounded,
+                  const Color(0xFF2BA640),
+                  () => _updateFeedbackStatus(fb['id'], 'resolved'),
+                ),
               if (status != 'archived')
-                _buildActionButton('Archive', Icons.archive_outlined, AppColors.textTertiary, () => _updateFeedbackStatus(fb['id'], 'archived')),
+                _buildActionButton(
+                  'Archive',
+                  Icons.archive_outlined,
+                  AppColors.textTertiary,
+                  () => _updateFeedbackStatus(fb['id'], 'archived'),
+                ),
             ],
           ),
         ],
@@ -485,11 +695,19 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
     );
   }
 
-  Widget _buildActionButton(String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return ElevatedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 16, color: Colors.white),
-      label: Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+      label: Text(
+        label,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: color.withValues(alpha: 0.2),
         foregroundColor: color,
@@ -512,7 +730,14 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         children: [
           Icon(icon, size: 14, color: Colors.white),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -544,7 +769,11 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
       ),
       child: Text(
         status[0].toUpperCase() + status.substring(1),
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

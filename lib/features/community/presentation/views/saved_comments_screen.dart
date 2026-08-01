@@ -24,9 +24,7 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
   @override
   void initState() {
     super.initState();
-    controller = Get.isRegistered<SavedCommentsController>()
-        ? Get.find<SavedCommentsController>()
-        : Get.put(SavedCommentsController());
+    controller = Get.find<SavedCommentsController>();
   }
 
   void _navigateToSource(SavedCommentModel comment) {

@@ -1,6 +1,14 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:truthworld/core/bindings/app_bindings.dart';
+import 'package:truthworld/features/premium/presentation/bindings/premium_binding.dart';
+import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
+import 'package:truthworld/features/likedvideos/presentation/bindings/liked_videos_binding.dart';
+import 'package:truthworld/features/topics/presentation/bindings/topics_binding.dart';
+import 'package:truthworld/features/subscriptions/presentation/bindings/subscriptions_binding.dart';
+import 'package:truthworld/features/trending/presentation/bindings/trending_binding.dart';
+import 'package:truthworld/features/library/presentation/bindings/library_binding.dart';
+import 'package:truthworld/features/myvideos/presentation/bindings/my_videos_binding.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 // import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
 
@@ -102,6 +110,7 @@ class AppPages {
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [AuthGuard()],
+      binding: DashboardBinding(),
     ),
     GetPage(
       name: '/home',
@@ -120,6 +129,7 @@ class AppPages {
         builder: () => dashboard.DashboardScreen(),
       ),
       middlewares: [AuthGuard()],
+      binding: DashboardBinding(),
     ),
     GetPage(
       name: '/history',
@@ -127,6 +137,7 @@ class AppPages {
         loader: history.loadLibrary,
         builder: () => history.WatchHistory(),
       ),
+      binding: WatchHistoryBinding(),
     ),
     GetPage(
       name: '/likedvideos',
@@ -134,6 +145,7 @@ class AppPages {
         loader: liked_video.loadLibrary,
         builder: () => liked_video.LikedVideoScreen(),
       ),
+      binding: LikedVideosBinding(),
     ),
     GetPage(
       name: '/playlistscreen',
@@ -141,6 +153,7 @@ class AppPages {
         loader: playlist_screen.loadLibrary,
         builder: () => playlist_screen.PlaylistScreen(),
       ),
+      binding: PlaylistBinding(),
     ),
     GetPage(
       name: '/following-topics',
@@ -149,6 +162,7 @@ class AppPages {
         builder: () => following_topics.FollowingTopicsPage(),
       ),
       middlewares: [AuthGuard()],
+      binding: TopicsBinding(),
     ),
     GetPage(
       name: '/myvideos',
@@ -157,6 +171,7 @@ class AppPages {
         builder: () => my_videos.MyVideos(),
       ),
       middlewares: [AuthGuard()],
+      binding: MyVideosBinding(),
     ),
     GetPage(
       name: '/channel-details',
@@ -230,13 +245,18 @@ class AppPages {
       page: () => const UploadSelectionScreen(),
       middlewares: [AuthGuard()],
     ),
-    GetPage(name: '/library', page: () => const LibraryScreen()),
+    GetPage(
+      name: '/library',
+      page: () => const LibraryScreen(),
+      binding: LibraryBinding(),
+    ),
     GetPage(
       name: '/premium',
       page: () => DeferredWidget(
         loader: premium_plans.loadLibrary,
         builder: () => premium_plans.PremiumPlansScreen(),
       ),
+      binding: PremiumBinding(),
     ),
     GetPage(
       name: '/saved-community-posts',
@@ -300,11 +320,13 @@ class AppPages {
       name: '/topic/:slug',
       page: () => const TopicPage(),
       middlewares: [TopicRedirectMiddleware()],
+      binding: TopicsBinding(),
     ),
     GetPage(
       name: '/T/:slug',
       page: () => const TopicPage(),
       middlewares: [TopicRedirectMiddleware()],
+      binding: TopicsBinding(),
     ),
     GetPage(
       name: '/settings',
@@ -355,6 +377,7 @@ class AppPages {
         builder: () => subscriptions.SubscriptionsPage(),
       ),
       middlewares: [AuthGuard()],
+      binding: SubscriptionsBinding(),
     ),
     GetPage(
       name: '/about',
@@ -377,6 +400,7 @@ class AppPages {
     GetPage(
       name: '/trending',
       page: TrendingVideosPage.new,
+      binding: TrendingBinding(),
     ),
     GetPage(
       name: '/browse',

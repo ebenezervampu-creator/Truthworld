@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -2258,9 +2259,7 @@ class VideoScreen extends GetView<VideoController> {
                 // 🪙 FLIP COIN (THE OTHER SIDE / OPPOSITE PERSPECTIVE) BUTTON
                 Builder(
                   builder: (context) {
-                    final flipService = Get.isRegistered<FlipCoinService>()
-                        ? Get.find<FlipCoinService>()
-                        : Get.put(FlipCoinService());
+                    final flipService = Get.find<FlipCoinService>();
                     return Obx(() {
                       final isFlipped = flipService.isVideoFlipped(
                         controller.video.id,
@@ -2563,7 +2562,7 @@ class VideoScreen extends GetView<VideoController> {
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(controller.video.channelId)
           .snapshots(),
       builder: (context, snapshot) {
@@ -2783,7 +2782,7 @@ class VideoScreen extends GetView<VideoController> {
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(controller.video.channelId)
           .snapshots(),
       builder: (context, snapshot) {
@@ -3237,7 +3236,7 @@ class VideoScreen extends GetView<VideoController> {
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance
-                          .collection('channels')
+                          .collection(FirestoreCollections.channels)
                           .doc(channelId)
                           .collection('membership_tiers')
                           .snapshots(),
@@ -3468,7 +3467,7 @@ class VideoScreen extends GetView<VideoController> {
     Navigator.pop(context);
     try {
       await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(uid)
           .collection('channelMemberships')
           .doc(channelId)
@@ -3515,8 +3514,8 @@ class VideoScreen extends GetView<VideoController> {
           Obx(() {
             final isLiked = controller.isLiked.value;
             final showLikeCount = controller.video.showLikeCount;
-            final countStr = showLikeCount && controller.likeCount.value > 0
-                ? FormatUtils.formatCount(controller.likeCount.value)
+            final countStr = showLikeCount && controller.likeCount > 0
+                ? FormatUtils.formatCount(controller.likeCount)
                 : '';
             return _AnimatedReactionButton(
               icon: isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
@@ -3544,9 +3543,8 @@ class VideoScreen extends GetView<VideoController> {
           Obx(() {
             final isDisliked = controller.isDisliked.value;
             final showDislikeCount = controller.video.showDislikeCount;
-            final countStr =
-                showDislikeCount && controller.dislikeCount.value > 0
-                ? FormatUtils.formatCount(controller.dislikeCount.value)
+            final countStr = showDislikeCount && controller.dislikeCount > 0
+                ? FormatUtils.formatCount(controller.dislikeCount)
                 : '';
             return _AnimatedReactionButton(
               icon: isDisliked
@@ -4702,7 +4700,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       return;
     }
     final docRef = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user.uid)
         .collection('savedComments')
         .doc(comment.id);
@@ -4774,7 +4772,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       return;
     }
     final docRef = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user.uid)
         .collection('savedComments')
         .doc(reply.id);
@@ -4911,7 +4909,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
         barrierDismissible: false,
       );
       final doc = await FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .get();
       if (Get.isDialogOpen ?? false) {
@@ -6444,7 +6442,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
 
       // 1. Query by topic slug
       var snap = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('topics', arrayContains: slug.isNotEmpty ? slug : topicId)
           .limit(30)
           .get();
@@ -6455,7 +6453,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
       if (fetched.isEmpty && widget.topic.featuredVideoIds.isNotEmpty) {
         final ids = widget.topic.featuredVideoIds.take(10).toList();
         final snapIds = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: ids)
             .get();
         fetched = snapIds.docs.map(Video.fromDocumentSnapshot).toList();
@@ -6464,7 +6462,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
       // 3. Fallback: query videos matching topic title
       if (fetched.isEmpty) {
         final snapFallback = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .limit(25)
             .get();
         fetched = snapFallback.docs

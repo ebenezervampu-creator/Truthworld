@@ -29,7 +29,7 @@ class TopicManagementScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!Get.isRegistered<TopicManagementController>()) {
-      Get.put(TopicManagementController());
+      Get.find<TopicManagementController>();
     }
     final controller = Get.find<TopicManagementController>();
 

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:io' as io;
 import 'dart:ui';
 
@@ -41,8 +42,8 @@ class CreateContentScreen extends StatefulWidget {
 class _CreateContentScreenState extends State<CreateContentScreen>
     with TickerProviderStateMixin {
   // Controllers
-  final _uploadController = Get.put(UploadController());
-  final _playlistController = Get.put(PlaylistController());
+  final _uploadController = Get.find<UploadController>();
+  final _playlistController = Get.find<PlaylistController>();
 
   // Text Controllers with validation
   final _videoDetailsFormKey = GlobalKey<FormState>();
@@ -5063,7 +5064,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       isDarkMode: isDark,
       channelVideosFuture: currentChannelId.isNotEmpty
           ? FirebaseFirestore.instance
-                .collection('videos')
+                .collection(FirestoreCollections.videos)
                 .where('channelId', isEqualTo: currentChannelId)
                 .get()
                 .then(
@@ -5086,7 +5087,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
         // Check handle uniqueness in Firestore
         final existingHandle = await FirebaseFirestore.instance
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .where('handleLowercase', isEqualTo: finalHandleLowercase)
             .limit(1)
             .get();

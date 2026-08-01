@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +40,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   Widget build(BuildContext context) {
     // Initialize controller if not already registered
     if (!Get.isRegistered<PlaylistDetailController>()) {
-      Get.put(PlaylistDetailController());
+      Get.find<PlaylistDetailController>();
     }
 
     var activePlaylist = playlist;
@@ -348,7 +349,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   Widget _buildChannelInfo(PlaylistModel playlist) {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(playlist.channelId)
           .get(),
       builder: (context, snapshot) {
@@ -1117,7 +1118,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       for (var i = 0; i < videoIds.length; i += batchSize) {
         final batchIds = videoIds.skip(i).take(batchSize).toList();
         final snapshot = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: batchIds)
             .get();
         videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));

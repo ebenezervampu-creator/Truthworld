@@ -12,9 +12,21 @@ import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart'
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/data/repositories/channel_repository_impl.dart';
+import 'package:truthworld/data/repositories/comment_repository_impl.dart';
+import 'package:truthworld/data/repositories/community_repository_impl.dart';
+import 'package:truthworld/data/repositories/notification_repository_impl.dart';
+import 'package:truthworld/data/repositories/playlist_repository_impl.dart';
+import 'package:truthworld/data/repositories/search_repository_impl.dart';
+import 'package:truthworld/data/repositories/video_repository_impl.dart';
+import 'package:truthworld/domain/repositories/channel_repository.dart';
+import 'package:truthworld/domain/repositories/comment_repository.dart';
+import 'package:truthworld/domain/repositories/community_repository.dart';
+import 'package:truthworld/domain/repositories/notification_repository.dart';
+import 'package:truthworld/domain/repositories/playlist_repository.dart';
+import 'package:truthworld/domain/repositories/search_repository.dart';
+import 'package:truthworld/domain/repositories/video_repository.dart';
 
 class InitialBinding extends Bindings {
   @override
@@ -41,8 +53,22 @@ class InitialBinding extends Bindings {
     Get.lazyPut(UserSignalTracker.new, fenix: true);
     Get.lazyPut(FeedAlgorithmService.new, fenix: true);
 
-    // Controllers (lazy for performance)
-    Get.lazyPut(MainController.new, fenix: true);
-    Get.lazyPut(PlaylistController.new, fenix: true);
+    // Repositories
+    Get.lazyPut<VideoRepository>(() => VideoRepositoryImpl(), fenix: true);
+    Get.lazyPut<ChannelRepository>(() => ChannelRepositoryImpl(), fenix: true);
+    Get.lazyPut<CommentRepository>(() => CommentRepositoryImpl(), fenix: true);
+    Get.lazyPut<CommunityRepository>(
+      () => CommunityRepositoryImpl(),
+      fenix: true,
+    );
+    Get.lazyPut<PlaylistRepository>(
+      () => PlaylistRepositoryImpl(),
+      fenix: true,
+    );
+    Get.lazyPut<NotificationRepository>(
+      () => NotificationRepositoryImpl(),
+      fenix: true,
+    );
+    Get.lazyPut<SearchRepository>(() => SearchRepositoryImpl(), fenix: true);
   }
 }

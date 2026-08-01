@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -70,7 +71,10 @@ class FirestoreService extends GetxService {
   /// Gets complete metadata including stats, storage URLs, etc.
   Future<Map<String, dynamic>> getVideoDetails(String videoId) async {
     try {
-      final doc = await _firestore.collection('videos').doc(videoId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .get();
 
       if (!doc.exists) {
         throw Exception('Video not found');
@@ -99,7 +103,7 @@ class FirestoreService extends GetxService {
       final snapshot = await _firestore
           .collection('videos/trending')
           .doc(timeKey)
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .orderBy('views', descending: true)
           .limit(50)
           .get();
@@ -116,7 +120,7 @@ class FirestoreService extends GetxService {
   getChannelVideos(String channelId, {DocumentSnapshot? lastDocument}) async {
     try {
       var query = _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .collection('videoList')
           .orderBy('createdAt', descending: true)
@@ -148,7 +152,7 @@ class FirestoreService extends GetxService {
       final subSnapshot = await _firestore
           .collection('userCache')
           .doc(userId)
-          .collection('subscriptions')
+          .collection(FirestoreCollections.subscriptions)
           .limit(100) // Limit API calls
           .get();
 
@@ -162,7 +166,7 @@ class FirestoreService extends GetxService {
       final videoFutures = channelIds
           .map(
             (channelId) => _firestore
-                .collection('channels')
+                .collection(FirestoreCollections.channels)
                 .doc(channelId)
                 .collection('videoList')
                 .orderBy('createdAt', descending: true)
@@ -265,7 +269,10 @@ class FirestoreService extends GetxService {
   /// Get channel information
   Future<Map<String, dynamic>> getChannelInfo(String channelId) async {
     try {
-      final doc = await _firestore.collection('channels').doc(channelId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .get();
 
       if (!doc.exists) {
         throw Exception('Channel not found');
@@ -284,9 +291,9 @@ class FirestoreService extends GetxService {
   ) async {
     try {
       final snapshot = await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
-          .collection('playlists')
+          .collection(FirestoreCollections.playlists)
           .orderBy('createdAt', descending: true)
           .limit(20)
           .get();
@@ -305,7 +312,10 @@ class FirestoreService extends GetxService {
   /// Get user profile
   Future<Map<String, dynamic>> getUserProfile(String userId) async {
     try {
-      final doc = await _firestore.collection('users').doc(userId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .get();
 
       if (!doc.exists) {
         throw Exception('User not found');
@@ -324,7 +334,7 @@ class FirestoreService extends GetxService {
       final snapshot = await _firestore
           .collection('userCache')
           .doc(userId)
-          .collection('watchHistory')
+          .collection(FirestoreCollections.watchHistory)
           .orderBy('watchedAt', descending: true)
           .limit(20)
           .get();
@@ -361,7 +371,7 @@ class FirestoreService extends GetxService {
   /// Stream user notifications (real-time)
   Stream<List<Map<String, dynamic>>> getNotificationsStream(String userId) {
     return _firestore
-        .collection('notifications')
+        .collection(FirestoreCollections.notifications)
         .doc(userId)
         .collection('list')
         .orderBy('timestamp', descending: true)
@@ -381,7 +391,7 @@ class FirestoreService extends GetxService {
       for (final notifId in notificationIds) {
         batch.update(
           _firestore
-              .collection('notifications')
+              .collection(FirestoreCollections.notifications)
               .doc(userId)
               .collection('list')
               .doc(notifId),
@@ -405,9 +415,12 @@ class FirestoreService extends GetxService {
   /// instead of writing directly to avoid write conflicts.
   Future<void> incrementVideoViews(String videoId) async {
     try {
-      await _firestore.collection('videos').doc(videoId).update({
-        'viewCount': FieldValue.increment(1),
-      });
+      await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .update({
+            'viewCount': FieldValue.increment(1),
+          });
     } catch (e) {
       debugPrint('Error incrementing views: $e');
     }
@@ -452,9 +465,11 @@ class FirestoreService extends GetxService {
   /// Updates scalar `likeCount` on video document and manages `users/{userId}/likedVideos/{videoId}`
   Future<void> likeVideo(String userId, String videoId) async {
     try {
-      final videoRef = _firestore.collection('videos').doc(videoId);
+      final videoRef = _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId);
       final userLikedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('likedVideos')
           .doc(videoId);
@@ -485,7 +500,7 @@ class FirestoreService extends GetxService {
       // Add subscription
       batch.set(
         _firestore
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .doc(userId)
             .collection('list')
             .doc(channelId),
@@ -497,16 +512,19 @@ class FirestoreService extends GetxService {
         _firestore
             .collection('userCache')
             .doc(userId)
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .doc(channelId),
         {'channelId': channelId, 'subscribedAt': FieldValue.serverTimestamp()},
         SetOptions(merge: true),
       );
 
       // Increment subscriber count
-      batch.update(_firestore.collection('channels').doc(channelId), {
-        'stats.subscriberCount': FieldValue.increment(1),
-      });
+      batch.update(
+        _firestore.collection(FirestoreCollections.channels).doc(channelId),
+        {
+          'stats.subscriberCount': FieldValue.increment(1),
+        },
+      );
 
       await batch.commit();
     } catch (e) {

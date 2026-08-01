@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,7 +47,7 @@ class CustomController extends GetxController {
   Future<void> loadVideoResolutions(String videoId) async {
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .get();
       if (!doc.exists) {

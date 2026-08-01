@@ -26,7 +26,7 @@ class GeographicMapWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mapController = Get.put(GeographicMapController());
+    final mapController = Get.find<GeographicMapController>();
 
     return Obx(() {
       final isStates = controller.selectedGeoTab.value == 'states';

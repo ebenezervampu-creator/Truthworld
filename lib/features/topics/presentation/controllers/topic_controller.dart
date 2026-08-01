@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -152,7 +153,7 @@ class TopicController extends GetxController {
           i + 30 > channelIds.length ? channelIds.length : i + 30,
         );
         final snapshot = await FirebaseFirestore.instance
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
 
@@ -193,7 +194,7 @@ class TopicController extends GetxController {
     }
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('subscriptions')
+          .collection(FirestoreCollections.subscriptions)
           .where('userId', isEqualTo: uid)
           .get();
       subscribedChannelIds.value = snapshot.docs

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -124,7 +125,7 @@ class AuthService extends GetxService {
     }
 
     _channelSubscription = FirebaseFirestore.instance
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .where('ownerId', isEqualTo: user.uid)
         .snapshots()
         .listen(
@@ -162,7 +163,7 @@ class AuthService extends GetxService {
       return;
     }
     _userDocSubscription = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user.uid)
         .snapshots()
         .listen(
@@ -207,10 +208,13 @@ class AuthService extends GetxService {
     final u = _user.value;
     if (u == null) return;
     try {
-      await FirebaseFirestore.instance.collection('users').doc(u.uid).update({
-        'isPremium': false,
-        'premiumPlanId': FieldValue.delete(),
-      });
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(u.uid)
+          .update({
+            'isPremium': false,
+            'premiumPlanId': FieldValue.delete(),
+          });
     } catch (e) {
       debugPrint('Error cancelling premium subscription: $e');
     }
@@ -447,7 +451,7 @@ class AuthService extends GetxService {
       'AuthService: [SYNC] Starting synchronization for UID: ${user.uid}',
     );
     final userDoc = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user.uid);
 
     try {

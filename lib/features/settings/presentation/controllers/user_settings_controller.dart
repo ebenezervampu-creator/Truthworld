@@ -17,7 +17,7 @@ class UserSettingsController extends GetxController {
     if (Get.isRegistered<UserSettingsController>()) {
       return Get.find<UserSettingsController>();
     }
-    return Get.put(UserSettingsController());
+    return Get.find<UserSettingsController>();
   }
 
   final SettingsRepository _repository = SettingsRepository();

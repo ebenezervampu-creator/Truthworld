@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,7 +37,7 @@ class _WatchHistoryState extends State<WatchHistory>
   @override
   void initState() {
     super.initState();
-    _controller = Get.put(WatchHistoryController());
+    _controller = Get.find<WatchHistoryController>();
   }
 
   @override
@@ -114,7 +115,7 @@ class _WatchHistoryState extends State<WatchHistory>
         ),
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
-              .collection('users')
+              .collection(FirestoreCollections.users)
               .doc(userId)
               .collection('watch_history')
               .orderBy('watchedAt', descending: true)

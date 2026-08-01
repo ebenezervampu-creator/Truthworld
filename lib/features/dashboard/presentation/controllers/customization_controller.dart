@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -70,7 +71,7 @@ class CustomizationController extends GetxController {
 
   void _listenToChannelChanges() {
     _channelSub = _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .doc(channelId)
         .snapshots()
         .listen((snapshot) {
@@ -127,7 +128,10 @@ class CustomizationController extends GetxController {
   Future<void> loadChannelData() async {
     isLoading.value = true;
     try {
-      final doc = await _firestore.collection('channels').doc(channelId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .get();
 
       if (doc.exists) {
         final data = doc.data()!;
@@ -199,11 +203,14 @@ class CustomizationController extends GetxController {
           ? 'bannerStatusReason'
           : 'avatarStatusReason';
 
-      await _firestore.collection('channels').doc(channelId).update({
-        statusField: 'APPROVED',
-        reasonField: 'Bypassed in local/debug environment.',
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update({
+            statusField: 'APPROVED',
+            reasonField: 'Bypassed in local/debug environment.',
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          });
 
       if (fileId.isNotEmpty) {
         await _firestore.collection('image_verification').doc(fileId).set({
@@ -375,7 +382,10 @@ class CustomizationController extends GetxController {
         updateData['bannerStatusReason'] = FieldValue.delete();
       }
 
-      await _firestore.collection('channels').doc(channelId).update(updateData);
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update(updateData);
 
       if (updatedAvatarUrl != null) avatarUrl.value = updatedAvatarUrl;
       if (updatedBannerUrl != null) bannerUrl.value = updatedBannerUrl;

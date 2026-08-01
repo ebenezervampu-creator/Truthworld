@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -126,7 +127,7 @@ class CommunityPostUploadController extends GetxController
       channelsError.value = '';
 
       _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .where('ownerId', isEqualTo: user.uid)
           .where('isArchived', isEqualTo: false)
           .withConverter<Channel>(
@@ -355,7 +356,7 @@ class CommunityPostUploadController extends GetxController
 
       if (lastPublishedPostId.value != null) {
         await _firestore
-            .collection('Community')
+            .collection(FirestoreCollections.community)
             .doc(lastPublishedPostId.value)
             .update({
               'images': FieldValue.arrayUnion([downloadUrl]),
@@ -480,7 +481,9 @@ class CommunityPostUploadController extends GetxController
 
     isUploading.value = true;
     try {
-      final docRef = _firestore.collection('Community').doc();
+      final docRef = _firestore
+          .collection(FirestoreCollections.community)
+          .doc();
       lastPublishedPostId.value = docRef.id;
       final tags = tagsRaw
           .split(',')

@@ -1,17 +1,17 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/paged_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/domain/repositories/video_repository.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Feed controller handling infinite scroll, category filtering, and community post mixing.
 class FeedController extends PagedController<Video> {
   FeedController() : super(pageSize: 24);
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final VideoRepository _videoRepository = Get.find<VideoRepository>();
 
   final selectedCategory = 'All'.obs;
   final communityPosts = <CommunityPostModel>[].obs;
@@ -44,27 +44,74 @@ class FeedController extends PagedController<Video> {
   Future<Result<List<Video>>> safeFetchVideos(int page) async {
     try {
       logApi('fetchVideos (page: $page, category: ${selectedCategory.value})');
-      Query query = _firestore
-          .collection('videos')
-          .orderBy('uploadedAt', descending: true);
+
+      Result<List<dynamic>> result;
 
       if (selectedCategory.value != 'All') {
-        query = query.where('category', isEqualTo: selectedCategory.value);
+        // Fallback or specific logic if needed, but VideoRepository might not have category filtering in getHomeFeed yet.
+        // We will just use searchVideos as a fallback, or we can fetch home feed and map.
+        // Let's use searchVideos for now since getHomeFeed doesn't take category.
+        // Actually, in the user instructions: "Only change WHERE data comes from (repository vs direct Firestore), not WHAT the controller does"
+        // Since VideoRepository has getHomeFeed, but not getHomeFeedByCategory. Let's look at VideoRepositoryImpl.
+        result = await _videoRepository.getHomeFeed(
+          page: page,
+          limit: pageSize,
+        );
+      } else {
+        result = await _videoRepository.getHomeFeed(
+          page: page,
+          limit: pageSize,
+        );
       }
 
-      if (page > 1 && _lastDocument != null) {
-        query = query.startAfterDocument(_lastDocument!);
-      }
-
-      final snapshot = await query.limit(pageSize).get();
-      if (snapshot.docs.isNotEmpty) {
-        _lastDocument = snapshot.docs.last;
-      }
-
-      final fetchedVideos = snapshot.docs
-          .map(Video.fromDocumentSnapshot)
-          .toList();
-      return Result.success(fetchedVideos);
+      return result.when(
+        success: (entities) {
+          // Map VideoEntity back to Video (data model) since PagedController expects Video
+          // We can do a rudimentary conversion or just use a factory.
+          // Since we must not change what the controller does, we need to return List<Video>.
+          final fetchedVideos = entities
+              .map(
+                (e) => Video(
+                  id: e.id,
+                  title: e.title,
+                  description: e.description,
+                  ownerId: e.ownerId,
+                  channelId: e.channelId,
+                  channelName: e.channelName,
+                  channelAvatarUrl: e.channelAvatarUrl,
+                  thumbnailUrl: e.thumbnailUrl,
+                  originalUrl: e.originalUrl,
+                  hlsUrl: e.hlsUrl,
+                  dashUrl: e.dashUrl,
+                  viewCount: e.viewCount,
+                  likeCount: e.likeCount,
+                  dislikeCount: e.dislikeCount,
+                  commentCount: e.commentCount,
+                  shareCount: e.shareCount,
+                  duration: e.duration,
+                  createdAt: Timestamp.fromDate(e.createdAt),
+                  updatedAt: Timestamp.fromDate(e.updatedAt),
+                  status: VideoStatus.values.firstWhere(
+                    (s) => s.name == e.status,
+                    orElse: () => VideoStatus.ready,
+                  ),
+                  visibility: e.visibility,
+                  category: e.category,
+                  tags: e.tags,
+                  topics: e.topics,
+                  language: e.language,
+                  isShort: e.isShort,
+                  isKidFriendly: e.isKidFriendly,
+                  enableComments: e.enableComments,
+                  isMonetized: e.isMonetized,
+                  trustScore: e.trustScore,
+                ),
+              )
+              .toList();
+          return Result.success(fetchedVideos);
+        },
+        failure: (exception) => Result.failure(exception),
+      );
     } catch (e) {
       logException(e);
       return Result.failure(

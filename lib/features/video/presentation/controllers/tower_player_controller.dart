@@ -700,9 +700,7 @@ class TowerPlayerController extends GetxController {
   }
 
   void _initAudioService() {
-    _audioService = Get.isRegistered<AudioOnlyService>()
-        ? Get.find<AudioOnlyService>()
-        : Get.put(AudioOnlyService());
+    _audioService = Get.find<AudioOnlyService>();
     _audioService!.setCallbacks(
       onNext: playNext,
       onPrevious: playPrevious,

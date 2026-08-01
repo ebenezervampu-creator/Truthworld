@@ -12,7 +12,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
   @override
   Widget build(BuildContext context) {
     // Inject the controller if not already present
-    Get.put(TrendingController());
+    Get.find<TrendingController>();
 
     return ResponsiveBuilder(
       builder: (context, device) {

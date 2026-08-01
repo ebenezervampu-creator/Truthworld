@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1209,7 +1210,9 @@ class ChannelController extends GetxController
         transaction.set(channelRef, channelData);
 
         // Update user document with channelId (use set+merge in case user doc doesn't exist yet)
-        final userRef = _firestore.collection('users').doc(uid);
+        final userRef = _firestore
+            .collection(FirestoreCollections.users)
+            .doc(uid);
         transaction.set(userRef, {
           'channelId': channelRef.id,
         }, SetOptions(merge: true));
@@ -1997,7 +2000,7 @@ class ChannelController extends GetxController
     isLoadingVideos.value = true;
     try {
       var query = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);
 
       // Apply Filters
@@ -2055,7 +2058,7 @@ class ChannelController extends GetxController
     isLoadingMore.value = true;
     try {
       var query = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);
 
       // Apply Filters Same as loadInitialVideos
@@ -2121,7 +2124,7 @@ class ChannelController extends GetxController
   Future<void> fetchChannelVideoCount(String channelId) async {
     try {
       final countSnap = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: channelId)
           .count()
           .get();
@@ -2139,7 +2142,7 @@ class ChannelController extends GetxController
           selectedChannel.value?.ownerId == currentUser.uid;
 
       var postQuery = _firestore
-          .collection('Community')
+          .collection(FirestoreCollections.community)
           .where('channelId', isEqualTo: channelId);
 
       if (isOwner) {
@@ -2150,7 +2153,7 @@ class ChannelController extends GetxController
 
       final results = await Future.wait([
         _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .limit(1)
             .get(),
@@ -2193,11 +2196,14 @@ class ChannelController extends GetxController
         updateData['infraConfig'] = infra.toMap();
       }
 
-      await _firestore.collection('channels').doc(channelId).update(updateData);
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update(updateData);
 
       if (selectedChannel.value?.id == channelId) {
         final updatedDoc = await _firestore
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .doc(channelId)
             .get();
         if (updatedDoc.exists) {
@@ -2229,11 +2235,14 @@ class ChannelController extends GetxController
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await _firestore.collection('channels').doc(channelId).update(updateData);
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update(updateData);
 
       if (selectedChannel.value?.id == channelId) {
         final updatedDoc = await _firestore
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .doc(channelId)
             .get();
         if (updatedDoc.exists) {
@@ -2256,11 +2265,14 @@ class ChannelController extends GetxController
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await _firestore.collection('channels').doc(channelId).update(updateData);
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update(updateData);
 
       if (selectedChannel.value?.id == channelId) {
         final updatedDoc = await _firestore
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .doc(channelId)
             .get();
         if (updatedDoc.exists) {

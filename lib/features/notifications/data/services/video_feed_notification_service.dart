@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -16,7 +17,7 @@ class VideoFeedNotificationService {
     }
 
     return _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(userId)
         .collection('feed_inbox')
         .orderBy('uploadedAt', descending: true)
@@ -38,7 +39,7 @@ class VideoFeedNotificationService {
 
     try {
       final snapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('feed_inbox')
           .orderBy('uploadedAt', descending: true)
@@ -58,7 +59,7 @@ class VideoFeedNotificationService {
     try {
       // Explicitly flag the specific feed inbox document
       await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('feed_inbox')
           .doc(videoId)
@@ -73,15 +74,18 @@ class VideoFeedNotificationService {
     if (userId == 'guest_user' || userId.isEmpty || videoIds.isEmpty) return;
     try {
       // Update last seen notifications timestamp only (no unbounded array)
-      await _firestore.collection('users').doc(userId).update({
-        'lastSeenNotifications': FieldValue.serverTimestamp(),
-      });
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .update({
+            'lastSeenNotifications': FieldValue.serverTimestamp(),
+          });
 
       // 2. Perform optimal batched status propagation across local collection
       final batch = _firestore.batch();
       for (final vid in videoIds) {
         final ref = _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(userId)
             .collection('feed_inbox')
             .doc(vid);

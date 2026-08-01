@@ -1,4 +1,5 @@
 // ignore_for_file: avoid_print
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -140,7 +141,7 @@ class DeepLinkService {
   Future<Video?> loadVideo(String videoId) async {
     return _withRetry<Video?>(() async {
       final doc = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .get()
           .timeout(_loadTimeout);
@@ -156,7 +157,7 @@ class DeepLinkService {
     return _withRetry<Channel?>(() async {
       // Direct lookup by document ID (fastest, 1 read)
       final doc = await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .get()
           .timeout(_loadTimeout);
@@ -165,7 +166,7 @@ class DeepLinkService {
 
       // Fallback: search by customUrl (for vanity URLs)
       final querySnap = await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .where('customUrlLowercase', isEqualTo: channelId.toLowerCase())
           .limit(1)
           .get()
@@ -196,9 +197,9 @@ class DeepLinkService {
       if (userId != null) {
         futures.add(
           _firestore
-              .collection('users')
+              .collection(FirestoreCollections.users)
               .doc(userId)
-              .collection('playlists')
+              .collection(FirestoreCollections.playlists)
               .doc(playlistId)
               .get()
               .timeout(_loadTimeout),

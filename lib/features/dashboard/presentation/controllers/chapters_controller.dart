@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -71,7 +72,7 @@ class ChaptersController extends BaseController {
 
       if (channelId.value.isEmpty) {
         final userDoc = await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(currentUser.uid)
             .get();
         if (userDoc.exists && userDoc.data() != null) {
@@ -149,7 +150,7 @@ class ChaptersController extends BaseController {
 
     if (targetOwnerId.isNotEmpty) {
       _videosSubscription = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('ownerId', isEqualTo: targetOwnerId)
           .snapshots()
           .listen(
@@ -172,7 +173,7 @@ class ChaptersController extends BaseController {
 
     if (targetChannelId.isNotEmpty && targetChannelId != targetOwnerId) {
       _channelVideosSubscription = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: targetChannelId)
           .snapshots()
           .listen(
@@ -305,7 +306,7 @@ class ChaptersController extends BaseController {
 
       // Save to media/streaming subcollection
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('streaming')

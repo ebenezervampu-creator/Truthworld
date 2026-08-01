@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -83,7 +84,7 @@ class TopicInteractionController extends GetxController {
     try {
       // Try nested user's likedTopics subcollection first
       final likedTopicsDoc = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(currentUserId)
           .collection('likedTopics')
           .doc(topicId)
@@ -109,7 +110,7 @@ class TopicInteractionController extends GetxController {
 
       // Fetch comment interactions
       final commentsSnap = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('liked_topic_comments')
           .where('topicId', isEqualTo: topicId)
@@ -127,7 +128,7 @@ class TopicInteractionController extends GetxController {
 
       // Fetch reply interactions
       final repliesSnap = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('liked_topic_replies')
           .where('topicId', isEqualTo: topicId)
@@ -180,10 +181,12 @@ class TopicInteractionController extends GetxController {
 
     try {
       final batch = _firestore.batch();
-      final topicRef = _firestore.collection('topics').doc(topicId);
+      final topicRef = _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId);
       final topicLikeRef = topicRef.collection('likes').doc(currentUserId);
       final userLikedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(currentUserId)
           .collection('likedTopics')
           .doc(topicId);
@@ -244,7 +247,7 @@ class TopicInteractionController extends GetxController {
     isLoadingComments.value = true;
     try {
       final snap = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .orderBy('createdAt', descending: true)
@@ -286,7 +289,7 @@ class TopicInteractionController extends GetxController {
 
     try {
       final commentRef = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc();
@@ -323,9 +326,12 @@ class TopicInteractionController extends GetxController {
       await commentRef.set(commentObj.toMap());
 
       // Update commentCount in Firestore topics collection
-      await _firestore.collection('topics').doc(topicId).update({
-        'commentCount': FieldValue.increment(1),
-      });
+      await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .update({
+            'commentCount': FieldValue.increment(1),
+          });
 
       // Update local UI count and list
       commentCount.value++;
@@ -344,7 +350,7 @@ class TopicInteractionController extends GetxController {
   Future<void> fetchReplies(String topicId, String commentId) async {
     try {
       final snap = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId)
@@ -374,7 +380,7 @@ class TopicInteractionController extends GetxController {
 
     try {
       final replyRef = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId)
@@ -414,9 +420,12 @@ class TopicInteractionController extends GetxController {
       await replyRef.set(replyObj.toMap());
 
       // Update commentCount in Firestore topics collection
-      await _firestore.collection('topics').doc(topicId).update({
-        'commentCount': FieldValue.increment(1),
-      });
+      await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .update({
+            'commentCount': FieldValue.increment(1),
+          });
 
       // Update local UI count and list
       commentCount.value++;
@@ -492,7 +501,7 @@ class TopicInteractionController extends GetxController {
 
     try {
       final commentRef = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId);
@@ -501,7 +510,7 @@ class TopicInteractionController extends GetxController {
       final dislikeRef = commentRef.collection('dislikes').doc(userId);
 
       final userInteractionRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('liked_topic_comments')
           .doc(commentId);
@@ -604,7 +613,7 @@ class TopicInteractionController extends GetxController {
 
     try {
       final commentRef = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId);
@@ -613,7 +622,7 @@ class TopicInteractionController extends GetxController {
       final dislikeRef = commentRef.collection('dislikes').doc(userId);
 
       final userInteractionRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('liked_topic_comments')
           .doc(commentId);
@@ -719,7 +728,7 @@ class TopicInteractionController extends GetxController {
 
     try {
       final replyRef = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId)
@@ -730,7 +739,7 @@ class TopicInteractionController extends GetxController {
       final dislikeRef = replyRef.collection('dislikes').doc(userId);
 
       final userInteractionRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('liked_topic_replies')
           .doc(replyId);
@@ -835,7 +844,7 @@ class TopicInteractionController extends GetxController {
 
     try {
       final replyRef = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId)
@@ -846,7 +855,7 @@ class TopicInteractionController extends GetxController {
       final dislikeRef = replyRef.collection('dislikes').doc(userId);
 
       final userInteractionRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('liked_topic_replies')
           .doc(replyId);
@@ -899,15 +908,18 @@ class TopicInteractionController extends GetxController {
   Future<void> deleteComment(String topicId, String commentId) async {
     try {
       await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId)
           .delete();
 
-      await _firestore.collection('topics').doc(topicId).update({
-        'commentCount': FieldValue.increment(-1),
-      });
+      await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .update({
+            'commentCount': FieldValue.increment(-1),
+          });
 
       commentCount.value = (commentCount.value - 1).clamp(0, 999999);
       comments.removeWhere((c) => c.id == commentId);
@@ -936,7 +948,7 @@ class TopicInteractionController extends GetxController {
   ) async {
     try {
       await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topicId)
           .collection('comments')
           .doc(commentId)
@@ -944,9 +956,12 @@ class TopicInteractionController extends GetxController {
           .doc(replyId)
           .delete();
 
-      await _firestore.collection('topics').doc(topicId).update({
-        'commentCount': FieldValue.increment(-1),
-      });
+      await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .update({
+            'commentCount': FieldValue.increment(-1),
+          });
 
       commentCount.value = (commentCount.value - 1).clamp(0, 999999);
       if (repliesMap[commentId] != null) {

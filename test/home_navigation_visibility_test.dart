@@ -4,7 +4,9 @@ import 'package:truthworld/features/home/presentation/views/home/home.dart';
 void main() {
   group('Home sidebar visibility', () {
     test('signed-out user should only see public tabs', () {
-      final items = HomeSidebarVisibility.getVisibleEntries(isAuthenticated: false);
+      final items = HomeSidebarVisibility.getVisibleEntries(
+        isAuthenticated: false,
+      );
 
       expect(items, isNot(contains('Subscriptions')));
       expect(items, isNot(contains('Your channel')));

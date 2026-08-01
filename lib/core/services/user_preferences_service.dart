@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -74,7 +75,10 @@ class UserPreferencesService extends GetxService {
     if (user == null) return;
 
     try {
-      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.uid)
+          .get();
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
@@ -109,10 +113,13 @@ class UserPreferencesService extends GetxService {
     final user = _auth.currentUser;
     if (user != null) {
       try {
-        await _firestore.collection('users').doc(user.uid).set({
-          'notInterestedVideoIds': FieldValue.arrayUnion([videoId]),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user.uid)
+            .set({
+              'notInterestedVideoIds': FieldValue.arrayUnion([videoId]),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
       } catch (e) {
         debugPrint(
           '[UserPreferencesService] Error syncing hideVideo to Firestore: $e',
@@ -129,10 +136,13 @@ class UserPreferencesService extends GetxService {
     final user = _auth.currentUser;
     if (user != null) {
       try {
-        await _firestore.collection('users').doc(user.uid).set({
-          'notInterestedVideoIds': FieldValue.arrayRemove([videoId]),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        await _firestore
+            .collection(FirestoreCollections.users)
+            .doc(user.uid)
+            .set({
+              'notInterestedVideoIds': FieldValue.arrayRemove([videoId]),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
       } catch (e) {
         debugPrint(
           '[UserPreferencesService] Error syncing unhideVideo to Firestore: $e',
@@ -168,7 +178,7 @@ class UserPreferencesService extends GetxService {
           updates['blockedChannelNames'] = FieldValue.arrayUnion([channelName]);
         }
         await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(user.uid)
             .set(updates, SetOptions(merge: true));
       } catch (e) {
@@ -201,7 +211,7 @@ class UserPreferencesService extends GetxService {
           ]);
         }
         await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(user.uid)
             .set(updates, SetOptions(merge: true));
       } catch (e) {

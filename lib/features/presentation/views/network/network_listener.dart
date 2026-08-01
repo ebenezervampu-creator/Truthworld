@@ -85,7 +85,7 @@ class NetworkStatusListener extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(NetworkStatusController());
+    final controller = Get.find<NetworkStatusController>();
 
     return Stack(
       children: [

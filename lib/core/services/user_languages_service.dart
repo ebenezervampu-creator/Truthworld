@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -53,7 +54,7 @@ class UserLanguagesService extends GetxService {
   Future<void> _fetchFromFirestore(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(uid)
           .get();
       if (doc.exists) {
@@ -116,11 +117,14 @@ class UserLanguagesService extends GetxService {
 
     if (uid.isNotEmpty) {
       try {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'primaryLanguage': primary,
-          'secondaryLanguages': secondaries,
-          'knownLanguages': known,
-        }, SetOptions(merge: true));
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(uid)
+            .set({
+              'primaryLanguage': primary,
+              'secondaryLanguages': secondaries,
+              'knownLanguages': known,
+            }, SetOptions(merge: true));
         debugPrint('[UserLanguagesService] Saved languages to Firestore');
       } catch (e) {
         debugPrint('[UserLanguagesService] Firestore save error: $e');

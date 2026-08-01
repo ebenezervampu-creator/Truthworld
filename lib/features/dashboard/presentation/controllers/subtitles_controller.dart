@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -117,7 +118,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
       if (channelId.value.isEmpty) {
         final userDoc = await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(currentUser.uid)
             .get();
         if (userDoc.exists && userDoc.data() != null) {
@@ -191,7 +192,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
     if (targetOwnerId.isNotEmpty) {
       _videosSubscription = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('ownerId', isEqualTo: targetOwnerId)
           .snapshots()
           .listen(
@@ -214,7 +215,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
     if (targetChannelId.isNotEmpty && targetChannelId != targetOwnerId) {
       _channelVideosSubscription = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: targetChannelId)
           .snapshots()
           .listen(
@@ -294,7 +295,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     _requestsSubscription?.cancel();
     isLoadingRequests.value = true;
     _requestsSubscription = _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('language_requests')
         .snapshots()
@@ -602,7 +603,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
       // Save to media/localization subcollection
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('localization')
@@ -702,7 +703,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
           gsUrl; // Use the custom Title as the key, gsUrl as value
 
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('localization')

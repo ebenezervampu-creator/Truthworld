@@ -95,9 +95,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
   @override
   void initState() {
     super.initState();
-    _followingTopicsController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
+    _followingTopicsController = Get.find<FollowingTopicsController>();
     if (widget.topic != null && widget.topic!.id.trim().isNotEmpty) {
       _initControllers(widget.topic!);
     }

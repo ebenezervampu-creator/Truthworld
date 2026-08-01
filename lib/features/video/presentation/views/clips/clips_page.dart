@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,7 +37,7 @@ class UserClipsController extends GetxController {
 
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(user.uid)
           .collection('clips')
           .orderBy('createdAt', descending: true)
@@ -63,7 +64,7 @@ class UserClipsController extends GetxController {
 
     try {
       await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(user.uid)
           .collection('clips')
           .doc(clipId)
@@ -178,7 +179,7 @@ class ClipsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(UserClipsController());
+    final controller = Get.find<UserClipsController>();
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,

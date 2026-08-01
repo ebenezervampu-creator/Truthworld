@@ -23,9 +23,7 @@ class FollowingTopicsPage extends StatefulWidget {
 
 class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
   final FollowingTopicsController controller =
-      Get.isRegistered<FollowingTopicsController>()
-      ? Get.find<FollowingTopicsController>()
-      : Get.put(FollowingTopicsController());
+      Get.find<FollowingTopicsController>();
   final TextEditingController _searchController = TextEditingController();
 
   @override

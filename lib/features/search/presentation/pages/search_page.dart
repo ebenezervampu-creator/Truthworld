@@ -17,7 +17,7 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   late final TextEditingController _searchController = TextEditingController();
-  late final SearchController _searchCtrl = Get.put(SearchController());
+  late final SearchController _searchCtrl = Get.find<SearchController>();
   late final ScrollController _scrollController = ScrollController();
 
   @override

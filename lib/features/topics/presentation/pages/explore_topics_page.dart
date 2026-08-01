@@ -30,9 +30,7 @@ class ExploreTopicsPage extends StatefulWidget {
 
 class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   final ExploreTopicsController controller =
-      Get.isRegistered<ExploreTopicsController>()
-      ? Get.find<ExploreTopicsController>()
-      : Get.put(ExploreTopicsController());
+      Get.find<ExploreTopicsController>();
 
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
@@ -221,9 +219,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildSearchBar() {
-    final flipService = Get.isRegistered<FlipCoinService>()
-        ? Get.find<FlipCoinService>()
-        : Get.put(FlipCoinService());
+    final flipService = Get.find<FlipCoinService>();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
@@ -437,9 +433,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     final isTablet = screenWidth >= 600 && screenWidth < 1024;
     final isDesktop = screenWidth >= 1024;
     final key = topic.id;
-    final followingController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
+    final followingController = Get.find<FollowingTopicsController>();
 
     final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
 
@@ -1027,9 +1021,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     double pageOffset,
   ) {
     final isMobile = context.isMobile;
-    final followingController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
+    final followingController = Get.find<FollowingTopicsController>();
 
     final isOwner =
         Get.isRegistered<AuthService>() &&
@@ -1265,9 +1257,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                         ElevatedButton.icon(
                           onPressed: () {
                             final topicManagementController =
-                                Get.isRegistered<TopicManagementController>()
-                                ? Get.find<TopicManagementController>()
-                                : Get.put(TopicManagementController());
+                                Get.find<TopicManagementController>();
                             Get.dialog(
                               EditTopicDialog(
                                 topic: topic,

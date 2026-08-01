@@ -28,7 +28,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
   @override
   void initState() {
     super.initState();
-    controller = Get.put(SubtitlesController());
+    controller = Get.find<SubtitlesController>();
     controller.setChannelContext(widget.channelId);
   }
 

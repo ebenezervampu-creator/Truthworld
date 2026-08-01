@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -31,7 +32,7 @@ class WatchHistoryService extends GetxService {
     if (user != null) {
       final userId = AuthService.to.uid;
       _historySubscription = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .snapshots()

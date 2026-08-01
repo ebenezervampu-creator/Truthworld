@@ -20,6 +20,7 @@ import 'package:truthworld/features/home/data/services/feed_cache_manager.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/video/data/services/video_query_builder.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';

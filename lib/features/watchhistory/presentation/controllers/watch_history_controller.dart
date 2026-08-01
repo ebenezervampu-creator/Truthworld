@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -55,7 +56,7 @@ class WatchHistoryController extends BaseController {
 
     try {
       await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .doc(videoId)
@@ -92,7 +93,7 @@ class WatchHistoryController extends BaseController {
               try {
                 final batch = FirebaseFirestore.instance.batch();
                 final collection = FirebaseFirestore.instance
-                    .collection('users')
+                    .collection(FirestoreCollections.users)
                     .doc(userId)
                     .collection('watch_history');
 
@@ -128,7 +129,7 @@ class WatchHistoryController extends BaseController {
     try {
       setViewState(ViewState.loading);
       final collection = FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history');
 

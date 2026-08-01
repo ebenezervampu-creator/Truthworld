@@ -12,6 +12,7 @@
 // subtitles when player starts, etc.)
 // ==========================================================================
 
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
@@ -35,7 +36,7 @@ class VideoMediaService {
 
     try {
       final doc = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .collection('media')
           .doc('localization')
@@ -64,7 +65,7 @@ class VideoMediaService {
 
     try {
       final doc = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .collection('media')
           .doc('credibility')
@@ -93,7 +94,7 @@ class VideoMediaService {
 
     try {
       final doc = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .collection('media')
           .doc('streaming')
@@ -116,7 +117,7 @@ class VideoMediaService {
   /// Stream credibility data for real-time updates during pipeline processing
   Stream<VideoMediaCredibility> streamCredibility(String videoId) {
     return _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('media')
         .doc('credibility')
@@ -134,7 +135,7 @@ class VideoMediaService {
   /// Stream localization data for real-time updates as subtitles/dubbing complete
   Stream<VideoMediaLocalization> streamLocalization(String videoId) {
     return _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('media')
         .doc('localization')
@@ -171,7 +172,10 @@ class VideoMediaService {
 
   Future<VideoMediaLocalization> _fallbackLocalization(String videoId) async {
     try {
-      final doc = await _firestore.collection('videos').doc(videoId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .get();
       if (!doc.exists) return const VideoMediaLocalization();
       final data = doc.data()!;
 
@@ -207,7 +211,10 @@ class VideoMediaService {
 
   Future<VideoMediaCredibility> _fallbackCredibility(String videoId) async {
     try {
-      final doc = await _firestore.collection('videos').doc(videoId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .get();
       if (!doc.exists) {
         final emptyResult = const VideoMediaCredibility();
         credibilityCache[videoId] = emptyResult;

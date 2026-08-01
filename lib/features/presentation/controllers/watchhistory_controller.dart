@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -110,7 +111,7 @@ class WatchHistoryController extends GetxController
       }
 
       final snapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(user.uid)
           .collection('views')
           .orderBy('watchedAt', descending: true)

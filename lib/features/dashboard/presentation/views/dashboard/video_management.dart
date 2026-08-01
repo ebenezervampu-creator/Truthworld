@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -15,6 +16,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 
 class VideoManagementController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -23,6 +25,70 @@ class VideoManagementController extends GetxController {
   final RxDouble uploadProgress = 0.0.obs;
   String get uploadProgressPercent =>
       '${(uploadProgress.value * 100).toStringAsFixed(0)}%';
+
+  final channelVideos = <Video>[].obs;
+  final isLoadingChannelVideos = true.obs;
+  final channelVideosError = ''.obs;
+  StreamSubscription? _videosSub;
+
+  final communityPosts = <CommunityPostModel>[].obs;
+  final isLoadingPosts = true.obs;
+  final postsError = ''.obs;
+  StreamSubscription? _postsSub;
+
+  void listenToChannelVideos(String channelId) {
+    isLoadingChannelVideos.value = true;
+    channelVideosError.value = '';
+    _videosSub?.cancel();
+    _videosSub = fetchChannelVideos(channelId).listen(
+      (videos) {
+        channelVideos.assignAll(videos);
+        isLoadingChannelVideos.value = false;
+      },
+      onError: (e) {
+        channelVideosError.value = e.toString();
+        isLoadingChannelVideos.value = false;
+      },
+    );
+  }
+
+  void listenToCommunityPosts(String channelId) {
+    isLoadingPosts.value = true;
+    postsError.value = '';
+    _postsSub?.cancel();
+    _postsSub = _firestore
+        .collection(FirestoreCollections.community)
+        .where('channelId', isEqualTo: channelId)
+        .where(
+          'ownerId',
+          isEqualTo: FirebaseAuth.instance.currentUser?.uid ?? '',
+        )
+        .snapshots()
+        .listen(
+          (snapshot) {
+            final posts = snapshot.docs
+                .map(
+                  (doc) => CommunityPostModel.fromMap(
+                    doc.data()! as Map<String, dynamic>,
+                  ),
+                )
+                .toList();
+            communityPosts.assignAll(posts);
+            isLoadingPosts.value = false;
+          },
+          onError: (e) {
+            postsError.value = e.toString();
+            isLoadingPosts.value = false;
+          },
+        );
+  }
+
+  @override
+  void onClose() {
+    _videosSub?.cancel();
+    _postsSub?.cancel();
+    super.onClose();
+  }
 
   Future<void> uploadVideo({
     required PlatformFile videoFile,

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -76,7 +77,7 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
         barrierDismissible: false,
       );
       final doc = await FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .get();
       if (Get.isDialogOpen ?? false) {
@@ -348,7 +349,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
       return;
     }
     final docRef = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user.uid)
         .collection('savedComments')
         .doc(comment.id);
@@ -826,7 +827,7 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
   @override
   Widget build(BuildContext context) {
     final repliesRef = FirebaseFirestore.instance
-        .collection('topics')
+        .collection(FirestoreCollections.topics)
         .doc(widget.topicId)
         .collection('comments')
         .doc(widget.commentId)
@@ -994,7 +995,7 @@ class TopicReplyItemWidget extends StatelessWidget {
       return;
     }
     final docRef = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user.uid)
         .collection('savedComments')
         .doc(reply.id);

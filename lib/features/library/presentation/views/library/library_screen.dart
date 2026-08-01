@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -49,7 +50,7 @@ class LibraryScreenState extends State<LibraryScreen>
     with TickerProviderStateMixin {
   final int previewItemCount = 4;
   final _playlistController = Get.find<PlaylistController>();
-  final _watchHistoryController = Get.put(WatchHistoryController());
+  final _watchHistoryController = Get.find<WatchHistoryController>();
 
   late AnimationController _fadeAnimationController;
   late AnimationController _slideAnimationController;
@@ -408,9 +409,7 @@ class LibraryScreenState extends State<LibraryScreen>
           ),
 
           Obx(() {
-            final homeController = Get.isRegistered<HomeController>()
-                ? Get.find<HomeController>()
-                : Get.put(HomeController());
+            final homeController = Get.find<HomeController>();
             final authService = AuthService.to;
             final hasChannel = authService.hasChannel.value;
 
@@ -1189,9 +1188,9 @@ class LibraryScreenState extends State<LibraryScreen>
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(userId)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {

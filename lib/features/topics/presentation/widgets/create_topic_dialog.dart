@@ -27,7 +27,7 @@ class CreateTopicDialog extends StatelessWidget {
     required Future<void> Function(CreateTopicController controller)
     onCreateTopicSubmitted,
   }) async {
-    final controller = Get.put(CreateTopicController());
+    final controller = Get.find<CreateTopicController>();
     controller.resetForm();
 
     await showDialog<void>(

@@ -24,6 +24,9 @@ class ViewerIdentityService extends GetxService {
   String? _cachedIdentity;
   String? _cachedDeviceFingerprint;
 
+  /// Alias for [getViewerIdentity]
+  Future<String> getViewerHash() => getViewerIdentity();
+
   /// Get the viewer identity for dedup purposes.
   /// Returns a privacy-safe hash, never raw PII.
   Future<String> getViewerIdentity() async {

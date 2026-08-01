@@ -9,7 +9,7 @@ class AdminLoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Inject the AdminController if not registered
-    final controller = Get.put(AdminController());
+    final controller = Get.find<AdminController>();
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,

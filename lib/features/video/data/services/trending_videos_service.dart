@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TrendingVideosService {
@@ -5,7 +6,7 @@ class TrendingVideosService {
 
   Future<List<Map<String, dynamic>>> getTrendingVideos() async {
     final QuerySnapshot snapshot = await _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('visibility', isEqualTo: 'Public')
         .where('status', isEqualTo: 'published')
         .orderBy('views', descending: true) // Start by sorting by views

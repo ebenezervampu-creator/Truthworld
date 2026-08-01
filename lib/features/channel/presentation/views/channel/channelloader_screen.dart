@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -28,7 +29,7 @@ class ChannelLoaderController extends GetxController {
 
       if (channelId != null && !isHandleInChannelId) {
         doc = await FirebaseFirestore.instance
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .doc(channelId)
             .get();
       }
@@ -49,7 +50,7 @@ class ChannelLoaderController extends GetxController {
         }
 
         final query = await FirebaseFirestore.instance
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .where('handleLowercase', isEqualTo: cleanHandle.toLowerCase())
             .limit(1)
             .get();
@@ -83,7 +84,7 @@ class ChannelLoaderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(ChannelLoaderController());
+    Get.find<ChannelLoaderController>();
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

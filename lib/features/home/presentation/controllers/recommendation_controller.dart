@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -37,13 +38,16 @@ class RecommendationController extends BaseController {
   }
 
   Future<List<Video>> _fetchPublicVideos(int limit) async {
-    final snap = await _firestore.collection('videos').limit(limit).get();
+    final snap = await _firestore
+        .collection(FirestoreCollections.videos)
+        .limit(limit)
+        .get();
     return snap.docs.map(Video.fromDocumentSnapshot).toList();
   }
 
   Future<List<Video>> _fetchCategoryVideos(String category, int limit) async {
     final snap = await _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('category', isEqualTo: category)
         .limit(limit)
         .get();

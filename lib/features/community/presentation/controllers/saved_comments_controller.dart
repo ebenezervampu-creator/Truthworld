@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -42,7 +43,7 @@ class SavedCommentsController extends GetxController {
 
     _subscription?.cancel();
     _subscription = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(currentUser.uid)
         .collection('savedComments')
         .orderBy('savedAt', descending: true)
@@ -70,7 +71,7 @@ class SavedCommentsController extends GetxController {
 
     try {
       await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(currentUser.uid)
           .collection('savedComments')
           .doc(commentId)

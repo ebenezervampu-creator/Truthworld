@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -151,7 +152,7 @@ class LibraryController extends GetxController
 
     isLoadingHistory.value = true;
     _historySub = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(uid)
         .collection('watch_history')
         .orderBy('watchedAt', descending: true)
@@ -171,7 +172,7 @@ class LibraryController extends GetxController
 
     isLoadingPlaylists.value = true;
     _playlistsSub = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(uid)
         .collection('saved_playlists')
         .orderBy('createdAt', descending: true)
@@ -190,7 +191,7 @@ class LibraryController extends GetxController
 
     isLoadingLiked.value = true;
     _likedSub = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(uid)
         .collection('likedVideos')
         .orderBy('timestamp', descending: true)
@@ -220,7 +221,7 @@ class LibraryController extends GetxController
 
     isLoadingClips.value = true;
     _clipsSub = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(uid)
         .collection('clips')
         .orderBy('createdAt', descending: true)
@@ -240,7 +241,7 @@ class LibraryController extends GetxController
 
     isLoadingYourVideos.value = true;
     _yourVideosSub = _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('ownerId', isEqualTo: uid)
         .snapshots()
         .listen(
@@ -268,7 +269,7 @@ class LibraryController extends GetxController
           i + 10 > videoIds.length ? videoIds.length : i + 10,
         );
         final docs = await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: batch)
             .get();
         allVideos.addAll(docs.docs.map(Video.fromDocumentSnapshot));

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -35,7 +36,7 @@ class AnalyticsController extends GetxController {
     isLoading.value = true;
     try {
       final videosRef = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: channelId)
           // .orderBy('views', descending: true)
           .limit(5);

@@ -10,7 +10,7 @@ class PremiumPlansScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(PremiumController());
+    final controller = Get.find<PremiumController>();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F), // True dark theme background

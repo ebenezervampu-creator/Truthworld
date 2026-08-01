@@ -43,6 +43,14 @@ class VideoAnalyticsService extends GetxService {
     logger.info('Video Analytics Service initialized', tag: _tag);
   }
 
+  /// Record a qualified view event for analytics tracking.
+  void recordQualifiedView(String videoId, {String? trafficSource}) {
+    logger.info(
+      'Qualified view recorded for $videoId (Source: $trafficSource)',
+      tag: _tag,
+    );
+  }
+
   // ===========================================================================
   // VIDEO-LEVEL ANALYTICS (reads from video_stats_daily)
   // ===========================================================================

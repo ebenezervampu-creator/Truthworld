@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -867,7 +868,7 @@ class CommentService {
     String channelId,
   ) {
     return _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('channelId', isEqualTo: channelId)
         .orderBy('createdAt', descending: true)
         .snapshots()

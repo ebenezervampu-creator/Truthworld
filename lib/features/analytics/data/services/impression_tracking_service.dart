@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -48,6 +49,14 @@ class ImpressionTrackingService extends GetxService {
   // ===========================================================================
   // PUBLIC API
   // ===========================================================================
+
+  /// Record a video playback milestone (25%, 50%, 75%, 100%).
+  void recordPlaybackMilestone({
+    required String videoId,
+    required int milestonePct,
+  }) {
+    logger.info('Playback milestone $milestonePct% for $videoId', tag: _tag);
+  }
 
   /// Record a thumbnail impression.
   /// Call this when a video thumbnail has been visible for >= 1 second.
@@ -136,7 +145,9 @@ class ImpressionTrackingService extends GetxService {
 
       // Increment impression counters on video documents
       for (final entry in videoImpressionCounts.entries) {
-        final videoRef = _firestore.collection('videos').doc(entry.key);
+        final videoRef = _firestore
+            .collection(FirestoreCollections.videos)
+            .doc(entry.key);
         batch.update(videoRef, {
           'impressionCount': FieldValue.increment(entry.value),
         });

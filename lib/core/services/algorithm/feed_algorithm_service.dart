@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -111,7 +112,7 @@ class FeedAlgorithmService extends GetxService {
   }) async {
     try {
       Query query = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('status', isEqualTo: 'published');
 
       if (category != null && category.isNotEmpty && category != 'All') {

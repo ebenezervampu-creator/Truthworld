@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -101,8 +102,12 @@ class CategoryInsightsController extends GetxController {
       errorMessage.value = '';
 
       // 1. Query real video documents and channel documents from Firestore
-      final videosSnap = await _firestore.collection('videos').get();
-      final channelsSnap = await _firestore.collection('channels').get();
+      final videosSnap = await _firestore
+          .collection(FirestoreCollections.videos)
+          .get();
+      final channelsSnap = await _firestore
+          .collection(FirestoreCollections.channels)
+          .get();
 
       // Maps to aggregate data
       final categoriesSet = Set<String>.from(defaultCategories);

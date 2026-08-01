@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -48,7 +49,7 @@ class PlaylistScreen extends StatefulWidget {
 class _PlaylistScreenState extends State<PlaylistScreen>
     with TickerProviderStateMixin {
   final TextEditingController playListNameController = TextEditingController();
-  final PlaylistController _playlistController = Get.put(PlaylistController());
+  final PlaylistController _playlistController = Get.find<PlaylistController>();
   final TextEditingController _searchController = TextEditingController();
   final RxString _selectedPlaylistType = 'private'.obs;
 
@@ -348,7 +349,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                     Flexible(
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
-                            .collection('videos')
+                            .collection(FirestoreCollections.videos)
                             .where(
                               'ownerId',
                               isEqualTo:

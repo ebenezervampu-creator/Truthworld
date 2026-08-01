@@ -21,7 +21,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(AdvertiserPortalController());
+    final controller = Get.find<AdvertiserPortalController>();
 
     return Obx(() {
       final isLoggedIn = AuthService.to.isAuthenticated.value;

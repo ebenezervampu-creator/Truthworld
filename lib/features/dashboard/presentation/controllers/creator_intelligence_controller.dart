@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +45,7 @@ class CreatorIntelligenceController extends GetxController {
 
     // Listen to users/{creatorId}/notifications_active collection
     _notificationsSub = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(creatorId)
         .collection('notifications_active')
         .orderBy('createdAt', descending: true)
@@ -188,7 +189,7 @@ class CreatorIntelligenceController extends GetxController {
       }
 
       await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(creatorId)
           .collection('notifications_active')
           .doc(notificationId)
@@ -208,7 +209,7 @@ class CreatorIntelligenceController extends GetxController {
       unreadCount.value = 0;
 
       final snap = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(creatorId)
           .collection('notifications_active')
           .where('read', isEqualTo: false)
@@ -235,14 +236,14 @@ class CreatorIntelligenceController extends GetxController {
       if (notif != null) {
         // Move to archive collection
         await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(creatorId)
             .collection('notifications_archive')
             .doc(notificationId)
             .set(notif.toJson());
 
         await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(creatorId)
             .collection('notifications_active')
             .doc(notificationId)

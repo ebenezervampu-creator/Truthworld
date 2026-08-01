@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
   Stream<List<PlaylistModel>> _playlistsStream() {
     if (activeChannelId.isEmpty) return const Stream.empty();
     return _firestore
-        .collection('playlists')
+        .collection(FirestoreCollections.playlists)
         .where('channelId', isEqualTo: activeChannelId)
         .snapshots()
         .map(
@@ -591,7 +592,9 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                       return;
                     }
 
-                    final docRef = _firestore.collection('playlists').doc();
+                    final docRef = _firestore
+                        .collection(FirestoreCollections.playlists)
+                        .doc();
                     final user = FirebaseAuth.instance.currentUser;
                     final newPlaylist = PlaylistModel(
                       id: docRef.id,
@@ -757,7 +760,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     if (name.isEmpty) return;
 
                     await _firestore
-                        .collection('playlists')
+                        .collection(FirestoreCollections.playlists)
                         .doc(playlist.id)
                         .update({
                           'name': name,
@@ -913,7 +916,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     child: ElevatedButton(
                       onPressed: () async {
                         await _firestore
-                            .collection('playlists')
+                            .collection(FirestoreCollections.playlists)
                             .doc(playlist.id)
                             .update({
                               'videoIds': videoIds,
@@ -977,7 +980,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
           ElevatedButton(
             onPressed: () async {
               await _firestore
-                  .collection('playlists')
+                  .collection(FirestoreCollections.playlists)
                   .doc(playlist.id)
                   .delete();
               if (context.mounted) Navigator.pop(ctx);

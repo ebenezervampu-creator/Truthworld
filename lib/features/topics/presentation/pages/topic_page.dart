@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,7 +35,7 @@ class TopicPage extends StatefulWidget {
 }
 
 class _TopicPageState extends State<TopicPage> {
-  final TopicController controller = Get.put(TopicController());
+  final TopicController controller = Get.find<TopicController>();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -70,7 +71,7 @@ class _TopicPageState extends State<TopicPage> {
         barrierDismissible: false,
       );
       final doc = await FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .get();
       if (Get.isDialogOpen ?? false) {

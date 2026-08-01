@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -76,18 +77,21 @@ class _FactCheckDisputeDialogState extends State<FactCheckDisputeDialog> {
 
     try {
       final firestore = FirebaseFirestore.instance;
-      await firestore.collection('videos').doc(widget.video.id).set(
-        {
-          'factCheckDispute': {
-            'status': 'pending_review',
-            'reason': reason,
-            'additionalSources': _additionalSources.toList(),
-            'submittedAt': FieldValue.serverTimestamp(),
-          },
-          'credibilityStatus': 'disputed',
-        },
-        SetOptions(merge: true),
-      );
+      await firestore
+          .collection(FirestoreCollections.videos)
+          .doc(widget.video.id)
+          .set(
+            {
+              'factCheckDispute': {
+                'status': 'pending_review',
+                'reason': reason,
+                'additionalSources': _additionalSources.toList(),
+                'submittedAt': FieldValue.serverTimestamp(),
+              },
+              'credibilityStatus': 'disputed',
+            },
+            SetOptions(merge: true),
+          );
 
       if (mounted) {
         Navigator.of(context).pop();

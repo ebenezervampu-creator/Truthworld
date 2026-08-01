@@ -10,8 +10,14 @@ void main() {
     });
 
     test('Verifies feature set payload formatting', () {
-      final features = ['subtitles', 'dubbing', 'factcheck', 'summary', 'chapters'];
-      
+      final features = [
+        'subtitles',
+        'dubbing',
+        'factcheck',
+        'summary',
+        'chapters',
+      ];
+
       final wantSubtitles = features.contains('subtitles');
       final wantDubbing = features.contains('dubbing');
       final wantFactCheck = features.contains('factcheck');

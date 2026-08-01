@@ -41,6 +41,9 @@ abstract class BaseController extends GetxController {
     workers.add(worker);
   }
 
+  /// Alias for [addWorker]
+  void registerWorker(Worker worker) => addWorker(worker);
+
   @override
   @mustCallSuper
   void onInit() {

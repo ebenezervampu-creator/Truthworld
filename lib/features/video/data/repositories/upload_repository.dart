@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -12,14 +13,20 @@ class UploadRepository {
     required String docId,
     required Map<String, dynamic> data,
   }) async {
-    await _firestore.collection('videos').doc(docId).set(data);
+    await _firestore
+        .collection(FirestoreCollections.videos)
+        .doc(docId)
+        .set(data);
   }
 
   /// Listen to a document for server-side processing updates
   Stream<DocumentSnapshot<Map<String, dynamic>>> listenToVideoDocument(
     String docId,
   ) {
-    return _firestore.collection('videos').doc(docId).snapshots();
+    return _firestore
+        .collection(FirestoreCollections.videos)
+        .doc(docId)
+        .snapshots();
   }
 
   /// Uploads video bytes and returns an UploadTask for progress tracking
@@ -63,11 +70,17 @@ class UploadRepository {
     required String docId,
     required Map<String, dynamic> data,
   }) async {
-    await _firestore.collection('videos').doc(docId).update(data);
+    await _firestore
+        .collection(FirestoreCollections.videos)
+        .doc(docId)
+        .update(data);
   }
 
   /// Deletes a video document (used for cleanup on failure)
   Future<void> deleteVideoDocument(String docId) async {
-    await _firestore.collection('videos').doc(docId).delete();
+    await _firestore
+        .collection(FirestoreCollections.videos)
+        .doc(docId)
+        .delete();
   }
 }

@@ -25,7 +25,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(AdminController());
+    final controller = Get.find<AdminController>();
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
     return Scaffold(

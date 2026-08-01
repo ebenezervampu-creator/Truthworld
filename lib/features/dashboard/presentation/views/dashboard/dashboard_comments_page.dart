@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +33,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
   @override
   void initState() {
     super.initState();
-    controller = Get.put(DashboardCommentsController());
+    controller = Get.find<DashboardCommentsController>();
     _tabController = TabController(length: 2, vsync: this);
   }
 
@@ -1124,7 +1125,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
     }
 
     final repliesRef = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('comments')
         .doc(commentId)

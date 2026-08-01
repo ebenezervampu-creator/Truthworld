@@ -28,29 +28,32 @@ void main() {
       expect(video.createdAt, threeHoursAgo);
     });
 
-    test('Should fallback to publishedAt if uploadedAt is missing but publishedAt is present', () {
-      final now = Timestamp.now();
-      final oneDayAgo = Timestamp.fromMillisecondsSinceEpoch(
-        now.millisecondsSinceEpoch - 24 * 60 * 60 * 1000,
-      );
+    test(
+      'Should fallback to publishedAt if uploadedAt is missing but publishedAt is present',
+      () {
+        final now = Timestamp.now();
+        final oneDayAgo = Timestamp.fromMillisecondsSinceEpoch(
+          now.millisecondsSinceEpoch - 24 * 60 * 60 * 1000,
+        );
 
-      final data = {
-        'id': 'test_video_2',
-        'title': 'Test Video 2',
-        'description': 'Description 2',
-        'thumbnailUrl': 'https://example.com/thumb2.png',
-        'ownerId': 'owner_2',
-        'channelId': 'channel_2',
-        'channelName': 'Channel Name 2',
-        'category': 'Entertainment',
-        'tags': ['test'],
-        'publishedAt': oneDayAgo,
-      };
+        final data = {
+          'id': 'test_video_2',
+          'title': 'Test Video 2',
+          'description': 'Description 2',
+          'thumbnailUrl': 'https://example.com/thumb2.png',
+          'ownerId': 'owner_2',
+          'channelId': 'channel_2',
+          'channelName': 'Channel Name 2',
+          'category': 'Entertainment',
+          'tags': ['test'],
+          'publishedAt': oneDayAgo,
+        };
 
-      final video = Video.fromMap(data);
-      expect(video.uploadedAt, oneDayAgo);
-      expect(video.createdAt, oneDayAgo);
-    });
+        final video = Video.fromMap(data);
+        expect(video.uploadedAt, oneDayAgo);
+        expect(video.createdAt, oneDayAgo);
+      },
+    );
 
     test('Should parse createdAt when it is present in the map', () {
       final now = Timestamp.now();

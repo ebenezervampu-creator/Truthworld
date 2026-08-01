@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +32,7 @@ class TrashRestoreController extends GetxController {
       // 1. Check if the current channel itself is deletion_pending
       if (channelId.isNotEmpty) {
         final channelSnap = await firestore
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .doc(channelId)
             .get();
         if (channelSnap.exists) {
@@ -55,7 +56,7 @@ class TrashRestoreController extends GetxController {
       // 2. Fetch deleted videos belonging to this channel
       if (channelId.isNotEmpty) {
         final videosSnap = await firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .where('status', isEqualTo: 'deletion_pending')
             .get();
@@ -78,7 +79,7 @@ class TrashRestoreController extends GetxController {
       // 3. Fetch deleted topics belonging to this channel
       if (channelId.isNotEmpty) {
         final topicsSnap = await firestore
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .where('channelId', isEqualTo: channelId)
             .where('status', isEqualTo: 'deletion_pending')
             .get();
@@ -101,7 +102,7 @@ class TrashRestoreController extends GetxController {
       // 4. Fetch deleted playlists belonging to this channel
       if (channelId.isNotEmpty) {
         final playlistsSnap = await firestore
-            .collection('playlists')
+            .collection(FirestoreCollections.playlists)
             .where('channelId', isEqualTo: channelId)
             .where('status', isEqualTo: 'deletion_pending')
             .get();

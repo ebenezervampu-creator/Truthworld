@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -149,7 +150,9 @@ class DashboardController extends GetxController {
 
   void _loadChannelStats() {
     // 1. Listen to the main channel document for real-time totals (subs, views, watchTime)
-    final channelRef = _firestore.collection('channels').doc(channelId);
+    final channelRef = _firestore
+        .collection(FirestoreCollections.channels)
+        .doc(channelId);
     _channelSubscription = channelRef.snapshots().listen((snapshot) {
       if (snapshot.exists) {
         final data = snapshot.data();
@@ -193,7 +196,7 @@ class DashboardController extends GetxController {
 
     // 2. Listen to the summary document for detailed analytics (watch time, trends)
     final summaryRef = _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .doc(channelId)
         .collection('stats')
         .doc('summary');
@@ -226,7 +229,7 @@ class DashboardController extends GetxController {
 
   void _loadRecentVideos() {
     final videosRef = _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('channelId', isEqualTo: channelId)
         .orderBy('uploadedAt', descending: true)
         .limit(10); // Fetch more for better fallback
@@ -263,7 +266,7 @@ class DashboardController extends GetxController {
       const Duration(days: 27),
     ); // Last 28 days
     final statsRef = _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .doc(channelId)
         .collection('daily_stats')
         .where(
@@ -422,7 +425,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (resolvedChannel == null) {
         try {
           final snapshot = await FirebaseFirestore.instance
-              .collection('channels')
+              .collection(FirestoreCollections.channels)
               .where('ownerId', isEqualTo: user.uid)
               .get();
           if (snapshot.docs.isNotEmpty) {
@@ -464,7 +467,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       if (!Get.isRegistered<VideoManagementController>()) {
-        Get.put(VideoManagementController());
+        Get.find<VideoManagementController>();
       }
     } on Object catch (e) {
       debugPrint('Error in _resolveChannelAndInit: $e');
@@ -474,7 +477,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         controller = Get.find<DashboardController>();
       }
       if (!Get.isRegistered<VideoManagementController>()) {
-        Get.put(VideoManagementController());
+        Get.find<VideoManagementController>();
       }
     } finally {
       isSelectingDefault.value = false;
@@ -1779,7 +1782,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           onBypassPressed: () async {
             try {
               await FirebaseFirestore.instance
-                  .collection('channels')
+                  .collection(FirestoreCollections.channels)
                   .doc(channel.id)
                   .update({
                     'avatarStatus': 'APPROVED',
@@ -1856,7 +1859,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           onBypassPressed: () async {
             try {
               await FirebaseFirestore.instance
-                  .collection('channels')
+                  .collection(FirestoreCollections.channels)
                   .doc(channel.id)
                   .update({
                     'bannerStatus': 'APPROVED',
@@ -3618,7 +3621,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _openCreateTopicDialogFromQuickActions(bool isDarkMode) {
     if (!Get.isRegistered<TopicManagementController>()) {
-      Get.put(TopicManagementController());
+      Get.find<TopicManagementController>();
     }
     final topicCtrl = Get.find<TopicManagementController>();
     final channelId = _getChannelId(channel);

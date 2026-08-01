@@ -22,7 +22,9 @@ class MonetizationScreen extends StatelessWidget {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final controller = Get.isRegistered<DashboardController>()
         ? Get.find<DashboardController>()
-        : (uid.isNotEmpty ? Get.put(DashboardController(channelId: uid)) : null);
+        : (uid.isNotEmpty
+              ? Get.put(DashboardController(channelId: uid))
+              : null);
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -38,7 +40,10 @@ class MonetizationScreen extends StatelessWidget {
         backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Get.back<void>(),
         ),
       ),
@@ -143,7 +148,9 @@ class MonetizationScreen extends StatelessWidget {
 
   Widget _buildChannelTypeBadge(ChannelType type) {
     final isCustom = type == ChannelType.custom;
-    final badgeColor = isCustom ? const Color(0xFFF59E0B) : const Color(0xFF3B82F6);
+    final badgeColor = isCustom
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF3B82F6);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -193,7 +200,9 @@ class MonetizationScreen extends StatelessWidget {
                     width: 4,
                     height: 18,
                     decoration: BoxDecoration(
-                      color: isCustom ? const Color(0xFFF59E0B) : AppColors.brand,
+                      color: isCustom
+                          ? const Color(0xFFF59E0B)
+                          : AppColors.brand,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -237,7 +246,9 @@ class MonetizationScreen extends StatelessWidget {
                 child: _buildChannelTypeDetailTile(
                   icon: Icons.timelapse_rounded,
                   label: 'Video Duration',
-                  value: isCustom ? 'Up to 24 Hours' : '2 to 10 Mins (10m Total)',
+                  value: isCustom
+                      ? 'Up to 24 Hours'
+                      : '2 to 10 Mins (10m Total)',
                 ),
               ),
             ],
@@ -257,7 +268,9 @@ class MonetizationScreen extends StatelessWidget {
                 child: _buildChannelTypeDetailTile(
                   icon: Icons.account_balance_wallet_outlined,
                   label: 'Cash-Out Rule',
-                  value: isCustom ? 'Instant Withdrawal' : '10h Watch Time Gate',
+                  value: isCustom
+                      ? 'Instant Withdrawal'
+                      : '10h Watch Time Gate',
                 ),
               ),
             ],
@@ -273,7 +286,11 @@ class MonetizationScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.schedule_rounded, color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.schedule_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -294,19 +311,34 @@ class MonetizationScreen extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () async {
-                final currentPlan = isCustom ? ChannelPlanType.custom : ChannelPlanType.standard;
+                final currentPlan = isCustom
+                    ? ChannelPlanType.custom
+                    : ChannelPlanType.standard;
                 final selectedPlan = await ChannelTypeSelectorModal.show(
                   context,
                   initialPlan: currentPlan,
                 );
                 if (selectedPlan != null && channel != null) {
-                  unawaited(Get.to<void>(() => ChannelMonetizationDashboardView(channel: channel)));
+                  unawaited(
+                    Get.to<void>(
+                      () => ChannelMonetizationDashboardView(channel: channel),
+                    ),
+                  );
                 }
               },
-              icon: const Icon(Icons.tune_rounded, color: Colors.white, size: 16),
+              icon: const Icon(
+                Icons.tune_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
               label: Text(
-                isCustom ? 'Manage Custom Infra & Tier Settings' : 'Explore / Switch Channel Type',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                isCustom
+                    ? 'Manage Custom Infra & Tier Settings'
+                    : 'Explore / Switch Channel Type',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.textPrimary,
@@ -385,7 +417,11 @@ class MonetizationScreen extends StatelessWidget {
               color: AppColors.brand.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -419,7 +455,10 @@ class MonetizationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEligibilitySection(DashboardController controller, bool isCustom) {
+  Widget _buildEligibilitySection(
+    DashboardController controller,
+    bool isCustom,
+  ) {
     return _buildInfoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,7 +502,9 @@ class MonetizationScreen extends StatelessWidget {
                   icon: Icons.timer_outlined,
                   title: 'Cash Out Gate',
                   value: isCustom ? 'Instant' : '10h / Video',
-                  subtitle: isCustom ? 'No watch time restriction' : 'Watch time for cash withdrawal',
+                  subtitle: isCustom
+                      ? 'No watch time restriction'
+                      : 'Watch time for cash withdrawal',
                   isUnlocked: true,
                 ),
               ),
@@ -541,7 +582,10 @@ class MonetizationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRevenueSummary(BuildContext context, DashboardController controller) {
+  Widget _buildRevenueSummary(
+    BuildContext context,
+    DashboardController controller,
+  ) {
     return _buildInfoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,19 +615,30 @@ class MonetizationScreen extends StatelessWidget {
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.info_outline_rounded, color: AppColors.textSecondary, size: 20),
+                icon: const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
                 onPressed: () {
                   Get.defaultDialog(
                     title: 'Monetization Rules',
                     backgroundColor: AppColors.bgSurface,
-                    titleStyle: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                    titleStyle: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                     content: const Padding(
                       padding: EdgeInsets.all(12),
                       child: Text(
                         '1. Channels start earning revenue immediately from day one.\n\n'
                         '2. Cash withdrawal for earnings from a video unlocks when that video reaches 10 hours of watch time.\n\n'
                         '3. Unwithdrawn or locked money can be spent anytime for AI subtitles, dubbing, and other platform features.',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
                       ),
                     ),
                     textConfirm: 'Got it',
@@ -597,7 +652,8 @@ class MonetizationScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Obx(() {
-            final revenueStr = controller.channelStats['revenue']?.toString() ?? r'$0.00';
+            final revenueStr =
+                controller.channelStats['revenue']?.toString() ?? r'$0.00';
 
             // Calculate videos eligible vs awaiting watch time
             final videos = controller.recentVideos;
@@ -613,11 +669,17 @@ class MonetizationScreen extends StatelessWidget {
 
             return Column(
               children: [
-                _buildRevenueRow('Total Estimated Revenue', revenueStr, isHighlight: true),
+                _buildRevenueRow(
+                  'Total Estimated Revenue',
+                  revenueStr,
+                  isHighlight: true,
+                ),
                 const Divider(color: AppColors.bgDivider, height: 20),
                 _buildRevenueRow(
                   'Available for Cash Withdrawal',
-                  eligibleCount > 0 ? '\$${eligibleCount * 10}.00 (Est.)' : r'$0.00',
+                  eligibleCount > 0
+                      ? '\$${eligibleCount * 10}.00 (Est.)'
+                      : r'$0.00',
                   subtitle: '$eligibleCount video(s) crossed 10h watch time',
                   badgeColor: Colors.green,
                 ),
@@ -637,7 +699,8 @@ class MonetizationScreen extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () => _showUseForAiFeaturesDialog(context, controller),
+                    onPressed: () =>
+                        _showUseForAiFeaturesDialog(context, controller),
                     icon: const Icon(Icons.auto_awesome_rounded, size: 18),
                     label: const Text('Use Balance for AI Subtitles & Dubbing'),
                     style: ElevatedButton.styleFrom(
@@ -682,8 +745,12 @@ class MonetizationScreen extends StatelessWidget {
                   period,
                   style: TextStyle(
                     fontSize: isHighlight ? 15 : 14,
-                    fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal,
-                    color: isHighlight ? AppColors.textPrimary : AppColors.textSecondary,
+                    fontWeight: isHighlight
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isHighlight
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -712,7 +779,10 @@ class MonetizationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPerVideoWithdrawalSection(BuildContext context, DashboardController controller) {
+  Widget _buildPerVideoWithdrawalSection(
+    BuildContext context,
+    DashboardController controller,
+  ) {
     return _buildInfoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,7 +823,10 @@ class MonetizationScreen extends StatelessWidget {
                 child: const Text(
                   'No uploaded videos found yet.\nUpload videos to start generating revenue from Day 1!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
               );
             }
@@ -762,7 +835,8 @@ class MonetizationScreen extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: videos.length,
-              separatorBuilder: (_, __) => const Divider(color: AppColors.bgDivider, height: 16),
+              separatorBuilder: (_, __) =>
+                  const Divider(color: AppColors.bgDivider, height: 16),
               itemBuilder: (context, index) {
                 final video = videos[index];
                 return _buildVideoWithdrawalRow(context, controller, video);
@@ -774,7 +848,11 @@ class MonetizationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVideoWithdrawalRow(BuildContext context, DashboardController controller, Video video) {
+  Widget _buildVideoWithdrawalRow(
+    BuildContext context,
+    DashboardController controller,
+    Video video,
+  ) {
     final watchHours = controller.getVideoWatchHours(video);
     final isEligibleForCashOut = controller.isVideoWithdrawalEligible(video);
     final progress = (watchHours / cashOutWatchHoursThreshold).clamp(0.0, 1.0);
@@ -792,7 +870,11 @@ class MonetizationScreen extends StatelessWidget {
                 color: AppColors.bgInput,
                 child: video.thumbnailUrl.isNotEmpty
                     ? Image.network(video.thumbnailUrl, fit: BoxFit.cover)
-                    : const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 24),
+                    : const Icon(
+                        Icons.play_circle_fill_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
               ),
             ),
             const SizedBox(width: 12),
@@ -836,7 +918,9 @@ class MonetizationScreen extends StatelessWidget {
                 ),
               ),
               child: Text(
-                isEligibleForCashOut ? 'Cash-Out Ready' : 'Locked (${watchHours.toStringAsFixed(1)}h/10h)',
+                isEligibleForCashOut
+                    ? 'Cash-Out Ready'
+                    : 'Locked (${watchHours.toStringAsFixed(1)}h/10h)',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
@@ -853,7 +937,9 @@ class MonetizationScreen extends StatelessWidget {
               child: LinearPercentIndicator(
                 lineHeight: 6,
                 percent: progress,
-                progressColor: isEligibleForCashOut ? Colors.green : AppColors.brand,
+                progressColor: isEligibleForCashOut
+                    ? Colors.green
+                    : AppColors.brand,
                 backgroundColor: AppColors.bgInput,
                 barRadius: const Radius.circular(3),
                 padding: EdgeInsets.zero,
@@ -861,10 +947,15 @@ class MonetizationScreen extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             InkWell(
-              onTap: () => _showUseForAiFeaturesDialog(context, controller, video),
+              onTap: () =>
+                  _showUseForAiFeaturesDialog(context, controller, video),
               child: const Row(
                 children: [
-                  Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
                   SizedBox(width: 4),
                   Text(
                     'Use for AI Tools',
@@ -883,7 +974,11 @@ class MonetizationScreen extends StatelessWidget {
     );
   }
 
-  void _showUseForAiFeaturesDialog(BuildContext context, DashboardController controller, [Video? targetVideo]) {
+  void _showUseForAiFeaturesDialog(
+    BuildContext context,
+    DashboardController controller, [
+    Video? targetVideo,
+  ]) {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(24),
@@ -901,7 +996,11 @@ class MonetizationScreen extends StatelessWidget {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                       SizedBox(width: 8),
                       Text(
                         'Spend Revenue on AI Features',
@@ -914,7 +1013,10 @@ class MonetizationScreen extends StatelessWidget {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.textSecondary,
+                    ),
                     onPressed: Get.back,
                   ),
                 ],
@@ -924,13 +1026,17 @@ class MonetizationScreen extends StatelessWidget {
                 targetVideo != null
                     ? 'Use accumulated channel revenue for: ${targetVideo.title}'
                     : 'Use accumulated channel revenue for AI tools even before 10 hours watch time!',
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 20),
               _buildAiFeatureOption(
                 icon: Icons.subtitles_rounded,
                 title: 'AI Subtitles & Captions',
-                description: 'Generate automatic synchronized closed-captions and subtitles.',
+                description:
+                    'Generate automatic synchronized closed-captions and subtitles.',
                 costText: 'Included with Channel Revenue',
                 onSelect: () {
                   Get.back();
@@ -947,7 +1053,8 @@ class MonetizationScreen extends StatelessWidget {
               _buildAiFeatureOption(
                 icon: Icons.translate_rounded,
                 title: 'AI Multilingual Dubbing',
-                description: 'Dub video voiceover into over 30 languages automatically.',
+                description:
+                    'Dub video voiceover into over 30 languages automatically.',
                 costText: 'Included with Channel Revenue',
                 onSelect: () {
                   Get.back();
@@ -964,7 +1071,8 @@ class MonetizationScreen extends StatelessWidget {
               _buildAiFeatureOption(
                 icon: Icons.video_library_rounded,
                 title: 'AI Chapters & Metadata',
-                description: 'Auto-generate smart video chapters, tags, and summary.',
+                description:
+                    'Auto-generate smart video chapters, tags, and summary.',
                 costText: 'Included with Channel Revenue',
                 onSelect: () {
                   Get.back();
@@ -1022,7 +1130,10 @@ class MonetizationScreen extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               description,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1035,7 +1146,11 @@ class MonetizationScreen extends StatelessWidget {
             ),
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 14,
+          color: AppColors.textSecondary,
+        ),
         onTap: onSelect,
       ),
     );

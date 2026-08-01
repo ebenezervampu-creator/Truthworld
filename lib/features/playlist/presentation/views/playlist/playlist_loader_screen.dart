@@ -83,7 +83,7 @@ class PlaylistLoaderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(PlaylistLoaderController());
+    final controller = Get.find<PlaylistLoaderController>();
 
     return Obx(
       () => DeepLinkLoaderWidget(

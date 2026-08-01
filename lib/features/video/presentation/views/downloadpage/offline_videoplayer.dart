@@ -17,7 +17,7 @@ class OfflineVideoPlayerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(OfflineVideoController());
+    final controller = Get.find<OfflineVideoController>();
     controller.videoId = videoId;
     // Load video data once
     WidgetsBinding.instance.addPostFrameCallback((_) {

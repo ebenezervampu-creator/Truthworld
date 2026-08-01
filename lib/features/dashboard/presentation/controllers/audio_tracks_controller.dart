@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -202,7 +203,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     }
 
     _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .where('ownerId', isEqualTo: user.uid)
         .limit(1)
         .get()
@@ -270,7 +271,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
     if (targetOwnerId.isNotEmpty) {
       _videosSubscription = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('ownerId', isEqualTo: targetOwnerId)
           .snapshots()
           .listen(
@@ -297,7 +298,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
     if (targetChannelId.isNotEmpty && targetChannelId != targetOwnerId) {
       _channelVideosSubscription = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: targetChannelId)
           .snapshots()
           .listen(
@@ -390,7 +391,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     _requestsSubscription?.cancel();
     isLoadingRequests.value = true;
     _requestsSubscription = _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('language_requests')
         .snapshots()
@@ -530,7 +531,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
 
       // Save to media/localization subcollection
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('localization')
@@ -645,7 +646,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         updatedAudioMap[langCode] = downloadUrl;
 
         await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(video.id)
             .collection('media')
             .doc('localization')
@@ -667,7 +668,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         updatedDubbedMap[langCode] = downloadUrl;
 
         await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(video.id)
             .collection('media')
             .doc('localization')
@@ -835,7 +836,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       uploadStatus.value = 'Saving references to cloud...';
 
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('localization')
@@ -901,7 +902,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       updatedCommentaryMap.remove(trackId);
 
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('localization')
@@ -984,7 +985,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       updatedAudioMap[langCode] = downloadUrl;
 
       await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('media')
           .doc('localization')
@@ -1050,7 +1051,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     }
 
     await _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(video.id)
         .collection('media')
         .doc('localization')

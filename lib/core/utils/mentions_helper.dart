@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -44,7 +45,7 @@ class MentionsHelper {
     for (final handle in handles) {
       try {
         final querySnap = await FirebaseFirestore.instance
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .where('handleLowercase', isEqualTo: handle)
             .limit(1)
             .get();

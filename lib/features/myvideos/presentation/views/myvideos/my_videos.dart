@@ -147,7 +147,7 @@ class MyVideos extends StatefulWidget {
 }
 
 class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
-  final controller = Get.put(MyVideosController());
+  final controller = Get.find<MyVideosController>();
 
   @override
   Widget build(BuildContext context) {

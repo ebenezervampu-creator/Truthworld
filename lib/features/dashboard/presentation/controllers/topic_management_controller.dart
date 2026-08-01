@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -98,7 +99,7 @@ class TopicManagementController extends GetxController {
 
   Stream<List<Topic>> fetchChannelTopics(String channelId) {
     return _firestore
-        .collection('topics')
+        .collection(FirestoreCollections.topics)
         .where('channelId', isEqualTo: channelId)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -112,14 +113,14 @@ class TopicManagementController extends GetxController {
   ) async {
     try {
       final rootQuery = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: channelId)
           .get();
 
       final subQuery = await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .get();
 
       final videos = <Map<String, dynamic>>[];
@@ -167,7 +168,7 @@ class TopicManagementController extends GetxController {
     try {
       // 1. Verify channel has at least one uploaded video
       final channelDoc = await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .get();
       var videoCount = 0;
@@ -178,15 +179,15 @@ class TopicManagementController extends GetxController {
       if (videoCount < 1) {
         // Double-check fallback: scan videos collection directly in case of sync delay
         final rootVideosSnap = await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .limit(1)
             .get();
 
         final channelVideosSubSnap = await _firestore
-            .collection('channels')
+            .collection(FirestoreCollections.channels)
             .doc(channelId)
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .limit(1)
             .get();
 
@@ -227,7 +228,7 @@ class TopicManagementController extends GetxController {
 
       // Check if handle is already taken
       final existingHandle = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .where('handleLowercase', isEqualTo: finalHandleLowercase)
           .limit(1)
           .get();
@@ -248,7 +249,7 @@ class TopicManagementController extends GetxController {
           .replaceAll(RegExp(r'\s+'), '-');
 
       final existingSlug = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .where('slug', isEqualTo: slug)
           .limit(1)
           .get();
@@ -258,7 +259,9 @@ class TopicManagementController extends GetxController {
         finalSlug = '$slug-${const Uuid().v4().substring(0, 6)}';
       }
 
-      final newTopicRef = _firestore.collection('topics').doc();
+      final newTopicRef = _firestore
+          .collection(FirestoreCollections.topics)
+          .doc();
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
       final topic = Topic(
@@ -286,7 +289,9 @@ class TopicManagementController extends GetxController {
       if (selectedVideoIds.isNotEmpty) {
         final batch = _firestore.batch();
         for (final videoId in selectedVideoIds) {
-          final videoRef = _firestore.collection('videos').doc(videoId);
+          final videoRef = _firestore
+              .collection(FirestoreCollections.videos)
+              .doc(videoId);
           batch.update(videoRef, {
             'topicId': finalSlug,
             'topics': [finalSlug],
@@ -314,7 +319,7 @@ class TopicManagementController extends GetxController {
   Future<List<String>> fetchTopicVideos(String topicSlug) async {
     try {
       final snap = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('topicId', isEqualTo: topicSlug)
           .get();
       return snap.docs.map((doc) => doc.id).toList();
@@ -349,7 +354,7 @@ class TopicManagementController extends GetxController {
       );
 
       await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topic.id)
           .update(updatedTopic.toMap());
 
@@ -360,7 +365,9 @@ class TopicManagementController extends GetxController {
       // Videos that were unlinked: remove topicId and topics entry
       for (final videoId in currentLinkedVideos) {
         if (!selectedVideoIds.contains(videoId)) {
-          final videoRef = _firestore.collection('videos').doc(videoId);
+          final videoRef = _firestore
+              .collection(FirestoreCollections.videos)
+              .doc(videoId);
           batch.update(videoRef, {
             'topicId': FieldValue.delete(),
             'topics': FieldValue.arrayRemove([topic.slug]),
@@ -371,7 +378,9 @@ class TopicManagementController extends GetxController {
       // Videos that were newly linked: set topicId and topics entry
       for (final videoId in selectedVideoIds) {
         if (!currentLinkedVideos.contains(videoId)) {
-          final videoRef = _firestore.collection('videos').doc(videoId);
+          final videoRef = _firestore
+              .collection(FirestoreCollections.videos)
+              .doc(videoId);
           batch.update(videoRef, {
             'topicId': topic.slug,
             'topics': FieldValue.arrayUnion([topic.slug]),
@@ -399,11 +408,14 @@ class TopicManagementController extends GetxController {
 
   Future<void> deleteTopic(Topic topic) async {
     try {
-      await _firestore.collection('topics').doc(topic.id).update({
-        'status': 'deletion_pending',
-        'visibilityType': 'private',
-        'deletionRequestedAt': FieldValue.serverTimestamp(),
-      });
+      await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topic.id)
+          .update({
+            'status': 'deletion_pending',
+            'visibilityType': 'private',
+            'deletionRequestedAt': FieldValue.serverTimestamp(),
+          });
       topicsList.removeWhere((t) => t.id == topic.id);
       AppSnackbar.show(
         'Success',

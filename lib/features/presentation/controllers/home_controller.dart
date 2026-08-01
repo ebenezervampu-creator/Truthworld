@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -412,7 +413,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   /// Build base query for current category
   Query _buildCategoryQuery() {
     Query query = _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('visibility', isEqualTo: 'Public')
         .orderBy('uploadedAt', descending: true);
 
@@ -427,7 +428,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   /// Fetch public videos (helper for carousel)
   Future<List<Video>> _fetchPublicVideos({int limit = 10}) async {
     final results = await _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('visibility', isEqualTo: 'Public')
         .orderBy('uploadedAt', descending: true)
         .limit(limit)
@@ -442,7 +443,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     int limit = 10,
   }) async {
     final results = await _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('visibility', isEqualTo: 'Public')
         .where('category', isEqualTo: category)
         .limit(limit)

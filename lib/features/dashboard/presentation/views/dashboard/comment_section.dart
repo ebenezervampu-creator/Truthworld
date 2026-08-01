@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // studio_comments_module.dart
@@ -185,7 +186,7 @@ class StudioCommentsController extends GetxController {
     if (userId.isEmpty) return;
     try {
       final snap = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('comment_interactions')
           .get();
@@ -214,7 +215,7 @@ class StudioCommentsController extends GetxController {
       comments.clear();
 
       final videosSnapshot = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: channelId)
           .get();
 
@@ -231,7 +232,7 @@ class StudioCommentsController extends GetxController {
         final videoData = videoDoc.data();
 
         final commentsSnapshot = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(videoDoc.id)
             .collection('comments')
             .orderBy('createdAt', descending: true)
@@ -363,7 +364,7 @@ class StudioCommentsController extends GetxController {
     if (text.trim().isEmpty) return;
 
     final ref = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('comments')
         .doc(commentId)
@@ -383,7 +384,7 @@ class StudioCommentsController extends GetxController {
 
   Future<void> deleteComment(String videoId, String commentId) async {
     await FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('comments')
         .doc(commentId)
@@ -398,7 +399,7 @@ class StudioCommentsController extends GetxController {
     DateTime until,
   ) async {
     await FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('comments')
         .doc(commentId)
@@ -493,7 +494,7 @@ class ReplyController extends GetxController {
     try {
       isLoading.value = true;
       final snapshot = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .collection('comments')
           .doc(commentId)
@@ -512,7 +513,7 @@ class ReplyController extends GetxController {
   Future<void> updateReply(String replyId, String newText) async {
     if (newText.trim().isEmpty) return;
     await FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('comments')
         .doc(commentId)
@@ -524,7 +525,7 @@ class ReplyController extends GetxController {
 
   Future<void> deleteReply(String replyId) async {
     await FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('comments')
         .doc(commentId)

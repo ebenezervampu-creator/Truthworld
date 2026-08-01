@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -68,7 +69,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
   Stream<List<ChannelMembershipTier>> _tiersStream() {
     if (activeChannelId.isEmpty) return const Stream.empty();
     return _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .doc(activeChannelId)
         .collection('membership_tiers')
         .snapshots()
@@ -577,7 +578,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
 
     for (final tier in defaultTiers) {
       await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(activeChannelId)
           .collection('membership_tiers')
           .doc(tier.id)
@@ -698,7 +699,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
               if (name.isEmpty) return;
 
               final docRef = _firestore
-                  .collection('channels')
+                  .collection(FirestoreCollections.channels)
                   .doc(activeChannelId)
                   .collection('membership_tiers')
                   .doc();
@@ -808,7 +809,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                   .toList();
 
               await _firestore
-                  .collection('channels')
+                  .collection(FirestoreCollections.channels)
                   .doc(activeChannelId)
                   .collection('membership_tiers')
                   .doc(tier.id)
@@ -840,7 +841,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
 
   Future<void> _deleteTier(String tierId) async {
     await _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .doc(activeChannelId)
         .collection('membership_tiers')
         .doc(tierId)

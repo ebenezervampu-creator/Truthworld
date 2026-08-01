@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -311,12 +312,12 @@ class MainController extends BaseController {
     try {
       final videoRef = _firestore.collection(_videosCollection).doc(videoId);
       final userLikedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('likedVideos')
           .doc(videoId);
       final userDislikedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('dislikedVideos')
           .doc(videoId);
@@ -379,12 +380,12 @@ class MainController extends BaseController {
     try {
       final videoRef = _firestore.collection(_videosCollection).doc(videoId);
       final userLikedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('likedVideos')
           .doc(videoId);
       final userDislikedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('dislikedVideos')
           .doc(videoId);
@@ -650,7 +651,10 @@ class MainController extends BaseController {
     try {
       // Get creator name (could be optimized by caching channel name)
       var creatorName = 'Creator';
-      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userDoc = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .get();
       if (userDoc.exists) {
         creatorName = userDoc.data()?['name'] ?? 'Creator';
       }

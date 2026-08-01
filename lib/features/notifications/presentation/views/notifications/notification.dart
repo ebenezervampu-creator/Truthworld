@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -67,8 +68,8 @@ class VideoFeedNotificationScreen extends StatefulWidget {
 class _VideoFeedNotificationScreenState
     extends State<VideoFeedNotificationScreen>
     with TickerProviderStateMixin {
-  final controller = Get.put(VideoFeedNotificationController());
-  final userNotificationController = Get.put(UserNotificationController());
+  final controller = Get.find<VideoFeedNotificationController>();
+  final userNotificationController = Get.find<UserNotificationController>();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -645,7 +646,7 @@ class _VideoFeedNotificationScreenState
           try {
             if (item.video != null) {
               await FirebaseFirestore.instance
-                  .collection('users')
+                  .collection(FirestoreCollections.users)
                   .doc(userId)
                   .collection('feed_inbox')
                   .doc(item.video!.id)
@@ -1119,7 +1120,7 @@ class _DynamicAvatarController extends GetxController {
   Future<String> _performFetch(String targetId) async {
     // Check if channel exists
     final channelDoc = await FirebaseFirestore.instance
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .doc(targetId)
         .get();
 
@@ -1135,7 +1136,7 @@ class _DynamicAvatarController extends GetxController {
 
     // Check user document
     final userDoc = await FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(targetId)
         .get();
 
@@ -1145,7 +1146,7 @@ class _DynamicAvatarController extends GetxController {
         final userChannelId = userData['channelId'] as String?;
         if (userChannelId != null && userChannelId.isNotEmpty) {
           final userChannelDoc = await FirebaseFirestore.instance
-              .collection('channels')
+              .collection(FirestoreCollections.channels)
               .doc(userChannelId)
               .get();
           if (userChannelDoc.exists) {
@@ -1160,7 +1161,7 @@ class _DynamicAvatarController extends GetxController {
           return '';
         } else {
           final channelsQuery = await FirebaseFirestore.instance
-              .collection('channels')
+              .collection(FirestoreCollections.channels)
               .where('ownerId', isEqualTo: targetId)
               .limit(1)
               .get();

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -44,7 +45,7 @@ class MyVideosController extends GetxController {
     }
 
     Query query = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('ownerId', isEqualTo: currentUser.uid);
 
     // SERVER-SIDE SORTING: Requires composite indexes (ownerId + field)
@@ -113,7 +114,7 @@ class MyVideosController extends GetxController {
     try {
       final newVisibility = video.visibility == 'public' ? 'private' : 'public';
       await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .update({'visibility': newVisibility});
 
@@ -148,7 +149,7 @@ class MyVideosController extends GetxController {
   Future<void> deleteVideo(Video video) async {
     try {
       await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .delete();
       Get.snackbar(

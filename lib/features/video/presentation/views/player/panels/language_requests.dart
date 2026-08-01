@@ -80,7 +80,7 @@ class LanguageRequestsList extends StatelessWidget {
             final vc = Get.find<VideoController>(tag: tag);
             vc.rxVideo.value;
             final reqs = vc.languageRequests
-                .where((r) => r.type == type)
+                .where((r) => r != null && r.type == type)
                 .toList();
             if (vc.isLoadingLanguageRequests.value) {
               return Shimmer.fromColors(

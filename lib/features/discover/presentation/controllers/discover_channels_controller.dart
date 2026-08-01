@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -80,7 +81,7 @@ class DiscoverChannelsController extends GetxController {
     isLoading.value = true;
     try {
       Query query = _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .where('status', isEqualTo: 'active');
 
       if (selectedCategory.value != 'All') {

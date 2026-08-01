@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -389,7 +390,7 @@ class AdminController extends GetxController {
 
     // 1. Monitor videos collection
     _videosSub = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
@@ -465,7 +466,7 @@ class AdminController extends GetxController {
 
     // 4. Monitor channels collection
     _channelsSub = FirebaseFirestore.instance
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .limit(100)
         .snapshots()
         .listen(
@@ -511,7 +512,7 @@ class AdminController extends GetxController {
 
     // 5. Monitor reports collection
     _reportsSub = FirebaseFirestore.instance
-        .collection('reports')
+        .collection(FirestoreCollections.reports)
         .limit(100)
         .snapshots()
         .listen(
@@ -730,7 +731,7 @@ class AdminController extends GetxController {
 
       // Update the channel document in Firestore directly
       await FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(channelId)
           .update({
             'status': status,
@@ -1337,7 +1338,7 @@ class AdminController extends GetxController {
     isActionSubmitting.value = true;
     try {
       final reportRef = FirebaseFirestore.instance
-          .collection('reports')
+          .collection(FirestoreCollections.reports)
           .doc(reportId);
       final reportSnap = await reportRef.get();
       if (!reportSnap.exists) {

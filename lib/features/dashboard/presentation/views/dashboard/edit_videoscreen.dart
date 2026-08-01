@@ -23,9 +23,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final VideoManagementController _controller =
-      Get.isRegistered<VideoManagementController>()
-      ? Get.find<VideoManagementController>()
-      : Get.put(VideoManagementController());
+      Get.find<VideoManagementController>();
 
   @override
   void initState() {

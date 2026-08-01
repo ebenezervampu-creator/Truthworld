@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -153,7 +154,7 @@ class SubscriptionController extends GetxController {
       // 1. Primary: Root subscriptions collection
       try {
         final snapshot = await _firestore
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .where('userId', isEqualTo: uid)
             .get();
 
@@ -172,7 +173,7 @@ class SubscriptionController extends GetxController {
       // 2. Alternative: Subscriptions doc subcollection (subscriptions/{uid}/list)
       try {
         final snapshot = await _firestore
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .doc(uid)
             .collection('list')
             .get();
@@ -191,7 +192,7 @@ class SubscriptionController extends GetxController {
         final snapshot = await _firestore
             .collection('userCache')
             .doc(uid)
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .get();
 
         for (final doc in snapshot.docs) {
@@ -206,9 +207,9 @@ class SubscriptionController extends GetxController {
       // 4. Alternative: users subcollection (users/{uid}/subscriptions)
       try {
         final snapshot = await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(uid)
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .get();
 
         for (final doc in snapshot.docs) {
@@ -244,7 +245,7 @@ class SubscriptionController extends GetxController {
         batchFutures.add(() async {
           try {
             final snapshot = await _firestore
-                .collection('channels')
+                .collection(FirestoreCollections.channels)
                 .where(FieldPath.documentId, whereIn: batch)
                 .get();
             return snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
@@ -336,7 +337,7 @@ class SubscriptionController extends GetxController {
       // Attempt 1: Fetch channel batch without fragile multi-field composite index constraints
       try {
         final snapshot = await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('channelId', whereIn: batch)
             .limit(50)
             .get();
@@ -348,7 +349,7 @@ class SubscriptionController extends GetxController {
         for (final cid in batch) {
           try {
             final snap = await _firestore
-                .collection('videos')
+                .collection(FirestoreCollections.videos)
                 .where('channelId', isEqualTo: cid)
                 .limit(20)
                 .get();
@@ -391,7 +392,7 @@ class SubscriptionController extends GetxController {
 
       try {
         final snapshot = await _firestore
-            .collection('playlists')
+            .collection(FirestoreCollections.playlists)
             .where('channelId', whereIn: batch)
             .where('isPublic', isEqualTo: true)
             .limit(30)
@@ -402,7 +403,7 @@ class SubscriptionController extends GetxController {
         for (final cid in batch) {
           try {
             final snap = await _firestore
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .where('channelId', isEqualTo: cid)
                 .where('isPublic', isEqualTo: true)
                 .limit(10)
@@ -444,7 +445,7 @@ class SubscriptionController extends GetxController {
 
       try {
         final snapshot = await _firestore
-            .collection('Community')
+            .collection(FirestoreCollections.community)
             .where('channelId', whereIn: batch)
             .limit(30)
             .get();
@@ -456,7 +457,7 @@ class SubscriptionController extends GetxController {
         for (final cid in batch) {
           try {
             final snap = await _firestore
-                .collection('Community')
+                .collection(FirestoreCollections.community)
                 .where('channelId', isEqualTo: cid)
                 .limit(10)
                 .get();
@@ -666,8 +667,12 @@ class SubscriptionController extends GetxController {
 
       // YouTube-standard: deterministic doc ID for dedup + atomic count
       final subDocId = '${channelId}_$currentUserId';
-      final subRef = _firestore.collection('subscriptions').doc(subDocId);
-      final channelRef = _firestore.collection('channels').doc(channelId);
+      final subRef = _firestore
+          .collection(FirestoreCollections.subscriptions)
+          .doc(subDocId);
+      final channelRef = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId);
 
       await _firestore.runTransaction((tx) async {
         final existing = await tx.get(subRef);
@@ -708,8 +713,12 @@ class SubscriptionController extends GetxController {
     try {
       // Try deterministic ID first (new standard)
       final subDocId = '${channelId}_$currentUserId';
-      final subRef = _firestore.collection('subscriptions').doc(subDocId);
-      final channelRef = _firestore.collection('channels').doc(channelId);
+      final subRef = _firestore
+          .collection(FirestoreCollections.subscriptions)
+          .doc(subDocId);
+      final channelRef = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId);
 
       final subDoc = await subRef.get();
       if (subDoc.exists) {
@@ -724,7 +733,7 @@ class SubscriptionController extends GetxController {
       } else {
         // Fallback: query for legacy auto-generated ID docs
         final snapshot = await _firestore
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .where('userId', isEqualTo: currentUserId)
             .where('channelId', isEqualTo: channelId)
             .get();

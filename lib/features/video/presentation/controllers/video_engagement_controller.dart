@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -9,11 +10,15 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 class LanguageRequest {
   final String id;
   final String language;
+  final String type;
+  final dynamic createdAt;
   final int count;
 
   LanguageRequest({
     required this.id,
     required this.language,
+    this.type = '',
+    this.createdAt,
     required this.count,
   });
 
@@ -21,6 +26,8 @@ class LanguageRequest {
     return LanguageRequest(
       id: id,
       language: map['language'] as String? ?? '',
+      type: map['type'] as String? ?? '',
+      createdAt: map['createdAt'],
       count: (map['count'] as num?)?.toInt() ?? 0,
     );
   }
@@ -44,19 +51,19 @@ class VideoEngagementController extends BaseController {
     try {
       final futures = await Future.wait([
         _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(videoId)
             .collection('likes')
             .doc(userId)
             .getCacheFirst(),
         _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(videoId)
             .collection('dislikes')
             .doc(userId)
             .getCacheFirst(),
         _firestore
-            .collection('subscriptions')
+            .collection(FirestoreCollections.subscriptions)
             .doc('${channelId}_$userId')
             .getCacheFirst(),
       ]);
@@ -167,7 +174,7 @@ class VideoEngagementController extends BaseController {
     if (videoId.isEmpty) return;
     isLoadingLanguageRequests.value = true;
     _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(videoId)
         .collection('language_requests')
         .get()

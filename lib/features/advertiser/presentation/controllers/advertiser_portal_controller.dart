@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -77,7 +78,7 @@ class AdvertiserPortalController extends GetxController {
 
     try {
       final snap = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: channelId)
           .where('visibility', isEqualTo: 'public')
           .limit(10)

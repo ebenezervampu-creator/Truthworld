@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -89,9 +90,7 @@ class WatchHistorySettingsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.isRegistered<WatchHistoryController>()
-        ? Get.find<WatchHistoryController>()
-        : Get.put(WatchHistoryController());
+    final controller = Get.find<WatchHistoryController>();
 
     return Theme(
       data: _getSettingsTheme(context),
@@ -746,7 +745,7 @@ class SettingsScreen extends StatelessWidget {
                       final newLocation = locationCtrl.text.trim();
 
                       await FirebaseFirestore.instance
-                          .collection('users')
+                          .collection(FirestoreCollections.users)
                           .doc(uid)
                           .set({
                             'displayName': newName,
@@ -759,7 +758,7 @@ class SettingsScreen extends StatelessWidget {
 
                       if (auth.hasChannel.value && auth.userChannel != null) {
                         await FirebaseFirestore.instance
-                            .collection('channels')
+                            .collection(FirestoreCollections.channels)
                             .doc(auth.userChannel!.id)
                             .update({
                               'name': newName,
@@ -869,7 +868,7 @@ class SettingsScreen extends StatelessWidget {
                 if (uid.isNotEmpty) {
                   try {
                     await FirebaseFirestore.instance
-                        .collection('users')
+                        .collection(FirestoreCollections.users)
                         .doc(uid)
                         .update({
                           'status': 'deactivated',

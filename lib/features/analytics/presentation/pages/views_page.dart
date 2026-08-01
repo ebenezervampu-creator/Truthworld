@@ -13,7 +13,7 @@ class ViewsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(CreatorAnalyticsController());
+    final controller = Get.find<CreatorAnalyticsController>();
     final args = Get.arguments as Map<String, dynamic>? ?? {};
     final channelId = args['channelId'] as String? ?? '';
     final videoId = args['videoId'] as String? ?? '';

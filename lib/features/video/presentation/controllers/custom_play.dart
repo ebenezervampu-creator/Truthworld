@@ -55,6 +55,31 @@ import 'package:video_player/video_player.dart';
 // PLAYER CONTROLLER  (Industry-standard state machine)
 // ─────────────────────────────────────────────────────────────────────────────
 class TowerPlayerController extends GetxController {
+  static final RxString globalSubtitleFontSizeOption = 'Normal'.obs;
+  static final Rx<Color> globalSubtitleTextColor = Colors.white.obs;
+  static final Rx<Color> globalSubtitleBgColor = Colors.black.obs;
+  static final RxDouble globalSubtitleBgOpacity = 0.75.obs;
+  static final RxString globalSubtitleEdgeStyle = 'Drop Shadow'.obs;
+  static final RxString globalSubtitleFontFamily = 'Roboto'.obs;
+
+  static TextStyle getSubtitleTextStyle({
+    required String fontFamily,
+    required Color color,
+    required double fontSize,
+    required FontWeight fontWeight,
+    double height = 1.2,
+    List<Shadow> shadows = const [],
+  }) {
+    return TextStyle(
+      fontFamily: fontFamily,
+      color: color,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      height: height,
+      shadows: shadows,
+    );
+  }
+
   TowerPlayerController({
     required this.videoPlayerController,
     required this.chewieController,
@@ -312,9 +337,7 @@ class TowerPlayerController extends GetxController {
   }
 
   void _initAudioService() {
-    _audioService = Get.isRegistered<AudioOnlyService>()
-        ? Get.find<AudioOnlyService>()
-        : Get.put(AudioOnlyService());
+    _audioService = Get.find<AudioOnlyService>();
 
     _audioService!.setCallbacks(
       onNext: playNext,

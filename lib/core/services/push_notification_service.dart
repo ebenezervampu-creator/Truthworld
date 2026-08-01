@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -12,6 +13,9 @@ import 'package:uuid/uuid.dart';
 
 class PushNotificationService extends GetxService {
   static PushNotificationService get to => Get.find<PushNotificationService>();
+
+  StreamSubscription? _onMessageSubscription;
+  StreamSubscription? _onMessageOpenedAppSubscription;
 
   /// Safe async initialization of FCM configuration and deep-link click handlers
   Future<PushNotificationService> init() async {
@@ -34,10 +38,11 @@ class PushNotificationService extends GetxService {
       }
 
       // 2. Deep-linking when app is resumed from background state
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationClick);
+      _onMessageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp
+          .listen(_handleNotificationClick);
 
       // 3. Listen to notifications received while the app is in the foreground
-      FirebaseMessaging.onMessage.listen((message) {
+      _onMessageSubscription = FirebaseMessaging.onMessage.listen((message) {
         logger.info(
           'Received push notification in foreground: ${message.notification?.title}',
           tag: 'PUSH_NOTIFICATIONS',
@@ -102,11 +107,14 @@ class PushNotificationService extends GetxService {
       final box = GetStorage();
       final deviceId = box.read('device_id') as String? ?? '';
       if (deviceId.isNotEmpty) {
-        await FirebaseFirestore.instance.collection('users').doc(userId).update(
-          {
-            'fcmTokens.$deviceId': FieldValue.delete(),
-          },
-        );
+        await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(userId)
+            .update(
+              {
+                'fcmTokens.$deviceId': FieldValue.delete(),
+              },
+            );
         logger.info(
           'FCM token unregistered for device: $deviceId',
           tag: 'PUSH_NOTIFICATIONS',
@@ -130,17 +138,20 @@ class PushNotificationService extends GetxService {
         box.write('device_id', deviceId);
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        'fcmTokens': {
-          deviceId: {
-            'token': token,
-            'platform': GetPlatform.isWeb
-                ? 'web'
-                : (GetPlatform.isAndroid ? 'android' : 'ios'),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-        },
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(userId)
+          .set({
+            'fcmTokens': {
+              deviceId: {
+                'token': token,
+                'platform': GetPlatform.isWeb
+                    ? 'web'
+                    : (GetPlatform.isAndroid ? 'android' : 'ios'),
+                'updatedAt': FieldValue.serverTimestamp(),
+              },
+            },
+          }, SetOptions(merge: true));
       logger.info(
         'FCM token successfully registered to Firestore for device $deviceId',
         tag: 'PUSH_NOTIFICATIONS',
@@ -234,5 +245,12 @@ class PushNotificationService extends GetxService {
       duration: const Duration(seconds: 4),
       onTap: (_) => _handleNotificationClick(message),
     );
+  }
+
+  @override
+  void onClose() {
+    _onMessageSubscription?.cancel();
+    _onMessageOpenedAppSubscription?.cancel();
+    super.onClose();
   }
 }

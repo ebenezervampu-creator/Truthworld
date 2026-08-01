@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -652,7 +653,7 @@ class CreatorAnalyticsController extends GetxController {
   Future<void> fetchChannelVideos(String channelId) async {
     try {
       final snapshot = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('channelId', isEqualTo: channelId)
           .orderBy('viewCount', descending: true)
           .limit(50)

@@ -13,7 +13,7 @@ import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_uti
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ContentScreen extends StatelessWidget {
+class ContentScreen extends StatefulWidget {
   const ContentScreen({
     required this.channelId,
     required this.isDarkMode,
@@ -26,11 +26,24 @@ class ContentScreen extends StatelessWidget {
   final String searchQuery;
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.isRegistered<VideoManagementController>()
+  State<ContentScreen> createState() => _ContentScreenState();
+}
+
+class _ContentScreenState extends State<ContentScreen> {
+  late final VideoManagementController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.isRegistered<VideoManagementController>()
         ? Get.find<VideoManagementController>()
         : Get.put(VideoManagementController());
+    controller.listenToChannelVideos(widget.channelId);
+    controller.listenToCommunityPosts(widget.channelId);
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -66,7 +79,7 @@ class ContentScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            _buildVideosTab(context, controller),
+            _buildVideosTab(context),
             _buildPostsTab(context),
           ],
         ),
@@ -74,187 +87,164 @@ class ContentScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVideosTab(
-    BuildContext context,
-    VideoManagementController controller,
-  ) {
-    return StreamBuilder<List<Video>>(
-      stream: controller.fetchChannelVideos(channelId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.brand,
-            ),
-          );
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
-            ),
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.videocam_off_outlined,
-                  size: 72,
-                  color: AppColors.textTertiary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No Content Yet',
-                  style: AppTextStyles.pageTitle.copyWith(
-                    fontSize: 20,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Upload your first video to get started!',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        var videos = snapshot.data!;
-
-        // Filter videos based on search query
-        if (searchQuery.isNotEmpty) {
-          final query = searchQuery.toLowerCase();
-          videos = videos
-              .where(
-                (video) =>
-                    video.title.toLowerCase().contains(query) ||
-                    video.description.toLowerCase().contains(query) ||
-                    video.tags.any(
-                      (tag) => tag.toLowerCase().contains(query),
-                    ),
-              )
-              .toList();
-        }
-
-        if (videos.isEmpty && searchQuery.isNotEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.search_off_rounded,
-                  size: 72,
-                  color: AppColors.textTertiary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No matching content found',
-                  style: AppTextStyles.titleLarge.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Try searching with different keywords',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          itemCount: videos.length,
-          itemBuilder: (context, index) {
-            final video = videos[index];
-            return _buildVideoContentCard(context, video, controller);
-          },
+  Widget _buildVideosTab(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoadingChannelVideos.value) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.brand,
+          ),
         );
-      },
-    );
+      }
+      if (controller.channelVideosError.value.isNotEmpty) {
+        return Center(
+          child: Text(
+            'Error: ${controller.channelVideosError.value}',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+          ),
+        );
+      }
+      if (controller.channelVideos.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.videocam_off_outlined,
+                size: 72,
+                color: AppColors.textTertiary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No Content Yet',
+                style: AppTextStyles.pageTitle.copyWith(
+                  fontSize: 20,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Upload your first video to get started!',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      var videos = controller.channelVideos.toList();
+
+      // Filter videos based on search query
+      if (widget.searchQuery.isNotEmpty) {
+        final query = widget.searchQuery.toLowerCase();
+        videos = videos
+            .where(
+              (video) =>
+                  video.title.toLowerCase().contains(query) ||
+                  video.description.toLowerCase().contains(query) ||
+                  video.tags.any(
+                    (tag) => tag.toLowerCase().contains(query),
+                  ),
+            )
+            .toList();
+      }
+
+      if (videos.isEmpty && widget.searchQuery.isNotEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.search_off_rounded,
+                size: 72,
+                color: AppColors.textTertiary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No matching content found',
+                style: AppTextStyles.titleLarge.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try searching with different keywords',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        itemCount: videos.length,
+        itemBuilder: (context, index) {
+          final video = videos[index];
+          return _buildVideoContentCard(context, video, controller);
+        },
+      );
+    });
   }
 
   Widget _buildPostsTab(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('Community')
-          .where('channelId', isEqualTo: channelId)
-          .where(
-            'ownerId',
-            isEqualTo: FirebaseAuth.instance.currentUser?.uid ?? '',
-          )
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.brand,
-            ),
-          );
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
-            ),
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildNoPostsYetWidget();
-        }
+    return Obx(() {
+      if (controller.isLoadingPosts.value) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.brand,
+          ),
+        );
+      }
+      if (controller.postsError.value.isNotEmpty) {
+        return Center(
+          child: Text(
+            'Error: ${controller.postsError.value}',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+          ),
+        );
+      }
+      if (controller.communityPosts.isEmpty) {
+        return _buildNoPostsYetWidget();
+      }
 
-        final docs = snapshot.data!.docs;
-        var posts = docs
-            .map(
-              (doc) => CommunityPostModel.fromMap(
-                doc.data()! as Map<String, dynamic>,
-              ),
+      var posts = controller.communityPosts.toList();
+
+      // Filter posts based on search query
+      if (widget.searchQuery.isNotEmpty) {
+        final query = widget.searchQuery.toLowerCase();
+        posts = posts
+            .where(
+              (post) =>
+                  post.title.toLowerCase().contains(query) ||
+                  post.description.toLowerCase().contains(query),
             )
             .toList();
+      }
 
-        // Filter posts based on search query
-        if (searchQuery.isNotEmpty) {
-          final query = searchQuery.toLowerCase();
-          posts = posts
-              .where(
-                (post) =>
-                    post.title.toLowerCase().contains(query) ||
-                    post.description.toLowerCase().contains(query),
-              )
-              .toList();
-        }
+      if (posts.isEmpty && widget.searchQuery.isNotEmpty) {
+        return _buildNoPostsYetWidget(isSearchFiltered: true);
+      }
 
-        if (posts.isEmpty && searchQuery.isNotEmpty) {
-          return _buildNoPostsYetWidget(isSearchFiltered: true);
-        }
+      // Sort posts chronologically descending
+      posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
 
-        // Sort posts chronologically descending
-        posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
-
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 24),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final post = posts[index];
-            return CommunityPostCard(
-              key: ValueKey(post.id),
-              post: post,
-            );
-          },
-        );
-      },
-    );
+      return ListView.builder(
+        padding: const EdgeInsets.only(bottom: 24),
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          final post = posts[index];
+          return CommunityPostCard(
+            key: ValueKey(post.id),
+            post: post,
+          );
+        },
+      );
+    });
   }
 
   Widget _buildNoPostsYetWidget({bool isSearchFiltered = false}) {
@@ -420,7 +410,7 @@ class ContentScreen extends StatelessWidget {
                     Get.to<dynamic>(
                       () => VideoContentDetailsScreen(
                         video: video,
-                        isDarkMode: isDarkMode,
+                        isDarkMode: widget.isDarkMode,
                       ),
                     );
                   } else if (value == 'edit') {
@@ -682,7 +672,7 @@ class ContentScreen extends StatelessWidget {
                   ..to<dynamic>(
                     () => VideoContentDetailsScreen(
                       video: video,
-                      isDarkMode: isDarkMode,
+                      isDarkMode: widget.isDarkMode,
                     ),
                   );
               },

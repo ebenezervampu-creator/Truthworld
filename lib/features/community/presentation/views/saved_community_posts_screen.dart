@@ -20,9 +20,7 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
   @override
   void initState() {
     super.initState();
-    controller = Get.isRegistered<SavedCommunityPostsController>()
-        ? Get.find<SavedCommunityPostsController>()
-        : Get.put(SavedCommunityPostsController());
+    controller = Get.find<SavedCommunityPostsController>();
   }
 
   @override

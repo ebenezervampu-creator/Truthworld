@@ -64,7 +64,7 @@ class DownloadsPage extends StatefulWidget {
 
 class _DownloadsPageState extends State<DownloadsPage>
     with TickerProviderStateMixin {
-  final controller = Get.put(DownloadsController());
+  final controller = Get.find<DownloadsController>();
 
   @override
   Widget build(BuildContext context) {
@@ -306,9 +306,7 @@ class _DownloadsPageState extends State<DownloadsPage>
   }
 
   Widget _buildRecommendedDownloadsSection(BuildContext context) {
-    final mainController = Get.isRegistered<MainController>()
-        ? Get.find<MainController>()
-        : Get.put(MainController());
+    final mainController = Get.find<MainController>();
 
     return Obx(() {
       final allVideos = mainController.filteredVideos.isNotEmpty

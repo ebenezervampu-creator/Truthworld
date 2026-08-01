@@ -210,15 +210,25 @@ class AdService extends GetxService {
   final Set<String> _trackedImpressions = {};
   final Set<String> _trackedClicks = {};
 
+  Timer? _adRefreshTimer;
+  Worker? _authWorker;
+
   @override
   void onInit() {
     super.onInit();
     _loadFromLocalCache();
     _listenToAdCampaigns();
-    ever(AuthService.to.currentUser, (_) {
+    _authWorker = ever(AuthService.to.currentUser, (_) {
       listenToUserInteractions();
     });
     listenToUserInteractions();
+  }
+
+  @override
+  void onClose() {
+    _adRefreshTimer?.cancel();
+    _authWorker?.dispose();
+    super.onClose();
   }
 
   void _listenToAdCampaigns() {

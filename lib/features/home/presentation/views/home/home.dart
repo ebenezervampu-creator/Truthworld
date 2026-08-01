@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -955,9 +956,7 @@ class Home extends GetView<HomeController> {
   }
 
   List<Widget> _buildAppBarActions(BuildContext context, bool isMobile) {
-    final flipService = Get.isRegistered<FlipCoinService>()
-        ? Get.find<FlipCoinService>()
-        : Get.put(FlipCoinService());
+    final flipService = Get.find<FlipCoinService>();
 
     return [
       // 🪙 TRUTHWORLD FLIP COIN ("THE OTHER SIDE") BUTTON
@@ -1014,7 +1013,7 @@ class Home extends GetView<HomeController> {
   Widget _buildNotificationLogo(BuildContext context) {
     // Ensure controller is initialized
     if (!Get.isRegistered<VideoFeedNotificationController>()) {
-      Get.put(VideoFeedNotificationController());
+      Get.find<VideoFeedNotificationController>();
     }
     final controller = Get.find<VideoFeedNotificationController>();
     return Padding(
@@ -2941,7 +2940,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     if (Get.isRegistered<TopicController>()) {
       Get.find<TopicController>().topic.value = topic;
     } else {
-      Get.put(TopicController()).topic.value = topic;
+      Get.find<TopicController>().topic.value = topic;
     }
 
     Get.toNamed(
@@ -3174,7 +3173,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   }) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .doc(topic.id)
           .snapshots(),
       builder: (context, snapshot) {
@@ -3198,9 +3197,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     required bool isMobile,
     required double pageOffset,
   }) {
-    final followingController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
+    final followingController = Get.find<FollowingTopicsController>();
 
     final btnPaddingH = isMobile ? 12.0 : 20.0;
     final btnPaddingV = isMobile ? 8.0 : 12.0;
@@ -3795,7 +3792,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
     if (Get.isRegistered<TopicController>()) {
       Get.find<TopicController>().topic.value = topic;
     } else {
-      Get.put(TopicController()).topic.value = topic;
+      Get.find<TopicController>().topic.value = topic;
     }
 
     unawaited(
@@ -3854,7 +3851,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
 
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .limit(30)
             .snapshots(),
         builder: (context, snapshot) {

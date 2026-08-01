@@ -57,7 +57,7 @@ class LikedVideoScreen extends StatefulWidget {
 
 class _LikedVideoScreenState extends State<LikedVideoScreen>
     with TickerProviderStateMixin {
-  final controller = Get.put(LikedVideosController());
+  final controller = Get.find<LikedVideosController>();
 
   @override
   Widget build(BuildContext context) {

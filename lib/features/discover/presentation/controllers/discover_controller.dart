@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -191,7 +192,7 @@ class DiscoverController extends GetxController {
     isLoading.value = true;
     try {
       final snapshot = await _firestore
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .where('status', isEqualTo: 'active')
           .limit(100)
           .get();

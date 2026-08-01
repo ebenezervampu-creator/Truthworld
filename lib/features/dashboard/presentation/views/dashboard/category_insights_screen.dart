@@ -23,7 +23,7 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
   @override
   void initState() {
     super.initState();
-    controller = Get.put(CategoryInsightsController());
+    controller = Get.find<CategoryInsightsController>();
   }
 
   @override

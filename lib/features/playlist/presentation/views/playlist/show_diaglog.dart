@@ -7,8 +7,8 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-final playlistController = Get.put(PlaylistController());
-final playlistDialogController = Get.put(PlaylistDialogController());
+final playlistController = Get.find<PlaylistController>();
+final playlistDialogController = Get.find<PlaylistDialogController>();
 
 void showModernizedPlaylistDialog({
   required BuildContext context,
@@ -74,7 +74,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   @override
   void initState() {
     super.initState();
-    _dialogController = Get.put(PlaylistDialogController());
+    _dialogController = Get.find<PlaylistDialogController>();
     _initializeAnimations();
   }
 

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -40,7 +41,7 @@ class LikedVideosController extends GetxController {
     // Use reverse index subcollection for scalable queries
     // Pattern: users/{userId}/likedVideos/{videoId}
     _subscription = FirebaseFirestore.instance
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(userId)
         .collection('likedVideos')
         .orderBy('timestamp', descending: true)
@@ -80,7 +81,7 @@ class LikedVideosController extends GetxController {
       );
 
       final batchDocs = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where(FieldPath.documentId, whereIn: batch)
           .get();
 

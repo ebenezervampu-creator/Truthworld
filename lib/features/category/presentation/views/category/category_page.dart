@@ -75,7 +75,7 @@ class _CategoryPageState extends State<CategoryPage>
   @override
   void initState() {
     super.initState();
-    controller = Get.put(CategoryController());
+    controller = Get.find<CategoryController>();
     _initializeAnimations();
   }
 

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -382,7 +383,7 @@ class CategoryController extends GetxController {
 
   Stream<QuerySnapshot> get featuredStream {
     Query query = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('category', isEqualTo: category)
         .where('visibility', isEqualTo: 'Public');
     if (selectedGenre.value != 'All') {
@@ -393,7 +394,7 @@ class CategoryController extends GetxController {
 
   Stream<QuerySnapshot> get newReleasesStream {
     Query query = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('category', isEqualTo: category)
         .where('visibility', isEqualTo: 'Public');
     if (selectedGenre.value != 'All') {
@@ -404,7 +405,7 @@ class CategoryController extends GetxController {
 
   Stream<QuerySnapshot> get topContentStream {
     Query query = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('category', isEqualTo: category)
         .where('visibility', isEqualTo: 'Public');
     if (selectedGenre.value != 'All') {

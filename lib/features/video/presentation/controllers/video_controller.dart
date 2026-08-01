@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -43,7 +44,8 @@ import 'package:truthworld/features/video/presentation/controllers/adaptive_bira
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart'
+    hide LanguageRequest;
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -1412,7 +1414,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           : 0;
 
       await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .doc(video.id)
@@ -1452,7 +1454,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   void _listenToVideoUpdates() {
     FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(video.id)
         .get()
         .then((snapshot) {
@@ -1506,7 +1508,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     try {
       final docId = '${video.id}_${type}_${language.replaceAll(' ', '_')}';
       final ref = FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .collection('language_requests')
           .doc(docId);
@@ -1665,7 +1667,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
                   : i + 10,
             );
             final playlistVidsQuery = await FirebaseFirestore.instance
-                .collection('videos')
+                .collection(FirestoreCollections.videos)
                 .where(FieldPath.documentId, whereIn: chunk)
                 .get();
 
@@ -1694,7 +1696,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
         // Single efficient fetch for channel videos
         final channelVidsQuery = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .where(FieldPath.documentId, isNotEqualTo: videoId)
             .limit(10)
@@ -1706,7 +1708,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
         // Fill the rest with general videos
         final generalVidsQuery = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, isNotEqualTo: videoId)
             .limit(20)
             .get();
@@ -1753,7 +1755,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       // Fetch community posts
       try {
         final postsSnapshot = await FirebaseFirestore.instance
-            .collection('Community')
+            .collection(FirestoreCollections.community)
             .where('visibility', isEqualTo: 'Public')
             .limit(30)
             .get();
@@ -1791,7 +1793,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             i + 10 > video.topics.length ? video.topics.length : i + 10,
           );
           final topicsSnapshot = await FirebaseFirestore.instance
-              .collection('topics')
+              .collection(FirestoreCollections.topics)
               .where('slug', whereIn: chunk)
               .get();
 
@@ -1806,7 +1808,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         final topicFutures = foundTopics.map((topic) async {
           try {
             final query = await FirebaseFirestore.instance
-                .collection('videos')
+                .collection(FirestoreCollections.videos)
                 .where('topics', arrayContains: topic.slug)
                 .where('visibility', isEqualTo: 'Public')
                 .limit(10)
@@ -1849,9 +1851,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       final currentUserId = AuthService.to.uid;
       if (currentUserId.isNotEmpty) {
         final privatePlaylistsQuery = await FirebaseFirestore.instance
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(currentUserId)
-            .collection('playlists')
+            .collection(FirestoreCollections.playlists)
             .where('videoIds', arrayContains: videoId)
             .limit(5)
             .get();
@@ -1884,7 +1886,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       for (var i = 0; i < ids.length; i += 10) {
         final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
         final snapshot = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
         result.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
@@ -1906,7 +1908,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     rxIsLoading.value = true;
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoId)
           .get();
       if (doc.exists) {
@@ -1939,7 +1941,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       for (var i = 0; i < ids.length; i += 10) {
         final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
         final snapshot = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
         fetchedVideos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));

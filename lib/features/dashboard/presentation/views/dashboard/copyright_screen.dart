@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -47,7 +48,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
   Stream<QuerySnapshot> _matchedReuploads(String channelId) {
     if (channelId.isEmpty) return const Stream.empty();
     return FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('originalChannelId', isEqualTo: channelId)
         .snapshots();
   }

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -93,7 +94,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
         debugPrint('⏳ Loading video from Firestore: $videoId');
 
         final DocumentSnapshot doc = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(videoId)
             .get();
 

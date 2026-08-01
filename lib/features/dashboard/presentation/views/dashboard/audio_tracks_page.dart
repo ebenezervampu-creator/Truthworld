@@ -33,7 +33,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
       controller = Get.find<AudioTracksController>();
       controller.setChannelContext(widget.channelId);
     } else {
-      controller = Get.put(AudioTracksController());
+      controller = Get.find<AudioTracksController>();
       controller.channelId.value = widget.channelId;
     }
   }

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -128,7 +129,7 @@ class PlaylistController extends GetxController {
       return;
     }
     _watchLaterSub = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user)
         .collection('watch_later')
         .snapshots()
@@ -161,7 +162,7 @@ class PlaylistController extends GetxController {
     try {
       isLoading.value = true;
       final ref = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(user)
           .collection('watch_later')
           .doc(videoId);
@@ -242,15 +243,15 @@ class PlaylistController extends GetxController {
       final playlistRef = isPublic
           ? _firestore.collection('public_playlists').doc()
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc();
 
       String? thumbnailUrl;
       if (videoIds.isNotEmpty) {
         final videoDoc = await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(videoIds.first)
             .get();
         if (videoDoc.exists) {
@@ -341,9 +342,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       await ref.delete();
@@ -372,7 +373,7 @@ class PlaylistController extends GetxController {
       await ref.update({'thumbnailUrl': null});
     } else {
       final videoDoc = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(videoIds.first)
           .get();
       if (videoDoc.exists) {
@@ -398,9 +399,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(targetUser)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       QuerySnapshot snapshot;
@@ -437,9 +438,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       final snapshot = await ref.get();
@@ -516,9 +517,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       final snapshot = await ref.get();
@@ -586,9 +587,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       final snapshot = await ref.get();
@@ -639,9 +640,9 @@ class PlaylistController extends GetxController {
   Future<void> deleteVideoFromAllPlaylists(String videoId) async {
     try {
       final userPlaylists = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(user)
-          .collection('playlists')
+          .collection(FirestoreCollections.playlists)
           .get();
 
       final publicPlaylists = await _firestore
@@ -727,9 +728,9 @@ class PlaylistController extends GetxController {
     }
 
     return _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user)
-        .collection('playlists')
+        .collection(FirestoreCollections.playlists)
         .orderBy('sortIndex')
         .orderBy('createdAt', descending: true)
         .limit(50)
@@ -766,9 +767,9 @@ class PlaylistController extends GetxController {
     final doc = isPublic
         ? await _firestore.collection('public_playlists').doc(playlistId).get()
         : await _firestore
-              .collection('users')
+              .collection(FirestoreCollections.users)
               .doc(user)
-              .collection('playlists')
+              .collection(FirestoreCollections.playlists)
               .doc(playlistId)
               .get();
 
@@ -784,7 +785,7 @@ class PlaylistController extends GetxController {
     for (var i = 0; i < videoIds.length; i += batchSize) {
       final batchIds = videoIds.skip(i).take(batchSize).toList();
       final snapshot = await _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where(FieldPath.documentId, whereIn: batchIds)
           .get();
       videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
@@ -852,9 +853,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       await ref.update({
@@ -903,9 +904,9 @@ class PlaylistController extends GetxController {
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
-                .collection('users')
+                .collection(FirestoreCollections.users)
                 .doc(user)
-                .collection('playlists')
+                .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
       await ref.update({'sortIndex': newIndex, 'updatedAt': Timestamp.now()});
@@ -930,9 +931,9 @@ class PlaylistController extends GetxController {
             .get();
         final playlist = PlaylistModel.fromDocumentSnapshot(doc);
         await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(user)
-            .collection('playlists')
+            .collection(FirestoreCollections.playlists)
             .doc(playlistId)
             .set(
               playlist.toMap()
@@ -947,9 +948,9 @@ class PlaylistController extends GetxController {
             .delete();
       } else {
         final doc = await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(user)
-            .collection('playlists')
+            .collection(FirestoreCollections.playlists)
             .doc(playlistId)
             .get();
         final playlist = PlaylistModel.fromDocumentSnapshot(doc);
@@ -964,9 +965,9 @@ class PlaylistController extends GetxController {
                 ..['moderationReason'] = null,
             );
         await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(user)
-            .collection('playlists')
+            .collection(FirestoreCollections.playlists)
             .doc(playlistId)
             .delete();
       }
@@ -998,7 +999,7 @@ class PlaylistController extends GetxController {
     }
 
     _channelsSubscription = _firestore
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .where('ownerId', isEqualTo: user)
         .snapshots()
         .listen(
@@ -1033,9 +1034,9 @@ class PlaylistController extends GetxController {
     }
 
     _playlistsSubscription = _firestore
-        .collection('users')
+        .collection(FirestoreCollections.users)
         .doc(user)
-        .collection('playlists')
+        .collection(FirestoreCollections.playlists)
         .snapshots()
         .listen(
           (snapshot) {
@@ -1080,9 +1081,9 @@ class PlaylistController extends GetxController {
 
     try {
       final snapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(user)
-          .collection('playlists')
+          .collection(FirestoreCollections.playlists)
           .get();
 
       final loadedPlaylists = snapshot.docs

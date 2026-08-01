@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -219,7 +220,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
           children: [
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('videos')
+                  .collection(FirestoreCollections.videos)
                   .doc(widget.video.id)
                   .collection('comments')
                   .snapshots(),
@@ -353,7 +354,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
       final _ = _retryTrigger.value;
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(widget.video.id)
             .collection('comments')
             .orderBy('createdAt', descending: true)
@@ -1510,7 +1511,7 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
   @override
   Widget build(BuildContext context) {
     final repliesRef = FirebaseFirestore.instance
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .doc(widget.video.id)
         .collection('comments')
         .doc(widget.commentId)

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
 /// Mixin for controllers that need pagination
@@ -151,4 +153,34 @@ mixin SelectionMixin on GetxController {
 
   /// Check if item is selected
   bool isItemSelected(String itemId) => selectedItems.contains(itemId);
+}
+
+/// Mixin for controllers that manage stream subscriptions and timers.
+/// Automatically disposes all tracked resources in onClose().
+mixin DisposableMixin on GetxController {
+  final List<StreamSubscription> _managedSubscriptions = [];
+  final List<Timer> _managedTimers = [];
+  final List<TextEditingController> _managedTextControllers = [];
+  final List<ScrollController> _managedScrollControllers = [];
+
+  void trackSubscription(StreamSubscription sub) =>
+      _managedSubscriptions.add(sub);
+  void trackTimer(Timer timer) => _managedTimers.add(timer);
+  void trackTextController(TextEditingController ctrl) =>
+      _managedTextControllers.add(ctrl);
+  void trackScrollController(ScrollController ctrl) =>
+      _managedScrollControllers.add(ctrl);
+
+  @override
+  void onClose() {
+    for (final sub in _managedSubscriptions) sub.cancel();
+    for (final timer in _managedTimers) timer.cancel();
+    for (final ctrl in _managedTextControllers) ctrl.dispose();
+    for (final ctrl in _managedScrollControllers) ctrl.dispose();
+    _managedSubscriptions.clear();
+    _managedTimers.clear();
+    _managedTextControllers.clear();
+    _managedScrollControllers.clear();
+    super.onClose();
+  }
 }

@@ -1062,9 +1062,7 @@ class _SearchBarState extends State<SearchBar> {
                     size: 26,
                     tooltip: 'Flip search query to opposite perspective',
                     onTap: () {
-                      final flipService = Get.isRegistered<FlipCoinService>()
-                          ? Get.find<FlipCoinService>()
-                          : Get.put(FlipCoinService());
+                      final flipService = Get.find<FlipCoinService>();
                       final currentQuery = widget.controller.text;
                       if (currentQuery.isNotEmpty) {
                         final flipped = flipService.flipSearchQuery(

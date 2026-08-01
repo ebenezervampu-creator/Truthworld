@@ -31,7 +31,7 @@ class AudioTrackOption {
 ///     (just_audio) plays the dubbed file in lockstep.
 ///
 /// Usage:
-///   final ctrl = Get.put(MultiAudioPlayerController());
+///   final ctrl = Get.find<MultiAudioPlayerController>();
 ///   ctrl.initialize(videoUrl, tracks);
 class MultiAudioPlayerController extends GetxController {
   static const _tag = 'MultiAudioPlayerController';

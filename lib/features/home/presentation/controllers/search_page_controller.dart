@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -29,7 +30,7 @@ class SearchPageController extends BaseController {
       // Basic search logic using Firestore
       // For high scale, this should ideally be an Algolia or ElasticSearch service
       final snapshot = await FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('visibility', isEqualTo: 'Public')
           .where('status', isEqualTo: 'published')
           .orderBy('title')

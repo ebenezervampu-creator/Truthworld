@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -129,7 +130,9 @@ class SendFeedbackController extends GetxController {
         'attachments': imageUrls,
       };
 
-      await FirebaseFirestore.instance.collection('feedback').add(feedbackData);
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.feedback)
+          .add(feedbackData);
 
       // Reset UI
       feedbackController.clear();

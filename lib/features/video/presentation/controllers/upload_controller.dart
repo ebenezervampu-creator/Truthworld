@@ -198,6 +198,10 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   VideoPlayerController? videoPlayerController;
 
+  final titleController = TextEditingController();
+  final descriptionController = TextEditingController();
+  final tagController = TextEditingController();
+
   List<String> videoCategories = [
     'Education',
     'Entertainment',
@@ -230,10 +234,6 @@ class UploadController extends GetxController with ContentValidationMixin {
     'Nature & Wildlife',
     'Kids & Family',
   ];
-
-  void selectCategory(String category) {
-    selectedCategory.value = category;
-  }
 
   void selectChannel(Channel channel) {
     selectedChannel.value = channel;
@@ -317,6 +317,9 @@ class UploadController extends GetxController with ContentValidationMixin {
   @override
   void onClose() {
     videoPlayerController?.dispose();
+    titleController.dispose();
+    descriptionController.dispose();
+    tagController.dispose();
     _thumbnailModerationSubscription?.cancel();
     _communityImageModerationSubscription?.cancel();
     super.onClose();

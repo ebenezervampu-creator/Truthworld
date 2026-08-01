@@ -236,7 +236,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
 
   /// Actions Row with Videos Count Chip, Comments Chip (tappable), Follow/Following & Bell dropdown
   Widget _buildCommunityAndActionsRow(BuildContext context, Topic topic) {
-    final followingController = Get.put(FollowingTopicsController());
+    final followingController = Get.find<FollowingTopicsController>();
 
     return Obx(() {
       final isFollowed = followingController.isTopicFollowed(topic.id);
@@ -375,7 +375,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
   }
 
   void _showNotificationSettingsDialog(BuildContext context, String topicId) {
-    final followingController = Get.put(FollowingTopicsController());
+    final followingController = Get.find<FollowingTopicsController>();
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgSurface,

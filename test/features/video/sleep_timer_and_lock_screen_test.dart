@@ -62,12 +62,15 @@ void main() {
       sleepService.setActivePlayback(testSource);
     });
 
-    test('1. SleepTimerService starts with duration and computes remaining seconds', () {
-      sleepService.startTimer(const Duration(minutes: 15));
-      expect(sleepService.isActive, isTrue);
-      expect(sleepService.mode.value, equals(SleepTimerMode.duration));
-      expect(sleepService.remainingSeconds.value, closeTo(900, 2));
-    });
+    test(
+      '1. SleepTimerService starts with duration and computes remaining seconds',
+      () {
+        sleepService.startTimer(const Duration(minutes: 15));
+        expect(sleepService.isActive, isTrue);
+        expect(sleepService.mode.value, equals(SleepTimerMode.duration));
+        expect(sleepService.remainingSeconds.value, closeTo(900, 2));
+      },
+    );
 
     test('2. Extending sleep timer adds 5 minutes accurately', () {
       sleepService.startTimer(const Duration(minutes: 10));
@@ -85,26 +88,32 @@ void main() {
       expect(sleepService.remainingSeconds.value, closeTo(600, 2));
     });
 
-    test('4. Expiration pauses active playback and restores volume safely', () async {
-      testSource.setVolume(0.8);
-      await sleepService.triggerExpiration();
+    test(
+      '4. Expiration pauses active playback and restores volume safely',
+      () async {
+        testSource.setVolume(0.8);
+        await sleepService.triggerExpiration();
 
-      expect(testSource.isPlaying, isFalse);
-      expect(sleepService.isActive, isFalse);
-      expect(testSource.volume, equals(1.0));
-    });
+        expect(testSource.isPlaying, isFalse);
+        expect(sleepService.isActive, isFalse);
+        expect(testSource.volume, equals(1.0));
+      },
+    );
 
-    test('5. PlayerLockController state machine handles lock, unlock, and pill hints', () {
-      expect(lockController.isLocked.value, isFalse);
-      expect(lockController.pillState.value, equals(UnlockPillState.hidden));
+    test(
+      '5. PlayerLockController state machine handles lock, unlock, and pill hints',
+      () {
+        expect(lockController.isLocked.value, isFalse);
+        expect(lockController.pillState.value, equals(UnlockPillState.hidden));
 
-      lockController.lock();
-      expect(lockController.isLocked.value, isTrue);
-      expect(lockController.pillState.value, equals(UnlockPillState.visible));
+        lockController.lock();
+        expect(lockController.isLocked.value, isTrue);
+        expect(lockController.pillState.value, equals(UnlockPillState.visible));
 
-      lockController.unlock();
-      expect(lockController.isLocked.value, isFalse);
-      expect(lockController.pillState.value, equals(UnlockPillState.hidden));
-    });
+        lockController.unlock();
+        expect(lockController.isLocked.value, isFalse);
+        expect(lockController.pillState.value, equals(UnlockPillState.hidden));
+      },
+    );
   });
 }

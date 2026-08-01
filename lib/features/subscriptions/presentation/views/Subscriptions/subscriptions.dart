@@ -14,10 +14,7 @@ class SubscriptionsPage extends StatelessWidget {
   const SubscriptionsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  SubscriptionController get controller =>
-      Get.isRegistered<SubscriptionController>()
-      ? Get.find<SubscriptionController>()
-      : Get.put(SubscriptionController());
+  SubscriptionController get controller => Get.find<SubscriptionController>();
 
   @override
   Widget build(BuildContext context) {

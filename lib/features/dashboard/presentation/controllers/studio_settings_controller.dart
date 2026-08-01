@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +32,9 @@ class StudioSettingsController extends BaseController {
         return;
       }
 
-      _userRef = _firestore.collection('users').doc(user.uid);
+      _userRef = _firestore
+          .collection(FirestoreCollections.users)
+          .doc(user.uid);
       final doc = await _userRef.get();
 
       if (doc.exists) {

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -292,7 +293,7 @@ class SearchController extends GetxController {
       QuerySnapshot<Map<String, dynamic>>? videosSnap;
       try {
         videosSnap = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('status', whereIn: const ['processed', 'published'])
             .orderBy('views', descending: true)
             .limit(5)
@@ -300,7 +301,7 @@ class SearchController extends GetxController {
       } catch (_) {
         try {
           videosSnap = await FirebaseFirestore.instance
-              .collection('videos')
+              .collection(FirestoreCollections.videos)
               .limit(5)
               .get();
         } catch (_) {}
@@ -342,7 +343,7 @@ class SearchController extends GetxController {
 
       try {
         final topicsSnap = await FirebaseFirestore.instance
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .limit(3)
             .get();
         for (final doc in topicsSnap.docs) {
@@ -736,6 +737,7 @@ class SearchController extends GetxController {
         // Ensure homeCtrl.videos is safe to access
         final localVideos = homeCtrl.videos;
         final localMatches = localVideos
+            .whereType<Video>()
             .where((v) => v.title.toLowerCase().contains(normalized))
             .take(3);
         for (final v in localMatches) {
@@ -770,7 +772,7 @@ class SearchController extends GetxController {
     if (normalized.length >= 3) {
       try {
         final docSnap = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('title', isGreaterThanOrEqualTo: normalized)
             .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
             .where('status', whereIn: const ['processed', 'published'])
@@ -825,7 +827,7 @@ class SearchController extends GetxController {
       if (userId.isEmpty) return;
 
       final snapshot = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .limit(150)

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -75,7 +76,7 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
     }
 
     final future = FirebaseFirestore.instance
-        .collection('channels')
+        .collection(FirestoreCollections.channels)
         .where('nameLowercase', isEqualTo: key)
         .limit(1)
         .get()

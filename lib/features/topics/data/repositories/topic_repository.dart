@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -44,16 +45,16 @@ class TopicRepository {
       final handleToQuery = 't/${slug.toLowerCase()}';
       final results = await Future.wait([
         _firestore
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .where('slug', isEqualTo: slug)
             .limit(1)
             .get(),
         _firestore
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .where('handleLowercase', isEqualTo: handleToQuery)
             .limit(1)
             .get(),
-        _firestore.collection('topics').doc(slug).get(),
+        _firestore.collection(FirestoreCollections.topics).doc(slug).get(),
       ]);
 
       final slugSnap = results[0] as QuerySnapshot;
@@ -100,7 +101,10 @@ class TopicRepository {
         }
       }
 
-      final doc = await _firestore.collection('topics').doc(topicId).get();
+      final doc = await _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId)
+          .get();
       if (!doc.exists) return null;
       final topic = Topic.fromDocumentSnapshot(doc);
       _cacheTopic(key, topic);
@@ -114,7 +118,7 @@ class TopicRepository {
   /// Stream topic by slug or handle or document ID (for real-time updates)
   Stream<Topic?> streamTopicBySlug(String slug) {
     return _firestore
-        .collection('topics')
+        .collection(FirestoreCollections.topics)
         .where('slug', isEqualTo: slug)
         .snapshots()
         .map((snapshot) {
@@ -160,7 +164,7 @@ class TopicRepository {
   }) async {
     try {
       Query query = _firestore
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .where('topics', arrayContains: topicSlug)
           .orderBy(orderBy, descending: descending)
           .limit(limit);
@@ -190,7 +194,7 @@ class TopicRepository {
     bool descending = true,
   }) {
     return _firestore
-        .collection('videos')
+        .collection(FirestoreCollections.videos)
         .where('topics', arrayContains: topicSlug)
         .orderBy(orderBy, descending: descending)
         .limit(limit)
@@ -216,7 +220,7 @@ class TopicRepository {
       for (var i = 0; i < videoIds.length; i += batchSize) {
         final batch = videoIds.skip(i).take(batchSize).toList();
         final query = await _firestore
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: batch)
             .get();
 
@@ -262,7 +266,7 @@ class TopicRepository {
       for (var i = 0; i < slugs.length; i += batchSize) {
         final batch = slugs.skip(i).take(batchSize).toList();
         final query = await _firestore
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .where('slug', whereIn: batch)
             .get();
 
@@ -286,7 +290,7 @@ class TopicRepository {
   }) async {
     try {
       final Query query = _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .where('category', isEqualTo: category)
           .orderBy('videoCount', descending: true)
           .limit(limit);
@@ -311,7 +315,7 @@ class TopicRepository {
   Future<List<Topic>> getPopularTopics({int limit = 10}) async {
     try {
       final snapshot = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .orderBy('videoCount', descending: true)
           .limit(limit)
           .get();
@@ -330,7 +334,7 @@ class TopicRepository {
     try {
       // Case-insensitive search using range queries
       final snapshot = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .where('title', isGreaterThanOrEqualTo: query)
           .where('title', isLessThan: '${query}z')
           .limit(limit)
@@ -346,7 +350,7 @@ class TopicRepository {
   Future<List<Topic>> fetchFeaturedTopics({int limit = 5}) async {
     try {
       final snapshot = await _firestore
-          .collection('topics')
+          .collection(FirestoreCollections.topics)
           .where('isFeatured', isEqualTo: true)
           .limit(limit)
           .get();
@@ -366,7 +370,7 @@ class TopicRepository {
     DocumentSnapshot? lastDoc,
   }) async {
     try {
-      Query query = _firestore.collection('topics');
+      Query query = _firestore.collection(FirestoreCollections.topics);
       if (category.toLowerCase() != 'all') {
         query = query.where('category', isEqualTo: category);
       }
@@ -388,7 +392,7 @@ class TopicRepository {
     DocumentSnapshot? lastDoc,
   }) async {
     try {
-      Query query = _firestore.collection('topics');
+      Query query = _firestore.collection(FirestoreCollections.topics);
       if (category.toLowerCase() != 'all') {
         query = query.where('category', isEqualTo: category);
       }
@@ -407,7 +411,7 @@ class TopicRepository {
   Future<List<Topic>> fetchFollowedTopics(String userId) async {
     try {
       final snapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .get();
@@ -425,7 +429,7 @@ class TopicRepository {
   Future<List<Topic>> fetchFavoriteTopics(String userId) async {
     try {
       final snapshot = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('likedTopics')
           .get();
@@ -450,7 +454,7 @@ class TopicRepository {
         futures.add(() async {
           try {
             final query = await _firestore
-                .collection('topics')
+                .collection(FirestoreCollections.topics)
                 .where(FieldPath.documentId, whereIn: batch)
                 .get();
             return query.docs.map(Topic.fromDocumentSnapshot).toList();
@@ -471,7 +475,7 @@ class TopicRepository {
   Future<bool> isTopicFollowed(String userId, String topicId) async {
     try {
       final doc = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId)
@@ -486,9 +490,11 @@ class TopicRepository {
   Future<bool> followTopic(String userId, String topicId) async {
     try {
       final batch = _firestore.batch();
-      final topicRef = _firestore.collection('topics').doc(topicId);
+      final topicRef = _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId);
       final userSavedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId);
@@ -517,7 +523,7 @@ class TopicRepository {
   ) async {
     try {
       final doc = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId)
@@ -539,7 +545,7 @@ class TopicRepository {
   ) async {
     try {
       await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId)
@@ -558,9 +564,11 @@ class TopicRepository {
   Future<bool> unfollowTopic(String userId, String topicId) async {
     try {
       final batch = _firestore.batch();
-      final topicRef = _firestore.collection('topics').doc(topicId);
+      final topicRef = _firestore
+          .collection(FirestoreCollections.topics)
+          .doc(topicId);
       final userSavedRef = _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId);

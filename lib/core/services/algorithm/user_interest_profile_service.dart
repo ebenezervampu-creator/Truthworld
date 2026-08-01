@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -57,21 +58,21 @@ class UserInterestProfileService extends GetxService {
 
   Future<void> _fetchFromFirestore(String userId) async {
     final futures = await Future.wait([
-      _firestore.collection('users').doc(userId).get(),
+      _firestore.collection(FirestoreCollections.users).doc(userId).get(),
       _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('savedTopics')
           .get(),
       _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('watch_history')
           .orderBy('watchedAt', descending: true)
           .limit(200)
           .get(),
       _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .collection('likedVideos')
           .orderBy('likedAt', descending: true)
@@ -213,7 +214,7 @@ class UserInterestProfileService extends GetxService {
 
     final userId = p.userId;
     if (userId.isNotEmpty && userId != 'guest_user') {
-      _firestore.collection('users').doc(userId).set({
+      _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'categoryAffinities': newCategoryAffinities,
         'topicAffinities': newTopicAffinities,
         'recentSignals': newRecentSignals.map((e) => e.toMap()).toList(),
@@ -266,7 +267,7 @@ class UserInterestProfileService extends GetxService {
 
     final userId = p.userId;
     if (userId.isNotEmpty && userId != 'guest_user') {
-      _firestore.collection('users').doc(userId).set({
+      _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'categoryAffinities': newCategoryAffinities,
         'dislikedCategories': newDislikedCategories.toList(),
         'recentSignals': newRecentSignals.map((e) => e.toMap()).toList(),
@@ -339,7 +340,7 @@ class UserInterestProfileService extends GetxService {
 
     final userId = p.userId;
     if (userId.isNotEmpty && userId != 'guest_user') {
-      _firestore.collection('users').doc(userId).set({
+      _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'notInterestedVideoIds': FieldValue.arrayUnion([videoId]),
         'recentSignals': newRecentSignals.map((e) => e.toMap()).toList(),
       }, SetOptions(merge: true));
@@ -378,7 +379,7 @@ class UserInterestProfileService extends GetxService {
 
     final userId = p.userId;
     if (userId.isNotEmpty && userId != 'guest_user') {
-      _firestore.collection('users').doc(userId).set({
+      _firestore.collection(FirestoreCollections.users).doc(userId).set({
         'blockedChannelIds': FieldValue.arrayUnion([channelId]),
         'channelAffinities': newChannelAffinities,
         'recentSignals': newRecentSignals.map((e) => e.toMap()).toList(),
@@ -400,7 +401,7 @@ class UserInterestProfileService extends GetxService {
     final userId = p.userId;
     if (userId.isNotEmpty && userId != 'guest_user') {
       _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(userId)
           .set({
             'flipCoinCount': FieldValue.increment(1),

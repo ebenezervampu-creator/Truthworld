@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -37,7 +38,9 @@ class FeedbackController extends GetxController {
       isSubmitting.value = true;
       debugPrint('📤 Trying to write feedback: $feedbackData');
 
-      await _firestore.collection('feedback').add(feedbackData);
+      await _firestore
+          .collection(FirestoreCollections.feedback)
+          .add(feedbackData);
 
       debugPrint('✅ Feedback successfully saved to Firestore!');
       Get.snackbar('Success', 'Feedback submitted successfully');

@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,7 +16,6 @@ import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 
 /// GetX Controller for the Topic Discovery Platform UI
 class ExploreTopicsController extends GetxController {
-
   ExploreTopicsController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
@@ -145,7 +145,7 @@ class ExploreTopicsController extends GetxController {
         if (newTopics.isNotEmpty) {
           // Cache document snapshot reference for next pagination block
           final rawSnapshot = await FirebaseFirestore.instance
-              .collection('topics')
+              .collection(FirestoreCollections.topics)
               .doc(newTopics.last.id)
               .get();
           if (rawSnapshot.exists) {
@@ -167,10 +167,13 @@ class ExploreTopicsController extends GetxController {
           .toList();
       if (Get.isRegistered<TruthworldAlgorithm>()) {
         final algorithm = Get.find<TruthworldAlgorithm>();
-        final isFlipped = Get.isRegistered<FlipCoinService>() &&
+        final isFlipped =
+            Get.isRegistered<FlipCoinService>() &&
             Get.find<FlipCoinService>().isTopicsFlipped.value;
         final rankedTopics = algorithm.rankTopics(uniqueNewTopics);
-        final finalTopics = isFlipped ? rankedTopics.reversed.toList() : rankedTopics;
+        final finalTopics = isFlipped
+            ? rankedTopics.reversed.toList()
+            : rankedTopics;
         topics.addAll(finalTopics.isNotEmpty ? finalTopics : uniqueNewTopics);
       } else {
         topics.addAll(uniqueNewTopics);
@@ -253,26 +256,30 @@ class ExploreTopicsController extends GetxController {
       // 1. Query Firestore videos collection for broader category stats
       try {
         final videoSnapshot = await FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .limit(500)
             .get();
 
         for (final doc in videoSnapshot.docs) {
           final data = doc.data();
           final rawCat = (data['category'] as String?)?.trim();
-          if (rawCat != null && rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
+          if (rawCat != null &&
+              rawCat.isNotEmpty &&
+              rawCat.toLowerCase() != 'all') {
             final normalized = _capitalizeCategory(rawCat);
             categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + 1;
           }
         }
       } catch (e) {
-        debugPrint('ExploreTopicsController: Error querying videos for categories: $e');
+        debugPrint(
+          'ExploreTopicsController: Error querying videos for categories: $e',
+        );
       }
 
       // 2. Query Firestore topics collection for topic categories and video counts
       try {
         final topicSnapshot = await FirebaseFirestore.instance
-            .collection('topics')
+            .collection(FirestoreCollections.topics)
             .limit(300)
             .get();
 
@@ -280,14 +287,18 @@ class ExploreTopicsController extends GetxController {
           final data = doc.data();
           final rawCat = (data['category'] as String?)?.trim();
           final vCount = (data['videoCount'] as num?)?.toInt() ?? 1;
-          if (rawCat != null && rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
+          if (rawCat != null &&
+              rawCat.isNotEmpty &&
+              rawCat.toLowerCase() != 'all') {
             final normalized = _capitalizeCategory(rawCat);
             categoryCounts[normalized] =
                 (categoryCounts[normalized] ?? 0) + (vCount > 0 ? vCount : 1);
           }
         }
       } catch (e) {
-        debugPrint('ExploreTopicsController: Error querying topics for categories: $e');
+        debugPrint(
+          'ExploreTopicsController: Error querying topics for categories: $e',
+        );
       }
 
       // 3. Count from currently loaded topics and topicVideosMap
@@ -299,7 +310,8 @@ class ExploreTopicsController extends GetxController {
           final count = (videos != null && videos.isNotEmpty)
               ? videos.length
               : (topic.videoCount > 0 ? topic.videoCount : 1);
-          categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + count;
+          categoryCounts[normalized] =
+              (categoryCounts[normalized] ?? 0) + count;
         }
       }
 
@@ -319,23 +331,29 @@ class ExploreTopicsController extends GetxController {
       // Include dynamic categories not in TopicCategoriesConfig if count >= 2
       categoryCounts.forEach((catName, count) {
         if (count >= 2 && catName.toLowerCase() != 'all') {
-          final alreadyAdded = qualifying.any((qc) =>
-              qc.title.toLowerCase() == catName.toLowerCase() ||
-              qc.id.toLowerCase() == catName.toLowerCase());
+          final alreadyAdded = qualifying.any(
+            (qc) =>
+                qc.title.toLowerCase() == catName.toLowerCase() ||
+                qc.id.toLowerCase() == catName.toLowerCase(),
+          );
           if (!alreadyAdded) {
-            qualifying.add(TopicCategory(
-              id: catName.toLowerCase().replaceAll(' ', '_'),
-              title: catName,
-              imageUrl:
-                  'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=90',
-            ));
+            qualifying.add(
+              TopicCategory(
+                id: catName.toLowerCase().replaceAll(' ', '_'),
+                title: catName,
+                imageUrl:
+                    'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=90',
+              ),
+            );
           }
         }
       });
 
       availableCategories.assignAll(qualifying);
     } catch (e) {
-      debugPrint('ExploreTopicsController: Error fetching available categories: $e');
+      debugPrint(
+        'ExploreTopicsController: Error fetching available categories: $e',
+      );
     } finally {
       isLoadingCategories.value = false;
     }
@@ -390,7 +408,7 @@ class ExploreTopicsController extends GetxController {
       final topicController = Get.find<TopicController>();
       topicController.topic.value = topic;
     } else {
-      final topicController = Get.put(TopicController());
+      final topicController = Get.find<TopicController>();
       topicController.topic.value = topic;
     }
   }
@@ -401,4 +419,3 @@ enum ExploreMode {
   trending,
   yearly,
 }
-

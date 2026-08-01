@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -94,7 +95,7 @@ class DashboardCommentsController extends BaseController {
     if (currentUser == null) return;
     try {
       final snap = await _firestore
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(currentUser.uid)
           .collection('comment_interactions')
           .get();
@@ -154,7 +155,7 @@ class DashboardCommentsController extends BaseController {
       // Fallback to user document if channel ID is still empty
       if (userChannelId.value.isEmpty) {
         final userDoc = await _firestore
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(currentUser.uid)
             .get();
         if (userDoc.exists) {
@@ -207,7 +208,7 @@ class DashboardCommentsController extends BaseController {
       if (channelId.isNotEmpty) {
         try {
           videosSnapshot = await _firestore
-              .collection('videos')
+              .collection(FirestoreCollections.videos)
               .where('channelId', isEqualTo: channelId)
               .get();
         } catch (e) {
@@ -223,7 +224,7 @@ class DashboardCommentsController extends BaseController {
           currentUid.isNotEmpty) {
         try {
           videosSnapshot = await _firestore
-              .collection('videos')
+              .collection(FirestoreCollections.videos)
               .where('userId', isEqualTo: currentUid)
               .get();
         } catch (e) {
@@ -238,7 +239,7 @@ class DashboardCommentsController extends BaseController {
       if (videosSnapshot == null || videosSnapshot.docs.isEmpty) {
         try {
           videosSnapshot = await _firestore
-              .collection('videos')
+              .collection(FirestoreCollections.videos)
               .limit(50)
               .get();
         } catch (e) {

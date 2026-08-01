@@ -26,7 +26,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
   @override
   void initState() {
     super.initState();
-    controller = Get.put(ChaptersController());
+    controller = Get.find<ChaptersController>();
     controller.setChannelContext(widget.channelId);
   }
 

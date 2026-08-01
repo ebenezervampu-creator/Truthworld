@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +40,7 @@ class ChannelPlanSelectionController extends GetxController
     if (user != null) {
       try {
         final doc = await FirebaseFirestore.instance
-            .collection('users')
+            .collection(FirestoreCollections.users)
             .doc(user.uid)
             .get();
         if (doc.exists) {

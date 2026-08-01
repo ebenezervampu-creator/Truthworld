@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
@@ -30,7 +31,7 @@ class WatchtimeDetailsPage extends StatelessWidget {
       ),
       body: FutureBuilder<QuerySnapshot>(
         future: FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .where('channelId', isEqualTo: channelId)
             .get(),
         builder: (context, snapshot) {

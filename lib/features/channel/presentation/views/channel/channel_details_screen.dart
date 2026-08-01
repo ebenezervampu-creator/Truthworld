@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -77,7 +78,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(ChannelController());
+    Get.find<ChannelController>();
     final args = Get.arguments;
     final Channel? targetChannel =
         channel ??
@@ -992,7 +993,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final isSubscribed = controller.isSubscribed.value;
     final isOwner = currentUser != null && currentUser.uid == channel.ownerId;
     final query = FirebaseFirestore.instance
-        .collection('Community')
+        .collection(FirestoreCollections.community)
         .where('channelId', isEqualTo: channel.channelId);
 
     return StreamBuilder<QuerySnapshot>(
@@ -1458,7 +1459,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     } else if (playlist.videoIds.isNotEmpty) {
       return FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance
-            .collection('videos')
+            .collection(FirestoreCollections.videos)
             .doc(playlist.videoIds.first)
             .get(),
         builder: (context, snapshot) {

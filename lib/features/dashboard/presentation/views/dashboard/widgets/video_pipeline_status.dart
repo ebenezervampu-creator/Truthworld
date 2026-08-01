@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -58,7 +59,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
-          .collection('videos')
+          .collection(FirestoreCollections.videos)
           .doc(video.id)
           .snapshots(),
       builder: (context, videoDocSnap) {
@@ -1019,9 +1020,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
   }
 
   Widget _buildGenerateAIButton(BuildContext context) {
-    final controller = Get.isRegistered<VideoManagementController>()
-        ? Get.find<VideoManagementController>()
-        : Get.put(VideoManagementController());
+    final controller = Get.find<VideoManagementController>();
 
     return SizedBox(
       width: double.infinity,

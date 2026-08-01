@@ -123,6 +123,7 @@ class SearchService {
         if (Get.isRegistered<HomeController>()) {
           final homeCtrl = Get.find<HomeController>();
           final localMatches = homeCtrl.videos
+              .whereType<Video>()
               .where((v) {
                 final t = v.title.toLowerCase();
                 final c = v.channelName.toLowerCase();

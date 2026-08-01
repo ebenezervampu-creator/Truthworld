@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
@@ -98,14 +99,17 @@ class PremiumController extends GetxController {
     try {
       isSimulating.value = true;
 
-      await FirebaseFirestore.instance.collection('users').doc(auth.uid).update(
-        {
-          'isPremium': true,
-          'monetizationTier': 'premium',
-          'premiumPlanId': planId,
-          'premiumUpdatedAt': DateTime.now().millisecondsSinceEpoch,
-        },
-      );
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(auth.uid)
+          .update(
+            {
+              'isPremium': true,
+              'monetizationTier': 'premium',
+              'premiumPlanId': planId,
+              'premiumUpdatedAt': DateTime.now().millisecondsSinceEpoch,
+            },
+          );
 
       AppSnackbar.show(
         'Subscription Activated',

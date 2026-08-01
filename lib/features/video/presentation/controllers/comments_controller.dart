@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -128,7 +129,7 @@ class CommentsController extends BaseController {
 
     try {
       final commentInteractSnap = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(currentUserId)
           .collection('comment_interactions')
           .where('videoId', isEqualTo: video!.id)
@@ -145,7 +146,7 @@ class CommentsController extends BaseController {
       }
 
       final replyInteractSnap = await FirebaseFirestore.instance
-          .collection('users')
+          .collection(FirestoreCollections.users)
           .doc(currentUserId)
           .collection('reply_interactions')
           .where('videoId', isEqualTo: video!.id)
@@ -281,7 +282,7 @@ class CommentsController extends BaseController {
       if (donationAmount > 0 && video?.channelId.isNotEmpty == true) {
         try {
           await FirebaseFirestore.instance
-              .collection('channels')
+              .collection(FirestoreCollections.channels)
               .doc(video!.channelId)
               .collection('donations')
               .add({

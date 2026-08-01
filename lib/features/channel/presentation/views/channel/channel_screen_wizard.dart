@@ -14,7 +14,7 @@ class ChannelScreen extends StatelessWidget {
   bool get isMobile => Get.width < 600;
   bool get isTablet => Get.width >= 600 && Get.width < 1200;
   bool get isDesktop => Get.width >= 1200;
-  final controller = Get.put(ChannelController());
+  final controller = Get.find<ChannelController>();
   final RxInt currentStep = 0.obs; // 0-3 for 4 steps
   final RxBool draftDialogShown = false.obs; // Track if dialog was shown
   final RxBool forceValidationUpdate =

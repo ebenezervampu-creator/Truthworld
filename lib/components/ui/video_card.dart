@@ -1,3 +1,4 @@
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -184,7 +185,7 @@ class _VideoCardState extends State<VideoCard> {
       return;
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('channels')
+          .collection(FirestoreCollections.channels)
           .doc(widget.video.channelId)
           .get();
       if (doc.exists && mounted) {
@@ -693,10 +694,7 @@ class _VideoCardState extends State<VideoCard> {
                       children: [
                         Builder(
                           builder: (context) {
-                            final playlistCtrl =
-                                Get.isRegistered<PlaylistController>()
-                                ? Get.find<PlaylistController>()
-                                : Get.put(PlaylistController());
+                            final playlistCtrl = Get.find<PlaylistController>();
                             return Obx(() {
                               final isSaved = playlistCtrl.isInWatchLater(
                                 widget.video.id,
