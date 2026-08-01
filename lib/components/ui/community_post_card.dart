@@ -10,8 +10,8 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -698,8 +698,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: const [
+                  const Row(
+                    children: [
                       Icon(
                         Icons.thumbs_up_down_outlined,
                         color: Colors.white,
@@ -1658,11 +1658,11 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                       Row(
                         children: [
                           PopupMenuButton<bool>(
-                            onSelected: (bool newest) {
+                            onSelected: (newest) {
                               isSortNewest.value = newest;
                             },
                             offset: const Offset(0, 30),
-                            itemBuilder: (BuildContext context) =>
+                            itemBuilder: (context) =>
                                 <PopupMenuEntry<bool>>[
                                   PopupMenuItem<bool>(
                                     value: false,

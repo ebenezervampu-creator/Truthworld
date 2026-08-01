@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Industry-standard Topic Selection Bottom Sheet for Upload Video Flow
@@ -14,13 +13,13 @@ class TopicSelectionBottomSheet extends StatelessWidget {
     required this.onCreateNewTopicRequested,
     super.key,
   });
-  final UploadController controller;
+  final dynamic controller;
   final Function(bool isDark) onCreateNewTopicRequested;
 
   /// Helper to present bottom sheet modally
   static void show(
     BuildContext context,
-    UploadController controller, {
+    dynamic controller, {
     required Function(bool isDark) onCreateNewTopic,
   }) {
     controller.topicSearchQuery.value = '';
@@ -129,8 +128,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                     if (topic.title.toLowerCase().contains(query)) return true;
                     if (topic.slug.toLowerCase().contains(query)) return true;
                     if (topic.handle.toLowerCase().contains(query)) return true;
-                    if (topic.description.toLowerCase().contains(query))
+                    if (topic.description.toLowerCase().contains(query)) {
                       return true;
+                    }
 
                     // Channel search
                     final channelMeta = controller.getChannelMetadata(
@@ -140,8 +140,9 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                       final chName = (channelMeta['name'] ?? '').toLowerCase();
                       final chHandle = (channelMeta['handle'] ?? '')
                           .toLowerCase();
-                      if (chName.contains(query) || chHandle.contains(query))
+                      if (chName.contains(query) || chHandle.contains(query)) {
                         return true;
+                      }
                     }
                     return false;
                   }).toList();
@@ -1185,10 +1186,12 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                         isVerifying.value = false;
 
                         if (success) {
-                          if (dialogCtx.mounted)
+                          if (dialogCtx.mounted) {
                             Navigator.pop(dialogCtx); // Close PIN dialog
-                          if (context.mounted)
+                          }
+                          if (context.mounted) {
                             Navigator.pop(context); // Close Bottom Sheet
+                          }
                         } else {
                           errorMessage.value =
                               'Incorrect PIN / Password for this topic';

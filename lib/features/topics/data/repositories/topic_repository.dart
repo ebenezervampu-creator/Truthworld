@@ -1,6 +1,9 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -586,4 +589,128 @@ class TopicRepository {
       return false;
     }
   }
+
+  /// Get channels related to topic tag/slug
+  Future<List<Channel>> getChannelsByTopic(String tag, {int limit = 15}) async {
+    try {
+      final tagLower = tag.toLowerCase().replaceAll('#', '').trim();
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.channels)
+          .limit(40)
+          .get();
+
+      final list = snapshot.docs.map(Channel.fromDocumentSnapshot).where((c) {
+        final catMatch = c.category.toLowerCase().contains(tagLower) ||
+            c.categories.any((cat) => cat.toLowerCase().contains(tagLower));
+        final nameMatch = c.name.toLowerCase().contains(tagLower);
+        final descMatch = c.description.toLowerCase().contains(tagLower);
+        return catMatch || nameMatch || descMatch;
+      }).toList();
+
+      if (list.isEmpty && snapshot.docs.isNotEmpty) {
+        return snapshot.docs
+            .map(Channel.fromDocumentSnapshot)
+            .take(limit)
+            .toList();
+      }
+      return list.take(limit).toList();
+    } catch (e) {
+      debugPrint('Error getChannelsByTopic: $e');
+      return [];
+    }
+  }
+
+  /// Get playlists related to topic tag/slug
+  Future<List<PlaylistModel>> getPlaylistsByTopic(String tag, {int limit = 15}) async {
+    try {
+      final tagLower = tag.toLowerCase().replaceAll('#', '').trim();
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.playlists)
+          .limit(40)
+          .get();
+
+      final list = snapshot.docs
+          .map(PlaylistModel.fromDocumentSnapshot)
+          .where((p) {
+        final nameMatch = p.name.toLowerCase().contains(tagLower);
+        final descMatch = p.description.toLowerCase().contains(tagLower);
+        return nameMatch || descMatch;
+      }).toList();
+
+      if (list.isEmpty && snapshot.docs.isNotEmpty) {
+        return snapshot.docs
+            .map(PlaylistModel.fromDocumentSnapshot)
+            .take(limit)
+            .toList();
+      }
+      return list.take(limit).toList();
+    } catch (e) {
+      debugPrint('Error getPlaylistsByTopic: $e');
+      return [];
+    }
+  }
+
+  /// Get community posts related to topic tag/slug
+  Future<List<CommunityPostModel>> getCommunityPostsByTopic(String tag, {int limit = 15}) async {
+    try {
+      final tagLower = tag.toLowerCase().replaceAll('#', '').trim();
+
+      // 1. Direct query by topics arrayContains or topicId
+      final topicSnap = await _firestore
+          .collection(FirestoreCollections.community)
+          .where('topics', arrayContains: tagLower)
+          .limit(limit)
+          .get();
+
+      final posts = topicSnap.docs
+          .map((doc) => CommunityPostModel.fromMap(doc.data()..['id'] = doc.id))
+          .toList();
+
+      if (posts.isNotEmpty) {
+        return posts;
+      }
+
+      final topicIdSnap = await _firestore
+          .collection(FirestoreCollections.community)
+          .where('topicId', isEqualTo: tagLower)
+          .limit(limit)
+          .get();
+
+      final postsId = topicIdSnap.docs
+          .map((doc) => CommunityPostModel.fromMap(doc.data()..['id'] = doc.id))
+          .toList();
+
+      if (postsId.isNotEmpty) {
+        return postsId;
+      }
+
+      // 2. Fallback text search across recent community posts
+      final snapshot = await _firestore
+          .collection(FirestoreCollections.community)
+          .limit(40)
+          .get();
+
+      final list = snapshot.docs
+          .map((doc) => CommunityPostModel.fromMap(doc.data()..['id'] = doc.id))
+          .where((post) {
+        final titleMatch = post.title.toLowerCase().contains(tagLower);
+        final descMatch = post.description.toLowerCase().contains(tagLower);
+        final tagMatch = post.tags.any((t) => t.toLowerCase().contains(tagLower));
+        final catMatch = post.selectedCategory.toLowerCase().contains(tagLower);
+        return titleMatch || descMatch || tagMatch || catMatch;
+      }).toList();
+
+      if (list.isEmpty && snapshot.docs.isNotEmpty) {
+        return snapshot.docs
+            .map((doc) => CommunityPostModel.fromMap(doc.data()..['id'] = doc.id))
+            .take(limit)
+            .toList();
+      }
+      return list.take(limit).toList();
+    } catch (e) {
+      debugPrint('Error getCommunityPostsByTopic: $e');
+      return [];
+    }
+  }
 }
+

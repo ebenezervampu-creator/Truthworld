@@ -9,7 +9,6 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 

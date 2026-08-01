@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -7,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -616,8 +616,9 @@ class AdminController extends GetxController {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null)
+      if (user == null) {
         throw Exception('Session expired. Please log in again.');
+      }
 
       final idToken = await user.getIdToken();
       final response = await http.post(
@@ -672,8 +673,9 @@ class AdminController extends GetxController {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null)
+      if (user == null) {
         throw Exception('Session expired. Please log in again.');
+      }
 
       final idToken = await user.getIdToken();
       final response = await http.post(
@@ -990,13 +992,6 @@ class AdminController extends GetxController {
   Future<void> fetchAnalytics() async {
     isLoadingAnalytics.value = true;
     try {
-      // Compute analytics from existing real-time data
-      final now = DateTime.now();
-      final rangeDays = analyticsTimeRange.value == '7d'
-          ? 7
-          : (analyticsTimeRange.value == '30d' ? 30 : 90);
-      final cutoff = now.subtract(Duration(days: rangeDays));
-
       // Image stats
       final totalModeratedImages = images.length;
       final approvedImages = images
@@ -1274,7 +1269,7 @@ class AdminController extends GetxController {
       // Compute upload velocity (hourly counts for last 24h from existing data)
       final now = DateTime.now();
       final hourlyUploads = <String, int>{};
-      for (int i = 0; i < 24; i++) {
+      for (var i = 0; i < 24; i++) {
         final hour = now.subtract(Duration(hours: i));
         hourlyUploads['${hour.hour}:00'] = 0;
       }

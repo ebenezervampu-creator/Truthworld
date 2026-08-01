@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -16,15 +15,16 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
-import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/algorithm/scored_video.dart';
-import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
@@ -43,6 +43,8 @@ import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_analytics_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart'
     hide LanguageRequest;
@@ -51,9 +53,6 @@ import 'package:truthworld/features/video/presentation/widgets/fact_check_report
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
-
-import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_analytics_controller.dart';
 
 class VideoController extends BaseController with GetTickerProviderStateMixin {
   final Rx<Video> _video = Video.empty().obs;
@@ -306,11 +305,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   late ChannelController channelController;
   MainController get mainController => Get.isRegistered<MainController>()
       ? Get.find<MainController>()
-      : Get.put(MainController(), permanent: true);
+      : Get.put(MainController());
   PlaylistController get playlistController =>
       Get.isRegistered<PlaylistController>()
       ? Get.find<PlaylistController>()
-      : Get.put(PlaylistController(), permanent: true);
+      : Get.put(PlaylistController());
   late CommentsController commentsController;
   StreamSubscription<DocumentSnapshot>? _videoSubscription;
 
@@ -423,7 +422,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
 
     // Check if we are playing a specific clip BEFORE starting playback flow
-    if (args != null && args['clip'] != null) {
+    if (args['clip'] != null) {
       activeClip.value = args['clip'] as VideoClip;
       debugPrint(
         '[VideoController] 🎬 Starting in Clip Mode: ${activeClip.value?.title}',
@@ -1930,8 +1929,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   Future<void> fetchPlaylistVideos() async {
     if (currentPlaylist.value == null ||
-        currentPlaylist.value!.videoIds.isEmpty)
+        currentPlaylist.value!.videoIds.isEmpty) {
       return;
+    }
 
     try {
       final ids = currentPlaylist.value!.videoIds;

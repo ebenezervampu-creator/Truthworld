@@ -54,8 +54,8 @@ class TowerCustomPlayer extends StatelessWidget {
           });
         }
 
-        double baseScale = 1.0;
-        bool isPinching = false;
+        var baseScale = 1.0;
+        var isPinching = false;
 
         return LayoutBuilder(
           builder: (ctx, constraints) {
@@ -268,8 +268,9 @@ class TowerCustomPlayer extends StatelessWidget {
                                 0.0,
                                 0.85,
                               );
-                              if (opacity <= 0.0)
+                              if (opacity <= 0.0) {
                                 return const SizedBox.shrink();
+                              }
                               return Positioned.fill(
                                 child: IgnorePointer(
                                   child: ColoredBox(
@@ -381,8 +382,9 @@ class TowerCustomPlayer extends StatelessWidget {
                             Obx(() {
                               final vol = c.showSwipeVolumeHUD.value;
                               final bri = c.showSwipeBrightnessHUD.value;
-                              if ((!vol && !bri) || c.isPiP.value)
+                              if ((!vol && !bri) || c.isPiP.value) {
                                 return const SizedBox.shrink();
+                              }
                               return Align(
                                 alignment: bri
                                     ? Alignment.centerLeft
@@ -405,11 +407,13 @@ class TowerCustomPlayer extends StatelessWidget {
                             Obx(() {
                               if (c.isShowingAd.value ||
                                   c.isPiP.value ||
-                                  !c.showFactOverlay.value)
+                                  !c.showFactOverlay.value) {
                                 return const SizedBox.shrink();
+                              }
                               final activeClaim = c.activeClaim.value;
-                              if (activeClaim == null)
+                              if (activeClaim == null) {
                                 return const SizedBox.shrink();
+                              }
 
                               return AnimatedPositioned(
                                 duration: const Duration(milliseconds: 250),
@@ -430,8 +434,9 @@ class TowerCustomPlayer extends StatelessWidget {
                               c.isShowingAd.value;
                               c.isPiP.value;
                               c.controlsVisible.value;
-                              if (c.isShowingAd.value || c.isPiP.value)
+                              if (c.isShowingAd.value || c.isPiP.value) {
                                 return const SizedBox.shrink();
+                              }
                               return Positioned.fill(
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 200),
@@ -454,8 +459,9 @@ class TowerCustomPlayer extends StatelessWidget {
                               c.isFullScreen.value;
                               c.showCommentsPopup.value;
                               c.showTranscriptPopup.value;
-                              if (c.isShowingAd.value || c.isPiP.value)
+                              if (c.isShowingAd.value || c.isPiP.value) {
                                 return const SizedBox.shrink();
+                              }
                               return Positioned.fill(
                                 child: AnimatedOpacity(
                                   duration: const Duration(milliseconds: 200),
@@ -507,8 +513,9 @@ class TowerCustomPlayer extends StatelessWidget {
                                                 .showFullscreenActionsDock
                                                 .value;
                                             if (hasOverlayOpen ||
-                                                !isDockEnabled)
+                                                !isDockEnabled) {
                                               return const SizedBox.shrink();
+                                            }
 
                                             return Positioned(
                                               right:
@@ -558,8 +565,9 @@ class TowerCustomPlayer extends StatelessWidget {
                               c.isShowingAd.value;
                               c.isPiP.value;
                               c.settingsOpen.value;
-                              if (c.isShowingAd.value || c.isPiP.value)
+                              if (c.isShowingAd.value || c.isPiP.value) {
                                 return const SizedBox.shrink();
+                              }
                               return c.settingsOpen.value
                                   ? Positioned.fill(
                                       child: Stack(
@@ -583,8 +591,9 @@ class TowerCustomPlayer extends StatelessWidget {
 
                             // ── Layer 8: Resolution switching overlay ──────────────
                             Obx(() {
-                              if (c.isShowingAd.value || c.isPiP.value)
+                              if (c.isShowingAd.value || c.isPiP.value) {
                                 return const SizedBox.shrink();
+                              }
                               // touch an observable
                               c.isAudioOnly.value;
                               var isSwitching = false;
@@ -632,8 +641,9 @@ class TowerCustomPlayer extends StatelessWidget {
                             Obx(() {
                               c.showStatsForNerds.value;
                               c.isPiP.value;
-                              if (!c.showStatsForNerds.value || c.isPiP.value)
+                              if (!c.showStatsForNerds.value || c.isPiP.value) {
                                 return const SizedBox.shrink();
+                              }
                               return Positioned(
                                 top: 16,
                                 left: 16,

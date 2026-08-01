@@ -5,7 +5,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class UserManagementTab extends StatelessWidget {
   final AdminController controller;
-  const UserManagementTab({super.key, required this.controller});
+  const UserManagementTab({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -16,13 +16,11 @@ class UserManagementTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 1,
               child: _buildUserList(context),
             ),
             if (isDesktop) ...[
               const SizedBox(width: 24),
               Expanded(
-                flex: 1,
                 child: Obx(
                   () => controller.selectedUser.value != null
                       ? _buildDetailPanel(
@@ -205,8 +203,9 @@ class UserManagementTab extends StatelessWidget {
             const SizedBox(height: 24),
             Obx(() {
               final safetyProfile = controller.userSafetyProfile.value;
-              if (safetyProfile == null)
+              if (safetyProfile == null) {
                 return const CircularProgressIndicator();
+              }
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -267,12 +266,13 @@ class UserManagementTab extends StatelessWidget {
 
   Widget _buildTrustScoreCard(int score) {
     Color scoreColor = Colors.red;
-    if (score >= 75)
+    if (score >= 75) {
       scoreColor = Colors.green;
-    else if (score >= 40)
+    } else if (score >= 40) {
       scoreColor = Colors.amber;
-    else if (score >= 10)
+    } else if (score >= 10) {
       scoreColor = Colors.orange;
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -365,12 +365,13 @@ class UserManagementTab extends StatelessWidget {
 
   Widget _buildTrustScoreBadge(int score) {
     Color scoreColor = Colors.red;
-    if (score >= 75)
+    if (score >= 75) {
       scoreColor = Colors.green;
-    else if (score >= 40)
+    } else if (score >= 40) {
       scoreColor = Colors.amber;
-    else if (score >= 10)
+    } else if (score >= 10) {
       scoreColor = Colors.orange;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -406,8 +407,7 @@ class UserManagementTab extends StatelessWidget {
     BuildContext context,
     String action,
     String userId, {
-    int? duration,
-    required Color color,
+    required Color color, int? duration,
   }) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(

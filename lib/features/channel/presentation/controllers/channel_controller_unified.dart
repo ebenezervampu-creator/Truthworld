@@ -1,5 +1,5 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,12 +8,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
@@ -192,76 +196,134 @@ class ChannelController extends GetxController
   RxString errorMessage = ''.obs;
   RxDouble uploadProgress = 0.0.obs;
   final RxString channelNameMessage = ''.obs;
-  final selectedChannelType = ChannelType.standard.obs;
+  final Rx<ChannelType> selectedChannelType = ChannelType.standard.obs;
 
   // State for Channel Details Page
-  final isAppBarExpanded = false.obs;
-  final isLoadingVideos = false.obs;
-  final videos = <Video>[].obs;
+  final RxBool isAppBarExpanded = false.obs;
+  final RxBool isLoadingVideos = false.obs;
+  final RxList<Video> videos = <Video>[].obs;
   final lastVideoDocument = Rx<DocumentSnapshot?>(null);
-  final isLoadingMore = false.obs;
-  final videoSortFilter = 'Latest'.obs;
+  final RxBool isLoadingMore = false.obs;
+  final RxString videoSortFilter = 'Latest'.obs;
 
   // Reactive flags for channel content tabs availability
-  final hasVideos = false.obs;
-  final hasPlaylists = false.obs;
-  final hasPosts = false.obs;
-  final channelVideoCount = 0.obs;
+  final RxBool hasVideos = false.obs;
+  final RxBool hasPlaylists = false.obs;
+  final RxBool hasPosts = false.obs;
+  final RxBool hasTopics = false.obs;
+  final RxInt channelVideoCount = 0.obs;
 
   List<String> get activeTabs {
-    return const ['Home', 'Videos', 'Playlists', 'Posts'];
+    return const ['Home', 'Videos', 'Topics', 'Playlists', 'Posts'];
+  }
+
+  // Topic content maps matching Saved Topics (FollowingTopicsPage) architecture
+  final TopicRepository _topicRepository = TopicRepository();
+  final Rxn<Topic> selectedChannelTopic = Rxn<Topic>();
+  final RxMap<String, List<Video>> topicVideosMap = <String, List<Video>>{}.obs;
+  final RxMap<String, bool> isLoadingVideosMap = <String, bool>{}.obs;
+  final RxMap<String, List<CommunityPostModel>> topicPostsMap =
+      <String, List<CommunityPostModel>>{}.obs;
+  final RxMap<String, bool> isLoadingPostsMap = <String, bool>{}.obs;
+
+  Future<void> fetchVideosForChannelTopic(Topic topic) async {
+    final key = topic.id;
+    if (topicVideosMap.containsKey(key) && isLoadingVideosMap[key] != true) {
+      return;
+    }
+    isLoadingVideosMap[key] = true;
+    try {
+      var vids = await _topicRepository.getVideosByTopic(topic.slug);
+      if (vids.isEmpty && topic.id != topic.slug) {
+        vids = await _topicRepository.getVideosByTopic(topic.id);
+      }
+      topicVideosMap[key] = vids;
+    } catch (e) {
+      debugPrint('Error fetching videos for channel topic ${topic.title}: $e');
+      topicVideosMap[key] = [];
+    } finally {
+      isLoadingVideosMap[key] = false;
+    }
+  }
+
+  Future<void> fetchPostsForChannelTopic(Topic topic) async {
+    final key = topic.id;
+    if (topicPostsMap.containsKey(key) && isLoadingPostsMap[key] != true) {
+      return;
+    }
+    isLoadingPostsMap[key] = true;
+    try {
+      var posts = await _topicRepository.getCommunityPostsByTopic(topic.slug);
+      if (posts.isEmpty && topic.id != topic.slug) {
+        posts = await _topicRepository.getCommunityPostsByTopic(topic.id);
+      }
+      topicPostsMap[key] = posts;
+    } catch (e) {
+      debugPrint('Error fetching posts for channel topic ${topic.title}: $e');
+      topicPostsMap[key] = [];
+    } finally {
+      isLoadingPostsMap[key] = false;
+    }
+  }
+
+  void selectChannelTopic(Topic? topic) {
+    selectedChannelTopic.value = topic;
+    if (topic != null) {
+      fetchVideosForChannelTopic(topic);
+      fetchPostsForChannelTopic(topic);
+    }
   }
 
   // Reactive State - Image Upload
   final bannerImageData = Rx<ImageData?>(null);
   final avatarImageData = Rx<ImageData?>(null);
-  final bannerUrl = ''.obs;
-  final avatarUrl = ''.obs;
-  final bannerUploadProgress = 0.0.obs;
-  final avatarUploadProgress = 0.0.obs;
-  final isUploadingBanner = false.obs;
-  final isUploadingAvatar = false.obs;
+  final RxString bannerUrl = ''.obs;
+  final RxString avatarUrl = ''.obs;
+  final RxDouble bannerUploadProgress = 0.0.obs;
+  final RxDouble avatarUploadProgress = 0.0.obs;
+  final RxBool isUploadingBanner = false.obs;
+  final RxBool isUploadingAvatar = false.obs;
 
   // Moderation statuses
-  final bannerStatus = 'PENDING'.obs;
-  final avatarStatus = 'PENDING'.obs;
-  final bannerStatusReason = ''.obs;
-  final avatarStatusReason = ''.obs;
+  final RxString bannerStatus = 'PENDING'.obs;
+  final RxString avatarStatus = 'PENDING'.obs;
+  final RxString bannerStatusReason = ''.obs;
+  final RxString avatarStatusReason = ''.obs;
 
   // Verification File IDs
-  final avatarFileId = ''.obs;
-  final bannerFileId = ''.obs;
+  final RxString avatarFileId = ''.obs;
+  final RxString bannerFileId = ''.obs;
 
   // Details screen real-time verification statuses
-  final detailsAvatarStatus = ''.obs;
-  final detailsBannerStatus = ''.obs;
-  final detailsAvatarReason = ''.obs;
-  final detailsBannerReason = ''.obs;
+  final RxString detailsAvatarStatus = ''.obs;
+  final RxString detailsBannerStatus = ''.obs;
+  final RxString detailsAvatarReason = ''.obs;
+  final RxString detailsBannerReason = ''.obs;
 
   StreamSubscription? _detailsAvatarSub;
   StreamSubscription? _detailsBannerSub;
 
   // Draft management
-  final hasDraft = false.obs;
+  final RxBool hasDraft = false.obs;
   final draftId = Rx<String?>(null);
-  final isSavingDraft = false.obs;
+  final RxBool isSavingDraft = false.obs;
   final lastDraftSaveTime = Rx<DateTime?>(null);
-  final isSubmitting = false.obs;
+  final RxBool isSubmitting = false.obs;
 
   // Other reactive state
-  final isPublic = true.obs;
-  final language = 'en'.obs;
+  final RxBool isPublic = true.obs;
+  final RxString language = 'en'.obs;
   final selectedCategory = Rx<String?>(null);
-  final selectedCategories = <String>[].obs;
-  final isAgreed = false.obs;
-  final formChangeTrigger = 0.obs;
-  final socialLinks = {
+  final RxList<String> selectedCategories = <String>[].obs;
+  final RxBool isAgreed = false.obs;
+  final RxInt formChangeTrigger = 0.obs;
+  final RxMap<String, String> socialLinks = {
     'twitter': '',
     'instagram': '',
     'youtube': '',
     'website': '',
   }.obs;
-  final advancedSettings = <String, dynamic>{
+  final RxMap<String, dynamic> advancedSettings = <String, dynamic>{
     'allowComments': true,
     'allowSubscriptions': true,
     'showSubscriberCount': true,
@@ -275,7 +337,7 @@ class ChannelController extends GetxController
   final RxBool notificationPlaylist = false.obs;
 
   // Availability Checking
-  final handleSuggestions = <String>[].obs;
+  final RxList<String> handleSuggestions = <String>[].obs;
   Rx<AvailabilityStatus> channelNameAvailability = Rx<AvailabilityStatus>(
     AvailabilityStatus.unknown,
   );
@@ -422,7 +484,7 @@ class ChannelController extends GetxController
             (snapshot) {
               final results = snapshot.docs
                   .map(Channel.fromDocumentSnapshot)
-                  .where((channel) => channel.isArchived != true)
+                  .where((channel) => !channel.isArchived)
                   .toList();
               channels.assignAll(results);
               isLoading.value = false;
@@ -449,7 +511,7 @@ class ChannelController extends GetxController
 
       final results = snapshot.docs
           .map(Channel.fromDocumentSnapshot)
-          .where((channel) => channel.isArchived != true)
+          .where((channel) => !channel.isArchived)
           .toList();
 
       channels.assignAll(results);
@@ -2118,7 +2180,13 @@ class ChannelController extends GetxController
     hasVideos.value = false;
     hasPlaylists.value = false;
     hasPosts.value = false;
+    hasTopics.value = false;
     channelVideoCount.value = 0;
+    selectedChannelTopic.value = null;
+    topicVideosMap.clear();
+    isLoadingVideosMap.clear();
+    topicPostsMap.clear();
+    isLoadingPostsMap.clear();
   }
 
   Future<void> fetchChannelVideoCount(String channelId) async {
@@ -2163,11 +2231,17 @@ class ChannelController extends GetxController
             .limit(1)
             .get(),
         postQuery.limit(1).get(),
+        _firestore
+            .collection(FirestoreCollections.topics)
+            .where('channelId', isEqualTo: channelId)
+            .limit(1)
+            .get(),
       ]);
 
       hasVideos.value = results[0].docs.isNotEmpty;
       hasPlaylists.value = results[1].docs.isNotEmpty;
       hasPosts.value = results[2].docs.isNotEmpty;
+      hasTopics.value = results[3].docs.isNotEmpty;
     } catch (e) {
       debugPrint('Error checking channel content: $e');
     }
@@ -2225,7 +2299,7 @@ class ChannelController extends GetxController
     try {
       final now = DateTime.now();
       // Calculate 1st of next month (e.g. July 10 -> August 1)
-      final effectiveDate = DateTime(now.year, now.month + 1, 1);
+      final effectiveDate = DateTime(now.year, now.month + 1);
       final effectiveTimestamp = Timestamp.fromDate(effectiveDate);
 
       final updateData = <String, dynamic>{

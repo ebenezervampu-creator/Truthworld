@@ -4,6 +4,6 @@ import 'package:truthworld/features/likedvideos/presentation/controllers/likedvi
 class LikedVideosBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => LikedVideosController(), fenix: true);
+    Get.lazyPut(LikedVideosController.new, fenix: true);
   }
 }

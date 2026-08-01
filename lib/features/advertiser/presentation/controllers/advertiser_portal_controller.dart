@@ -1,36 +1,39 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class AdvertiserPortalController extends GetxController {
-  final selectedIndex = 0.obs;
-  final selectedMetric = 'spend'.obs; // 'spend', 'impressions', 'clicks', 'ctr'
-  final channelVideos = <Map<String, dynamic>>[].obs;
-  final isLoadingVideos = false.obs;
-  final isSigningIn = false.obs;
+  Worker? _authWorker;
+  Timer? _subtitleSimTimer;
+  Timer? _audioSimTimer;
+  final RxInt selectedIndex = 0.obs;
+  final RxString selectedMetric = 'spend'.obs; // 'spend', 'impressions', 'clicks', 'ctr'
+  final RxList<Map<String, dynamic>> channelVideos = <Map<String, dynamic>>[].obs;
+  final RxBool isLoadingVideos = false.obs;
+  final RxBool isSigningIn = false.obs;
 
   // Subtitles view state
   final selectedAdForSubtitles = Rxn<AdItem>();
-  final selectedLanguageForSubtitles = 'en'.obs;
-  final currentSubtitleCues = <Map<String, String>>[].obs;
-  final isSavingSubtitles = false.obs;
-  final isTranslatingSubtitles = false.obs;
-  final subtitleProgress = 0.0.obs;
-  final subtitleStatusText = ''.obs;
+  final RxString selectedLanguageForSubtitles = 'en'.obs;
+  final RxList<Map<String, String>> currentSubtitleCues = <Map<String, String>>[].obs;
+  final RxBool isSavingSubtitles = false.obs;
+  final RxBool isTranslatingSubtitles = false.obs;
+  final RxDouble subtitleProgress = 0.0.obs;
+  final RxString subtitleStatusText = ''.obs;
 
   // Audio Dubs view state
   final selectedAdForAudio = Rxn<AdItem>();
-  final selectedLanguageForAudio = 'hi'.obs;
-  final isTranslatingAudio = false.obs;
-  final audioProgress = 0.0.obs;
-  final audioStatusText = ''.obs;
+  final RxString selectedLanguageForAudio = 'hi'.obs;
+  final RxBool isTranslatingAudio = false.obs;
+  final RxDouble audioProgress = 0.0.obs;
+  final RxString audioStatusText = ''.obs;
 
   final List<String> tabTitles = [
     'Advertiser Dashboard',
@@ -56,7 +59,7 @@ class AdvertiserPortalController extends GetxController {
     super.onInit();
     fetchChannelVideos();
     // Fetch videos when user gets authenticated
-    ever(AuthService.to.isAuthenticated, (_) {
+    _authWorker = ever(AuthService.to.isAuthenticated, (_) {
       fetchChannelVideos();
     });
   }
@@ -242,7 +245,8 @@ class AdvertiserPortalController extends GetxController {
     subtitleProgress.value = 0.0;
     subtitleStatusText.value = 'Extracting audio track...';
 
-    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+    _subtitleSimTimer?.cancel();
+    _subtitleSimTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (subtitleProgress.value >= 1.0) {
         timer.cancel();
 
@@ -315,7 +319,8 @@ class AdvertiserPortalController extends GetxController {
     audioProgress.value = 0.0;
     audioStatusText.value = 'Analyzing original vocal pattern...';
 
-    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+    _audioSimTimer?.cancel();
+    _audioSimTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (audioProgress.value >= 1.0) {
         timer.cancel();
 
@@ -350,5 +355,13 @@ class AdvertiserPortalController extends GetxController {
         }
       }
     });
+  }
+
+  @override
+  void onClose() {
+    _authWorker?.dispose();
+    _subtitleSimTimer?.cancel();
+    _audioSimTimer?.cancel();
+    super.onClose();
   }
 }

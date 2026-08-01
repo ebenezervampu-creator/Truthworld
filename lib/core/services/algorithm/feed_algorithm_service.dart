@@ -1,20 +1,19 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/services/video_query_builder.dart';
+import 'package:http/http.dart' as http;
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
-import 'scored_video.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Client for the server-side Truthworld feed endpoints.
 /// Falls back to chronological feed on server failure.
 class FeedAlgorithmService extends GetxService {
   /// Server endpoint for personalized home feed.
   /// Set to empty string until Cloud Function is deployed.
-  /// After deployment: 'https://<region>-<project>.cloudfunctions.net/getHomeFeed'
+  /// After deployment: 'https://`region`-`project`.cloudfunctions.net/getHomeFeed'
   static const String _homeFeedEndpoint = '';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -123,7 +122,7 @@ class FeedAlgorithmService extends GetxService {
 
       final snapshot = await query.get();
       final videos = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data()! as Map<String, dynamic>;
         data['id'] = doc.id;
         return Video.fromMap(data);
       }).toList();

@@ -2,11 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/domain/entities/video_entity.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
+import 'package:truthworld/domain/entities/video_entity.dart';
 import 'package:truthworld/domain/repositories/search_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/data/models/channel.dart';
 
 class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
   final FirebaseFirestore _firestore;
@@ -81,7 +81,7 @@ class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
       var q = _firestore
           .collection(FirestoreCollections.videos)
           .where('titleLowercase', isGreaterThanOrEqualTo: queryLower)
-          .where('titleLowercase', isLessThanOrEqualTo: queryLower + '\uf8ff')
+          .where('titleLowercase', isLessThanOrEqualTo: '$queryLower\uf8ff')
           .where('visibility', isEqualTo: 'public')
           .limit(limit);
 
@@ -107,7 +107,7 @@ class SearchRepositoryImpl extends BaseRepository implements SearchRepository {
       var q = _firestore
           .collection(FirestoreCollections.channels)
           .where('nameLowercase', isGreaterThanOrEqualTo: queryLower)
-          .where('nameLowercase', isLessThanOrEqualTo: queryLower + '\uf8ff')
+          .where('nameLowercase', isLessThanOrEqualTo: '$queryLower\uf8ff')
           .limit(limit);
 
       if (cursor != null && cursor is DocumentSnapshot) {

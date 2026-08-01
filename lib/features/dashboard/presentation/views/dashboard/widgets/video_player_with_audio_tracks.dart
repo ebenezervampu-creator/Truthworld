@@ -41,7 +41,7 @@ class VideoPlayerWithAudioTracks extends StatefulWidget {
 class _VideoPlayerWithAudioTracksState
     extends State<VideoPlayerWithAudioTracks> {
   late final MultiAudioPlayerController _ctrl;
-  final _controlsKey = GlobalKey();
+  final GlobalKey<State<StatefulWidget>> _controlsKey = GlobalKey();
 
   @override
   void initState() {

@@ -6,8 +6,8 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ChartData {
@@ -571,7 +571,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
         final formatted = str.replaceAllMapped(
           reg,
-          (Match m) => '${m[1]},',
+          (m) => '${m[1]},',
         );
         return isCurrency ? '₹$formatted' : formatted;
       }
@@ -1939,7 +1939,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
         final formatted = str.replaceAllMapped(
           reg,
-          (Match m) => '${m[1]},',
+          (m) => '${m[1]},',
         );
         return isCurrency ? '₹$formatted' : formatted;
       }
@@ -2159,8 +2159,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 series: <CartesianSeries<ChartData, String>>[
                   AreaSeries<ChartData, String>(
                     dataSource: chartData,
-                    xValueMapper: (ChartData data, _) => data.x,
-                    yValueMapper: (ChartData data, _) => data.y,
+                    xValueMapper: (data, _) => data.x,
+                    yValueMapper: (data, _) => data.y,
                     name: metricTitle,
                     color: metricColor.withValues(alpha: 0.25),
                     borderColor: metricColor,

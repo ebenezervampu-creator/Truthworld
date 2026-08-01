@@ -160,7 +160,6 @@ class CommunityRepositoryImpl extends BaseRepository
           .doc(postId)
           .update({'commentCount': FieldValue.increment(1)});
 
-      final doc = await docRef.get();
       return CommentEntity(
         id: docRef.id,
         videoId: postId,

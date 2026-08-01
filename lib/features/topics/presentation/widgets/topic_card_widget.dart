@@ -77,7 +77,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     final stream = provider.resolve(ImageConfiguration.empty);
     late ImageStreamListener listener;
     listener = ImageStreamListener(
-      (ImageInfo info, bool synchronousCall) {
+      (info, synchronousCall) {
         if (info.image.width > 0 && info.image.height > 0) {
           final ratio = info.image.width / info.image.height;
           _aspectRatioCache[url] = ratio;
@@ -85,7 +85,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
         }
         stream.removeListener(listener);
       },
-      onError: (dynamic exception, StackTrace? stackTrace) {
+      onError: (dynamic exception, stackTrace) {
         stream.removeListener(listener);
       },
     );
@@ -95,7 +95,9 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
   @override
   void initState() {
     super.initState();
-    _followingTopicsController = Get.find<FollowingTopicsController>();
+    _followingTopicsController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
     if (widget.topic != null && widget.topic!.id.trim().isNotEmpty) {
       _initControllers(widget.topic!);
     }

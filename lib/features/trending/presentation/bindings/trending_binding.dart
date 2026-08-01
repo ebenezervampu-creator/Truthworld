@@ -4,6 +4,6 @@ import 'package:truthworld/features/trending/presentation/controllers/trending_c
 class TrendingBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => TrendingController(), fenix: true);
+    Get.lazyPut(TrendingController.new, fenix: true);
   }
 }

@@ -839,17 +839,17 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
   late TextEditingController accessCodeController;
 
   late final Rx<TopicVisibilityType> selectedVisibility;
-  final obscureAccessCode = true.obs;
-  final selectedVideoIds = <String>[].obs;
-  final _isLoading = true.obs;
-  final channelVideos = <Map<String, dynamic>>[].obs;
+  final RxBool obscureAccessCode = true.obs;
+  final RxList<String> selectedVideoIds = <String>[].obs;
+  final RxBool _isLoading = true.obs;
+  final RxList<Map<String, dynamic>> channelVideos = <Map<String, dynamic>>[].obs;
 
   // Thumbnail State
-  final thumbnailSource = 'video'.obs; // 'video' or 'custom'
+  final RxString thumbnailSource = 'video'.obs; // 'video' or 'custom'
   final Rx<String?> chosenVideoThumbnailUrl = Rx<String?>(null);
   final Rx<Uint8List?> pickedCustomImageBytes = Rx<Uint8List?>(null);
   final Rx<String?> pickedCustomImageName = Rx<String?>(null);
-  final isSaving = false.obs;
+  final RxBool isSaving = false.obs;
   final Rx<String?> currentThumbnailUrl = Rx<String?>(null);
 
   final List<String> categories = const [
@@ -1635,7 +1635,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                           ),
                                         ),
                                 ),
-                                onChanged: (bool? checked) {
+                                onChanged: (checked) {
                                   if (checked ?? false) {
                                     selectedVideoIds.add(videoId);
                                   } else {

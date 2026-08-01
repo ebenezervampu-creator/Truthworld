@@ -1,6 +1,6 @@
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Every place content is recommended in Truthworld
 enum RecommendationSurface {

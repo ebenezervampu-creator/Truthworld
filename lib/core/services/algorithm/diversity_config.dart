@@ -24,13 +24,7 @@ class DiversityConfig {
 
   // Surface-specific presets:
   static const homeFeed = DiversityConfig(
-    maxConsecutiveSameChannel: 2,
-    maxConsecutiveSameTopic: 3,
-    maxConsecutiveSameCategory: 4,
-    maxCreatorExposurePercent: 0.18, // Creator exposure budget: max 18%
-    maxSingleTopicShare: 0.30,
-    explorationRate: 0.08,
-    smallCreatorBoostFactor: 1.3,
+    
   );
 
   static const videoRelated = DiversityConfig(
@@ -44,9 +38,6 @@ class DiversityConfig {
   );
 
   static const autoplayNext = DiversityConfig(
-    maxConsecutiveSameChannel: 2,
-    maxConsecutiveSameTopic: 3,
-    maxConsecutiveSameCategory: 4,
     maxCreatorExposurePercent: 0.20,
     maxSingleTopicShare: 0.35,
     explorationRate: 0.05,
@@ -74,9 +65,6 @@ class DiversityConfig {
   );
 
   static const trending = DiversityConfig(
-    maxConsecutiveSameChannel: 2,
-    maxConsecutiveSameTopic: 3,
-    maxConsecutiveSameCategory: 4,
     maxCreatorExposurePercent: 0.20,
     maxSingleTopicShare: 0.35,
     explorationRate: 0.10,
@@ -94,9 +82,6 @@ class DiversityConfig {
   );
 
   static const endScreen = DiversityConfig(
-    maxConsecutiveSameChannel: 2,
-    maxConsecutiveSameTopic: 3,
-    maxConsecutiveSameCategory: 4,
     maxCreatorExposurePercent: 0.25,
     maxSingleTopicShare: 0.40,
     explorationRate: 0.05,

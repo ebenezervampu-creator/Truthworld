@@ -15,7 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// This transforms evidence from "hidden metadata" into
 /// "first-class platform infrastructure."
 class SourceCredibilityController extends GetxController {
-  final isExpanded = false.obs;
+  final RxBool isExpanded = false.obs;
 
   void toggleExpanded() {
     isExpanded.value = !isExpanded.value;

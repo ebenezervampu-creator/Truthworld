@@ -1,8 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart' hide SearchBar, SearchController;
 import 'package:get/get.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -256,123 +253,20 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  /// Build empty search landing state featuring Realtime Trending Today
+  /// Build empty search landing state with industry-standard video suggestions
   Widget _buildEmptyState() {
-    final trendingList = _searchCtrl.filteredRealtimeTrending;
     final filter = _searchCtrl.selectedFilter.value;
-    final isTypeFilter = [
-      'Videos',
-      'Topics',
-      'Playlists',
-      'Channels',
-    ].contains(filter);
+    final recommendedList = _searchCtrl.recommendedResults;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. 🔥 Realtime Trending Today Header & Live Stream List
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      '🔥 Realtime Trending Today',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.6),
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, color: AppColors.error, size: 8),
-                          SizedBox(width: 4),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              color: AppColors.error,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  isTypeFilter
-                      ? 'Popular trending $filter right now'
-                      : 'Top real-time searches & content across TruthWorld',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (_searchCtrl.isRealtimeTrendingLoading.value)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: CircularProgressIndicator(
-                        color: AppColors.error,
-                        strokeWidth: 2,
-                      ),
-                    ),
-                  )
-                else if (trendingList.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.textPrimary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'No trending $filter found right now.',
-                      style: const TextStyle(color: AppColors.textSecondary),
-                    ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: trendingList.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(color: AppColors.bgDivider, height: 1),
-                    itemBuilder: (context, index) {
-                      final item = trendingList[index];
-                      return _buildRealtimeTrendingTile(item);
-                    },
-                  ),
-              ],
-            ),
-          ),
-
-          // 2. Recent searches
+          // 1. Recent Searches
           if (_searchCtrl.recentSearches.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: RecentSearchesList(
                 recentSearches: _searchCtrl.recentSearches,
                 onSearchSelected: (query) {
@@ -383,278 +277,55 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
 
-          // 3. "You May Like" Section (Recommended Videos)
-          if (_searchCtrl.recommendedResults.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'You may like',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 190,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: _searchCtrl.recommendedResults.length,
-                      itemBuilder: (context, index) {
-                        final video = _searchCtrl.recommendedResults[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                          ),
-                          child: _buildRecommendedCard(video),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          // 4. Search Tips section
+          // 2. Suggested Videos Section Header
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.textPrimary.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '💡 Search Tips',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• Use specific keywords for better results\n'
-                    '• Try different search terms if no results\n'
-                    '• Filter by channels, playlists, or topics',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Text(
+              filter == 'All' ? 'Suggested Videos' : 'Suggested $filter',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.2,
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  /// Realtime Trending Tile widget with Rank Movement & Preview Cards
-  Widget _buildRealtimeTrendingTile(TrendingItem item) {
-    IconData categoryIcon;
-    Color categoryColor;
-    switch (item.category) {
-      case 'topic':
-        categoryIcon = Icons.numbers_rounded;
-        categoryColor = AppColors.brandHover;
-      case 'playlist':
-        categoryIcon = Icons.playlist_play_rounded;
-        categoryColor = AppColors.brand;
-      case 'channel':
-        categoryIcon = Icons.account_circle_rounded;
-        categoryColor = Colors.cyanAccent;
-      case 'video':
-      default:
-        categoryIcon = Icons.play_arrow_rounded;
-        categoryColor = AppColors.error;
-    }
-
-    var movementColor = AppColors.success;
-    if (item.movement != null) {
-      if (item.movement!.contains('▼')) {
-        movementColor = AppColors.warning;
-      } else if (item.movement!.contains('NEW')) {
-        movementColor = AppColors.brandHover;
-      }
-    }
-
-    return InkWell(
-      onTap: () {
-        _searchController.text = item.title;
-        _searchCtrl.performSearch(item.title);
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            // 1. Rank Number & Movement Indicator
-            SizedBox(
-              width: 44,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '#${item.rank}',
-                    style: TextStyle(
-                      color: item.rank <= 3
-                          ? AppColors.warning
-                          : AppColors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (item.movement != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      item.movement!,
-                      style: TextStyle(
-                        color: movementColor,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // 2. Thumbnail Preview Card (if available) or Category Badge
-            if (item.imageUrl != null && item.imageUrl!.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 56,
-                  height: 40,
-                  child: CachedNetworkImage(
-                    imageUrl: item.imageUrl!,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Container(color: AppColors.bgDivider),
-                    errorWidget: (context, url, err) => ColoredBox(
-                      color: categoryColor.withValues(alpha: 0.2),
-                      child: Icon(categoryIcon, color: categoryColor, size: 20),
-                    ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: categoryColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(categoryIcon, color: categoryColor, size: 20),
-              ),
-
-            const SizedBox(width: 12),
-
-            // 3. Title & Metadata (Subtitle / Creator)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      if (item.creator != null && item.creator!.isNotEmpty) ...[
-                        Text(
-                          item.creator!,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Text(
-                          ' • ',
-                          style: TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                      if (item.subtitle != null)
-                        Expanded(
-                          child: Text(
-                            item.subtitle!,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // 4. Trending Badge
+          // 3. Suggested Video Results List
+          if (_searchCtrl.isLoading.value)
+            const SearchResultSkeleton(count: 4)
+          else if (recommendedList.isEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: item.badge.contains('🔥')
-                    ? AppColors.error.withValues(alpha: 0.2)
-                    : AppColors.textPrimary.withValues(alpha: 0.08),
+                color: AppColors.textPrimary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: item.badge.contains('🔥')
-                      ? AppColors.error.withValues(alpha: 0.4)
-                      : Colors.transparent,
+              ),
+              child: const Center(
+                child: Text(
+                  'No suggestions available right now.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
               ),
-              child: Text(
-                item.badge,
-                style: TextStyle(
-                  color: item.badge.contains('🔥')
-                      ? AppColors.error
-                      : AppColors.textSecondary,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: recommendedList.length,
+              itemBuilder: (context, index) {
+                final video = recommendedList[index];
+                return SearchResultCard(
+                  result: video,
+                  onTap: () => _searchCtrl.onResultTapped(video),
+                );
+              },
             ),
-            const SizedBox(width: 6),
-            const Icon(
-              Icons.north_west_rounded,
-              color: AppColors.textTertiary,
-              size: 16,
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -720,134 +391,6 @@ class _SearchPageState extends State<SearchPage> {
           onTap: () => _searchCtrl.onResultTapped(result),
         );
       },
-    );
-  }
-
-  /// Build recommended video card for horizontal slider
-  Widget _buildRecommendedCard(SearchResult video) {
-    final seconds = video.duration;
-    String? durationStr;
-    if (seconds != null && seconds > 0) {
-      final h = seconds ~/ 3600;
-      final m = (seconds % 3600) ~/ 60;
-      final s = seconds % 60;
-      if (h > 0) {
-        durationStr =
-            '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-      } else {
-        durationStr = '$m:${s.toString().padLeft(2, '0')}';
-      }
-    }
-    return InkWell(
-      onTap: () {
-        _searchCtrl.onResultTapped(video);
-      },
-      child: Container(
-        width: 180,
-        margin: const EdgeInsets.only(bottom: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: video.thumbnail.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: video.thumbnail,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                Container(color: AppColors.bgDivider),
-                            errorWidget: (context, url, error) => const Icon(
-                              Icons.play_circle_outline,
-                              color: AppColors.textTertiary,
-                            ),
-                          )
-                        : const ColoredBox(
-                            color: AppColors.bgDivider,
-                            child: Icon(
-                              Icons.video_library,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                  ),
-                ),
-                if (durationStr != null)
-                  Positioned(
-                    bottom: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgPage.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        durationStr,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brandHover.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      '⭐ Recommended',
-                      style: TextStyle(
-                        color: AppColors.brandHover,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                      color: AppColors.textPrimary,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${FormatUtils.formatCount(video.views)} views • ${video.channelName}',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

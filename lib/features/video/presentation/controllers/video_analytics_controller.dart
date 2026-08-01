@@ -9,7 +9,6 @@ import 'package:truthworld/features/analytics/data/services/viewer_identity_serv
 class VideoAnalyticsController extends BaseController {
   final Stopwatch _watchStopwatch = Stopwatch();
   bool _hasCountedQualifiedView = false;
-  int _lastReportedWatchTime = 0;
   final Set<String> _firedMilestones = {};
   static const List<int> _milestoneThresholds = [25, 50, 75, 100];
 
@@ -33,7 +32,6 @@ class VideoAnalyticsController extends BaseController {
   void resetTimer() {
     _watchStopwatch.reset();
     _hasCountedQualifiedView = false;
-    _lastReportedWatchTime = 0;
     _firedMilestones.clear();
   }
 

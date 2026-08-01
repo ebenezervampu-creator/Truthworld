@@ -4,6 +4,6 @@ import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_
 class MyVideosBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => MyVideosController(), fenix: true);
+    Get.lazyPut(MyVideosController.new, fenix: true);
   }
 }

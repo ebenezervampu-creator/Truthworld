@@ -23,7 +23,20 @@ class VideoQueryBuilder {
         )
         .orderBy('uploadedAt', descending: true);
 
-    if (category != null && category != 'All' && category.isNotEmpty) {
+    final isSpecialCategory = category == null ||
+        category.isEmpty ||
+        category == 'All' ||
+        category == 'Subscriptions' ||
+        category == '🪙 Flip Coin' ||
+        category == 'Posts' ||
+        category == '🔥 Trending' ||
+        category == 'Trending' ||
+        category == '✨ New' ||
+        category == 'New' ||
+        category == '⭐ Popular' ||
+        category == 'Popular';
+
+    if (!isSpecialCategory) {
       query = query.where('category', isEqualTo: category);
     }
 

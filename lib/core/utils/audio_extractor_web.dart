@@ -1,4 +1,4 @@
-// ignore_for_file: avoid_web_libraries_in_flutter, uri_does_not_exist, undefined_function, undefined_class, argument_type_not_assignable
+// ignore_for_file: avoid_web_libraries_in_flutter, uri_does_not_exist
 
 import 'dart:js_util' as js_util;
 

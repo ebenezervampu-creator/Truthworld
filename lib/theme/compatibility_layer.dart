@@ -3,23 +3,14 @@ import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class AppTheme {
-  @Deprecated('Use new theme tokens instead')
   static CompatColors get colors => const CompatColors();
-  @Deprecated('Use new theme tokens instead')
   static CompatSpacing get spacing => const CompatSpacing();
-  @Deprecated('Use new theme tokens instead')
   static CompatTypography get typography => const CompatTypography();
-  @Deprecated('Use new theme tokens instead')
   static CompatSizes get sizes => const CompatSizes();
-  @Deprecated('Use new theme tokens instead')
   static CompatRadius get radius => const CompatRadius();
-  @Deprecated('Use new theme tokens instead')
   static CompatInteraction get interaction => const CompatInteraction();
-  @Deprecated('Use new theme tokens instead')
   static CompatInteraction get animations => const CompatInteraction(); // Alias
-  @Deprecated('Use new theme tokens instead')
   static CompatShadows get shadows => const CompatShadows();
-  @Deprecated('Use new theme tokens instead')
   static CompatComponents get components => const CompatComponents();
 
   static const Color primaryColor = AppColors.brand;
@@ -232,7 +223,6 @@ class ComponentStyles {
       );
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatColors {
   const CompatColors();
   Color get primary => AppColors.brand;
@@ -272,7 +262,6 @@ class CompatColors {
   Color get surfaceContainerHighest => AppColors.bgSurfaceHover;
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatSpacing {
   const CompatSpacing();
   double get xxs => 2;
@@ -291,7 +280,6 @@ class CompatSpacing {
   double get space32 => 32;
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatTypography {
   const CompatTypography();
   TextStyle get h1 => const TextStyle(
@@ -342,7 +330,6 @@ class CompatTypography {
   );
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatSizes {
   const CompatSizes();
   double get sidebarWidth => 240;
@@ -361,7 +348,6 @@ class CompatSizes {
   int get imageCacheSmallHeight => 90;
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatRadius {
   const CompatRadius();
   double get sm => 4;
@@ -374,7 +360,6 @@ class CompatRadius {
   BorderRadius get circularXl => BorderRadius.circular(24);
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatInteraction {
   const CompatInteraction();
   Duration get fast => const Duration(milliseconds: 150);
@@ -383,7 +368,6 @@ class CompatInteraction {
   Curve get easeOutCubic => Curves.easeOutCubic;
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatShadows {
   const CompatShadows();
   List<BoxShadow> get elevationSm => [
@@ -409,7 +393,6 @@ class CompatShadows {
   ];
 }
 
-@Deprecated('Use new theme tokens instead')
 class CompatComponents {
   const CompatComponents();
   double get dividerThickness => 0.5;

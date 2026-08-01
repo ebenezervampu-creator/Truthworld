@@ -7,7 +7,7 @@ class HomeBinding extends Bindings {
   void dependencies() {
     Get.lazyPut(HomeController.new);
     if (!Get.isRegistered<VideoFeedNotificationController>()) {
-      Get.lazyPut(VideoFeedNotificationController.new);
+      Get.put(VideoFeedNotificationController());
     }
   }
 }

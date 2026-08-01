@@ -1,10 +1,10 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
@@ -34,7 +34,7 @@ class DashboardCommentsController extends BaseController {
 
   /// List of creator's videos with comment counts
   final videosWithComments = RxList<CreatorVideoWithComments>();
-  final isLoadingVideos = false.obs;
+  final RxBool isLoadingVideos = false.obs;
   final videosError = Rx<String?>(null);
 
   /// Map of videoId to loaded comments stream
@@ -48,7 +48,7 @@ class DashboardCommentsController extends BaseController {
   final unansweredComments = RxList<Comment>();
   final commentsFilter = RxString('all'); // 'all', 'answered', 'unanswered'
   final searchQuery = RxString('');
-  final isLoadingComments = false.obs;
+  final RxBool isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
 
   void setSearchQuery(String query) {
@@ -497,11 +497,11 @@ class DashboardCommentsController extends BaseController {
       }
 
       answeredComments.value = baseList
-          .where((c) => c.hasCreatorReply == true)
+          .where((c) => c.hasCreatorReply)
           .toList();
 
       unansweredComments.value = baseList
-          .where((c) => c.hasCreatorReply == false)
+          .where((c) => !c.hasCreatorReply)
           .toList();
 
       logger.info(

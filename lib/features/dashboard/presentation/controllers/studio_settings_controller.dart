@@ -1,18 +1,18 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 
 /// Controller for Studio Settings
 /// Manages user settings, channel info and monetization preferences
 class StudioSettingsController extends BaseController {
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  final userData = <String, dynamic>{}.obs;
-  final isLoadingData = true.obs;
+  final RxMap<String, dynamic> userData = <String, dynamic>{}.obs;
+  final RxBool isLoadingData = true.obs;
 
   late DocumentReference _userRef;
 

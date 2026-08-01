@@ -4,7 +4,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class HelpSupportTab extends StatelessWidget {
   final AdminController controller;
-  const HelpSupportTab({super.key, required this.controller});
+  const HelpSupportTab({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -17,9 +17,9 @@ class HelpSupportTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [
-                  const Color(0xFF1A1A2E),
+                  Color(0xFF1A1A2E),
                   AppColors.bgSurface,
                 ],
                 begin: Alignment.topLeft,

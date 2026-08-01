@@ -28,6 +28,7 @@ class Topic {
     this.thumbnailUrl,
     this.coverImage,
     this.videoCount = 0,
+    this.postCount = 0,
     this.featuredVideoIds = const [],
     this.relatedTopics = const [],
     this.likeCount = 0,
@@ -59,6 +60,7 @@ class Topic {
       thumbnailUrl: data['thumbnailUrl'],
       coverImage: data['coverImage'],
       videoCount: data['videoCount'] ?? 0,
+      postCount: data['postCount'] ?? 0,
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(data['relatedTopics'] ?? []),
       createdAt:
@@ -96,6 +98,7 @@ class Topic {
       thumbnailUrl: map['thumbnailUrl'],
       coverImage: map['coverImage'],
       videoCount: map['videoCount'] ?? 0,
+      postCount: map['postCount'] ?? 0,
       featuredVideoIds: List<String>.from(map['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(map['relatedTopics'] ?? []),
       createdAt:
@@ -128,6 +131,7 @@ class Topic {
   final String? thumbnailUrl;
   final String? coverImage;
   final int videoCount;
+  final int postCount;
   final List<String> featuredVideoIds;
   final List<String> relatedTopics;
   final DateTime createdAt;
@@ -158,6 +162,7 @@ class Topic {
       'thumbnailUrl': thumbnailUrl,
       'coverImage': coverImage,
       'videoCount': videoCount,
+      'postCount': postCount,
       'featuredVideoIds': featuredVideoIds,
       'relatedTopics': relatedTopics,
       'createdAt': createdAt.toIso8601String(),
@@ -189,6 +194,7 @@ class Topic {
       'thumbnailUrl': thumbnailUrl,
       'coverImage': coverImage,
       'videoCount': videoCount,
+      'postCount': postCount,
       'featuredVideoIds': featuredVideoIds,
       'relatedTopics': relatedTopics,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -220,6 +226,7 @@ class Topic {
     String? thumbnailUrl,
     String? coverImage,
     int? videoCount,
+    int? postCount,
     List<String>? featuredVideoIds,
     List<String>? relatedTopics,
     DateTime? createdAt,
@@ -248,6 +255,7 @@ class Topic {
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       coverImage: coverImage ?? this.coverImage,
       videoCount: videoCount ?? this.videoCount,
+      postCount: postCount ?? this.postCount,
       featuredVideoIds: featuredVideoIds ?? this.featuredVideoIds,
       relatedTopics: relatedTopics ?? this.relatedTopics,
       createdAt: createdAt ?? this.createdAt,

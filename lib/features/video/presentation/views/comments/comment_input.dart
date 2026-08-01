@@ -791,7 +791,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                 icon: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   transitionBuilder:
-                      (Widget child, Animation<double> animation) {
+                      (child, animation) {
                         return ScaleTransition(
                           scale: animation,
                           child: RotationTransition(

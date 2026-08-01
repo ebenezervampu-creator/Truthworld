@@ -1,9 +1,9 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
@@ -26,10 +26,10 @@ class CommentsController extends BaseController {
 
   // Reactive state
   final comments = RxList<Comment>();
-  final isLoadingComments = false.obs;
-  final hasMoreComments = true.obs;
+  final RxBool isLoadingComments = false.obs;
+  final RxBool hasMoreComments = true.obs;
   final commentsError = Rx<String?>(null);
-  final isSortNewest = false.obs;
+  final RxBool isSortNewest = false.obs;
 
   // Reactive targets for comment/reply deep linking
   final targetCommentId = Rx<String?>(null);
@@ -37,7 +37,7 @@ class CommentsController extends BaseController {
   bool hasScrolledToTarget = false;
 
   // For creating comments
-  final isSubmittingComment = false.obs;
+  final RxBool isSubmittingComment = false.obs;
   final commentError = Rx<String?>(null);
 
   // For interactions (likes/dislikes)
@@ -224,7 +224,7 @@ class CommentsController extends BaseController {
     String? channelProfilePicUrl,
     String? userProfilePicUrl,
     double donationAmount = 0.0,
-    String donationCurrency = '\$',
+    String donationCurrency = r'$',
     bool isDonatedComment = false,
     String? donationColorHex,
   }) async {
@@ -812,8 +812,9 @@ class CommentsController extends BaseController {
   void _triggerLikeNotification(Comment comment) {
     if (video == null ||
         currentUserId.isEmpty ||
-        currentUserId == comment.userId)
+        currentUserId == comment.userId) {
       return;
+    }
 
     final authService = AuthService.to;
     final notificationService = UserNotificationService();
@@ -845,8 +846,9 @@ class CommentsController extends BaseController {
         currentUserId.isEmpty ||
         replyAuthorId == null ||
         replyAuthorId.isEmpty ||
-        currentUserId == replyAuthorId)
+        currentUserId == replyAuthorId) {
       return;
+    }
 
     final authService = AuthService.to;
     final notificationService = UserNotificationService();

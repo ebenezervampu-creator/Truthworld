@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
@@ -141,11 +141,11 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                 ),
                 const SizedBox(width: 24),
                 PopupMenuButton<bool>(
-                  onSelected: (bool newest) {
+                  onSelected: (newest) {
                     isSortNewest.value = newest;
                   },
                   offset: const Offset(0, 30),
-                  itemBuilder: (BuildContext context) => <PopupMenuEntry<bool>>[
+                  itemBuilder: (context) => <PopupMenuEntry<bool>>[
                     PopupMenuItem<bool>(
                       value: false,
                       child: Obx(() {

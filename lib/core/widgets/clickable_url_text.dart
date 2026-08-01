@@ -18,8 +18,7 @@ class ClickableUrlText extends StatelessWidget {
   final Function(String handle)? onMentionTap;
 
   const ClickableUrlText({
-    super.key,
-    required this.text,
+    required this.text, super.key,
     this.style,
     this.urlStyle,
     this.mentionStyle,
@@ -38,7 +37,7 @@ class ClickableUrlText extends StatelessWidget {
 
   /// Navigates to channel details page using handle.
   static void navigateToChannelByHandle(String rawHandle) {
-    String handle = rawHandle.trim();
+    var handle = rawHandle.trim();
     while (handle.endsWith('.') ||
         handle.endsWith(',') ||
         handle.endsWith(')') ||
@@ -57,7 +56,7 @@ class ClickableUrlText extends StatelessWidget {
 
   /// Launches a URL string externally.
   static Future<void> launchUrlString(String rawUrl) async {
-    String url = rawUrl.trim();
+    var url = rawUrl.trim();
     while (url.endsWith('.') ||
         url.endsWith(',') ||
         url.endsWith(')') ||
@@ -97,15 +96,15 @@ class ClickableUrlText extends StatelessWidget {
     }
 
     final buffer = StringBuffer();
-    int lastEnd = 0;
+    var lastEnd = 0;
 
     for (final match in matches) {
-      bool insideMarkdown = existingMarkdownSpans.any(
+      final insideMarkdown = existingMarkdownSpans.any(
         (range) => match.start >= range.start && match.end <= range.end,
       );
       if (insideMarkdown) continue;
 
-      String rawMatched = match.group(0)!;
+      final rawMatched = match.group(0)!;
 
       // Check if @handle is part of an email address
       if (rawMatched.startsWith('@') && match.start > 0) {
@@ -122,8 +121,8 @@ class ClickableUrlText extends StatelessWidget {
       }
 
       buffer.write(text.substring(lastEnd, match.start));
-      String cleanToken = rawMatched;
-      String trailingPunct = '';
+      var cleanToken = rawMatched;
+      var trailingPunct = '';
 
       while (cleanToken.endsWith('.') ||
           cleanToken.endsWith(',') ||
@@ -141,7 +140,7 @@ class ClickableUrlText extends StatelessWidget {
             '[$cleanToken](mention://${cleanToken.substring(1)})$trailingPunct',
           );
         } else {
-          String fullTarget = cleanToken;
+          var fullTarget = cleanToken;
           if (!fullTarget.startsWith('http://') &&
               !fullTarget.startsWith('https://')) {
             fullTarget = 'https://$fullTarget';
@@ -173,7 +172,7 @@ class ClickableUrlText extends StatelessWidget {
     }
 
     final spans = <InlineSpan>[];
-    int lastEnd = 0;
+    var lastEnd = 0;
 
     final defaultLinkStyle = (style ?? const TextStyle()).copyWith(
       color: const Color(0xFF3EA6FF),
@@ -189,7 +188,7 @@ class ClickableUrlText extends StatelessWidget {
     final effectiveMentionStyle = mentionStyle ?? defaultMentionStyle;
 
     for (final match in matches) {
-      String rawMatched = match.group(0)!;
+      final rawMatched = match.group(0)!;
 
       // Check if @handle is part of an email address
       if (rawMatched.startsWith('@') && match.start > 0) {
@@ -214,8 +213,8 @@ class ClickableUrlText extends StatelessWidget {
         );
       }
 
-      String cleanToken = rawMatched;
-      String trailingPunct = '';
+      var cleanToken = rawMatched;
+      var trailingPunct = '';
 
       while (cleanToken.endsWith('.') ||
           cleanToken.endsWith(',') ||

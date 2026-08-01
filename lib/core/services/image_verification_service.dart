@@ -171,7 +171,7 @@ class ImageVerificationService {
 
       // Listen to upload progress
       uploadTask.snapshotEvents.listen(
-        (TaskSnapshot snapshot) {
+        (snapshot) {
           final progress = snapshot.bytesTransferred / snapshot.totalBytes;
           onUploadProgress?.call(progress);
         },

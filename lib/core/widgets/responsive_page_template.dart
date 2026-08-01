@@ -92,8 +92,9 @@ class ResponsivePageTemplate extends StatelessWidget {
   }
 
   Widget? _getBottomNavigation(BuildContext context) {
-    if (context.isDesktop || context.isLargeDesktop || context.isUltraWide)
+    if (context.isDesktop || context.isLargeDesktop || context.isUltraWide) {
       return null;
+    }
     return bottomNavigation;
   }
 }

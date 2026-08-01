@@ -9,26 +9,26 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/data/services/feed_cache_manager.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/video/data/services/video_query_builder.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
-import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
-import 'package:truthworld/core/services/algorithm/scored_video.dart';
-import 'package:truthworld/core/services/algorithm/diversity_config.dart';
-import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
-import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ========================================================================
@@ -52,8 +52,8 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   final FeedCacheManager _feedCacheManager = FeedCacheManager();
   static const String _kFeaturedTopicsCacheKey = 'featured_topics_cache';
 
-  final featuredTopics = <Topic>[].obs;
-  final isLoadingFeaturedTopics = true.obs;
+  final RxList<Topic> featuredTopics = <Topic>[].obs;
+  final RxBool isLoadingFeaturedTopics = true.obs;
 
   // ========================================================================
   // FIREBASE SERVICES
@@ -142,11 +142,11 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     'Videos',
   ];
 
-  final sideNavSelectedIndex = indexHome.obs;
-  final bottomNavSelectedIndex = 0.obs;
-  final selectedCategory = 'All'.obs;
-  final activeFilterBar = 'All'.obs;
-  final availableCategories = <String>['All'].obs;
+  final RxInt sideNavSelectedIndex = indexHome.obs;
+  final RxInt bottomNavSelectedIndex = 0.obs;
+  final RxString selectedCategory = 'All'.obs;
+  final RxString activeFilterBar = 'All'.obs;
+  final RxList<String> availableCategories = <String>['All'].obs;
 
   // Special page data
   final selectedPlaylist =
@@ -160,13 +160,13 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // AUTHENTICATION STATE
   // ========================================================================
 
-  final isLoadingAuth = false.obs;
+  final RxBool isLoadingAuth = false.obs;
 
   /// Compatibility getter: now linked to real AuthService
   Rxn<User> get currentUser => _authService.currentUser;
 
   /// Navigation state tracking
-  final isNavigating = false.obs;
+  final RxBool isNavigating = false.obs;
 
   // ========================================================================
   // ANIMATION CONTROLLERS AND ANIMATIONS
@@ -190,19 +190,19 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // VIDEO STATE - MAIN FEED
   // ========================================================================
 
-  final videos = <Video>[].obs;
-  final communityPosts = <CommunityPostModel>[].obs;
-  final homeFeedItems = <dynamic>[].obs;
-  final isLoadingVideos = true.obs;
-  final isLoadingMore = false.obs;
-  final rxHasMore = true.obs;
+  final RxList<Video> videos = <Video>[].obs;
+  final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
+  final RxList<dynamic> homeFeedItems = <dynamic>[].obs;
+  final RxBool isLoadingVideos = true.obs;
+  final RxBool isLoadingMore = false.obs;
+  final RxBool rxHasMore = true.obs;
   DocumentSnapshot? _lastDocument;
 
   static const int _pageSize = 24;
   static const int _loadMoreThreshold = 90; // Percentage of scroll position
 
   final scrollController = ScrollController();
-  final showBottomNav = true.obs;
+  final RxBool showBottomNav = true.obs;
   double _lastScrollPosition = 0;
   static const double kScrollThreshold = 8;
 
@@ -210,20 +210,20 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // VIDEO STATE - CAROUSELS
   // ========================================================================
 
-  final recommendedVideos = <Video>[].obs;
-  final musicVideos = <Video>[].obs;
-  final trendingVideos = <Video>[].obs;
-  final isCarouselLoading = true.obs;
+  final RxList<Video> recommendedVideos = <Video>[].obs;
+  final RxList<Video> musicVideos = <Video>[].obs;
+  final RxList<Video> trendingVideos = <Video>[].obs;
+  final RxBool isCarouselLoading = true.obs;
 
-  // USER LIBRARY SECTIONS STATE (REACTIVELY HIDDEN IF EMPTY)
-  final hasWatchHistory = false.obs;
-  final hasPlaylists = false.obs;
-  final hasFollowedTopics = false.obs;
-  final hasWatchLater = false.obs;
-  final hasLikedVideos = false.obs;
-  final hasUploadedVideos = false.obs;
-  final hasClips = false.obs;
-  final hasDownloads = false.obs;
+  // USER LIBRARY SECTIONS STATE
+  final RxBool hasWatchHistory = true.obs;
+  final RxBool hasPlaylists = true.obs;
+  final RxBool hasFollowedTopics = true.obs;
+  final RxBool hasWatchLater = true.obs;
+  final RxBool hasLikedVideos = true.obs;
+  final RxBool hasUploadedVideos = true.obs;
+  final RxBool hasClips = true.obs;
+  final RxBool hasDownloads = true.obs;
 
   StreamSubscription? _historySub;
   StreamSubscription? _playlistsSub;
@@ -237,9 +237,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // ========================================================================
   // SUBSCRIPTIONS STATE
   // ========================================================================
-  final subscribedChannels = <String, dynamic>{}.obs; // Map for faster lookup
-  final subscribedChannelList = <Map<String, dynamic>>[].obs;
-  final isLoadingSubscriptions = false.obs;
+  final RxMap<String, dynamic> subscribedChannels = <String, dynamic>{}.obs; // Map for faster lookup
+  final RxList<Map<String, dynamic>> subscribedChannelList = <Map<String, dynamic>>[].obs;
+  final RxBool isLoadingSubscriptions = false.obs;
   StreamSubscription? _connectivitySubscription;
 
   // ========================================================================
@@ -257,7 +257,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     _setupBottomNavSync();
 
     // Listen to authentication state changes
-    ever(_authService.currentUser, (User? u) {
+    ever(_authService.currentUser, (u) {
       if (u != null) {
         _checkUserLibraryData(u.uid);
         fetchSubscribedChannels();
@@ -375,7 +375,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         bottomNavSelectedIndex.value = 0;
       } else if (index == indexExploreTopics) {
         bottomNavSelectedIndex.value = 1;
-      } else if (index == indexSubscriptions) {
+      } else if (index == indexDiscover) {
         bottomNavSelectedIndex.value = 2;
       } else if (index == indexLibrary || index == indexFollowingTopics) {
         bottomNavSelectedIndex.value = 3;
@@ -688,14 +688,16 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           ? Get.find<FeedAlgorithmService>()
           : null;
 
-      bool fetchedFromServer = false;
+      var fetchedFromServer = false;
 
-      if (feedAlgorithmService != null) {
+      if (feedAlgorithmService != null &&
+          feedAlgorithmService.isServerAvailable &&
+          currentUserId != null &&
+          currentUserId.isNotEmpty) {
         try {
           // 1. Try server-side ranked feed (primary)
           final serverVideos = await feedAlgorithmService.getPersonalizedFeed(
             userId: currentUserId,
-            limit: _pageSize,
             category: selectedCategory.value == 'All'
                 ? null
                 : selectedCategory.value,
@@ -754,7 +756,27 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
               .toList()
               .sanitizeForFeed();
 
-          if ((isMainFeed || selectedCategory.value == '🪙 Flip Coin') &&
+          final currentCat = selectedCategory.value;
+          if (currentCat == '🔥 Trending' || currentCat == 'Trending') {
+            rawVideos.sort((a, b) {
+              final daysA = DateTime.now()
+                  .difference(a.createdAt.toDate())
+                  .inDays;
+              final daysB = DateTime.now()
+                  .difference(b.createdAt.toDate())
+                  .inDays;
+              final scoreA = (a.views + a.likes * 3) / (daysA + 1);
+              final scoreB = (b.views + b.likes * 3) / (daysB + 1);
+              return scoreB.compareTo(scoreA);
+            });
+            videos.assignAll(rawVideos);
+          } else if (currentCat == '✨ New' || currentCat == 'New') {
+            rawVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            videos.assignAll(rawVideos);
+          } else if (currentCat == '⭐ Popular' || currentCat == 'Popular') {
+            rawVideos.sort((a, b) => b.views.compareTo(a.views));
+            videos.assignAll(rawVideos);
+          } else if ((isMainFeed || selectedCategory.value == '🪙 Flip Coin') &&
               Get.isRegistered<TruthworldAlgorithm>()) {
             final algorithm = Get.find<TruthworldAlgorithm>();
             final isFlipped =
@@ -950,7 +972,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       final subsSnapshot = await _firestore
           .collection('subscriptions')
           .where('userId', isEqualTo: userId)
-          .get();
+          .getCacheFirst();
 
       final channelIds = subsSnapshot.docs
           .map((doc) => doc['channelId'] as String)
@@ -961,7 +983,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         return;
       }
 
-      final List<Map<String, dynamic>> channelsData = [];
+      final channelsData = <Map<String, dynamic>>[];
       for (var i = 0; i < channelIds.length; i += 10) {
         final chunk = channelIds.sublist(
           i,
@@ -970,7 +992,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         final channelsSnapshot = await _firestore
             .collection('channels')
             .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+            .getCacheFirst();
 
         for (final doc in channelsSnapshot.docs) {
           final data = doc.data();
@@ -1154,7 +1176,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           Get.offAllNamed<dynamic>('/');
         }
       case 2:
-        sideNavSelectedIndex.value = indexSubscriptions;
+        sideNavSelectedIndex.value = indexDiscover;
         if (!isAtHome) {
           Get.offAllNamed<dynamic>('/');
         }
@@ -1273,10 +1295,24 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   }
 
   List<String> _personalizedSortCategories(List<String> inputCategories) {
-    List<String> sorted = List<String>.from(inputCategories);
+    final sorted = List<String>.from(inputCategories);
+
+    final watchHistoryCategories = <String>[];
     if (Get.isRegistered<UserInterestProfileService>()) {
       final profile = Get.find<UserInterestProfileService>().profile.value;
       if (profile != null && profile.categoryAffinities.isNotEmpty) {
+        final sortedEntries = profile.categoryAffinities.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        for (final entry in sortedEntries) {
+          if (entry.value > 0) {
+            final catName = _capitalizeCategory(entry.key);
+            if (!watchHistoryCategories.contains(catName) &&
+                catName.isNotEmpty) {
+              watchHistoryCategories.add(catName);
+            }
+          }
+        }
+
         sorted.sort((a, b) {
           final scoreA = profile.categoryAffinities[a] ?? 0.0;
           final scoreB = profile.categoryAffinities[b] ?? 0.0;
@@ -1284,7 +1320,32 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         });
       }
     }
-    return ['All', 'Posts', '🪙 Flip Coin', ...sorted];
+
+    final fixedHead = [
+      'All',
+      'Subscriptions',
+      '🔥 Trending',
+      '✨ New',
+      '⭐ Popular',
+      'Posts',
+      '🪙 Flip Coin',
+    ];
+
+    final result = <String>[...fixedHead];
+
+    for (final cat in watchHistoryCategories) {
+      if (!result.contains(cat) && sorted.contains(cat)) {
+        result.add(cat);
+      }
+    }
+
+    for (final cat in sorted) {
+      if (!result.contains(cat)) {
+        result.add(cat);
+      }
+    }
+
+    return result;
   }
 
   void _updateCategoriesFromLoadedVideos() {

@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,9 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/presentation/widgets/full_screen_helper.dart';
 import 'package:truthworld/theme/app_theme.dart';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 

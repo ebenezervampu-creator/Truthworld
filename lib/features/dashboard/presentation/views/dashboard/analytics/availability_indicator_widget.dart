@@ -39,7 +39,7 @@ class AvailabilityIndicatorWidget extends StatelessWidget {
   Widget _buildIcon() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
-      transitionBuilder: (Widget child, Animation<double> animation) {
+      transitionBuilder: (child, animation) {
         return ScaleTransition(scale: animation, child: child);
       },
       child: SizedBox(
@@ -63,7 +63,7 @@ class AvailabilityIndicatorWidget extends StatelessWidget {
   Widget _buildMessage() {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
-      transitionBuilder: (Widget child, Animation<double> animation) {
+      transitionBuilder: (child, animation) {
         return FadeTransition(opacity: animation, child: child);
       },
       child: Text(
@@ -326,7 +326,7 @@ class AvailabilityMessageWidget extends StatelessWidget {
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
-              transitionBuilder: (Widget child, Animation<double> animation) {
+              transitionBuilder: (child, animation) {
                 return FadeTransition(opacity: animation, child: child);
               },
               child: Text(

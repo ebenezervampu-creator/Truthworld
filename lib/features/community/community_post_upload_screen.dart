@@ -1,15 +1,21 @@
 import 'dart:io' as io;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/upload_shared_widgets.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/community_post_upload_controller.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
-import 'package:truthworld/features/presentation/widgets/upload_shared_widgets.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
@@ -984,7 +990,328 @@ class CommunityPostUploadScreen extends StatelessWidget {
         UploadVisibilitySelector(
           selectedVisibility: _c.selectedVisibility,
         ),
+        const SizedBox(height: 16),
+        _buildTopicSelection(context),
       ],
+    );
+  }
+
+  Widget _buildTopicSelection(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Obx(() {
+      final selectedSlug = _c.selectedTopicId.value;
+      final hasDraft = _c.newTopicData.isNotEmpty;
+      final topics = _c.availableTopics;
+
+      Topic? selectedTopic;
+      if (selectedSlug.isNotEmpty && selectedSlug != 'new_topic_draft') {
+        for (final t in topics) {
+          if (t.slug == selectedSlug) {
+            selectedTopic = t;
+            break;
+          }
+        }
+      }
+
+      final draftTitle = hasDraft
+          ? (_c.newTopicData['title'] as String? ?? 'New Draft')
+          : '';
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Add to Topic',
+                style: context.twTypography.title.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                ),
+              ),
+              const Spacer(),
+              if (_c.isTopicsLoading.value)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                TextButton.icon(
+                  onPressed: () => _showCreateTopicModal(context, isDark),
+                  icon: const Icon(Icons.add_rounded, size: 16, color: AppColors.textPrimary),
+                  label: const Text('+ New Topic'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF3B82F6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Selected Topic Trigger Card
+          InkWell(
+            onTap: () => TopicSelectionBottomSheet.show(
+              context,
+              _c,
+              onCreateNewTopic: (isDark) => _showCreateTopicModal(context, isDark),
+            ),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: (selectedTopic != null || hasDraft)
+                      ? const Color(0xFF3B82F6)
+                      : (isDark
+                          ? const Color(0xFF30363D)
+                          : const Color(0xFFE5E7EB)),
+                  width: (selectedTopic != null || hasDraft) ? 1.5 : 1.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.bgPage.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Topic Thumbnail or Icon
+                  if (hasDraft)
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.edit_document,
+                        color: AppColors.textPrimary,
+                        size: 22,
+                      ),
+                    )
+                  else if (selectedTopic != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 46,
+                        height: 46,
+                        color: isDark
+                            ? const Color(0xFF21262D)
+                            : const Color(0xFFE5E7EB),
+                        child: (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage) != null &&
+                                (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage)!.isNotEmpty
+                            ? Image.network(
+                                (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage)!,
+                                width: 46,
+                                height: 46,
+                                fit: BoxFit.cover,
+                              )
+                            : ColoredBox(
+                                color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                child: const Icon(
+                                  Icons.topic_rounded,
+                                  color: AppColors.textPrimary,
+                                  size: 22,
+                                ),
+                              ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF21262D)
+                            : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.topic_rounded,
+                        color: AppColors.textPrimary,
+                        size: 22,
+                      ),
+                    ),
+
+                  const SizedBox(width: 14),
+
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasDraft) ...[
+                          Text(
+                            'Draft: $draftTitle',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF3B82F6),
+                            ),
+                          ),
+                          Text(
+                            'Will be created upon upload',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ] else if (selectedTopic != null) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  selectedTopic.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              if (selectedTopic.visibilityType == TopicVisibilityType.private)
+                                const Icon(
+                                  Icons.lock_rounded,
+                                  size: 14,
+                                  color: AppColors.textPrimary,
+                                )
+                              else if (selectedTopic.visibilityType == TopicVisibilityType.channelOnly)
+                                const Icon(
+                                  Icons.group_rounded,
+                                  size: 14,
+                                  color: AppColors.textPrimary,
+                                )
+                              else
+                                const Icon(
+                                  Icons.public_rounded,
+                                  size: 14,
+                                  color: AppColors.textPrimary,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                '${FormatUtils.formatCount(selectedTopic.followerCount)} followers • ${FormatUtils.formatCount(selectedTopic.videoCount)} videos',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Text(
+                            'Select Topic knowledge hub',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tap to search and select a topic or create new',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  if (selectedTopic != null || hasDraft)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.textPrimary),
+                      onPressed: () {
+                        _c.selectedTopicId.value = '';
+                        _c.newTopicData.clear();
+                      },
+                    )
+                  else
+                    const Icon(Icons.chevron_right_rounded, size: 22, color: AppColors.textPrimary),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  void _showCreateTopicModal(BuildContext context, bool isDark) {
+    final currentChannelId = _c.selectedChannel.value?.channelId ?? '';
+    CreateTopicDialog.show(
+      context: context,
+      isDarkMode: isDark,
+      channelVideosFuture: currentChannelId.isNotEmpty
+          ? FirebaseFirestore.instance
+                .collection(FirestoreCollections.videos)
+                .where('channelId', isEqualTo: currentChannelId)
+                .get()
+                .then(
+                  (snap) => snap.docs
+                      .map((doc) => {'id': doc.id, ...doc.data()})
+                      .toList(),
+                )
+          : Future.value([]),
+      onCreateTopicSubmitted: (createCtrl) async {
+        final title = createCtrl.titleController.text.trim();
+        var rawHandle = createCtrl.handleController.text.trim();
+        if (rawHandle.startsWith('T/') || rawHandle.startsWith('t/')) {
+          rawHandle = rawHandle.substring(2);
+        }
+        final cleanHandle = rawHandle
+            .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
+            .replaceAll(RegExp('-+'), '-');
+        final finalHandle = 'T/$cleanHandle';
+        final finalHandleLowercase = finalHandle.toLowerCase();
+
+        // Check handle uniqueness in Firestore
+        final existingHandle = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.topics)
+            .where('handleLowercase', isEqualTo: finalHandleLowercase)
+            .limit(1)
+            .get();
+
+        if (existingHandle.docs.isNotEmpty) {
+          AppSnackbar.show(
+            'Error',
+            'Topic handle is already taken. Please choose a different one.',
+          );
+          throw Exception('Handle already taken');
+        }
+
+        _c.newTopicData.value = {
+          'title': title,
+          'handle': finalHandle,
+          'description': createCtrl.descriptionController.text.trim(),
+          'category': createCtrl.categoryController.text,
+          'visibilityType': createCtrl.selectedVisibility.value,
+          'accessCode': createCtrl.accessCodeController.text.trim(),
+          'thumbnailSource': createCtrl.thumbnailSource.value,
+          'customThumbnailBytes': createCtrl.pickedCustomImageBytes.value,
+          'customThumbnailName': createCtrl.pickedCustomImageName.value,
+        };
+
+        _c.selectedTopicId.value = 'new_topic_draft';
+        AppSnackbar.show(
+          'Success',
+          'Topic draft created! It will be published along with your post.',
+        );
+      },
     );
   }
 

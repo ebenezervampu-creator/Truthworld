@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -16,8 +15,8 @@ import 'package:truthworld/theme/app_theme.dart';
 /// 4. Navigate to playlist detail screen
 /// 5. Show branded error state on failure with retry option
 class PlaylistLoaderController extends GetxController {
-  final hasError = false.obs;
-  final errorMessage = ''.obs;
+  final RxBool hasError = false.obs;
+  final RxString errorMessage = ''.obs;
 
   @override
   void onInit() {

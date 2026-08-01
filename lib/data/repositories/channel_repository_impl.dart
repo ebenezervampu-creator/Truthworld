@@ -2,9 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
 import 'package:truthworld/domain/repositories/channel_repository.dart';
-import 'package:truthworld/data/models/channel.dart';
 
 class ChannelRepositoryImpl extends BaseRepository
     implements ChannelRepository {

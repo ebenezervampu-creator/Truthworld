@@ -4,6 +4,6 @@ import 'package:truthworld/features/hashtag/presentation/controllers/hashtag_con
 class HashtagBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => HashtagController(), fenix: true);
+    Get.lazyPut(HashtagController.new, fenix: true);
   }
 }

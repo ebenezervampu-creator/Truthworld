@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +5,9 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -14,15 +16,15 @@ import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/data/models/subscriptions.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/algorithm/scored_video.dart';
 
 enum ContentFilter {
   all,
   videos,
   playlists,
   communityPosts,
+  topics,
 }
 
 enum SortFilter {
@@ -309,6 +311,17 @@ class SubscriptionController extends GetxController {
         debugPrint('Error loading subscription community posts: $e');
       }
 
+      // Load topics
+      try {
+        final topics = await _loadTopics(channelIds);
+        for (final t in topics) {
+          final content = SubscriptionContent.fromTopic(t);
+          contentMap[content.id] = content;
+        }
+      } on Object catch (e) {
+        debugPrint('Error loading subscription topics: $e');
+      }
+
       final contentList = contentMap.values.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -489,6 +502,55 @@ class SubscriptionController extends GetxController {
     return posts;
   }
 
+  Future<List<Topic>> _loadTopics(List<String> channelIds) async {
+    final topics = <Topic>[];
+    if (channelIds.isEmpty) return topics;
+
+    const batchSize = 10;
+    for (var i = 0; i < channelIds.length; i += batchSize) {
+      final batch = channelIds.sublist(
+        i,
+        i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
+      );
+
+      final docs = <DocumentSnapshot>[];
+
+      try {
+        final snapshot = await _firestore
+            .collection(FirestoreCollections.topics)
+            .where('channelId', whereIn: batch)
+            .where('status', isEqualTo: 'active')
+            .limit(30)
+            .get();
+        docs.addAll(snapshot.docs);
+      } on Object catch (e) {
+        debugPrint('[SubscriptionController] Batch topics query failed: $e');
+        for (final cid in batch) {
+          try {
+            final snap = await _firestore
+                .collection(FirestoreCollections.topics)
+                .where('channelId', isEqualTo: cid)
+                .where('status', isEqualTo: 'active')
+                .limit(10)
+                .get();
+            docs.addAll(snap.docs);
+          } on Object catch (_) {}
+        }
+      }
+
+      for (final doc in docs) {
+        try {
+          final topic = Topic.fromDocumentSnapshot(doc);
+          topics.add(topic);
+        } on Object catch (e) {
+          debugPrint('Error parsing topic doc ${doc.id}: $e');
+        }
+      }
+    }
+
+    return topics;
+  }
+
   void applyFilters() {
     filteredContent.value = List.from(allContent);
 
@@ -508,6 +570,8 @@ class SubscriptionController extends GetxController {
           filteredContent.retainWhere(
             (c) => c.type == ContentType.communityPost,
           );
+        case ContentFilter.topics:
+          filteredContent.retainWhere((c) => c.type == ContentType.topic);
         case ContentFilter.all:
           break;
       }
@@ -575,8 +639,8 @@ class SubscriptionController extends GetxController {
         if (Get.isRegistered<TruthworldAlgorithm>()) {
           final algorithm = Get.find<TruthworldAlgorithm>();
           filteredContent.sort((a, b) {
-            double scoreA = a.algorithmicScore;
-            double scoreB = b.algorithmicScore;
+            var scoreA = a.algorithmicScore;
+            var scoreB = b.algorithmicScore;
             if (a.video != null) {
               final s =
                   algorithm.scoreVideo(
@@ -623,6 +687,8 @@ class SubscriptionController extends GetxController {
         return content.playlist?.videoCount.toDouble() ?? 0;
       case ContentType.communityPost:
         return content.communityPost?.likes.toDouble() ?? 0;
+      case ContentType.topic:
+        return content.topic?.followerCount.toDouble() ?? 0;
     }
   }
 

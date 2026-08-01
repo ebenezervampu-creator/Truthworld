@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -997,7 +997,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // ACTIONS
   // ==========================================================================
-  void _playAllVideos(PlaylistModel playlist) async {
+  Future<void> _playAllVideos(PlaylistModel playlist) async {
     HapticFeedback.lightImpact();
     final videos = await _fetchVideos(playlist);
     if (videos.isNotEmpty) {
@@ -1013,7 +1013,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     }
   }
 
-  void _shuffleVideos(PlaylistModel playlist) async {
+  Future<void> _shuffleVideos(PlaylistModel playlist) async {
     HapticFeedback.lightImpact();
     final videos = await _fetchVideos(playlist);
     if (videos.isNotEmpty) {

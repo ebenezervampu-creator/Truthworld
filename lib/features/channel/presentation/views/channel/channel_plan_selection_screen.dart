@@ -1,8 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -420,7 +420,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 // Features List & How It Works
                 if (isStandard) ...[
                   _buildFeatureRow(
-                    'Fully managed platform infrastructure (\$0 hosting fees)',
+                    r'Fully managed platform infrastructure ($0 hosting fees)',
                     isDark,
                   ),
                   _buildFeatureRow(
@@ -494,7 +494,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+              const Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
               const SizedBox(width: 8),
               Text(
                 title,
@@ -530,7 +530,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.monetization_on_rounded, color: Colors.white, size: 24),
+          const Icon(Icons.monetization_on_rounded, color: Colors.white, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -757,7 +757,7 @@ class _ChannelTypeSelectorModalState extends State<ChannelTypeSelectorModal> {
                       children: [
                         Row(
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.stars_rounded,
                               color: Colors.white,
                               size: 20,
@@ -778,7 +778,7 @@ class _ChannelTypeSelectorModalState extends State<ChannelTypeSelectorModal> {
                         const SizedBox(height: 12),
                         if (isStandard) ...[
                           _buildBulletPoint(
-                            'Revenue Share: 55% Net Creator Share (\$0 Platform Fee)',
+                            r'Revenue Share: 55% Net Creator Share ($0 Platform Fee)',
                           ),
                           _buildBulletPoint(
                             'Upload Limit: Up to 5 Videos (Min 2 min per video, 10 min total duration)',

@@ -206,8 +206,8 @@ class ViewsPage extends StatelessWidget {
           series: <CartesianSeries<ViewsTrendModel, DateTime>>[
             SplineAreaSeries<ViewsTrendModel, DateTime>(
               dataSource: controller.viewsTrendData,
-              xValueMapper: (ViewsTrendModel data, _) => data.date,
-              yValueMapper: (ViewsTrendModel data, _) => data.views,
+              xValueMapper: (data, _) => data.date,
+              yValueMapper: (data, _) => data.views,
               gradient: LinearGradient(
                 colors: [
                   const Color(0xFF10B981).withValues(alpha: 0.3),
@@ -245,13 +245,14 @@ class ViewsPage extends StatelessWidget {
                 height: 180,
                 child: Obx(() {
                   final data = controller.countryTrafficChartData;
-                  if (data.isEmpty)
+                  if (data.isEmpty) {
                     return const Center(
                       child: Text(
                         'No data',
                         style: TextStyle(color: AppColors.textTertiary),
                       ),
                     );
+                  }
                   return PieChart(
                     PieChartData(
                       sections: data
@@ -310,13 +311,14 @@ class ViewsPage extends StatelessWidget {
               const SizedBox(height: 16),
               Obx(() {
                 final states = controller.stateTrafficChartData;
-                if (states.isEmpty)
+                if (states.isEmpty) {
                   return const Center(
                     child: Text(
                       'No data',
                       style: TextStyle(color: AppColors.textTertiary),
                     ),
                   );
+                }
                 return ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),

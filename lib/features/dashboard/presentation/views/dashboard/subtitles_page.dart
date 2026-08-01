@@ -642,8 +642,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           ),
                         ),
                         Obx(() {
-                          if (!controller.hasUnsavedChanges.value)
+                          if (!controller.hasUnsavedChanges.value) {
                             return const SizedBox.shrink();
+                          }
                           return Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
@@ -717,8 +718,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 ),
                               ),
                               Obx(() {
-                                if (!controller.hasUnsavedChanges.value)
+                                if (!controller.hasUnsavedChanges.value) {
                                   return const SizedBox.shrink();
+                                }
                                 return Container(
                                   margin: const EdgeInsets.only(
                                     left: 8,
@@ -877,8 +879,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       ),
                     ),
                     Obx(() {
-                      if (!controller.showRequestsPanel.value)
+                      if (!controller.showRequestsPanel.value) {
                         return const SizedBox.shrink();
+                      }
                       return _buildRequestsPanel(
                         surfaceColor,
                         textColor,

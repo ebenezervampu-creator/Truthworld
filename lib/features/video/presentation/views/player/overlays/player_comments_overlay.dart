@@ -325,7 +325,7 @@ class FullscreenCommentInput extends StatefulWidget {
 class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
   final _textCtrl = TextEditingController();
   final _focusNode = FocusNode();
-  final _isSubmitting = false.obs;
+  final RxBool _isSubmitting = false.obs;
 
   @override
   void dispose() {

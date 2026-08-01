@@ -9,9 +9,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/js.dart' show JsObject, context;
 
 /// Web Audio API wrapper for true audio-only playback

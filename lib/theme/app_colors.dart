@@ -22,7 +22,7 @@ class AppColors {
   static const bgSurfaceHover = Color(0xFF272727); // surfaceContainer
   static const bgSurfaceHigh = Color(0xFF2E2E2E); // surfaceContainerHigh
   static const bgElevated = Color(0xFF3F3F3F); // surfaceContainerHighest
-  static const bgSurfaceContainerHighest = bgElevated;
+  static const Color bgSurfaceContainerHighest = bgElevated;
   static const bgInput = Color(0xFF121212);
   static const bgDivider = Color(0xFF3F3F3F);
   static const appBarSurface = Color(0xFF161618);

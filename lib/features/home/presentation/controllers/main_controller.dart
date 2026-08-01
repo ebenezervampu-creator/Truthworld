@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -13,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:idb_shim/idb_browser.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
 import 'package:truthworld/core/services/auth_service.dart';
@@ -21,7 +21,6 @@ import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
 
 // ========================================================================
@@ -53,9 +52,9 @@ class MainController extends BaseController {
   // VIDEO STATE
   // ========================================================================
 
-  final videos = <Video>[].obs;
-  final filteredVideos = <Video>[].obs;
-  final searchQuery = ''.obs;
+  final RxList<Video> videos = <Video>[].obs;
+  final RxList<Video> filteredVideos = <Video>[].obs;
+  final RxString searchQuery = ''.obs;
 
   StreamSubscription<List<Video>>? _videoSubscription;
 
@@ -63,9 +62,9 @@ class MainController extends BaseController {
   // INTERACTION STATE
   // ========================================================================
 
-  final videoLikes = <String, int>{}.obs;
-  final videoDislikes = <String, int>{}.obs;
-  final isReporting = false.obs;
+  final RxMap<String, int> videoLikes = <String, int>{}.obs;
+  final RxMap<String, int> videoDislikes = <String, int>{}.obs;
+  final RxBool isReporting = false.obs;
 
   // Client-side guard for rapid tapping (race condition prevention)
   final _pendingLikeOperations = <String>{};

@@ -8,13 +8,17 @@ import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SubscriptionsPage extends StatelessWidget {
   const SubscriptionsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  SubscriptionController get controller => Get.find<SubscriptionController>();
+  SubscriptionController get controller =>
+      Get.isRegistered<SubscriptionController>()
+          ? Get.find<SubscriptionController>()
+          : Get.put(SubscriptionController());
 
   @override
   Widget build(BuildContext context) {
@@ -333,6 +337,11 @@ class SubscriptionsPage extends StatelessWidget {
         return CommunityPostCard(
           post: content.communityPost!,
           isFullWidth: false,
+        );
+      case ContentType.topic:
+        return TopicCardWidget(
+          topic: content.topic,
+          isDashboard: true,
         );
     }
   }

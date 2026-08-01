@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -17,11 +17,11 @@ import 'package:truthworld/theme/app_theme.dart';
 class SendFeedbackController extends GetxController {
   final formKey = GlobalKey<FormState>();
   final feedbackController = TextEditingController();
-  final feedbackType = 'General'.obs;
-  final rating = 0.obs;
-  final isSubmitting = false.obs;
-  final appVersion = 'Unknown'.obs;
-  final deviceInfo = <String, dynamic>{}.obs;
+  final RxString feedbackType = 'General'.obs;
+  final RxInt rating = 0.obs;
+  final RxBool isSubmitting = false.obs;
+  final RxString appVersion = 'Unknown'.obs;
+  final RxMap<String, dynamic> deviceInfo = <String, dynamic>{}.obs;
   final RxList<XFile> attachments = <XFile>[].obs;
 
   final List<String> feedbackTypes = [

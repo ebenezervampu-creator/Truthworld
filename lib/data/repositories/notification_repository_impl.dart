@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/domain/repositories/notification_repository.dart';
 import 'package:truthworld/data/models/notification_model.dart';
+import 'package:truthworld/domain/repositories/notification_repository.dart';
 
 class NotificationRepositoryImpl extends BaseRepository
     implements NotificationRepository {
@@ -30,7 +30,7 @@ class NotificationRepositoryImpl extends BaseRepository
 
       final snapshot = await q.get();
       return snapshot.docs
-          .map((doc) => NotificationModel.fromDocumentSnapshot(doc))
+          .map(NotificationModel.fromDocumentSnapshot)
           .toList();
     });
   }
@@ -54,7 +54,7 @@ class NotificationRepositoryImpl extends BaseRepository
           .where('isRead', isEqualTo: false)
           .get();
 
-      for (var doc in snapshot.docs) {
+      for (final doc in snapshot.docs) {
         batch.update(doc.reference, {'isRead': true});
       }
 

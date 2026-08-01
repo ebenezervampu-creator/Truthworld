@@ -22,7 +22,6 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
-// ignore: avoid_web_libraries_in_flutter
 import 'package:universal_html/html.dart' as html;
 import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
@@ -309,7 +308,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     fetchAvailableTopics();
 
     // Every video doesn't have video rating only when user enabled Factchecking
-    ever(aiFactCheckEnabled, (bool enabled) {
+    ever(aiFactCheckEnabled, (enabled) {
       allowRatings.value = enabled;
     });
   }
@@ -895,8 +894,9 @@ class UploadController extends GetxController with ContentValidationMixin {
               isUploading.value = false;
 
               // Final check on URLs to ensure UI is ready
-              if (data['videoUrl'] != null)
+              if (data['videoUrl'] != null) {
                 videoUrl.value = data['videoUrl'] as String;
+              }
               if (data['thumbnailUrl'] != null) {
                 thumbnailUrl.value = data['thumbnailUrl'] as String;
               }
@@ -2001,8 +2001,9 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   /// Resolves and caches channel metadata (name, handle, avatar) for a given channelId
   Future<void> fetchChannelMetadata(String channelId) async {
-    if (channelId.isEmpty || channelMetadataCache.containsKey(channelId))
+    if (channelId.isEmpty || channelMetadataCache.containsKey(channelId)) {
       return;
+    }
 
     // Check in user's own channels first
     for (final c in channels) {

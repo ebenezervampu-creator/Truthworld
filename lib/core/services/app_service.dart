@@ -8,9 +8,9 @@ class AppService extends GetxService {
   final _storage = GetStorage();
 
   // Persistent settings
-  final isDarkMode = true.obs;
-  final languageCode = 'en'.obs;
-  final hasFinishedOnboarding = false.obs;
+  final RxBool isDarkMode = true.obs;
+  final RxString languageCode = 'en'.obs;
+  final RxBool hasFinishedOnboarding = false.obs;
 
   Future<AppService> init() async {
     // Load initial values from persistent storage

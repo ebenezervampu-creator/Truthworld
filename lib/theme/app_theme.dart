@@ -87,7 +87,6 @@ ThemeData buildAppTheme({DeviceState? device}) {
       secondary: AppColors.brand,
       surface: AppColors.bgSurface,
       error: AppColors.error,
-      onPrimary: Colors.black,
       onSurface: AppColors.textPrimary,
       onError: Colors.white,
       surfaceContainer: AppColors.bgSurfaceHover,

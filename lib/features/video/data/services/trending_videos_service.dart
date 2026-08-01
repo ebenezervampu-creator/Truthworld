@@ -1,5 +1,5 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 
 class TrendingVideosService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

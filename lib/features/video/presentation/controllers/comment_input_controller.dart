@@ -11,11 +11,11 @@ class CommentInputController extends BaseController {
   final bool enableComments;
 
   // State Variables as observables
-  final isFocused = false.obs;
-  final hasText = false.obs;
-  final isSubmitting = false.obs;
-  final isHovering = false.obs;
-  final characterCount = 0.obs;
+  final RxBool isFocused = false.obs;
+  final RxBool hasText = false.obs;
+  final RxBool isSubmitting = false.obs;
+  final RxBool isHovering = false.obs;
+  final RxInt characterCount = 0.obs;
 
   final TextEditingController commentController = TextEditingController();
   final FocusNode focusNode = FocusNode();

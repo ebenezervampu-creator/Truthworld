@@ -37,9 +37,9 @@ class NotificationService extends GetxService {
     final arguments = <String, dynamic>{
       'videoId': videoId,
       'isFlipped': true,
-      if (video != null) 'video': video,
-      if (commentId != null) 'commentId': commentId,
-      if (replyId != null) 'replyId': replyId,
+      'video': ?video,
+      'commentId': ?commentId,
+      'replyId': ?replyId,
     };
 
     unawaited(

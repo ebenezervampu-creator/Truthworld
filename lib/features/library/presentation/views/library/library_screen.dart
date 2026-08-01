@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -49,8 +49,14 @@ class LibraryScreen extends StatefulWidget {
 class LibraryScreenState extends State<LibraryScreen>
     with TickerProviderStateMixin {
   final int previewItemCount = 4;
-  final _playlistController = Get.find<PlaylistController>();
-  final _watchHistoryController = Get.find<WatchHistoryController>();
+  final PlaylistController _playlistController =
+      Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put(PlaylistController());
+  final WatchHistoryController _watchHistoryController =
+      Get.isRegistered<WatchHistoryController>()
+          ? Get.find<WatchHistoryController>()
+          : Get.put(WatchHistoryController());
 
   late AnimationController _fadeAnimationController;
   late AnimationController _slideAnimationController;
@@ -552,6 +558,19 @@ class LibraryScreenState extends State<LibraryScreen>
                 onTap: () => Get.toNamed('/history'),
               ),
               _buildLibraryListTile(
+                icon: Icons.subscriptions_outlined,
+                title: 'Subscriptions',
+                onTap: () {
+                  if (Get.isRegistered<HomeController>()) {
+                    Get.find<HomeController>().onSideNavItemSelect(
+                      HomeController.indexSubscriptions,
+                    );
+                  } else {
+                    Get.toNamed('/subscriptions');
+                  }
+                },
+              ),
+              _buildLibraryListTile(
                 icon: Icons.playlist_play_rounded,
                 title: 'Playlists',
                 onTap: () => Get.toNamed('/playlistscreen'),
@@ -655,7 +674,7 @@ class LibraryScreenState extends State<LibraryScreen>
           children: [
             InkWell(
               onTap: (hasChannel && channel != null)
-                  ? () => StudioLauncher.openStudio()
+                  ? StudioLauncher.openStudio
                   : null,
               borderRadius: BorderRadius.circular(12),
               child: Padding(

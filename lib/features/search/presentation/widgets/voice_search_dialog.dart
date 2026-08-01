@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:speech_to_text/speech_recognition_error.dart';
-import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -68,7 +66,7 @@ class VoiceSearchController extends GetxController
             }
           }
         },
-        onError: (SpeechRecognitionError error) {
+        onError: (error) {
           debugPrint(
             '🎙️ [VoiceSearch] Error: ${error.errorMsg} - permanent: ${error.permanent}',
           );
@@ -122,7 +120,7 @@ class VoiceSearchController extends GetxController
       }
 
       await speech.listen(
-        onResult: (SpeechRecognitionResult result) {
+        onResult: (result) {
           if (result.recognizedWords.isNotEmpty) {
             text.value = result.recognizedWords;
           }

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/search/data/models/search_cache.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// SearchService: Core query logic
 ///
@@ -81,43 +82,81 @@ class SearchService {
     }
   }
 
-  /// 🎬 VIDEO SEARCH (INTERNAL - with fallback strategy, cost-effective)
+  /// 🎬 VIDEO SEARCH (INTERNAL - with fallback strategy, cost-effective & case-insensitive)
   Future<List<SearchResult>> _searchVideos(String query) async {
     final tokens = query
         .split(RegExp(r'\s+'))
         .where((t) => t.isNotEmpty)
         .toList();
 
-    // 1. Try keywords (fast, indexed query)
-    var results = await _firestore
-        .collection('videos')
-        .where('keywords', arrayContains: query)
-        .where('status', whereIn: const ['processed', 'published'])
-        .limit(20)
-        .get()
-        .then(
-          (s) => s.docs.map(SearchResult.fromFirestore).toList(),
-        );
+    final titleCased = query.isEmpty
+        ? query
+        : '${query[0].toUpperCase()}${query.substring(1)}';
 
-    // 2. Fallback to prefix search (title)
-    if (results.isEmpty) {
-      results = await _firestore
-          .collection('videos')
-          .where('title', isGreaterThanOrEqualTo: query)
-          .where('title', isLessThanOrEqualTo: '$query\uf8ff')
-          .where('status', whereIn: const ['processed', 'published'])
-          .limit(20)
-          .get()
-          .then(
-            (s) => s.docs
-                .map(
-                  SearchResult.fromFirestore,
-                )
-                .toList(),
-          );
+    final foundIds = <String>{};
+    final results = <SearchResult>[];
+
+    void addResult(SearchResult item) {
+      if (foundIds.add(item.id)) {
+        results.add(item);
+      }
     }
 
-    // 3. Free Local Multi-Token Fallback (for development/testing or offline capability)
+    // 1. Try keywords (fast, indexed query)
+    try {
+      final s = await _firestore
+          .collection('videos')
+          .where('keywords', arrayContains: query)
+          .limit(20)
+          .get();
+      for (final doc in s.docs) {
+        addResult(SearchResult.fromFirestore(doc));
+      }
+    } catch (e) {
+      debugPrint('⚠️ [Search] Keyword video query error: $e');
+    }
+
+    // 2. Try prefix search with lowercase, TitleCase, and UPPERCASE
+    if (results.isEmpty) {
+      for (final qPrefix in [query, titleCased, query.toUpperCase()]) {
+        try {
+          final s = await _firestore
+              .collection('videos')
+              .where('title', isGreaterThanOrEqualTo: qPrefix)
+              .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
+              .limit(20)
+              .get();
+          for (final doc in s.docs) {
+            addResult(SearchResult.fromFirestore(doc));
+          }
+        } catch (e) {
+          debugPrint('⚠️ [Search] Title prefix video query error: $e');
+        }
+        if (results.isNotEmpty) break;
+      }
+    }
+
+    // 3. Robust Full-Text Substring Fallback over Firestore videos
+    if (results.isEmpty) {
+      try {
+        final s = await _firestore.collection('videos').limit(50).get();
+        final docs = s.docs.map(SearchResult.fromFirestore);
+        for (final item in docs) {
+          final t = item.title.toLowerCase();
+          final c = item.channelName.toLowerCase();
+          if (t.contains(query) ||
+              c.contains(query) ||
+              (tokens.isNotEmpty &&
+                  tokens.every((token) => t.contains(token) || c.contains(token)))) {
+            addResult(item);
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ [Search] Firestore full-scan video fallback error: $e');
+      }
+    }
+
+    // 4. Free Local Multi-Token Fallback (for development/testing or offline capability)
     if (results.isEmpty) {
       try {
         if (Get.isRegistered<HomeController>()) {
@@ -147,7 +186,7 @@ class SearchService {
                   durationMs: v.durationValue.inMilliseconds,
                 ),
               );
-          results.addAll(localMatches);
+          localMatches.forEach(addResult);
         }
       } catch (e) {
         debugPrint('⚠️ [Search] Local cache fallback failed: $e');
@@ -344,15 +383,15 @@ class SearchService {
     }
   }
 
-  /// Fetch recommended videos for empty search state (You may like section)
-  /// Returns top 5 most viewed videos
+  /// Fetch recommended videos for empty search state
+  /// Returns top 12 most viewed videos
   Future<List<SearchResult>> getRecommended() async {
     try {
       final snapshot = await _firestore
           .collection('videos')
           .where('status', whereIn: const ['processed', 'published'])
           .orderBy('views', descending: true)
-          .limit(5)
+          .limit(12)
           .get();
 
       return snapshot.docs.map(SearchResult.fromFirestore).toList();
@@ -360,7 +399,7 @@ class SearchService {
       debugPrint('⚠️ [Search] Recommended fetch failed: $e');
       // Secondary fallback: query without ordering if index is missing
       try {
-        final snapshot = await _firestore.collection('videos').limit(5).get();
+        final snapshot = await _firestore.collection('videos').limit(12).get();
         return snapshot.docs.map(SearchResult.fromFirestore).toList();
       } catch (err) {
         debugPrint('⚠️ [Search] Fallback recommended fetch failed: $err');

@@ -9,8 +9,9 @@ class VideoVisibilityPolicy {
   static bool isVisibleForFeed(Video video) {
     if (!_isBasicStatusValid(video)) return false;
     if (video.visibility != publicVisibilityString &&
-        video.visibility != 'public')
+        video.visibility != 'public') {
       return false;
+    }
     if (_isScheduledInFuture(video)) return false;
     if (_isChannelDeleted(video)) return false;
     return true;
@@ -20,8 +21,9 @@ class VideoVisibilityPolicy {
   static bool isVisibleForSearch(Video video) {
     if (!_isBasicStatusValid(video)) return false;
     if (video.visibility != publicVisibilityString &&
-        video.visibility != 'public')
+        video.visibility != 'public') {
       return false;
+    }
     if (_isScheduledInFuture(video)) return false;
     if (_isChannelDeleted(video)) return false;
     return true;
@@ -43,8 +45,9 @@ class VideoVisibilityPolicy {
     if (video.status == VideoStatus.deleted) return false;
     // Handle string representation if status is pending deletion
     final statusName = video.status.name.toLowerCase();
-    if (statusName == 'deleted' || statusName == 'deletion_pending')
+    if (statusName == 'deleted' || statusName == 'deletion_pending') {
       return false;
+    }
     return true;
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -23,7 +24,9 @@ class FollowingTopicsPage extends StatefulWidget {
 
 class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
   final FollowingTopicsController controller =
-      Get.find<FollowingTopicsController>();
+      Get.isRegistered<FollowingTopicsController>()
+          ? Get.find<FollowingTopicsController>()
+          : Get.put(FollowingTopicsController());
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -512,6 +515,61 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                 );
               },
             ),
+          );
+        }),
+
+        // Horizontal / Vertical Community Posts Section for Topic
+        Obx(() {
+          final posts = controller.topicPostsMap[key];
+          final isLoadingPosts = controller.isLoadingPostsMap[key] ?? false;
+
+          if (isLoadingPosts && (posts == null || posts.isEmpty)) {
+            return const SizedBox.shrink();
+          }
+
+          if (posts == null || posts.isEmpty) {
+            return const SizedBox.shrink();
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.forum_rounded,
+                      color: AppColors.textPrimary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Community Posts',
+                      style: TextStyle(
+                        fontSize: isMobile ? 15 : 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: posts.length.clamp(0, 3),
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: CommunityPostCard(post: posts[index]),
+                  );
+                },
+              ),
+            ],
           );
         }),
       ],

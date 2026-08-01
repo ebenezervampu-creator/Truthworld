@@ -4,7 +4,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class SecurityTab extends StatelessWidget {
   final AdminController controller;
-  const SecurityTab({super.key, required this.controller});
+  const SecurityTab({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +22,7 @@ class SecurityTab extends StatelessWidget {
                 children: [
                   Expanded(flex: 2, child: _buildUploadVelocityChart()),
                   const SizedBox(width: 24),
-                  Expanded(flex: 1, child: _buildAnomalyAlerts()),
+                  Expanded(child: _buildAnomalyAlerts()),
                 ],
               ),
               const SizedBox(height: 32),
@@ -144,24 +144,24 @@ class SecurityTab extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: 3,
             itemBuilder: (context, index) {
-              return Material(
+              return const Material(
                 color: Colors.transparent,
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.warning_amber_rounded,
                     color: AppColors.error,
                   ),
                   title: Text(
                     'Bot Net Pattern Detected',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 14,
                     ),
                   ),
                   subtitle: Text(
                     'IP Range: 192.168.1.x',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),

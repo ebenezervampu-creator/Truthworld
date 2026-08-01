@@ -11,10 +11,10 @@ abstract class PagedController<T> extends BaseController {
   @override
   bool get isItemsEmpty => itemList.isEmpty;
 
-  final _currentPage = 1.obs;
+  final RxInt _currentPage = 1.obs;
   int get currentPage => _currentPage.value;
 
-  final _hasMoreData = true.obs;
+  final RxBool _hasMoreData = true.obs;
   bool get hasMoreData => _hasMoreData.value;
 
   final int pageSize;
@@ -56,8 +56,9 @@ abstract class PagedController<T> extends BaseController {
 
   /// Fetch next page for infinite scrolling
   Future<void> fetchNextPage() async {
-    if (!hasMoreData || isLoading || isPaginationLoading || isRefreshing)
+    if (!hasMoreData || isLoading || isPaginationLoading || isRefreshing) {
       return;
+    }
 
     setViewState(ViewState.paginationLoading);
     final nextPage = _currentPage.value + 1;

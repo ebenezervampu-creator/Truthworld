@@ -25,7 +25,7 @@ class ConnectivityService extends GetxService {
     _isInitial = initialResult != ConnectivityResult.none;
 
     _subscription = _connectivity.onConnectivityChanged.listen((
-      List<ConnectivityResult> results,
+      results,
     ) {
       final result = _getFirstResult(results);
       final previousStatus = _connectionStatus.value;

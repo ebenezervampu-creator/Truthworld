@@ -1,22 +1,22 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class WatchHistoryController extends BaseController {
-  final searchQuery = ''.obs;
-  final isSearching = false.obs;
-  final sortBy = 'recent'.obs; // recent, views, likes, title
-  final isAscending = false.obs;
-  final showFab = true.obs;
-  final refreshTrigger = 0.obs;
-  final isHistoryPaused = false.obs;
-  final selectedCategory = 'All'.obs;
+  final RxString searchQuery = ''.obs;
+  final RxBool isSearching = false.obs;
+  final RxString sortBy = 'recent'.obs; // recent, views, likes, title
+  final RxBool isAscending = false.obs;
+  final RxBool showFab = true.obs;
+  final RxInt refreshTrigger = 0.obs;
+  final RxBool isHistoryPaused = false.obs;
+  final RxString selectedCategory = 'All'.obs;
 
   void retry() => refreshTrigger.value++;
 

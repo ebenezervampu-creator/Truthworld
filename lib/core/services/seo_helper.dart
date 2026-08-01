@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/js.dart' as js;
 
 /// Enhanced SEO Service for Flutter Web

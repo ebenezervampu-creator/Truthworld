@@ -170,8 +170,8 @@ class WatchTimePage extends StatelessWidget {
           series: <CartesianSeries<WatchTimeTrendModel, DateTime>>[
             SplineAreaSeries<WatchTimeTrendModel, DateTime>(
               dataSource: controller.watchTimeTrendData,
-              xValueMapper: (WatchTimeTrendModel data, _) => data.date,
-              yValueMapper: (WatchTimeTrendModel data, _) =>
+              xValueMapper: (data, _) => data.date,
+              yValueMapper: (data, _) =>
                   data.watchTimeHours,
               gradient: LinearGradient(
                 colors: [

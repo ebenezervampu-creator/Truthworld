@@ -1,16 +1,16 @@
 import 'dart:math';
-import 'package:get/get.dart';
-import 'package:flutter/widgets.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 
-import 'scored_video.dart';
-import 'user_interest_profile.dart';
-import 'session_interest_tracker.dart';
-import 'exploration_budget.dart';
-import 'diversity_config.dart';
-import 'algorithm_remote_config.dart';
+import 'package:flutter/widgets.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/exploration_budget.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 class SessionEvent {
   final String videoId;
@@ -23,9 +23,7 @@ class SessionEvent {
   SessionEvent({
     required this.videoId,
     required this.category,
-    this.topics = const [],
-    required this.channelId,
-    required this.type,
+    required this.channelId, required this.type, this.topics = const [],
     this.watchProgress = 0.0,
   });
 }
@@ -94,7 +92,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
         ? _computeCreatorFairness(video, diversityConfig)
         : 0.0;
 
-    double rawScore =
+    final rawScore =
         (topicAffinity * (weights['topicAffinity'] ?? 0.0)) +
         (channelAffinity * (weights['channelAffinity'] ?? 0.0)) +
         (engagementQuality * (weights['engagement'] ?? 0.0)) +
@@ -105,7 +103,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
         creatorFairness;
 
     // Apply session boost and penalties
-    double finalScore =
+    var finalScore =
         rawScore +
         (sessionBoost * (weights['sessionBoost'] ?? 0.0)) -
         (penalty * (weights['penalty'] ?? 0.0));
@@ -147,7 +145,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     RecommendationSurface surface, {
     DiversityConfig? diversityConfig,
   }) {
-    List<ScoredVideo> scored = [];
+    final scored = <ScoredVideo>[];
 
     for (final video in candidates) {
       final scoredVideo = scoreVideo(
@@ -183,14 +181,14 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   double _computeTopicAffinity(Video video) {
     if (_profile == null) return 0.0;
 
-    double longTermTopicAffinity = _profile!.getCombinedTopicAffinity(
+    final longTermTopicAffinity = _profile!.getCombinedTopicAffinity(
       video.topics.cast<String>(),
     );
-    double longTermCategoryAffinity =
+    final longTermCategoryAffinity =
         _profile!.categoryAffinities[video.category] ?? 0.0;
-    double longTermScore = max(longTermTopicAffinity, longTermCategoryAffinity);
+    final double longTermScore = max(longTermTopicAffinity, longTermCategoryAffinity);
 
-    double sessionAffinity = _sessionTracker.getSessionTopicAffinity(
+    final sessionAffinity = _sessionTracker.getSessionTopicAffinity(
       video.topics.cast<String>(),
     );
 
@@ -216,12 +214,9 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       return 0.4; // Slightly indirect indication
     }
 
-    int watchCount = 0;
+    const watchCount = 0;
     // Approximation for 'watched 3+' or 'watched 1-2'
-    for (final vid in _profile!.recentlyWatchedVideoIds) {
-      // Ideally we would look up video -> channel. We approximate here.
-      // Assuming watch count tracking by channel is needed, for now use base logic.
-    }
+    // Assuming watch count tracking by channel is needed, for now use base logic.
     // We mock the count since we don't have full history object mapping
     if (watchCount >= 3) return 0.6;
     if (watchCount > 0) return 0.3;
@@ -231,9 +226,9 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
   /// Engagement Quality: Like ratio, comments, shares, normalized
   double _computeEngagementQuality(Video video) {
-    final likes = video.likeCount ?? 0;
+    final likes = video.likeCount;
     final dislikes = video.dislikeCount;
-    final views = video.viewCount ?? 1; // avoid div by 0
+    final views = video.viewCount == 0 ? 1 : video.viewCount; // avoid div by 0
 
     if (views == 0) return 0.5; // Neutral for new videos
 
@@ -245,12 +240,10 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
   /// Freshness: Exponential decay, surface-specific half-life
   double _computeFreshness(Video video, RecommendationSurface surface) {
-    if (video.createdAt == null) return 0.5;
-
     final createdAt = (video.createdAt as dynamic).toDate();
     final ageHours = DateTime.now().difference(createdAt).inHours.toDouble();
 
-    double halfLife = 168.0; // default 1 week
+    var halfLife = 168.0; // default 1 week
     if (surface == RecommendationSurface.trending) halfLife = 48.0;
     if (surface == RecommendationSurface.shortsFeed) halfLife = 72.0;
 
@@ -260,7 +253,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   /// Trending Momentum: View velocity, like velocity
   double _computeTrendingMomentum(Video video) {
     // Simplified placeholder for velocity logic
-    final views = video.viewCount ?? 0;
+    final views = video.viewCount;
     if (views > 100000) return 1.0;
     if (views > 10000) return 0.8;
     if (views > 1000) return 0.5;
@@ -281,7 +274,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
     for (final topic in video.topics) {
       if (_sessionTracker.currentSessionDominantTopics.contains(
-        topic.toString(),
+        topic,
       )) {
         return 8.0;
       }
@@ -293,15 +286,16 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   double _computePenalty(Video video) {
     if (_profile == null) return 0.0;
 
-    double penalty = 0.0;
+    var penalty = 0.0;
 
     // Watched logic
     if (_profile!.recentlyWatchedVideoIds.contains(video.id)) {
       final progress = _profile!.watchProgress[video.id] ?? 0.0;
-      if (progress > 0.8)
+      if (progress > 0.8) {
         penalty += 0.8;
-      else if (progress < 0.5)
+      } else if (progress < 0.5) {
         penalty += 0.3;
+      }
     }
 
     // Dislikes & Negative Signals
@@ -314,8 +308,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
     penalty += _profile!.getNegativeSignalStrength(
       video.id,
-      video.category.toString(),
-      video.channelId.toString(),
+      video.category,
+      video.channelId,
     );
 
     // Novelty Penalty from Exploration Budget (don't repeat same sub-topic)
@@ -342,7 +336,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   /// This is Truthworld's competitive moat: optimizing for knowledge quality,
   /// not just watch time.
   double _computeKnowledgeQuality(Video video) {
-    double score = 0.0;
+    var score = 0.0;
 
     // 1. Evidence quality: does the video cite sources?
     final sourceCount = video.sourceLinks?.length ?? 0;
@@ -353,14 +347,14 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     score += min(0.1, sourceCount * 0.02);
 
     // 3. Fact-check confidence: truthScore normalized
-    final factCheckConfidence = (video.truthScore / 5.0);
+    final factCheckConfidence = video.truthScore / 5.0;
     score += factCheckConfidence * 0.20;
 
     // 4. Primary sources: has the video been fact-checked at all?
-    if (video.isFactChecked == true) score += 0.15;
+    if (video.isFactChecked) score += 0.15;
 
     // 5. Expert consensus: verified channel + high truth score
-    if (video.isVerified == true && video.truthScore >= 3.5) score += 0.10;
+    if (video.isVerified && video.truthScore >= 3.5) score += 0.10;
 
     // 6. Recency of verification
     // Use truthScore as proxy — higher = more recently verified
@@ -385,7 +379,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
     // Small creator boost: channels with low historical view counts
     final avgViews = video.viewCount > 0 ? video.viewCount : 100;
-    double fairnessScore = 0.0;
+    var fairnessScore = 0.0;
 
     if (avgViews < 1000) {
       fairnessScore +=
@@ -415,13 +409,13 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     List<ScoredVideo> ranked,
     DiversityConfig config,
   ) {
-    List<ScoredVideo> finalFeed = [];
-    Map<String, int> creatorCounts = {};
+    final finalFeed = <ScoredVideo>[];
+    final creatorCounts = <String, int>{};
     String? lastChannelId;
-    int consecutiveChannelCount = 0;
+    var consecutiveChannelCount = 0;
 
     for (final item in ranked) {
-      final channelId = item.video.channelId.toString();
+      final channelId = item.video.channelId;
 
       // Enforce max consecutive same channel
       if (channelId == lastChannelId) {
@@ -475,7 +469,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     if (_profile == null || topicsList.isEmpty) return topicsList;
 
     final scored = topicsList.map((t) {
-      double score =
+      var score =
           (t.followerCount * 0.4) +
           (t.videoCount * 0.2) +
           (t.trendingScore * 0.4);
@@ -510,18 +504,18 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     RecommendationSurface surface, {
     DiversityConfig? diversityConfig,
   }) {
-    List<ScoredVideo> scored = [];
+    final scored = <ScoredVideo>[];
 
     for (final video in candidates) {
       if (_computeCredibilityGate(video) == 0.0) continue;
 
       // Invert topic affinity: videos in user's NON-top categories score HIGHER
-      double topicAffinity = _computeTopicAffinity(video);
-      double oppositeScore = (1.0 - topicAffinity) * 10.0;
+      final topicAffinity = _computeTopicAffinity(video);
+      final oppositeScore = (1.0 - topicAffinity) * 10.0;
 
       // High quality/engagement still matters (we want QUALITY opposite views)
-      double engagement = _computeEngagementQuality(video);
-      double totalOppositeScore = (oppositeScore * 0.7) + (engagement * 3.0);
+      final engagement = _computeEngagementQuality(video);
+      final totalOppositeScore = (oppositeScore * 0.7) + (engagement * 3.0);
 
       scored.add(
         ScoredVideo(
@@ -548,12 +542,12 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
       final flipService = Get.find<FlipCoinService>();
       final scored = candidates
           .map((candidate) {
-            double contrastScore = flipService.calculateContrastScore(
+            final contrastScore = flipService.calculateContrastScore(
               currentVideo,
               candidate,
             );
-            double engagement = _computeEngagementQuality(candidate);
-            double totalScore = (contrastScore * 10.0) + (engagement * 2.0);
+            final engagement = _computeEngagementQuality(candidate);
+            final totalScore = (contrastScore * 10.0) + (engagement * 2.0);
 
             return ScoredVideo(
               video: candidate,

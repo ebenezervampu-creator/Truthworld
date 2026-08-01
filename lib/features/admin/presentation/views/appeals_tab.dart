@@ -4,7 +4,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class AppealsTab extends StatelessWidget {
   final AdminController controller;
-  const AppealsTab({super.key, required this.controller});
+  const AppealsTab({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +15,6 @@ class AppealsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 1,
               child: _buildAppealsList(),
             ),
             if (isDesktop) ...[
@@ -59,7 +58,7 @@ class AppealsTab extends StatelessWidget {
                 children: [
                   const SizedBox(height: 4),
                   Text(
-                    'User: user${index}@example.com',
+                    'User: user$index@example.com',
                     style: const TextStyle(color: AppColors.textSecondary),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -154,7 +153,7 @@ class AppealsTab extends StatelessWidget {
                           const SizedBox(width: 16),
                           Expanded(
                             child: _buildCard(
-                              'Creator\'s Appeal Statement',
+                              "Creator's Appeal Statement",
                               '"This is a classical painting from a museum, not explicit content. Please review." - User',
                             ),
                           ),
@@ -168,7 +167,7 @@ class AppealsTab extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
                           _buildCard(
-                            'Creator\'s Appeal Statement',
+                            "Creator's Appeal Statement",
                             '"This is a classical painting from a museum, not explicit content. Please review." - User',
                           ),
                         ],

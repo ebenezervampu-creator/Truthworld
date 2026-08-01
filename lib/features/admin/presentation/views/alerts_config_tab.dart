@@ -4,7 +4,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class AlertsConfigTab extends StatelessWidget {
   final AdminController controller;
-  const AlertsConfigTab({super.key, required this.controller});
+  const AlertsConfigTab({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +199,6 @@ class AlertsConfigTab extends StatelessWidget {
                       style: TextStyle(color: AppColors.textPrimary),
                     ),
                     onSelected: (_) {},
-                    selected: false,
                     backgroundColor: AppColors.bgElevated,
                   ),
                   FilterChip(

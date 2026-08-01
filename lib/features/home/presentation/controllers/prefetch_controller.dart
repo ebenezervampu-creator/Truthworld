@@ -8,7 +8,7 @@ class PrefetchController extends BaseController {
   final _storage = GetStorage();
   static const String _kVideoCacheKey = 'home_videos_cache';
 
-  final cachedVideos = <Video>[].obs;
+  final RxList<Video> cachedVideos = <Video>[].obs;
 
   @override
   void onInit() {

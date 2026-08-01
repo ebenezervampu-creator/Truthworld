@@ -1,8 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelMembershipTier {
@@ -190,7 +190,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: tiers.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 16),
+                  separatorBuilder: (_, _) => const SizedBox(height: 16),
                   itemBuilder: (context, index) {
                     final tier = tiers[index];
                     return _buildTierCard(tier, isDarkMode);
@@ -392,7 +392,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Set up membership levels (e.g. Bronze \$1.99/mo, Silver VIP \$4.99/mo) so fans can support your channel directly with 0% platform commission.',
+            r'Set up membership levels (e.g. Bronze $1.99/mo, Silver VIP $4.99/mo) so fans can support your channel directly with 0% platform commission.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -403,7 +403,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
           ),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () => _setupDefaultTiers(),
+            onPressed: _setupDefaultTiers,
             icon: const Icon(
               Icons.auto_awesome_rounded,
               color: Colors.white,
@@ -643,7 +643,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                 color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
               ),
               decoration: InputDecoration(
-                labelText: 'Monthly Price (\$)',
+                labelText: r'Monthly Price ($)',
                 labelStyle: TextStyle(
                   color: isDarkMode
                       ? AppColors.textSecondary
@@ -773,7 +773,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                 color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
               ),
               decoration: const InputDecoration(
-                labelText: 'Monthly Price (\$)',
+                labelText: r'Monthly Price ($)',
               ),
             ),
             const SizedBox(height: 12),

@@ -12,9 +12,9 @@
 // subtitles when player starts, etc.)
 // ==========================================================================
 
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 
@@ -203,7 +203,7 @@ class VideoMediaService {
       return result;
     } catch (e) {
       debugPrint('[VideoMediaService] Fallback localization error: $e');
-      final emptyResult = const VideoMediaLocalization();
+      const emptyResult = VideoMediaLocalization();
       localizationCache[videoId] = emptyResult;
       return emptyResult;
     }
@@ -216,7 +216,7 @@ class VideoMediaService {
           .doc(videoId)
           .get();
       if (!doc.exists) {
-        final emptyResult = const VideoMediaCredibility();
+        const emptyResult = VideoMediaCredibility();
         credibilityCache[videoId] = emptyResult;
         return emptyResult;
       }
@@ -228,7 +228,7 @@ class VideoMediaService {
       return result;
     } catch (e) {
       debugPrint('[VideoMediaService] Fallback credibility error: $e');
-      final emptyResult = const VideoMediaCredibility();
+      const emptyResult = VideoMediaCredibility();
       credibilityCache[videoId] = emptyResult;
       return emptyResult;
     }

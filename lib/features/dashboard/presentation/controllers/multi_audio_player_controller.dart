@@ -31,31 +31,31 @@ class AudioTrackOption {
 ///     (just_audio) plays the dubbed file in lockstep.
 ///
 /// Usage:
-///   final ctrl = Get.find<MultiAudioPlayerController>();
+///   final ctrl = Get.find`MultiAudioPlayerController`();
 ///   ctrl.initialize(videoUrl, tracks);
 class MultiAudioPlayerController extends GetxController {
   static const _tag = 'MultiAudioPlayerController';
 
   // ── Observable state ────────────────────────────────────────────────────────
-  final isInitializing = true.obs;
-  final hasError = false.obs;
-  final errorMessage = ''.obs;
+  final RxBool isInitializing = true.obs;
+  final RxBool hasError = false.obs;
+  final RxString errorMessage = ''.obs;
 
-  final isPlaying = false.obs;
-  final isMuted = false.obs;
-  final volume = 1.0.obs;
+  final RxBool isPlaying = false.obs;
+  final RxBool isMuted = false.obs;
+  final RxDouble volume = 1.0.obs;
 
-  final position = Duration.zero.obs;
-  final duration = Duration.zero.obs;
-  final buffered = Duration.zero.obs;
+  final Rx<Duration> position = Duration.zero.obs;
+  final Rx<Duration> duration = Duration.zero.obs;
+  final Rx<Duration> buffered = Duration.zero.obs;
 
-  final availableTracks = <AudioTrackOption>[].obs;
+  final RxList<AudioTrackOption> availableTracks = <AudioTrackOption>[].obs;
   final selectedTrack = Rxn<AudioTrackOption>();
-  final isChangingTrack = false.obs;
+  final RxBool isChangingTrack = false.obs;
 
-  final showControls = true.obs;
-  final isFullscreen = false.obs;
-  final playbackSpeed = 1.0.obs;
+  final RxBool showControls = true.obs;
+  final RxBool isFullscreen = false.obs;
+  final RxDouble playbackSpeed = 1.0.obs;
 
   // ── Internal ─────────────────────────────────────────────────────────────────
   VideoPlayerController? _videoCtrl;

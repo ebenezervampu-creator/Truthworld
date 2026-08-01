@@ -109,7 +109,7 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
       var q = _firestore
           .collection(FirestoreCollections.videos)
           .where('titleLowercase', isGreaterThanOrEqualTo: queryLower)
-          .where('titleLowercase', isLessThanOrEqualTo: queryLower + '\uf8ff')
+          .where('titleLowercase', isLessThanOrEqualTo: '$queryLower\uf8ff')
           .where('visibility', isEqualTo: 'public')
           .limit(limit);
 

@@ -4,8 +4,8 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 
 class CommunityPostReactionState {
   const CommunityPostReactionState({

@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:io' as io;
 import 'dart:ui';
 
@@ -11,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -42,8 +42,8 @@ class CreateContentScreen extends StatefulWidget {
 class _CreateContentScreenState extends State<CreateContentScreen>
     with TickerProviderStateMixin {
   // Controllers
-  final _uploadController = Get.find<UploadController>();
-  final _playlistController = Get.find<PlaylistController>();
+  late final UploadController _uploadController;
+  late final PlaylistController _playlistController;
 
   // Text Controllers with validation
   final _videoDetailsFormKey = GlobalKey<FormState>();
@@ -75,6 +75,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   void _initializeControllers() {
     _pageController = PageController();
+
+    if (!Get.isRegistered<UploadController>()) {
+      Get.put(UploadController());
+    }
+    _uploadController = Get.find<UploadController>();
+
+    if (!Get.isRegistered<PlaylistController>()) {
+      Get.put(PlaylistController());
+    }
+    _playlistController = Get.find<PlaylistController>();
 
     // Add listeners for real-time validation
     _titleController.addListener(_validateForm);
@@ -4766,7 +4776,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
         ),
         items: items,
-        onChanged: (String? value) {
+        onChanged: (value) {
           if (value == 'create_new') {
             showCreatePlaylistModal(isDark);
           } else {
@@ -5188,7 +5198,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             child: Text(channel.channelName),
           );
         }).toList(),
-        onChanged: (String? value) {
+        onChanged: (value) {
           if (value != null) {
             final selected = _uploadController.channels.firstWhere(
               (channel) => channel.channelId == value,

@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
@@ -18,10 +20,10 @@ enum ViewState {
 /// Base controller for all feature controllers to standardize state management,
 /// worker lifecycle disposal, cancellation support, and low-latency UI updates.
 abstract class BaseController extends GetxController {
-  final rxState = ViewState.idle.obs;
+  final Rx<ViewState> rxState = ViewState.idle.obs;
   ViewState get state => rxState.value;
 
-  final _errorMessage = ''.obs;
+  final RxString _errorMessage = ''.obs;
   String get errorMessage => _errorMessage.value;
 
   bool get isLoading => state == ViewState.loading;
@@ -44,6 +46,30 @@ abstract class BaseController extends GetxController {
   /// Alias for [addWorker]
   void registerWorker(Worker worker) => addWorker(worker);
 
+  // =========================================================================
+  // RESOURCE TRACKING — Auto-dispose subscriptions, timers, and controllers
+  // =========================================================================
+
+  final List<StreamSubscription> _trackedSubscriptions = <StreamSubscription>[];
+  final List<Timer> _trackedTimers = <Timer>[];
+  final List<TextEditingController> _trackedTextControllers = <TextEditingController>[];
+  final List<ScrollController> _trackedScrollControllers = <ScrollController>[];
+
+  /// Track a [StreamSubscription] for automatic cancellation in [onClose].
+  void trackSubscription(StreamSubscription sub) =>
+      _trackedSubscriptions.add(sub);
+
+  /// Track a [Timer] for automatic cancellation in [onClose].
+  void trackTimer(Timer timer) => _trackedTimers.add(timer);
+
+  /// Track a [TextEditingController] for automatic disposal in [onClose].
+  void trackTextController(TextEditingController ctrl) =>
+      _trackedTextControllers.add(ctrl);
+
+  /// Track a [ScrollController] for automatic disposal in [onClose].
+  void trackScrollController(ScrollController ctrl) =>
+      _trackedScrollControllers.add(ctrl);
+
   @override
   @mustCallSuper
   void onInit() {
@@ -59,6 +85,22 @@ abstract class BaseController extends GetxController {
       worker.dispose();
     }
     workers.clear();
+    for (final sub in _trackedSubscriptions) {
+      sub.cancel();
+    }
+    _trackedSubscriptions.clear();
+    for (final timer in _trackedTimers) {
+      timer.cancel();
+    }
+    _trackedTimers.clear();
+    for (final ctrl in _trackedTextControllers) {
+      ctrl.dispose();
+    }
+    _trackedTextControllers.clear();
+    for (final ctrl in _trackedScrollControllers) {
+      ctrl.dispose();
+    }
+    _trackedScrollControllers.clear();
     super.onClose();
   }
 
@@ -67,8 +109,13 @@ abstract class BaseController extends GetxController {
   }
 
   void logDispose() {
+    final resourceCount = _trackedSubscriptions.length +
+        _trackedTimers.length +
+        _trackedTextControllers.length +
+        _trackedScrollControllers.length;
     debugPrint(
-      '⚫ [Controller Dispose] $runtimeType disposed (${workers.length} workers cleaned)',
+      '⚫ [Controller Dispose] $runtimeType disposed '
+      '(${workers.length} workers, $resourceCount tracked resources cleaned)',
     );
   }
 
@@ -104,10 +151,10 @@ abstract class BaseController extends GetxController {
   }
 
   /// Pagination support
-  final _page = 1.obs;
+  final RxInt _page = 1.obs;
   int get page => _page.value;
 
-  final _hasMore = true.obs;
+  final RxBool _hasMore = true.obs;
   bool get hasMore => _hasMore.value;
 
   final RxList<dynamic> items = <dynamic>[].obs;
@@ -158,7 +205,6 @@ abstract class BaseController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: bg,
         colorText: fg,
-        duration: const Duration(seconds: 3),
       );
     } catch (e) {
       debugPrint(
@@ -228,11 +274,12 @@ abstract class BaseController extends GetxController {
     try {
       if (showLoading && isItemsEmpty) setViewState(ViewState.loading);
       await task();
-      if (state == ViewState.loading) setViewState(ViewState.success);
       if (isItemsEmpty &&
           state != ViewState.error &&
           state != ViewState.cancelled) {
         setViewState(ViewState.empty);
+      } else if (state == ViewState.loading) {
+        setViewState(ViewState.success);
       }
     } on OperationCancelledException catch (e) {
       debugPrint('ℹ️ [Task Cancelled] $runtimeType: ${e.message}');

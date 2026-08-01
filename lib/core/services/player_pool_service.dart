@@ -59,9 +59,7 @@ class PlayerPoolService extends GetxService {
   /// Keep only the specified [activeIds] alive in memory and evict all others
   void updateActiveWindow(List<String> activeIds) {
     final toRemove = _pool.keys.where((id) => !activeIds.contains(id)).toList();
-    for (final id in toRemove) {
-      disposePlayer(id);
-    }
+    toRemove.forEach(disposePlayer);
   }
 
   /// Explicitly remove and dispose a specific player instance

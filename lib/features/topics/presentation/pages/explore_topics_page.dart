@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
-import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
@@ -30,7 +30,9 @@ class ExploreTopicsPage extends StatefulWidget {
 
 class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   final ExploreTopicsController controller =
-      Get.find<ExploreTopicsController>();
+      Get.isRegistered<ExploreTopicsController>()
+          ? Get.find<ExploreTopicsController>()
+          : Get.put(ExploreTopicsController());
 
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
@@ -433,7 +435,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     final isTablet = screenWidth >= 600 && screenWidth < 1024;
     final isDesktop = screenWidth >= 1024;
     final key = topic.id;
-    final followingController = Get.find<FollowingTopicsController>();
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
     final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
 
@@ -1021,7 +1025,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     double pageOffset,
   ) {
     final isMobile = context.isMobile;
-    final followingController = Get.find<FollowingTopicsController>();
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
     final isOwner =
         Get.isRegistered<AuthService>() &&

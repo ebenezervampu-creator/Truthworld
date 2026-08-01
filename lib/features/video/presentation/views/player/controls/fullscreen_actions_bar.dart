@@ -131,7 +131,6 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               border: isActive
                   ? Border.all(
                       color: AppColors.textPrimary.withValues(alpha: 0.4),
-                      width: 1,
                     )
                   : null,
             ),

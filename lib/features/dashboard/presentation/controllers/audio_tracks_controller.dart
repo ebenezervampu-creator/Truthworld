@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -625,7 +625,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
       final uploadTask = storageRef.putData(fileBytes, metadata);
 
       // Track progress
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+      uploadTask.snapshotEvents.listen((snapshot) {
         if (snapshot.totalBytes > 0) {
           uploadProgress.value =
               snapshot.bytesTransferred / snapshot.totalBytes;

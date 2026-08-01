@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -14,15 +14,15 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-const kPrimaryDark = AppColors.brand;
-const kSecondaryDark = AppColors.brandVariant;
+const Color kPrimaryDark = AppColors.brand;
+const Color kSecondaryDark = AppColors.brandVariant;
 const kBorderRadius = 16.0;
 const kSmallPadding = 8.0;
 const kMediumPadding = 16.0;
 const kLargePadding = 24.0;
-const kDarkBackground = AppColors.bgPage;
-const kDarkSurface = AppColors.bgSurface;
-const kDarksurfaceContainerHighest = AppColors.bgSurfaceHover;
+const Color kDarkBackground = AppColors.bgPage;
+const Color kDarkSurface = AppColors.bgSurface;
+const Color kDarksurfaceContainerHighest = AppColors.bgSurfaceHover;
 
 // ==========================================================================
 // REGENERATED MODERN PLAYLIST SCREEN UI
@@ -49,7 +49,10 @@ class PlaylistScreen extends StatefulWidget {
 class _PlaylistScreenState extends State<PlaylistScreen>
     with TickerProviderStateMixin {
   final TextEditingController playListNameController = TextEditingController();
-  final PlaylistController _playlistController = Get.find<PlaylistController>();
+  final PlaylistController _playlistController =
+      Get.isRegistered<PlaylistController>()
+          ? Get.find<PlaylistController>()
+          : Get.put(PlaylistController());
   final TextEditingController _searchController = TextEditingController();
   final RxString _selectedPlaylistType = 'private'.obs;
 
@@ -2831,7 +2834,7 @@ class StackedThumbnail extends StatelessWidget {
 
 // App Theme (preserve original theme structure)
 class AppTheme {
-  static final darkTheme = ThemeData.dark().copyWith(
+  static final ThemeData darkTheme = ThemeData.dark().copyWith(
     // Preserve original theme configuration
   );
 }

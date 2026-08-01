@@ -231,10 +231,12 @@ class CreateTopicDialog extends StatelessWidget {
                           ),
                         ),
                         validator: (val) {
-                          if (val == null || val.trim().isEmpty)
+                          if (val == null || val.trim().isEmpty) {
                             return 'Topic Title is required';
-                          if (val.trim().length < 3)
+                          }
+                          if (val.trim().length < 3) {
                             return 'Title must be at least 3 characters';
+                          }
                           return null;
                         },
                       ),
@@ -276,10 +278,12 @@ class CreateTopicDialog extends StatelessWidget {
                           ),
                         ),
                         validator: (val) {
-                          if (val == null || val.trim().isEmpty)
+                          if (val == null || val.trim().isEmpty) {
                             return 'Handle is required';
-                          if (val.contains(' '))
+                          }
+                          if (val.contains(' ')) {
                             return 'Handle cannot contain spaces';
+                          }
                           return null;
                         },
                       ),
@@ -366,8 +370,9 @@ class CreateTopicDialog extends StatelessWidget {
                             )
                             .toList(),
                         onChanged: (val) {
-                          if (val != null)
+                          if (val != null) {
                             controller.categoryController.text = val;
+                          }
                         },
                       ),
                       const SizedBox(height: 16),
@@ -430,8 +435,9 @@ class CreateTopicDialog extends StatelessWidget {
                             ),
                           ],
                           onChanged: (val) {
-                            if (val != null)
+                            if (val != null) {
                               controller.selectedVisibility.value = val;
+                            }
                           },
                         ),
                       ),
@@ -478,10 +484,12 @@ class CreateTopicDialog extends StatelessWidget {
                             validator: (val) {
                               if (controller.selectedVisibility.value ==
                                   TopicVisibilityType.private) {
-                                if (val == null || val.trim().isEmpty)
+                                if (val == null || val.trim().isEmpty) {
                                   return 'Passcode is required for private topic';
-                                if (val.trim().length < 4)
+                                }
+                                if (val.trim().length < 4) {
                                   return 'Passcode must be at least 4 characters';
+                                }
                               }
                               return null;
                             },
@@ -642,8 +650,9 @@ class CreateTopicDialog extends StatelessWidget {
                               controller.isSubmitting.value = true;
                               try {
                                 await onCreateTopicSubmitted(controller);
-                                if (context.mounted)
+                                if (context.mounted) {
                                   Navigator.of(context).pop();
+                                }
                               } catch (e) {
                                 AppSnackbar.show(
                                   'Error',

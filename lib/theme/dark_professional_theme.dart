@@ -21,11 +21,9 @@ ThemeData darkProfessionalTheme = ThemeData(
   primaryColor: primaryAccent,
   colorScheme: ColorScheme.dark(
     primary: primaryAccent,
-    onPrimary: Colors.black,
     primaryContainer: primaryAccent.withValues(alpha: 0.12),
     onPrimaryContainer: Colors.black,
     secondary: secondaryAccent,
-    onSecondary: Colors.black,
     secondaryContainer: secondaryAccent.withValues(alpha: 0.12),
     onSecondaryContainer: Colors.black,
     tertiary: tertiaryAccent,

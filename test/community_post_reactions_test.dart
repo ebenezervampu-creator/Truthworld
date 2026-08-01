@@ -4,7 +4,7 @@ import 'package:truthworld/features/community/presentation/controllers/community
 void main() {
   group('CommunityPostCard reaction state', () {
     test('toggles like on and off without changing dislike state', () {
-      final state = CommunityPostReactionState(
+      const state = CommunityPostReactionState(
         likes: 10,
         dislikes: 2,
         likedBy: ['user-1'],
@@ -26,7 +26,7 @@ void main() {
     });
 
     test('switches from dislike to like and keeps counts consistent', () {
-      final state = CommunityPostReactionState(
+      const state = CommunityPostReactionState(
         likes: 5,
         dislikes: 3,
         likedBy: [],

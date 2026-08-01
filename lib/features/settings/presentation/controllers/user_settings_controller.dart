@@ -23,10 +23,10 @@ class UserSettingsController extends GetxController {
   final SettingsRepository _repository = SettingsRepository();
 
   // --- Reactive Settings Models ---
-  final wellbeing = const DigitalWellbeingSettings().obs;
-  final playback = const PlaybackSettings().obs;
-  final downloads = const DownloadSettings().obs;
-  final accessibility = const AccessibilitySettings().obs;
+  final Rx<DigitalWellbeingSettings> wellbeing = const DigitalWellbeingSettings().obs;
+  final Rx<PlaybackSettings> playback = const PlaybackSettings().obs;
+  final Rx<DownloadSettings> downloads = const DownloadSettings().obs;
+  final Rx<AccessibilitySettings> accessibility = const AccessibilitySettings().obs;
 
   // --- Reactive Individual Preferences ---
   final RxBool pushNotificationsEnabled = true.obs;

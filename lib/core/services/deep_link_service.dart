@@ -1,10 +1,10 @@
-// ignore_for_file: avoid_print
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -69,7 +69,6 @@ class DeepLinkService {
   Future<void> shareVideo(String videoId, String videoTitle) async {
     try {
       final url = videoUrl(videoId);
-      // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
           text: 'Check out "$videoTitle" on TruthWorld:\n$url',
@@ -88,7 +87,6 @@ class DeepLinkService {
       final text = channelName != null
           ? 'Check out "$channelName" on TruthWorld:\n$url'
           : 'Check out this channel on TruthWorld:\n$url';
-      // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
           text: text,
@@ -104,7 +102,6 @@ class DeepLinkService {
   Future<void> sharePlaylist(String playlistId, String playlistName) async {
     try {
       final url = playlistUrl(playlistId);
-      // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
           text: 'Check out "$playlistName" playlist on TruthWorld:\n$url',
@@ -120,7 +117,6 @@ class DeepLinkService {
   Future<void> shareTopic(String slugOrHandle, String topicTitle) async {
     try {
       final url = topicUrl(slugOrHandle);
-      // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
           text: 'Explore "$topicTitle" topic on TruthWorld:\n$url',

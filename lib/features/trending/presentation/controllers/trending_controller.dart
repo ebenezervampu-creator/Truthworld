@@ -1,10 +1,10 @@
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/trending_videos_service.dart';
-import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/algorithm/scored_video.dart';
-import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 
 class TrendingController extends BaseController {
   final TrendingVideosService _trendingService = TrendingVideosService();

@@ -1,7 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 
 class CategoryController extends GetxController {
   RxString selectedGenre = 'All'.obs;

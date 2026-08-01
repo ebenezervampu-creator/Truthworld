@@ -190,10 +190,10 @@ class UserSignalTracker extends GetxService {
     _buffer.add({
       'type': type,
       'category': category,
-      if (durationSec != null) 'durationSec': durationSec,
-      if (topicSlug != null) 'topicSlug': topicSlug,
-      if (channelId != null) 'channelId': channelId,
-      if (videoId != null) 'videoId': videoId,
+      'durationSec': ?durationSec,
+      'topicSlug': ?topicSlug,
+      'channelId': ?channelId,
+      'videoId': ?videoId,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
 

@@ -23,7 +23,7 @@ class Comment {
     this.isHeartedByCreator = false,
     this.creatorHeartName,
     this.donationAmount = 0.0,
-    this.donationCurrency = '\$',
+    this.donationCurrency = r'$',
     this.isDonatedComment = false,
     this.donationColorHex,
   });
@@ -57,7 +57,7 @@ class Comment {
       isHeartedByCreator: data['isHeartedByCreator'] ?? false,
       creatorHeartName: data['creatorHeartName'],
       donationAmount: (data['donationAmount'] as num?)?.toDouble() ?? 0.0,
-      donationCurrency: data['donationCurrency'] ?? '\$',
+      donationCurrency: data['donationCurrency'] ?? r'$',
       isDonatedComment:
           data['isDonatedComment'] ??
           (data['donationAmount'] != null &&

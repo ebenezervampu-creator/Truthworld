@@ -1,9 +1,10 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
@@ -144,21 +145,19 @@ class _TopicPageState extends State<TopicPage> {
 
             // Search Bar (if visible)
             SliverToBoxAdapter(
-              child: Obx(
-                () => controller.isSearchVisible.value
-                    ? Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
-                          vertical: 16,
-                        ),
-                        child: _buildSearchBar(
-                          context,
-                          isDesktop: isDesktop,
-                          isTablet: isTablet,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+              child: controller.isSearchVisible.value
+                  ? Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+                        vertical: 16,
+                      ),
+                      child: _buildSearchBar(
+                        context,
+                        isDesktop: isDesktop,
+                        isTablet: isTablet,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
 
             // Featured Video Section
@@ -196,39 +195,61 @@ class _TopicPageState extends State<TopicPage> {
                     const SizedBox(height: 12),
                     _buildTopicFilterTabs(),
                     const SizedBox(height: 16),
-                    Obx(() {
-                      var emptyTitle = 'No videos yet';
-                      var emptySubtitle =
-                          'Videos related to this topic will appear here';
-                      if (controller.selectedTab.value ==
-                          'From Subscribed channels') {
-                        emptyTitle = 'No subscribed videos';
-                        emptySubtitle =
-                            'Videos from channels you subscribe to will appear here';
-                      } else if (controller.selectedTab.value ==
-                          'Fact checked') {
-                        emptyTitle = 'No fact-checked videos';
-                        emptySubtitle =
-                            'Videos with verified fact-checking will appear here';
-                      }
-
-                      return TopicVideoGrid(
-                        videos: controller.filteredVideos,
-                        isLoadingMore: controller.isLoadingMore.value,
-                        hasMore: controller.hasMoreVideos.value,
-                        isDesktop: isDesktop,
-                        isTablet: isTablet,
-                        isGrid: false,
-                        heroPrefix: 'topic_${controller.topicSlug}',
-                        onLoadMore: controller.loadMoreVideos,
-                        emptyTitle: emptyTitle,
-                        emptySubtitle: emptySubtitle,
-                      );
-                    }),
+                    TopicVideoGrid(
+                      videos: controller.filteredVideos,
+                      isLoadingMore: controller.isLoadingMore.value,
+                      hasMore: controller.hasMoreVideos.value,
+                      isDesktop: isDesktop,
+                      isTablet: isTablet,
+                      isGrid: false,
+                      heroPrefix: 'topic_${controller.topicSlug}',
+                      onLoadMore: controller.loadMoreVideos,
+                      emptyTitle: controller.selectedTab.value == 'From Subscribed channels'
+                          ? 'No subscribed videos'
+                          : (controller.selectedTab.value == 'Fact checked'
+                              ? 'No fact-checked videos'
+                              : 'No videos yet'),
+                      emptySubtitle: controller.selectedTab.value == 'From Subscribed channels'
+                          ? 'Videos from channels you subscribe to will appear here'
+                          : (controller.selectedTab.value == 'Fact checked'
+                              ? 'Videos with verified fact-checking will appear here'
+                              : 'Videos related to this topic will appear here'),
+                    ),
                   ],
                 ),
               ),
             ),
+
+            // Related Community Posts Section (if available)
+            if (controller.relatedPosts.isNotEmpty)
+              SliverPadding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+                  vertical: 16,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader('Community Posts', isDesktop, isTablet),
+                      const SizedBox(height: 12),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: controller.relatedPosts.length.clamp(0, 3),
+                        itemBuilder: (context, index) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: CommunityPostCard(
+                              post: controller.relatedPosts[index],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // Comments and Replies Section
             SliverPadding(
@@ -386,6 +407,8 @@ class _TopicPageState extends State<TopicPage> {
     );
   }
 
+
+
   Widget _buildContributingChannelsSection(bool isDesktop, bool isTablet) {
     final channels = controller.topicChannels;
     if (channels.isEmpty) return const SizedBox.shrink();
@@ -466,16 +489,15 @@ class _TopicPageState extends State<TopicPage> {
   }
 
   Widget _buildTopicFilterTabs() {
-    return Obx(() {
-      final tabs = <String>[
-        'Trending',
-        'From Subscribed channels',
-        'New',
-        'Popular',
-      ];
-      if (controller.hasFactCheckedVideos) {
-        tabs.add('Fact checked');
-      }
+    final tabs = <String>[
+      'Trending',
+      'From Subscribed channels',
+      'New',
+      'Popular',
+    ];
+    if (controller.hasFactCheckedVideos) {
+      tabs.add('Fact checked');
+    }
 
       return SizedBox(
         height: 38,
@@ -523,7 +545,6 @@ class _TopicPageState extends State<TopicPage> {
           },
         ),
       );
-    });
   }
 
   Widget _buildFeaturedCard(dynamic video, bool isDesktop, bool isTablet) {

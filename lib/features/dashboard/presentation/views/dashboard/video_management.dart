@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -12,11 +11,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-// ignore: avoid_web_libraries_in_flutter
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
 
 class VideoManagementController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -26,14 +25,14 @@ class VideoManagementController extends GetxController {
   String get uploadProgressPercent =>
       '${(uploadProgress.value * 100).toStringAsFixed(0)}%';
 
-  final channelVideos = <Video>[].obs;
-  final isLoadingChannelVideos = true.obs;
-  final channelVideosError = ''.obs;
+  final RxList<Video> channelVideos = <Video>[].obs;
+  final RxBool isLoadingChannelVideos = true.obs;
+  final RxString channelVideosError = ''.obs;
   StreamSubscription? _videosSub;
 
-  final communityPosts = <CommunityPostModel>[].obs;
-  final isLoadingPosts = true.obs;
-  final postsError = ''.obs;
+  final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
+  final RxBool isLoadingPosts = true.obs;
+  final RxString postsError = ''.obs;
   StreamSubscription? _postsSub;
 
   void listenToChannelVideos(String channelId) {
@@ -69,7 +68,7 @@ class VideoManagementController extends GetxController {
             final posts = snapshot.docs
                 .map(
                   (doc) => CommunityPostModel.fromMap(
-                    doc.data()! as Map<String, dynamic>,
+                    doc.data(),
                   ),
                 )
                 .toList();

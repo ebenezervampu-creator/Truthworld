@@ -4,6 +4,6 @@ import 'package:truthworld/features/subscriptions/presentation/controllers/subsc
 class SubscriptionsBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => SubscriptionController(), fenix: true);
+    Get.lazyPut(SubscriptionController.new, fenix: true);
   }
 }

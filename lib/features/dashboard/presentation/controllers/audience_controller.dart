@@ -31,20 +31,20 @@ class AudienceController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Search filter
-  final searchQuery = ''.obs;
+  final RxString searchQuery = ''.obs;
 
   // Primary metrics snapshots
   final snapshot = Rx<ChannelAnalyticsSnapshot?>(null);
-  final allStateItems = <StateAudienceItem>[].obs;
+  final RxList<StateAudienceItem> allStateItems = <StateAudienceItem>[].obs;
 
   // Global scope numbers
-  final totalViews = 0.obs;
-  final totalUniqueViewers = 0.obs;
-  final totalSubscribersGained = 0.obs;
-  final returningViewers = 0.obs;
-  final subscriberConversionRate = 0.0.obs;
-  final urbanPercentage = 0.0.obs;
-  final ruralPercentage = 0.0.obs;
+  final RxInt totalViews = 0.obs;
+  final RxInt totalUniqueViewers = 0.obs;
+  final RxInt totalSubscribersGained = 0.obs;
+  final RxInt returningViewers = 0.obs;
+  final RxDouble subscriberConversionRate = 0.0.obs;
+  final RxDouble urbanPercentage = 0.0.obs;
+  final RxDouble ruralPercentage = 0.0.obs;
 
   // Real-time Firestore listeners
   StreamSubscription<QuerySnapshot>? _channelStatsListener;

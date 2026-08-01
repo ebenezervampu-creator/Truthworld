@@ -1,5 +1,5 @@
-import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 
 /// Versioned algorithm weight configuration.

@@ -1,7 +1,8 @@
 import 'dart:math';
+
+import 'package:truthworld/core/services/algorithm/diversity_config.dart';
+import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'scored_video.dart';
-import 'diversity_config.dart';
 
 /// Manages the exploration budget for recommendation diversity.
 /// Ensures users discover new topics and creators they haven't seen before.
@@ -16,7 +17,7 @@ class ExplorationBudget {
     if (recentEvents.isEmpty) return 0.0;
 
     // Count consecutive same-category events (from most recent)
-    int consecutiveSameCategory = 0;
+    var consecutiveSameCategory = 0;
     for (final event in recentEvents.reversed) {
       // Handle both SessionEvent types
       final eventCategory = (event is Map) ? event['category'] : event.category;
@@ -34,13 +35,13 @@ class ExplorationBudget {
 
     // Topic-level penalty (stricter - look at last 5 events)
     final videoTopics = video.topics;
-    int topicOverlap = 0;
+    var topicOverlap = 0;
     for (final event in recentEvents.take(5)) {
       final eventTopics = (event is Map)
           ? (event['topics'] as List?)
           : event.topics;
       if (eventTopics != null &&
-          eventTopics.any((t) => videoTopics.contains(t))) {
+          eventTopics.any(videoTopics.contains)) {
         topicOverlap++;
       }
     }
@@ -59,7 +60,7 @@ class ExplorationBudget {
     required Set<String> userFollowedTopics,
     required Map<String, double> channelAffinities,
   }) {
-    double bonus = 0.0;
+    var bonus = 0.0;
 
     // 1. New category the user hasn't explored
     if (!userKnownCategories.contains(video.category)) {
@@ -126,7 +127,7 @@ class ExplorationBudget {
     required Set<String> userKnownCategories,
     required Set<String> userFollowedTopics,
   }) {
-    double score = 1.0; // Base score for fully novel content
+    var score = 1.0; // Base score for fully novel content
 
     if (userKnownCategories.contains(category)) {
       score -= 0.4;
@@ -147,7 +148,7 @@ class ExplorationBudget {
     required List<String> topics,
     required Map<String, int> recentTopicCounts,
   }) {
-    double penalty = 0.0;
+    var penalty = 0.0;
 
     final categoryCount = recentTopicCounts[category] ?? 0;
     if (categoryCount >= 3) {

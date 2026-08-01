@@ -1,8 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -17,9 +17,8 @@ class LanguageRequest {
   LanguageRequest({
     required this.id,
     required this.language,
-    this.type = '',
+    required this.count, this.type = '',
     this.createdAt,
-    required this.count,
   });
 
   factory LanguageRequest.fromMap(Map<String, dynamic> map, String id) {

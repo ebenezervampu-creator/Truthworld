@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/domain/repositories/playlist_repository.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/domain/repositories/playlist_repository.dart';
 
 class PlaylistRepositoryImpl extends BaseRepository
     implements PlaylistRepository {
@@ -39,7 +39,7 @@ class PlaylistRepositoryImpl extends BaseRepository
       }
 
       return snapshot.docs
-          .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+          .map(PlaylistModel.fromDocumentSnapshot)
           .toList();
     });
   }

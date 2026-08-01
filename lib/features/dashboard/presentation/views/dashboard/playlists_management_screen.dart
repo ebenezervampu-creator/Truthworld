@@ -1,8 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -191,7 +191,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                   return ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: playlists.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final playlist = playlists[index];
                       return _buildPlaylistCard(playlist, isDarkMode);
@@ -799,7 +799,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
     PlaylistModel playlist,
     bool isDarkMode,
   ) {
-    var videoIds = List<String>.from(playlist.videoIds);
+    final videoIds = List<String>.from(playlist.videoIds);
 
     showModalBottomSheet<void>(
       context: context,

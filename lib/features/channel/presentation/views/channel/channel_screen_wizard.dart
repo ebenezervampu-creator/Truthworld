@@ -14,7 +14,7 @@ class ChannelScreen extends StatelessWidget {
   bool get isMobile => Get.width < 600;
   bool get isTablet => Get.width >= 600 && Get.width < 1200;
   bool get isDesktop => Get.width >= 1200;
-  final controller = Get.find<ChannelController>();
+  final ChannelController controller = Get.find<ChannelController>();
   final RxInt currentStep = 0.obs; // 0-3 for 4 steps
   final RxBool draftDialogShown = false.obs; // Track if dialog was shown
   final RxBool forceValidationUpdate =
@@ -416,8 +416,9 @@ class ChannelScreen extends StatelessWidget {
           ),
         ),
         Obx(() {
-          if (controller.handleSuggestions.isEmpty)
+          if (controller.handleSuggestions.isEmpty) {
             return const SizedBox.shrink();
+          }
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -522,7 +523,7 @@ class ChannelScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.tune_rounded, color: Colors.white, size: 22),
+                const Icon(Icons.tune_rounded, color: Colors.white, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -608,7 +609,7 @@ class ChannelScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.stars_rounded, color: Colors.white, size: 18),
+                      const Icon(Icons.stars_rounded, color: Colors.white, size: 18),
                       const SizedBox(width: 8),
                       Text(
                         isStandard
@@ -627,7 +628,7 @@ class ChannelScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   if (isStandard) ...[
                     _buildWizardBullet(
-                      '55% Net Creator Revenue Share (\$0 Upfront Fees)',
+                      r'55% Net Creator Revenue Share ($0 Upfront Fees)',
                     ),
                     _buildWizardBullet(
                       'Up to 5 Videos Upload limit (Min 2 min per video, 10 min total duration)',
@@ -2648,13 +2649,13 @@ class ChannelScreen extends StatelessWidget {
           ),
           items: controller.languages
               .map(
-                (String lang) => DropdownMenuItem<String>(
+                (lang) => DropdownMenuItem<String>(
                   value: lang,
                   child: Text(lang.toUpperCase()),
                 ),
               )
               .toList(),
-          onChanged: (String? newValue) {
+          onChanged: (newValue) {
             controller.language.value = newValue ?? 'en';
             HapticFeedback.lightImpact();
           },

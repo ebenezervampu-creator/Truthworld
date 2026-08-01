@@ -824,11 +824,11 @@ class AIFeaturesSelector extends StatelessWidget {
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: AppColors.bgDivider),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: AppColors.bgDivider),
+                        borderSide: const BorderSide(color: AppColors.bgDivider),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),

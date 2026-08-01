@@ -6,7 +6,7 @@ import 'package:truthworld/theme/app_theme.dart';
 class KeyboardShortcutsDialog extends StatelessWidget {
   const KeyboardShortcutsDialog({super.key});
 
-  static const _shortcuts = [
+  static const List<Map<String, Object>> _shortcuts = [
     {
       'keys': ['Space', 'K'],
       'action': 'Play / Pause',

@@ -1,8 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
@@ -632,7 +632,7 @@ class SettingsScreen extends StatelessWidget {
     final locationCtrl = TextEditingController(
       text: auth.userLocation.value ?? '',
     );
-    String selectedGender = auth.userGender.value ?? 'Prefer not to say';
+    var selectedGender = auth.userGender.value ?? 'Prefer not to say';
     final genderOptions = <String>[
       'Male',
       'Female',

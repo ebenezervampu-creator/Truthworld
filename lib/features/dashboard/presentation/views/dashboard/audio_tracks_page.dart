@@ -2260,7 +2260,6 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           child: InkWell(
                             onTap: () async {
                               final result = await FilePicker.pickFiles(
-                                allowMultiple: true,
                                 allowedExtensions: [
                                   'mp4',
                                   'mov',
@@ -2361,7 +2360,6 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             TextButton.icon(
                               onPressed: () async {
                                 final result = await FilePicker.pickFiles(
-                                  allowMultiple: true,
                                   allowedExtensions: [
                                     'mp4',
                                     'mov',
@@ -2516,7 +2514,6 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                           flex: 2,
                                           child: DropdownButtonFormField<String>(
                                             value: item.role,
-                                            isDense: true,
                                             dropdownColor: AppColors.bgSurface,
                                             style: const TextStyle(
                                               fontSize: 12,

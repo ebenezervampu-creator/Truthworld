@@ -4,6 +4,6 @@ import 'package:truthworld/features/community/presentation/controllers/community
 class CommunityBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => CommunityController(), fenix: true);
+    Get.lazyPut(CommunityController.new, fenix: true);
   }
 }

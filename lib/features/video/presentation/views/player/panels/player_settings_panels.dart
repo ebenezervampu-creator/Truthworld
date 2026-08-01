@@ -674,35 +674,33 @@ class SubtitleStylePanel extends StatelessWidget {
           final fontFamily =
               TowerPlayerController.globalSubtitleFontFamily.value;
 
-          double previewFontSize = 13.0;
+          var previewFontSize = 13.0;
           if (fontSizeOpt == 'Small') previewFontSize = 11.0;
           if (fontSizeOpt == 'Large') previewFontSize = 15.0;
           if (fontSizeOpt == 'Extra Large') previewFontSize = 17.0;
 
-          List<Shadow> shadows = const [];
+          var shadows = const <Shadow>[];
           if (edgeStyle == 'Drop Shadow') {
             shadows = const [
-              Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+              Shadow(blurRadius: 4, offset: Offset(1, 1)),
             ];
           } else if (edgeStyle == 'Raised') {
             shadows = const [
               Shadow(
                 blurRadius: 1,
-                color: Colors.black,
                 offset: Offset(-1, -1),
               ),
-              Shadow(blurRadius: 3, color: Colors.black, offset: Offset(2, 2)),
+              Shadow(blurRadius: 3, offset: Offset(2, 2)),
             ];
           } else if (edgeStyle == 'Outline') {
             shadows = const [
               Shadow(
                 blurRadius: 1,
-                color: Colors.black,
                 offset: Offset(-1, -1),
               ),
-              Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, -1)),
-              Shadow(blurRadius: 1, color: Colors.black, offset: Offset(-1, 1)),
-              Shadow(blurRadius: 1, color: Colors.black, offset: Offset(1, 1)),
+              Shadow(blurRadius: 1, offset: Offset(1, -1)),
+              Shadow(blurRadius: 1, offset: Offset(-1, 1)),
+              Shadow(blurRadius: 1, offset: Offset(1, 1)),
             ];
           }
 
@@ -1208,8 +1206,7 @@ class SubtitleStylePanel extends StatelessWidget {
 
               Center(
                 child: TextButton.icon(
-                  onPressed: () =>
-                      TowerPlayerController.resetSubtitleStyleToDefault(),
+                  onPressed: TowerPlayerController.resetSubtitleStyleToDefault,
                   icon: const Icon(
                     Icons.refresh_rounded,
                     size: 16,

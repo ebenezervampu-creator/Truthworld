@@ -314,5 +314,5 @@ class MiniplayerPerformanceUtils {
 
   /// Recommended UI update frequency in ms for a target FPS.
   static int getUpdateFrequencyMs({int targetFps = 60}) =>
-      (1000 / targetFps).toInt();
+      1000 ~/ targetFps;
 }

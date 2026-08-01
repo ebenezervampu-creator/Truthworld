@@ -1,18 +1,18 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 
 /// GetX Controller for the Topic Discovery Platform UI
 class ExploreTopicsController extends GetxController {
@@ -180,9 +180,7 @@ class ExploreTopicsController extends GetxController {
       }
 
       // Fetch videos for newly added topics
-      for (final topic in uniqueNewTopics) {
-        fetchVideosForTopic(topic);
-      }
+      uniqueNewTopics.forEach(fetchVideosForTopic);
     } catch (e) {
       errorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,

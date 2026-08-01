@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/paged_controller.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/domain/repositories/video_repository.dart';
@@ -13,17 +12,15 @@ class FeedController extends PagedController<Video> {
   FeedController() : super(pageSize: 24);
   final VideoRepository _videoRepository = Get.find<VideoRepository>();
 
-  final selectedCategory = 'All'.obs;
-  final communityPosts = <CommunityPostModel>[].obs;
-  final mixedFeedItems = <dynamic>[].obs;
-
-  DocumentSnapshot? _lastDocument;
+  final RxString selectedCategory = 'All'.obs;
+  final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
+  final RxList<dynamic> mixedFeedItems = <dynamic>[].obs;
 
   @override
   void onInit() {
     super.onInit();
     addWorker(
-      ever(selectedCategory, (String category) {
+      ever(selectedCategory, (category) {
         logInit();
         loadInitialData();
       }),
@@ -110,7 +107,7 @@ class FeedController extends PagedController<Video> {
               .toList();
           return Result.success(fetchedVideos);
         },
-        failure: (exception) => Result.failure(exception),
+        failure: Result.failure,
       );
     } catch (e) {
       logException(e);

@@ -18,7 +18,7 @@ enum SleepTimerMode {
 class SleepTimerService extends GetxService {
   static SleepTimerService get to => Get.isRegistered<SleepTimerService>()
       ? Get.find<SleepTimerService>()
-      : Get.put(SleepTimerService(), permanent: true);
+      : Get.put(SleepTimerService());
 
   final Rx<SleepTimerMode> mode = SleepTimerMode.off.obs;
   final RxInt remainingSeconds = 0.obs;

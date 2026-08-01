@@ -1,9 +1,11 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -24,6 +26,9 @@ class TopicController extends GetxController {
   // OBSERVABLE STATE
   // ==========================================================================
 
+  /// Main navigation tab: 'All', 'Videos', 'Channels', 'Playlists', 'Topics', 'Posts'
+  final RxString selectedMainTab = 'All'.obs;
+
   /// Current topic being viewed
   final Rxn<Topic> topic = Rxn<Topic>();
 
@@ -35,6 +40,15 @@ class TopicController extends GetxController {
 
   /// Related topics
   final RxList<Topic> relatedTopics = <Topic>[].obs;
+
+  /// Related channels
+  final RxList<Channel> relatedChannels = <Channel>[].obs;
+
+  /// Related playlists
+  final RxList<PlaylistModel> relatedPlaylists = <PlaylistModel>[].obs;
+
+  /// Related community posts
+  final RxList<CommunityPostModel> relatedPosts = <CommunityPostModel>[].obs;
 
   /// UI State
   final RxBool isLoading = false.obs;
@@ -274,6 +288,12 @@ class TopicController extends GetxController {
           excludeSlug: topicData.slug,
         );
       }
+
+      // Load channels, playlists, and posts related to topic tag
+      final tagSearchKey = topicData.slug.isNotEmpty ? topicData.slug : slug;
+      relatedChannels.value = await _repository.getChannelsByTopic(tagSearchKey);
+      relatedPlaylists.value = await _repository.getPlaylistsByTopic(tagSearchKey);
+      relatedPosts.value = await _repository.getCommunityPostsByTopic(tagSearchKey);
 
       // Load initial videos
       await _loadVideos(reset: true);

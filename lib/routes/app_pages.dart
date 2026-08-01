@@ -1,14 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:truthworld/core/bindings/app_bindings.dart';
-import 'package:truthworld/features/premium/presentation/bindings/premium_binding.dart';
-import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
-import 'package:truthworld/features/likedvideos/presentation/bindings/liked_videos_binding.dart';
-import 'package:truthworld/features/topics/presentation/bindings/topics_binding.dart';
-import 'package:truthworld/features/subscriptions/presentation/bindings/subscriptions_binding.dart';
-import 'package:truthworld/features/trending/presentation/bindings/trending_binding.dart';
-import 'package:truthworld/features/library/presentation/bindings/library_binding.dart';
-import 'package:truthworld/features/myvideos/presentation/bindings/my_videos_binding.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 // import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
 
@@ -40,9 +32,12 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashb
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart';
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
+import 'package:truthworld/features/library/presentation/bindings/library_binding.dart';
 import 'package:truthworld/features/library/presentation/views/library/library_screen.dart';
+import 'package:truthworld/features/likedvideos/presentation/bindings/liked_videos_binding.dart';
 import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart'
     deferred as liked_video;
+import 'package:truthworld/features/myvideos/presentation/bindings/my_videos_binding.dart';
 import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
     deferred as my_videos;
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
@@ -51,6 +46,7 @@ import 'package:truthworld/features/playlist/presentation/views/playlist/playlis
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_loader_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
     deferred as playlist_screen;
+import 'package:truthworld/features/premium/presentation/bindings/premium_binding.dart';
 import 'package:truthworld/features/premium/presentation/views/premium_plans_screen.dart'
     deferred as premium_plans;
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
@@ -58,12 +54,16 @@ import 'package:truthworld/features/search/presentation/controllers/search_contr
 import 'package:truthworld/features/search/presentation/pages/search_page.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
     deferred as settings;
+import 'package:truthworld/features/subscriptions/presentation/bindings/subscriptions_binding.dart';
 import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart'
     deferred as subscriptions;
+import 'package:truthworld/features/topics/presentation/bindings/topics_binding.dart';
 import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart'
     deferred as following_topics;
 import 'package:truthworld/features/topics/presentation/pages/topic_page.dart';
+import 'package:truthworld/features/trending/presentation/bindings/trending_binding.dart';
 import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart';
+import 'package:truthworld/features/video/presentation/bindings/video_feature_binding.dart';
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
 import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
     deferred as downloads;
@@ -73,6 +73,7 @@ import 'package:truthworld/features/video/presentation/views/upload/upload_selec
 import 'package:truthworld/features/video/presentation/views/video_screen.dart'
     deferred as video_screen;
 import 'package:truthworld/features/video/presentation/views/videoloader_screen.dart';
+import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
@@ -216,6 +217,7 @@ class AppPages {
     GetPage(
       name: '/upload',
       page: () => const UploadSelectionScreen(),
+      binding: VideoFeatureBinding(),
       middlewares: [AuthGuard()],
     ),
     GetPage(
@@ -223,6 +225,7 @@ class AppPages {
       page: () => const CreateContentScreen(
         uploadType: UploadType.video,
       ),
+      binding: VideoFeatureBinding(),
       middlewares: [AuthGuard()],
     ),
     GetPage(
@@ -230,6 +233,7 @@ class AppPages {
       page: () => const CreateContentScreen(
         uploadType: UploadType.communityPost,
       ),
+      binding: VideoFeatureBinding(),
       middlewares: [AuthGuard()],
     ),
     GetPage(
@@ -237,12 +241,14 @@ class AppPages {
       page: () => const CreateContentScreen(
         uploadType: UploadType.communityPost,
       ),
+      binding: VideoFeatureBinding(),
       middlewares: [AuthGuard()],
     ),
     // Backward compatibility - redirect old route to selection screen
     GetPage(
       name: '/uploadscreen',
       page: () => const UploadSelectionScreen(),
+      binding: VideoFeatureBinding(),
       middlewares: [AuthGuard()],
     ),
     GetPage(

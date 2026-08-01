@@ -1,8 +1,9 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
 class CreatorIntelligenceController extends GetxController {

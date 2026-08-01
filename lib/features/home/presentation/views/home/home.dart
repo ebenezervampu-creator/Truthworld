@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -13,9 +12,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
@@ -76,7 +76,6 @@ import 'package:truthworld/features/watchhistory/presentation/views/watchhistory
     deferred as history;
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
-import 'package:url_launcher/url_launcher.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 // ==========================================================================
@@ -956,24 +955,8 @@ class Home extends GetView<HomeController> {
   }
 
   List<Widget> _buildAppBarActions(BuildContext context, bool isMobile) {
-    final flipService = Get.find<FlipCoinService>();
-
-    return [
-      // 🪙 TRUTHWORLD FLIP COIN ("THE OTHER SIDE") BUTTON
-      Obx(
-        () => Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: FlipCoinWidget(
-            isFlipped: flipService.isHomeFlipped.value,
-            showLabel: !isMobile,
-            onTap: () {
-              flipService.toggleHomeFlip();
-              controller.fetchInitialVideos();
-            },
-          ),
-        ),
-      ),
-      if (isMobile)
+    if (isMobile) {
+      return [
         Container(
           margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
@@ -984,9 +967,9 @@ class Home extends GetView<HomeController> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: IconButton(
-            icon: Icon(
+            icon: const Icon(
               Icons.search_rounded,
-              color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+              color: Colors.white,
             ),
             tooltip: 'Search',
             onPressed: () {
@@ -994,26 +977,24 @@ class Home extends GetView<HomeController> {
             },
           ),
         ),
-      if (isMobile) _buildNotificationLogo(context),
-      if (!isMobile)
-        Obx(
-          () => controller.currentUser.value == null
-              ? _buildSignInButton(context)
-              : Row(
-                  children: [
-                    _buildNotificationLogo(context),
+        _buildNotificationLogo(context),
+      ];
+    }
 
-                    _buildUserMenu(context),
-                  ],
-                ),
-        ),
+    return [
+      _buildNotificationLogo(context),
+      Obx(
+        () => controller.currentUser.value == null
+            ? _buildSignInButton(context)
+            : _buildUserMenu(context),
+      ),
     ];
   }
 
   Widget _buildNotificationLogo(BuildContext context) {
     // Ensure controller is initialized
     if (!Get.isRegistered<VideoFeedNotificationController>()) {
-      Get.find<VideoFeedNotificationController>();
+      Get.put(VideoFeedNotificationController());
     }
     final controller = Get.find<VideoFeedNotificationController>();
     return Padding(
@@ -1067,7 +1048,7 @@ class Home extends GetView<HomeController> {
           icon: const Icon(
             Icons.account_circle_outlined,
             size: 18,
-            color: primaryAccent,
+            color: Colors.white,
           ),
           label: Text(
             controller.isLoadingAuth.value ? 'Signing In...' : 'Sign In',
@@ -1328,15 +1309,16 @@ class Home extends GetView<HomeController> {
               label: ' Topics',
             ),
             const NavigationDestination(
-              icon: Icon(Icons.subscriptions_outlined),
-              selectedIcon: Icon(Icons.subscriptions),
-              label: 'Subscriptions',
+              icon: Icon(Icons.explore_outlined),
+              selectedIcon: Icon(Icons.explore),
+              label: 'Channels',
             ),
             NavigationDestination(
               icon: (() {
                 final user = controller.currentUser.value;
-                if (user == null)
+                if (user == null) {
                   return const Icon(Icons.account_circle_outlined);
+                }
                 final photoUrl = AuthService.to.activePhotoUrl;
                 if (photoUrl.isNotEmpty) {
                   return CircleAvatar(
@@ -1362,8 +1344,9 @@ class Home extends GetView<HomeController> {
               })(),
               selectedIcon: (() {
                 final user = controller.currentUser.value;
-                if (user == null)
+                if (user == null) {
                   return const Icon(Icons.account_circle_rounded);
+                }
                 final photoUrl = AuthService.to.activePhotoUrl;
                 if (photoUrl.isNotEmpty) {
                   return Container(
@@ -1582,86 +1565,78 @@ class _ModernSideNavigationRail extends StatelessWidget {
                         }
                         return const SizedBox.shrink();
                       }),
-                      if (homeController.hasWatchHistory.value)
-                        _buildNavItem(
-                          context,
-                          Icons.history_rounded,
-                          Icons.history_outlined,
-                          'History',
-                          HomeController.indexHistory,
-                          route: '/history',
-                          requiresAuth: true,
-                        ),
-                      if (homeController.hasPlaylists.value)
-                        _buildNavItem(
-                          context,
-                          Icons.playlist_play_rounded,
-                          Icons.playlist_play_outlined,
-                          'Playlists',
-                          HomeController.indexPlaylists,
-                          route: '/playlistscreen',
-                          requiresAuth: true,
-                        ),
-                      if (homeController.hasFollowedTopics.value)
-                        _buildNavItem(
-                          context,
-                          Icons.check_circle_rounded,
-                          Icons.check_circle_outline_rounded,
-                          'Following Topics',
-                          HomeController.indexFollowingTopics,
-                          route: '/following-topics',
-                          requiresAuth: true,
-                        ),
-                      if (homeController.hasWatchLater.value)
-                        _buildNavItem(
-                          context,
-                          Icons.watch_later_rounded,
-                          Icons.watch_later_outlined,
-                          'Watch later',
-                          HomeController.indexWatchLater,
-                          requiresAuth: true,
-                          onTap: homeController.navigateToWatchLater,
-                        ),
-                      if (homeController.hasLikedVideos.value)
-                        _buildNavItem(
-                          context,
-                          Icons.favorite_rounded,
-                          Icons.favorite_outline,
-                          'Liked videos',
-                          HomeController.indexLikedVideos,
-                          route: '/likedvideos',
-                          requiresAuth: true,
-                        ),
-                      if (homeController.hasUploadedVideos.value)
-                        _buildNavItem(
-                          context,
-                          Icons.slideshow_rounded,
-                          Icons.slideshow_outlined,
-                          'Your videos',
-                          HomeController.indexYourVideos,
-                          route: '/myvideos',
-                          requiresAuth: true,
-                        ),
-                      if (homeController.hasClips.value)
-                        _buildNavItem(
-                          context,
-                          Icons.content_cut_rounded,
-                          Icons.content_cut_outlined,
-                          'Your Clips',
-                          HomeController.indexClips,
-                          route: '/clips',
-                          requiresAuth: true,
-                        ),
-                      if (homeController.hasDownloads.value)
-                        _buildNavItem(
-                          context,
-                          Icons.download_rounded,
-                          Icons.download_outlined,
-                          'Downloads',
-                          HomeController.indexDownloads,
-                          route: '/downloads',
-                          requiresAuth: true,
-                        ),
+                      _buildNavItem(
+                        context,
+                        Icons.history_rounded,
+                        Icons.history_outlined,
+                        'History',
+                        HomeController.indexHistory,
+                        route: '/history',
+                        requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.playlist_play_rounded,
+                        Icons.playlist_play_outlined,
+                        'Playlists',
+                        HomeController.indexPlaylists,
+                        route: '/playlistscreen',
+                        requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.check_circle_rounded,
+                        Icons.check_circle_outline_rounded,
+                        'Following Topics',
+                        HomeController.indexFollowingTopics,
+                        route: '/following-topics',
+                        requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.watch_later_rounded,
+                        Icons.watch_later_outlined,
+                        'Watch later',
+                        HomeController.indexWatchLater,
+                        requiresAuth: true,
+                        onTap: homeController.navigateToWatchLater,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.favorite_rounded,
+                        Icons.favorite_outline,
+                        'Liked videos',
+                        HomeController.indexLikedVideos,
+                        route: '/likedvideos',
+                        requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.slideshow_rounded,
+                        Icons.slideshow_outlined,
+                        'Your videos',
+                        HomeController.indexYourVideos,
+                        route: '/myvideos',
+                        requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.content_cut_rounded,
+                        Icons.content_cut_outlined,
+                        'Your Clips',
+                        HomeController.indexClips,
+                        route: '/clips',
+                        requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.download_rounded,
+                        Icons.download_outlined,
+                        'Downloads',
+                        HomeController.indexDownloads,
+                        route: '/downloads',
+                        requiresAuth: true,
+                      ),
                     ],
                   ),
                 ),
@@ -1799,7 +1774,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   'Truthworld Studio',
                   998,
                   route: '/studio',
-                  onTap: () => StudioLauncher.openStudio(),
+                  onTap: StudioLauncher.openStudio,
                 ),
                 _buildNavItem(
                   context,
@@ -2376,78 +2351,87 @@ class _ModernMainContent extends StatelessWidget {
           ],
         ),
       ),
-      child: CustomScrollView(
-        controller: homeController.scrollController,
-        slivers: [
-          Obx(() {
+      child: Obx(() {
+        final isSubscriptionsTab =
+            homeController.selectedCategory.value == 'Subscriptions';
+
+        return CustomScrollView(
+          controller: homeController.scrollController,
+          slivers: [
             if (homeController.sideNavSelectedIndex.value ==
-                HomeController.indexHome) {
-              return _buildMobileCategoryBar(
+                HomeController.indexHome)
+              _buildMobileCategoryBar(
                 context,
                 homeController.availableCategories,
-              );
-            }
-            return const SliverToBoxAdapter(child: SizedBox.shrink());
-          }),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _FeaturedVideoBanner(horizontalPadding: horizontalPadding),
-                const SizedBox(height: 32),
-                _PersonalizedPlaylistsSection(
+              ),
+            if (isSubscriptionsTab)
+              SliverFillRemaining(
+                child: DeferredWidget(
+                  key: const PageStorageKey('subscriptions_category_view'),
+                  loader: subscriptions.loadLibrary,
+                  placeholder: const SubscriptionsShimmerPlaceholder(),
+                  builder: () =>
+                      subscriptions.SubscriptionsPage(isDashboard: true),
+                ),
+              )
+            else ...[
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _FeaturedVideoBanner(horizontalPadding: horizontalPadding),
+                    const SizedBox(height: 32),
+                    _PersonalizedPlaylistsSection(
+                      horizontalPadding: horizontalPadding,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+              if (homeController.isLoadingVideos.value)
+                _ModernVideoGridSection(
+                  isMobile: isMobile,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
+                  videos: const [], // Pass empty list while loading
+                  heroPrefix: 'grid_loading',
+                  isLoading: true,
                   horizontalPadding: horizontalPadding,
+                  formatViews: _formatViews,
+                  formatTimestamp: _formatTimestamp,
+                )
+              else
+                _ModernVideoGridSection(
+                  isMobile: isMobile,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
+                  videos: homeController.homeFeedItems,
+                  heroPrefix: 'main_grid',
+                  isLoading: false,
+                  horizontalPadding: horizontalPadding,
+                  formatViews: _formatViews,
+                  formatTimestamp: _formatTimestamp,
                 ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-          Obx(() {
-            if (homeController.isLoadingVideos.value) {
-              return _ModernVideoGridSection(
-                isMobile: isMobile,
-                isTablet: isTablet,
-                isDesktop: isDesktop,
-                videos: const [], // Pass empty list while loading
-                heroPrefix: 'grid_loading',
-                isLoading: true,
-                horizontalPadding: horizontalPadding,
-                formatViews: _formatViews,
-                formatTimestamp: _formatTimestamp,
-              );
-            }
-            return _ModernVideoGridSection(
-              isMobile: isMobile,
-              isTablet: isTablet,
-              isDesktop: isDesktop,
-              videos: homeController.homeFeedItems,
-              heroPrefix: 'main_grid',
-              isLoading: false,
-              horizontalPadding: horizontalPadding,
-              formatViews: _formatViews,
-              formatTimestamp: _formatTimestamp,
-            );
-          }),
-          Obx(() {
-            if (homeController.isLoadingMore.value) {
-              return const SliverToBoxAdapter(
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: CircularProgressIndicator(color: primaryAccent),
+              if (homeController.isLoadingMore.value)
+                const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(color: primaryAccent),
+                    ),
                   ),
+                )
+              else
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: isMobile || isTablet ? kBottomNavBarHeight + 16 : 16,
                 ),
-              );
-            }
-            return const SliverToBoxAdapter(child: SizedBox.shrink());
-          }),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: isMobile || isTablet ? kBottomNavBarHeight + 16 : 16,
-            ),
-          ),
-        ],
-      ),
+              ),
+            ],
+          ],
+        );
+      }),
     );
   }
 
@@ -2561,7 +2545,7 @@ class _ModernMainContent extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        String searchQuery = '';
+        var searchQuery = '';
         return StatefulBuilder(
           builder: (context, setModalState) {
             final filtered = categories
@@ -3197,7 +3181,9 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     required bool isMobile,
     required double pageOffset,
   }) {
-    final followingController = Get.find<FollowingTopicsController>();
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
     final btnPaddingH = isMobile ? 12.0 : 20.0;
     final btnPaddingV = isMobile ? 8.0 : 12.0;
@@ -3209,24 +3195,42 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
-          // Background Image with Parallax
+          // Background Image with Ambient Parallax Fill
           Positioned.fill(
             child: Transform.translate(
               offset: Offset(pageOffset * 100, 0), // Parallax move
-              child: Image.network(
-                (topic.coverImage?.isNotEmpty ?? false
-                        ? topic.coverImage
-                        : topic.thumbnailUrl?.isNotEmpty ?? false
-                        ? topic.thumbnailUrl
-                        : null) ??
-                    'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Image.network(
-                    'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
-                    fit: BoxFit.cover,
-                  );
-                },
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      Colors.black.withValues(alpha: 0.65),
+                      BlendMode.darken,
+                    ),
+                    child: Image.network(
+                      (topic.coverImage?.isNotEmpty ?? false
+                              ? topic.coverImage
+                              : topic.thumbnailUrl?.isNotEmpty ?? false
+                              ? topic.thumbnailUrl
+                              : null) ??
+                          'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const ColoredBox(color: AppColors.bgSurface),
+                    ),
+                  ),
+                  Image.network(
+                    (topic.coverImage?.isNotEmpty ?? false
+                            ? topic.coverImage
+                            : topic.thumbnailUrl?.isNotEmpty ?? false
+                            ? topic.thumbnailUrl
+                            : null) ??
+                        'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
+                    fit: BoxFit.contain, // Complete uncropped thumbnail display!
+                    errorBuilder: (context, error, stackTrace) =>
+                        const SizedBox.shrink(),
+                  ),
+                ],
               ),
             ),
           ),
@@ -3503,290 +3507,12 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
 // ==========================================================================
 // ==========================================================================
 // REALTIME TAGS & TOPICS ROW
-// ==========================================================================
-// ==========================================================================
-// REALTIME PERSONALIZED TAGS & TOPICS ROW
+// ======================================================// ==========================================================================
+// REALTIME FOR YOU TOPICS ROW
 // ==========================================================================
 class _PersonalizedPlaylistsSection extends StatelessWidget {
   const _PersonalizedPlaylistsSection({required this.horizontalPadding});
   final double horizontalPadding;
-
-  static final Map<String, List<Topic>> _categoryFallbackMap = {
-    'all': [
-      Topic(
-        id: 'ai-tech',
-        title: 'AI & Tech',
-        slug: 'ai-tech',
-        handle: 'T/ai-tech',
-        handleLowercase: 't/ai-tech',
-        description: 'Latest artificial intelligence and technology insights',
-        category: 'Technology',
-        coverImage:
-            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
-        thumbnailUrl:
-            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 24,
-      ),
-      Topic(
-        id: 'deep-research',
-        title: 'Deep Research',
-        slug: 'deep-research',
-        handle: 'T/deep-research',
-        handleLowercase: 't/deep-research',
-        description: 'In-depth investigative reports and deep research',
-        category: 'Research',
-        coverImage:
-            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
-        thumbnailUrl:
-            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 18,
-      ),
-      Topic(
-        id: 'verified-truths',
-        title: 'Verified Truths',
-        slug: 'verified-truths',
-        handle: 'T/verified-truths',
-        handleLowercase: 't/verified-truths',
-        description: 'Fact-checked claims and verified truths',
-        category: 'Truth',
-        coverImage:
-            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-        thumbnailUrl:
-            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 32,
-      ),
-      Topic(
-        id: 'geopolitics',
-        title: 'Geopolitics',
-        slug: 'geopolitics',
-        handle: 'T/geopolitics',
-        handleLowercase: 't/geopolitics',
-        description: 'Global geopolitical analysis and strategic affairs',
-        category: 'World',
-        coverImage:
-            'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=1000&auto=format&fit=crop',
-        thumbnailUrl:
-            'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 15,
-      ),
-      Topic(
-        id: 'economics',
-        title: 'Economics',
-        slug: 'economics',
-        handle: 'T/economics',
-        handleLowercase: 't/economics',
-        description: 'Macroeconomics, markets, and financial insights',
-        category: 'Finance',
-        coverImage:
-            'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
-        thumbnailUrl:
-            'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 29,
-      ),
-    ],
-    'technology': [
-      Topic(
-        id: 'ai-tech',
-        title: 'AI & Tech',
-        slug: 'ai-tech',
-        handle: 'T/ai-tech',
-        handleLowercase: 't/ai-tech',
-        description: 'Artificial intelligence and modern tech innovation',
-        category: 'Technology',
-        coverImage:
-            'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 42,
-      ),
-      Topic(
-        id: 'machine-learning',
-        title: 'Machine Learning',
-        slug: 'machine-learning',
-        handle: 'T/machine-learning',
-        handleLowercase: 't/machine-learning',
-        description: 'Deep neural networks, LLMs, and ML architectures',
-        category: 'Technology',
-        coverImage:
-            'https://images.unsplash.com/photo-1555255707-c07966088b7b?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 27,
-      ),
-      Topic(
-        id: 'robotics',
-        title: 'Robotics & Automation',
-        slug: 'robotics',
-        handle: 'T/robotics',
-        handleLowercase: 't/robotics',
-        description: 'Humanoid robotics, autonomous systems, and hardware',
-        category: 'Technology',
-        coverImage:
-            'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 19,
-      ),
-      Topic(
-        id: 'cyber-security',
-        title: 'Cyber Security',
-        slug: 'cyber-security',
-        handle: 'T/cyber-security',
-        handleLowercase: 't/cyber-security',
-        description: 'Encryption, threat analysis, and digital defense',
-        category: 'Technology',
-        coverImage:
-            'https://images.unsplash.com/photo-1563986768609-322da13575f3?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 31,
-      ),
-    ],
-    'research': [
-      Topic(
-        id: 'deep-research',
-        title: 'Deep Research',
-        slug: 'deep-research',
-        handle: 'T/deep-research',
-        handleLowercase: 't/deep-research',
-        description: 'In-depth investigative reports and empirical studies',
-        category: 'Research',
-        coverImage:
-            'https://images.unsplash.com/photo-1532094349884-543bc11b234d?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 28,
-      ),
-      Topic(
-        id: 'data-science',
-        title: 'Data Science & Analysis',
-        slug: 'data-science',
-        handle: 'T/data-science',
-        handleLowercase: 't/data-science',
-        description: 'Statistical modeling and data-driven insights',
-        category: 'Research',
-        coverImage:
-            'https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 22,
-      ),
-      Topic(
-        id: 'investigative',
-        title: 'Investigative Reports',
-        slug: 'investigative',
-        handle: 'T/investigative',
-        handleLowercase: 't/investigative',
-        description: 'Fact-based investigative journalism and research',
-        category: 'Research',
-        coverImage:
-            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 35,
-      ),
-    ],
-    'truth': [
-      Topic(
-        id: 'verified-truths',
-        title: 'Verified Truths',
-        slug: 'verified-truths',
-        handle: 'T/verified-truths',
-        handleLowercase: 't/verified-truths',
-        description: 'Fact-checked claims and verified truths',
-        category: 'Truth',
-        coverImage:
-            'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 45,
-      ),
-      Topic(
-        id: 'fact-checks',
-        title: 'Fact Checks',
-        slug: 'fact-checks',
-        handle: 'T/fact-checks',
-        handleLowercase: 't/fact-checks',
-        description: 'Debunking viral myths with verifiable sources',
-        category: 'Truth',
-        coverImage:
-            'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 38,
-      ),
-    ],
-    'gaming': [
-      Topic(
-        id: 'esports',
-        title: 'Esports & Competitive',
-        slug: 'esports',
-        handle: 'T/esports',
-        handleLowercase: 't/esports',
-        description: 'Pro tournaments, rankings, and game strategy',
-        category: 'Gaming',
-        coverImage:
-            'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 50,
-      ),
-      Topic(
-        id: 'game-dev',
-        title: 'Game Development',
-        slug: 'game-dev',
-        handle: 'T/game-dev',
-        handleLowercase: 't/game-dev',
-        description: 'Unreal Engine, Unity, and game design breakdowns',
-        category: 'Gaming',
-        coverImage:
-            'https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 26,
-      ),
-    ],
-    'music': [
-      Topic(
-        id: 'soundtracks',
-        title: 'Soundtracks & Beats',
-        slug: 'soundtracks',
-        handle: 'T/soundtracks',
-        handleLowercase: 't/soundtracks',
-        description: 'Original compositions, beats, and audio production',
-        category: 'Music',
-        coverImage:
-            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 39,
-      ),
-      Topic(
-        id: 'live-performances',
-        title: 'Live Performances',
-        slug: 'live-performances',
-        handle: 'T/live-performances',
-        handleLowercase: 't/live-performances',
-        description: 'Concerts, studio sessions, and live music jams',
-        category: 'Music',
-        coverImage:
-            'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1000&auto=format&fit=crop',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        videoCount: 33,
-      ),
-    ],
-  };
 
   void _navigateToTagPage(BuildContext context, Topic topic) {
     if (Get.isRegistered<TopicController>()) {
@@ -3852,6 +3578,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection(FirestoreCollections.topics)
+            .where('status', isEqualTo: 'active')
             .limit(30)
             .snapshots(),
         builder: (context, snapshot) {
@@ -3864,7 +3591,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                 .toList();
           }
 
-          // 1. Filter by category if a specific category is selected
+          // Filter by category if a specific category is selected
           var topicsList = <Topic>[];
           if (!isAll) {
             final catLower = selectedCategory.toLowerCase().trim();
@@ -3878,38 +3605,15 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                   tSlug.contains(catLower) ||
                   tTitle.contains(catLower);
             }).toList();
-
-            // Use category fallbacks if fetched list has few matching topics
-            final categoryKey = _categoryFallbackMap.keys.firstWhere(
-              (k) => catLower.contains(k) || k.contains(catLower),
-              orElse: () => '',
-            );
-            final fallbacks =
-                _categoryFallbackMap[categoryKey] ??
-                _categoryFallbackMap['all']!;
-
-            final existingSlugs = topicsList
-                .map((t) => t.slug.toLowerCase())
-                .toSet();
-            for (final fb in fallbacks) {
-              if (!existingSlugs.contains(fb.slug.toLowerCase())) {
-                topicsList.add(fb);
-              }
-            }
           } else {
             topicsList = List<Topic>.from(fetchedTopics);
-            final fallbacks = _categoryFallbackMap['all']!;
-            final existingSlugs = topicsList
-                .map((t) => t.slug.toLowerCase())
-                .toSet();
-            for (final fb in fallbacks) {
-              if (!existingSlugs.contains(fb.slug.toLowerCase())) {
-                topicsList.add(fb);
-              }
-            }
           }
 
-          // 2. Personalize and sort by user interest score
+          if (topicsList.isEmpty) {
+            return const SizedBox.shrink();
+          }
+
+          // Personalize and sort by user interest score
           topicsList.sort((a, b) {
             final scoreA = _calculatePersonalizationScore(a, userProfile);
             final scoreB = _calculatePersonalizationScore(b, userProfile);
@@ -3917,8 +3621,8 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
           });
 
           final sectionTitle = isAll
-              ? 'Personalized Realtime Tags'
-              : 'Top $selectedCategory Tags';
+              ? 'For You Topics'
+              : '$selectedCategory Topics';
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3934,7 +3638,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.local_offer_rounded,
+                        Icons.topic_rounded,
                         color: Colors.white,
                         size: 16,
                       ),
@@ -3964,7 +3668,6 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: const Color(0xFF00E676).withValues(alpha: 0.5),
-                          width: 1,
                         ),
                       ),
                       child: Row(
@@ -3996,7 +3699,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               SizedBox(
-                height: 175,
+                height: 215,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -4007,10 +3710,10 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                         ? topic.coverImage!
                         : ((topic.thumbnailUrl?.isNotEmpty ?? false)
                               ? topic.thumbnailUrl!
-                              : 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1000&auto=format&fit=crop');
+                              : '');
 
                     return Container(
-                      width: 240,
+                      width: 270,
                       margin: const EdgeInsets.only(right: 16),
                       child: Material(
                         color: Colors.transparent,
@@ -4020,155 +3723,169 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                           onTap: () => _navigateToTagPage(context, topic),
                           splashColor: Colors.white.withValues(alpha: 0.2),
                           highlightColor: Colors.white.withValues(alpha: 0.1),
-                          child: Ink(
+                          child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              image: DecorationImage(
-                                image: NetworkImage(imageUrl),
-                                fit: BoxFit.cover,
-                                colorFilter: ColorFilter.mode(
-                                  Colors.black.withValues(alpha: 0.35),
-                                  BlendMode.darken,
-                                ),
+                              color: AppColors.bgSurfaceContainerHighest,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 8,
+                                  color: Colors.black.withValues(alpha: 0.35),
+                                  blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.85),
-                                    Colors.black.withValues(alpha: 0.2),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Top Tag pill badge
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 4,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Uncropped Thumbnail Container (Preserves full aspect ratio)
+                                Stack(
+                                  children: [
+                                    AspectRatio(
+                                      aspectRatio: 16 / 9,
+                                      child: ClipRRect(
+                                        borderRadius: const BorderRadius.vertical(
+                                          top: Radius.circular(15),
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.2,
-                                            ),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
+                                        child: Stack(
+                                          fit: StackFit.expand,
                                           children: [
-                                            const Text(
-                                              '#',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w900,
+                                            // Ambient blurred background fill
+                                            if (imageUrl.isNotEmpty)
+                                              ColorFiltered(
+                                                colorFilter: ColorFilter.mode(
+                                                  Colors.black.withValues(alpha: 0.65),
+                                                  BlendMode.darken,
+                                                ),
+                                                child: Image.network(
+                                                  imageUrl,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) =>
+                                                      const ColoredBox(color: AppColors.bgSurface),
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              topic.category.isNotEmpty
-                                                  ? topic.category
-                                                  : 'Tag',
-                                              style: GoogleFonts.roboto(
-                                                color: Colors.white70,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w500,
+                                            // Complete uncropped main thumbnail
+                                            if (imageUrl.isNotEmpty)
+                                              Image.network(
+                                                imageUrl,
+                                                fit: BoxFit.contain, // 100% full thumbnail without losing any part!
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                    const ColoredBox(color: AppColors.bgSurface),
+                                              )
+                                            else
+                                              const ColoredBox(
+                                                color: AppColors.bgSurface,
+                                                child: Icon(
+                                                  Icons.topic_rounded,
+                                                  color: Colors.white54,
+                                                  size: 40,
+                                                ),
                                               ),
-                                            ),
                                           ],
                                         ),
                                       ),
-                                      if (topic.videoCount > 0)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white.withValues(
-                                              alpha: 0.15,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '${topic.videoCount} videos',
-                                            style: GoogleFonts.roboto(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
+                                    ),
 
-                                  // Bottom Title & Arrow indicator
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    // Category & Video count Badges Overlay
+                                    Positioned(
+                                      top: 10,
+                                      left: 10,
+                                      right: 10,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.75),
+                                              borderRadius: BorderRadius.circular(20),
+                                              border: Border.all(
+                                                color: Colors.white.withValues(alpha: 0.25),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              topic.category.isNotEmpty
+                                                  ? topic.category
+                                                  : 'Topic',
+                                              style: GoogleFonts.roboto(
+                                                color: Colors.white,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          if (topic.videoCount > 0)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.75),
+                                                borderRadius: BorderRadius.circular(12),
+                                                border: Border.all(
+                                                  color: Colors.white.withValues(alpha: 0.15),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                '${topic.videoCount} videos',
+                                                style: GoogleFonts.roboto(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // Card Footer: Title & Navigation Arrow
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  child: Row(
                                     children: [
                                       Expanded(
                                         child: Text(
                                           topic.title,
                                           style: GoogleFonts.roboto(
                                             color: Colors.white,
-                                            fontSize: 17,
+                                            fontSize: 15,
                                             fontWeight: FontWeight.bold,
-                                            height: 1.2,
                                           ),
-                                          maxLines: 2,
+                                          maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 8),
                                       Container(
-                                        padding: const EdgeInsets.all(6),
+                                        padding: const EdgeInsets.all(5),
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.2,
-                                          ),
+                                          color: Colors.white.withValues(alpha: 0.15),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(
                                           Icons.arrow_forward_ios_rounded,
                                           color: Colors.white,
-                                          size: 12,
+                                          size: 11,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

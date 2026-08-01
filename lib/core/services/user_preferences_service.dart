@@ -1,9 +1,9 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Centralized service for managing user content preferences (hidden videos, blocked channels).
@@ -23,9 +23,9 @@ class UserPreferencesService extends GetxService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  final hiddenVideoIds = <String>{}.obs;
-  final blockedChannelIds = <String>{}.obs;
-  final blockedChannelNames = <String>{}.obs;
+  final RxSet<String> hiddenVideoIds = <String>{}.obs;
+  final RxSet<String> blockedChannelIds = <String>{}.obs;
+  final RxSet<String> blockedChannelNames = <String>{}.obs;
 
   @override
   void onInit() {
@@ -94,8 +94,9 @@ class UserPreferencesService extends GetxService {
 
           if (fsHidden.isNotEmpty) hiddenVideoIds.addAll(fsHidden);
           if (fsBlockedIds.isNotEmpty) blockedChannelIds.addAll(fsBlockedIds);
-          if (fsBlockedNames.isNotEmpty)
+          if (fsBlockedNames.isNotEmpty) {
             blockedChannelNames.addAll(fsBlockedNames);
+          }
 
           _saveToStorage();
         }
@@ -191,8 +192,9 @@ class UserPreferencesService extends GetxService {
 
   Future<void> unblockChannel(String channelId, {String? channelName}) async {
     if (channelId.isNotEmpty) blockedChannelIds.remove(channelId);
-    if (channelName != null && channelName.isNotEmpty)
+    if (channelName != null && channelName.isNotEmpty) {
       blockedChannelNames.remove(channelName);
+    }
 
     await _saveToStorage();
 
@@ -228,19 +230,22 @@ class UserPreferencesService extends GetxService {
   }
 
   bool isChannelBlocked(String channelId, {String? channelName}) {
-    if (channelId.isNotEmpty && blockedChannelIds.contains(channelId))
+    if (channelId.isNotEmpty && blockedChannelIds.contains(channelId)) {
       return true;
+    }
     if (channelName != null &&
         channelName.isNotEmpty &&
-        blockedChannelNames.contains(channelName))
+        blockedChannelNames.contains(channelName)) {
       return true;
+    }
     return false;
   }
 
   bool isVideoBlocked(Video video) {
     if (isVideoHidden(video.id)) return true;
-    if (isChannelBlocked(video.channelId, channelName: video.channelName))
+    if (isChannelBlocked(video.channelId, channelName: video.channelName)) {
       return true;
+    }
     return false;
   }
 

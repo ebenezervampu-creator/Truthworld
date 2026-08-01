@@ -1,10 +1,10 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // studio_comments_module.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -173,13 +173,13 @@ class StudioCommentsController extends GetxController {
   final String channelImageUrl;
   final String channelName;
 
-  final comments = <VideoComment>[].obs;
-  final isLoading = true.obs;
-  final selectedFilter = 'all'.obs;
-  final selectedSort = 'newest'.obs;
-  final searchQuery = ''.obs;
-  final expandedCommentIds = <String>{}.obs;
-  final userCommentInteractions = <String, Map<String, bool>>{}.obs;
+  final RxList<VideoComment> comments = <VideoComment>[].obs;
+  final RxBool isLoading = true.obs;
+  final RxString selectedFilter = 'all'.obs;
+  final RxString selectedSort = 'newest'.obs;
+  final RxString searchQuery = ''.obs;
+  final RxSet<String> expandedCommentIds = <String>{}.obs;
+  final RxMap<String, Map<String, bool>> userCommentInteractions = <String, Map<String, bool>>{}.obs;
 
   Future<void> _loadUserInteractions() async {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -465,6 +465,14 @@ class StudioCommentsController extends GetxController {
       comments.where((c) => c.comment.hasCreatorReply).length;
   int get questionsCount =>
       comments.where((c) => c.comment.text.contains('?')).length;
+
+  @override
+  void onClose() {
+    comments.clear();
+    expandedCommentIds.clear();
+    userCommentInteractions.clear();
+    super.onClose();
+  }
 }
 
 // ------------------------------------------------------------
@@ -481,8 +489,8 @@ class ReplyController extends GetxController {
   final String commentId;
   final String channelId;
 
-  final replies = <Reply>[].obs;
-  final isLoading = true.obs;
+  final RxList<Reply> replies = <Reply>[].obs;
+  final RxBool isLoading = true.obs;
 
   @override
   void onInit() {
@@ -533,6 +541,12 @@ class ReplyController extends GetxController {
         .doc(replyId)
         .delete();
     await _loadReplies();
+  }
+
+  @override
+  void onClose() {
+    replies.clear();
+    super.onClose();
   }
 }
 

@@ -45,7 +45,7 @@ class VideoSanitizer {
       sanitized.add(video);
     }
 
-    return List<Video>.unmodifiable(sanitized);
+    return sanitized;
   }
 
   /// Convenience method for Home, Trending, and Category feeds

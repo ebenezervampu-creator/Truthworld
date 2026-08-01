@@ -240,12 +240,12 @@ class PremiumCommentInput extends StatelessWidget {
     final isSubmitting = false.obs;
 
     final tiers = [
-      {'amount': 2.0, 'color': '0xFF00B8D4', 'label': '\$2.00'},
-      {'amount': 5.0, 'color': '0xFF1E88E5', 'label': '\$5.00'},
-      {'amount': 10.0, 'color': '0xFF00C853', 'label': '\$10.00'},
-      {'amount': 20.0, 'color': '0xFFFFD600', 'label': '\$20.00'},
-      {'amount': 50.0, 'color': '0xFFFF6D00', 'label': '\$50.00'},
-      {'amount': 100.0, 'color': '0xFFD50000', 'label': '\$100.00'},
+      {'amount': 2.0, 'color': '0xFF00B8D4', 'label': r'$2.00'},
+      {'amount': 5.0, 'color': '0xFF1E88E5', 'label': r'$5.00'},
+      {'amount': 10.0, 'color': '0xFF00C853', 'label': r'$10.00'},
+      {'amount': 20.0, 'color': '0xFFFFD600', 'label': r'$20.00'},
+      {'amount': 50.0, 'color': '0xFFFF6D00', 'label': r'$50.00'},
+      {'amount': 100.0, 'color': '0xFFD50000', 'label': r'$100.00'},
     ];
 
     showModalBottomSheet<void>(
@@ -266,10 +266,10 @@ class PremiumCommentInput extends StatelessWidget {
               child: Obx(() {
                 final currentTier = tiers[selectedTierIndex.value];
                 final tierColor = Color(
-                  int.parse(currentTier['color'] as String),
+                  int.parse(currentTier['color']! as String),
                 );
-                final amountStr = currentTier['label'] as String;
-                final amountVal = currentTier['amount'] as double;
+                final amountStr = currentTier['label']! as String;
+                final amountVal = currentTier['amount']! as double;
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -352,13 +352,13 @@ class PremiumCommentInput extends StatelessWidget {
                           final isSelected = selectedTierIndex.value == index;
                           final item = tiers[index];
                           final itemColor = Color(
-                            int.parse(item['color'] as String),
+                            int.parse(item['color']! as String),
                           );
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
                               label: Text(
-                                item['label'] as String,
+                                item['label']! as String,
                                 style: TextStyle(
                                   color: isSelected
                                       ? Colors.white
@@ -504,15 +504,15 @@ class PremiumCommentInput extends StatelessWidget {
                                     await commentsCtrl.submitComment(
                                       text: text,
                                       donationAmount: amountVal,
-                                      donationCurrency: '\$',
                                       isDonatedComment: true,
                                       donationColorHex:
-                                          currentTier['color'] as String,
+                                          currentTier['color']! as String,
                                     );
                                   } else {
                                     await onSubmit(text, false, null);
                                   }
 
+                                  if (!context.mounted) return;
                                   Navigator.pop(context);
                                   HapticFeedback.heavyImpact();
                                   Get.snackbar(

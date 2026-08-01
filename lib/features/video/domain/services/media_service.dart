@@ -1,7 +1,6 @@
 import 'dart:io' as io;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-// ignore: avoid_web_libraries_in_flutter
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 

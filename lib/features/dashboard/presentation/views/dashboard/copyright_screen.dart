@@ -1,8 +1,8 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CopyrightScreen extends StatefulWidget {
@@ -437,7 +437,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                         color: Color(0xFF3B82F6),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.screen_search_desktop_rounded,
                         color: Colors.white,
                         size: 24,

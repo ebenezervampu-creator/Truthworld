@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,18 +9,20 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -40,7 +41,6 @@ import 'package:truthworld/features/video/presentation/views/player/tower_custom
 import 'package:truthworld/features/video/presentation/widgets/truth_index_badge.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoScreen extends GetView<VideoController> {
@@ -146,8 +146,9 @@ class VideoScreen extends GetView<VideoController> {
 
   PlaylistController? get _playlistController {
     try {
-      if (Get.isRegistered<PlaylistController>())
+      if (Get.isRegistered<PlaylistController>()) {
         return Get.find<PlaylistController>();
+      }
     } catch (_) {}
     return null;
   }
@@ -539,7 +540,7 @@ class VideoScreen extends GetView<VideoController> {
                                 imageUrl: controller.video.thumbnailUrl
                                     .replaceAll(' ', '%20'),
                                 fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) =>
+                                errorWidget: (_, _, _) =>
                                     const SizedBox.shrink(),
                               ),
                             ),
@@ -666,7 +667,6 @@ class VideoScreen extends GetView<VideoController> {
                   RotatingPlaylistAvatar(
                     playlist: playlist,
                     isPlaying: isPlaying,
-                    size: 52,
                   ),
                   const SizedBox(width: 14),
                   // Playlist info
@@ -717,7 +717,6 @@ class VideoScreen extends GetView<VideoController> {
                               isPlaying: isPlaying,
                               height: 12,
                               barWidth: 2,
-                              color: AppColors.brand,
                             ),
                             const SizedBox(width: 6),
                             Text(
@@ -800,7 +799,6 @@ class VideoScreen extends GetView<VideoController> {
                   RotatingTopicAvatar(
                     topic: topic,
                     isPlaying: isPlaying,
-                    size: 52,
                   ),
                   const SizedBox(width: 14),
                   // Topic info
@@ -919,7 +917,6 @@ class VideoScreen extends GetView<VideoController> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Obx(
                   () => RotatingPlaylistAvatar(
@@ -1057,8 +1054,6 @@ class VideoScreen extends GetView<VideoController> {
                                     () => PlayingAudioWaveAnimation(
                                       isPlaying: controller.isPlayingRx.value,
                                       height: 16,
-                                      barWidth: 2.5,
-                                      color: AppColors.brand,
                                     ),
                                   )
                                 : Text(
@@ -3250,7 +3245,7 @@ class VideoScreen extends GetView<VideoController> {
                           );
                         }
 
-                        List<ChannelMembershipTier> tiers = [];
+                        var tiers = <ChannelMembershipTier>[];
                         if (snapshot.hasData &&
                             snapshot.data!.docs.isNotEmpty) {
                           tiers = snapshot.data!.docs
@@ -3833,7 +3828,7 @@ class VideoScreen extends GetView<VideoController> {
                   PopupMenuButton<bool>(
                     onSelected: commentsController.sortComments,
                     offset: const Offset(0, 30),
-                    itemBuilder: (BuildContext context) =>
+                    itemBuilder: (context) =>
                         <PopupMenuEntry<bool>>[
                           PopupMenuItem<bool>(
                             value: false,
@@ -4105,10 +4100,7 @@ class VideoScreen extends GetView<VideoController> {
                                 size: 28,
                                 tooltip:
                                     'Flip to see Verified Counter-Arguments',
-                                onTap: () {
-                                  commentsController
-                                      .toggleCounterArgumentSort();
-                                },
+                                onTap: commentsController.toggleCounterArgumentSort,
                               ),
                             ],
                           );
@@ -5962,8 +5954,7 @@ class RotatingPlaylistAvatar extends StatefulWidget {
   final double size;
 
   const RotatingPlaylistAvatar({
-    super.key,
-    required this.playlist,
+    required this.playlist, super.key,
     this.isPlaying = true,
     this.onTap,
     this.size = 52.0,
@@ -6048,8 +6039,8 @@ class _RotatingPlaylistAvatarState extends State<RotatingPlaylistAvatar>
                     ? CachedNetworkImage(
                         imageUrl: widget.playlist.thumbnailUrl,
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => _buildFallback(),
-                        errorWidget: (_, __, ___) => _buildFallback(),
+                        placeholder: (_, _) => _buildFallback(),
+                        errorWidget: (_, _, _) => _buildFallback(),
                       )
                     : _buildFallback(),
               ),
@@ -6065,7 +6056,7 @@ class _RotatingPlaylistAvatarState extends State<RotatingPlaylistAvatar>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.black.withValues(alpha: 0.85),
-                border: Border.all(color: Colors.white60, width: 1),
+                border: Border.all(color: Colors.white60),
               ),
             ),
           ),
@@ -6090,7 +6081,6 @@ class _RotatingPlaylistAvatarState extends State<RotatingPlaylistAvatar>
               isPlaying: widget.isPlaying,
               height: 10,
               barWidth: 2,
-              color: Colors.white,
             ),
           ),
         ),
@@ -6227,8 +6217,7 @@ class RotatingTopicAvatar extends StatefulWidget {
   final double size;
 
   const RotatingTopicAvatar({
-    super.key,
-    required this.topic,
+    required this.topic, super.key,
     this.isPlaying = true,
     this.onTap,
     this.size = 52.0,
@@ -6317,8 +6306,8 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
                       ? CachedNetworkImage(
                           imageUrl: imageUrl,
                           fit: BoxFit.cover,
-                          placeholder: (_, __) => _buildFallback(),
-                          errorWidget: (_, __, ___) => _buildFallback(),
+                          placeholder: (_, _) => _buildFallback(),
+                          errorWidget: (_, _, _) => _buildFallback(),
                         )
                       : _buildFallback(),
                 ),
@@ -6334,7 +6323,7 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.black.withValues(alpha: 0.85),
-                  border: Border.all(color: Colors.white60, width: 1),
+                  border: Border.all(color: Colors.white60),
                 ),
               ),
             ),
@@ -6359,7 +6348,6 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
                 isPlaying: widget.isPlaying,
                 height: 10,
                 barWidth: 2,
-                color: Colors.white,
               ),
             ),
           ),
@@ -6441,7 +6429,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
       final topicId = widget.topic.id;
 
       // 1. Query by topic slug
-      var snap = await FirebaseFirestore.instance
+      final snap = await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .where('topics', arrayContains: slug.isNotEmpty ? slug : topicId)
           .limit(30)
@@ -6581,7 +6569,6 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border.all(
           color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
-          width: 1,
         ),
       ),
       child: Column(
@@ -6754,7 +6741,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
                                         width: 120,
                                         height: 68,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
+                                        errorBuilder: (_, _, _) => Container(
                                           width: 120,
                                           height: 68,
                                           color: Colors.grey[900],

@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -12,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
@@ -55,12 +55,12 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   static const String _tag = 'SubtitlesController';
 
   // Active channel context
-  final channelId = ''.obs;
+  final RxString channelId = ''.obs;
 
   // Video list state
-  final videos = <Video>[].obs;
-  final filteredVideos = <Video>[].obs;
-  final searchQuery = ''.obs;
+  final RxList<Video> videos = <Video>[].obs;
+  final RxList<Video> filteredVideos = <Video>[].obs;
+  final RxString searchQuery = ''.obs;
   StreamSubscription<QuerySnapshot>? _videosSubscription;
   StreamSubscription<QuerySnapshot>? _channelVideosSubscription;
   final Map<String, Video> _ownerVideosMap = {};
@@ -68,18 +68,18 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
   // Selected video and subtitle preview state
   final selectedVideo = Rxn<Video>();
-  final availableLanguages =
+  final RxList<String> availableLanguages =
       <String>[].obs; // List of language codes e.g. ['en', 'es']
-  final selectedLanguage = ''.obs;
-  final currentCues = <SubtitleCue>[].obs;
-  final isSaving = false.obs;
-  final hasUnsavedChanges = false.obs;
-  final isUploadingFile = false.obs;
+  final RxString selectedLanguage = ''.obs;
+  final RxList<SubtitleCue> currentCues = <SubtitleCue>[].obs;
+  final RxBool isSaving = false.obs;
+  final RxBool hasUnsavedChanges = false.obs;
+  final RxBool isUploadingFile = false.obs;
 
   // Language requests states
-  final languageRequests = <LanguageRequest>[].obs;
-  final isLoadingRequests = false.obs;
-  final showRequestsPanel = false.obs;
+  final RxList<LanguageRequest> languageRequests = <LanguageRequest>[].obs;
+  final RxBool isLoadingRequests = false.obs;
+  final RxBool showRequestsPanel = false.obs;
   StreamSubscription<QuerySnapshot>? _requestsSubscription;
 
   @override

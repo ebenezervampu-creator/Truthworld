@@ -115,15 +115,17 @@ class GoogleCloudVisionService {
     if (bytes[0] == 0x89 &&
         bytes[1] == 0x50 &&
         bytes[2] == 0x4E &&
-        bytes[3] == 0x47)
+        bytes[3] == 0x47) {
       return true;
+    }
 
     // WEBP: 'R', 'I', 'F', 'F' ... 'W', 'E', 'B', 'P'
     if (bytes[0] == 0x52 &&
         bytes[1] == 0x49 &&
         bytes[2] == 0x46 &&
-        bytes[3] == 0x46)
+        bytes[3] == 0x46) {
       return true;
+    }
 
     // GIF: 'G', 'I', 'F'
     if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return true;

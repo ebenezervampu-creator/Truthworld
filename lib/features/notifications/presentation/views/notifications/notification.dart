@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,11 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/user_notification_controller.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // Extension for capitalize (top-level)
@@ -68,8 +68,11 @@ class VideoFeedNotificationScreen extends StatefulWidget {
 class _VideoFeedNotificationScreenState
     extends State<VideoFeedNotificationScreen>
     with TickerProviderStateMixin {
-  final controller = Get.find<VideoFeedNotificationController>();
-  final userNotificationController = Get.find<UserNotificationController>();
+  final VideoFeedNotificationController controller =
+      Get.isRegistered<VideoFeedNotificationController>()
+          ? Get.find<VideoFeedNotificationController>()
+          : Get.put(VideoFeedNotificationController());
+  final UserNotificationController userNotificationController = Get.find<UserNotificationController>();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -1182,6 +1185,13 @@ class _DynamicAvatarController extends GetxController {
     }
 
     return '';
+  }
+
+  @override
+  void onClose() {
+    avatarUrl.value = '';
+    isLoading.value = false;
+    super.onClose();
   }
 }
 

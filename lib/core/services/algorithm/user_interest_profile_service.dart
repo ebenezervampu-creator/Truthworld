@@ -1,10 +1,10 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'user_interest_profile.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 
 /// Loads and caches the user's interest profile from Firestore.
 ///
@@ -23,7 +23,7 @@ class UserInterestProfileService extends GetxService {
   static UserInterestProfileService get to =>
       Get.find<UserInterestProfileService>();
 
-  final _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _storage = GetStorage();
   static const _cacheKey = 'user_interest_profile_cache';
   static const _refreshInterval = Duration(minutes: 15);
@@ -85,7 +85,7 @@ class UserInterestProfileService extends GetxService {
     final watchHistoryQuery = futures[2] as QuerySnapshot<Map<String, dynamic>>;
     // final likedVideosQuery = futures[3] as QuerySnapshot<Map<String, dynamic>>;
 
-    List<String> following = [];
+    var following = <String>[];
     if (userDoc.exists) {
       final data = userDoc.data();
       if (data != null && data['following'] != null) {
@@ -93,18 +93,18 @@ class UserInterestProfileService extends GetxService {
       }
     }
 
-    List<String> followedTopics = savedTopicsQuery.docs
+    final followedTopics = savedTopicsQuery.docs
         .map((doc) => doc.id)
         .toList();
 
-    List<Map<String, dynamic>> watchHistory = watchHistoryQuery.docs
+    final watchHistory = watchHistoryQuery.docs
         .map((doc) => doc.data())
         .toList();
 
-    Map<String, int> categoryWatchCounts = {};
-    Map<String, int> topicWatchCounts = {};
+    final categoryWatchCounts = <String, int>{};
+    final topicWatchCounts = <String, int>{};
 
-    for (var doc in watchHistory) {
+    for (final doc in watchHistory) {
       final category = doc['category'] as String?;
       if (category != null) {
         categoryWatchCounts[category] =
@@ -112,7 +112,7 @@ class UserInterestProfileService extends GetxService {
       }
       final topics = doc['topics'] as List<dynamic>?;
       if (topics != null) {
-        for (var topic in topics) {
+        for (final topic in topics) {
           topicWatchCounts[topic.toString()] =
               (topicWatchCounts[topic.toString()] ?? 0) + 1;
         }
@@ -161,7 +161,7 @@ class UserInterestProfileService extends GetxService {
     final p = profile.value!;
     p.categoryWatchCounts[category] =
         (p.categoryWatchCounts[category] ?? 0) + 1;
-    for (var topic in topics) {
+    for (final topic in topics) {
       p.topicWatchCounts[topic] = (p.topicWatchCounts[topic] ?? 0) + 1;
     }
     _saveToCache(p);
@@ -193,8 +193,9 @@ class UserInterestProfileService extends GetxService {
     );
     newCategoryAffinities[category] =
         (newCategoryAffinities[category] ?? 0.0) + 0.05;
-    if (newCategoryAffinities[category]! > 1.0)
+    if (newCategoryAffinities[category]! > 1.0) {
       newCategoryAffinities[category] = 1.0;
+    }
 
     final newTopicAffinities = Map<String, double>.from(p.topicAffinities);
     for (final topic in topics) {
@@ -246,7 +247,7 @@ class UserInterestProfileService extends GetxService {
       p.categoryAffinities,
     );
 
-    double newAffinity = (newCategoryAffinities[category] ?? 0.0) - 0.03;
+    var newAffinity = (newCategoryAffinities[category] ?? 0.0) - 0.03;
     if (newAffinity < 0.0) newAffinity = 0.0;
     newCategoryAffinities[category] = newAffinity;
 
@@ -420,12 +421,12 @@ class UserInterestProfileService extends GetxService {
   Map<String, double> _buildInterestGraph(
     List<Map<String, dynamic>> watchHistory,
   ) {
-    final Map<String, double> graph = {};
-    for (var item in watchHistory) {
+    final graph = <String, double>{};
+    for (final item in watchHistory) {
       final topics = item['topics'] as List<dynamic>?;
       if (topics != null && topics.length >= 2) {
-        for (int i = 0; i < topics.length; i++) {
-          for (int j = i + 1; j < topics.length; j++) {
+        for (var i = 0; i < topics.length; i++) {
+          for (var j = i + 1; j < topics.length; j++) {
             final t1 = topics[i].toString();
             final t2 = topics[j].toString();
             final pair = [t1, t2]..sort();

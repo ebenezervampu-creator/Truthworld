@@ -1,6 +1,6 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/comment_report.dart';
@@ -39,7 +39,7 @@ class CommentService {
     String? channelName,
     String? channelProfilePicUrl,
     double donationAmount = 0.0,
-    String donationCurrency = '\$',
+    String donationCurrency = r'$',
     bool isDonatedComment = false,
     String? donationColorHex,
   }) async {

@@ -4,6 +4,6 @@ import 'package:truthworld/features/premium/presentation/controllers/premium_con
 class PremiumBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => PremiumController(), fenix: true);
+    Get.lazyPut(PremiumController.new, fenix: true);
   }
 }

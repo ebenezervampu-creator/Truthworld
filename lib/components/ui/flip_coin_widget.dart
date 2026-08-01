@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// 3D Animated Flip Coin Widget for Truthworld "The Other Side" feature.
@@ -19,9 +18,7 @@ class FlipCoinWidget extends StatefulWidget {
   final bool showLabel;
 
   const FlipCoinWidget({
-    super.key,
-    required this.isFlipped,
-    required this.onTap,
+    required this.isFlipped, required this.onTap, super.key,
     this.size = 36.0,
     this.tooltip,
     this.showLabel = false,
@@ -176,7 +173,6 @@ class _FlipCoinWidgetState extends State<FlipCoinWidget>
                       color: widget.isFlipped
                           ? const Color(0xFF9C27B0)
                           : Colors.white.withValues(alpha: 0.3),
-                      width: 1,
                     ),
                   ),
                   child: Row(

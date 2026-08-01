@@ -4,10 +4,10 @@ import 'package:get/get.dart';
 
 /// Mixin for controllers that need pagination
 mixin PaginationMixin on GetxController {
-  final currentPage = 1.obs;
-  final itemsPerPage = 20.obs;
-  final hasMoreItems = true.obs;
-  final isLoadingMore = false.obs;
+  final RxInt currentPage = 1.obs;
+  final RxInt itemsPerPage = 20.obs;
+  final RxBool hasMoreItems = true.obs;
+  final RxBool isLoadingMore = false.obs;
 
   /// Go to next page
   void nextPage() {
@@ -40,9 +40,9 @@ mixin PaginationMixin on GetxController {
 
 /// Mixin for controllers that need search functionality
 mixin SearchMixin on GetxController {
-  final searchQuery = ''.obs;
-  final isSearching = false.obs;
-  final searchResults = <dynamic>[].obs;
+  final RxString searchQuery = ''.obs;
+  final RxBool isSearching = false.obs;
+  final RxList<dynamic> searchResults = <dynamic>[].obs;
 
   /// Perform search
   Future<void> search(String query) async {
@@ -72,8 +72,8 @@ mixin SearchMixin on GetxController {
 
 /// Mixin for controllers that need filter functionality
 mixin FilterMixin on GetxController {
-  final selectedFilters = <String, dynamic>{}.obs;
-  final isFiltering = false.obs;
+  final RxMap<String, dynamic> selectedFilters = <String, dynamic>{}.obs;
+  final RxBool isFiltering = false.obs;
 
   /// Apply filter
   void applyFilter(String key, dynamic value) {
@@ -96,7 +96,7 @@ mixin FilterMixin on GetxController {
 
 /// Mixin for controllers that manage loading states
 mixin LoadingMixin on GetxController {
-  final loadingState = LoadingState.idle.obs;
+  final Rx<LoadingState> loadingState = LoadingState.idle.obs;
 
   bool get isLoading => loadingState.value == LoadingState.loading;
   bool get isError => loadingState.value == LoadingState.error;
@@ -116,8 +116,8 @@ enum LoadingState { idle, loading, success, error, cancelled }
 
 /// Mixin for controllers that manage selection state
 mixin SelectionMixin on GetxController {
-  final selectedItems = <String>[].obs;
-  final isMultiSelectMode = false.obs;
+  final RxList<String> selectedItems = <String>[].obs;
+  final RxBool isMultiSelectMode = false.obs;
 
   /// Toggle item selection
   void toggleSelection(String itemId) {
@@ -157,6 +157,12 @@ mixin SelectionMixin on GetxController {
 
 /// Mixin for controllers that manage stream subscriptions and timers.
 /// Automatically disposes all tracked resources in onClose().
+///
+/// **Deprecated**: [BaseController] now includes built-in resource tracking
+/// via [trackSubscription], [trackTimer], [trackTextController], and
+/// [trackScrollController]. Use those methods instead of mixing in this mixin
+/// for any controller that extends [BaseController].
+@Deprecated('Use BaseController.trackSubscription/trackTimer/etc. instead')
 mixin DisposableMixin on GetxController {
   final List<StreamSubscription> _managedSubscriptions = [];
   final List<Timer> _managedTimers = [];
@@ -173,10 +179,18 @@ mixin DisposableMixin on GetxController {
 
   @override
   void onClose() {
-    for (final sub in _managedSubscriptions) sub.cancel();
-    for (final timer in _managedTimers) timer.cancel();
-    for (final ctrl in _managedTextControllers) ctrl.dispose();
-    for (final ctrl in _managedScrollControllers) ctrl.dispose();
+    for (final sub in _managedSubscriptions) {
+      sub.cancel();
+    }
+    for (final timer in _managedTimers) {
+      timer.cancel();
+    }
+    for (final ctrl in _managedTextControllers) {
+      ctrl.dispose();
+    }
+    for (final ctrl in _managedScrollControllers) {
+      ctrl.dispose();
+    }
     _managedSubscriptions.clear();
     _managedTimers.clear();
     _managedTextControllers.clear();

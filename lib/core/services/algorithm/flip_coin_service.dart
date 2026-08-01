@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Global service managing the "Flip Coin" (The Other Side) state across surfaces.
 ///
@@ -79,7 +79,7 @@ class FlipCoinService extends GetxService {
     }
 
     // 2. Pattern & regex replacements
-    String flipped = trimmed;
+    var flipped = trimmed;
 
     final replacements = <RegExp, String>{
       RegExp(r'\brisks? of ai\b', caseSensitive: false):
@@ -100,7 +100,7 @@ class FlipCoinService extends GetxService {
       RegExp(r'\banti\b', caseSensitive: false): 'pro',
     };
 
-    bool replacedAny = false;
+    var replacedAny = false;
     for (final entry in replacements.entries) {
       if (entry.key.hasMatch(flipped)) {
         flipped = flipped.replaceAll(entry.key, entry.value);
@@ -181,7 +181,7 @@ class FlipCoinService extends GetxService {
   double calculateContrastScore(Video currentVideo, Video candidateVideo) {
     if (currentVideo.id == candidateVideo.id) return -1.0;
 
-    double contrastScore = 0.0;
+    var contrastScore = 0.0;
     final currentKeywords = getOppositeKeywords(currentVideo);
     final candidateText =
         '${candidateVideo.title} ${candidateVideo.description} ${candidateVideo.topics.join(" ")}'

@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -8,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart' hide GoogleSignInException;
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/google_signin_exception_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -367,13 +367,13 @@ class AuthService extends GetxService {
       }
 
       return {
-        if (gender != null) 'gender': gender,
-        if (birthdate != null) 'birthdate': birthdate,
-        if (age != null) 'age': age,
-        if (location != null) 'location': location,
-        if (city != null) 'city': city,
-        if (state != null) 'state': state,
-        if (country != null) 'country': country,
+        'gender': ?gender,
+        'birthdate': ?birthdate,
+        'age': ?age,
+        'location': ?location,
+        'city': ?city,
+        'state': ?state,
+        'country': ?country,
       };
     } catch (e) {
       debugPrint(

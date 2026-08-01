@@ -7,8 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/ad_service.dart';
@@ -700,6 +700,9 @@ class TowerPlayerController extends GetxController {
   }
 
   void _initAudioService() {
+    if (!Get.isRegistered<AudioOnlyService>()) {
+      Get.put(AudioOnlyService());
+    }
     _audioService = Get.find<AudioOnlyService>();
     _audioService!.setCallbacks(
       onNext: playNext,

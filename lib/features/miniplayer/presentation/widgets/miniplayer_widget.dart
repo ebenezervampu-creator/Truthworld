@@ -344,8 +344,9 @@ class _VideoFrame extends StatelessWidget {
 
         // Subtitles Overlay in Miniplayer
         Obx(() {
-          if (!controller.subtitlesEnabled.value)
+          if (!controller.subtitlesEnabled.value) {
             return const SizedBox.shrink();
+          }
           final text = controller.currentSubtitle.value;
           if (text.isEmpty) return const SizedBox.shrink();
           return Positioned(
@@ -455,8 +456,7 @@ class _OverlayIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.size = 18,
-    this.iconColor = AppColors.textPrimary,
-  });
+  }) : iconColor = AppColors.textPrimary;
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -675,7 +675,6 @@ class _InfoBar extends StatelessWidget {
                 _OverlayIconButton(
                   icon: Icons.open_in_full_rounded,
                   tooltip: 'Expand',
-                  size: 18,
                   onTap: controller.openFullScreen,
                 ),
               ],
@@ -908,8 +907,9 @@ class _ExpandedVideo extends StatelessWidget {
               );
             }),
             Obx(() {
-              if (!controller.subtitlesEnabled.value)
+              if (!controller.subtitlesEnabled.value) {
                 return const SizedBox.shrink();
+              }
               final text = controller.currentSubtitle.value;
               if (text.isEmpty) return const SizedBox.shrink();
               return Positioned(

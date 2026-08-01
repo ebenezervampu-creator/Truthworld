@@ -21,7 +21,7 @@ class DashboardWrapperController extends GetxController {
   final int initialTabIndex;
 
   late TabController tabController;
-  final selectedTabIndex = 0.obs;
+  final RxInt selectedTabIndex = 0.obs;
 
   List<String> get tabLabels {
     switch (dashboardType) {
@@ -82,7 +82,7 @@ class DashboardWrapper extends StatefulWidget {
 class _DashboardWrapperState extends State<DashboardWrapper>
     with TickerProviderStateMixin {
   late TabController _tabController;
-  final homeController = Get.find<HomeController>();
+  final HomeController homeController = Get.find<HomeController>();
 
   @override
   void initState() {
@@ -177,7 +177,7 @@ class _DashboardWrapperState extends State<DashboardWrapper>
               ),
             );
           case 1:
-            return SubscriptionsPage();
+            return const SubscriptionsPage();
           case 2:
             return const ColoredBox(
               color: AppColors.bgPage,

@@ -4,6 +4,6 @@ import 'package:truthworld/features/watchhistory/presentation/controllers/watch_
 class WatchHistoryBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => WatchHistoryController(), fenix: true);
+    Get.lazyPut(WatchHistoryController.new, fenix: true);
   }
 }

@@ -1,6 +1,6 @@
 import 'package:truthworld/core/network/result.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/domain/entities/comment_entity.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 
 abstract class CommunityRepository {
   Future<Result<List<CommunityPostModel>>> getCommunityPosts(

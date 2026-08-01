@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -19,13 +19,13 @@ class ChaptersController extends BaseController {
   static const String _tag = 'ChaptersController';
 
   // Active channel context
-  final channelId = ''.obs;
+  final RxString channelId = ''.obs;
 
   // Video list state
-  final videos = <Video>[].obs;
-  final filteredVideos = <Video>[].obs;
-  final searchQuery = ''.obs;
-  final filterType = 'all'.obs; // 'all', 'has_chapters', 'no_chapters'
+  final RxList<Video> videos = <Video>[].obs;
+  final RxList<Video> filteredVideos = <Video>[].obs;
+  final RxString searchQuery = ''.obs;
+  final RxString filterType = 'all'.obs; // 'all', 'has_chapters', 'no_chapters'
   StreamSubscription<QuerySnapshot>? _videosSubscription;
   StreamSubscription<QuerySnapshot>? _channelVideosSubscription;
   final Map<String, Video> _ownerVideosMap = {};
@@ -33,10 +33,10 @@ class ChaptersController extends BaseController {
 
   // Selected video and chapters editing state
   final selectedVideo = Rxn<Video>();
-  final currentChapters = <VideoChapter>[].obs;
-  final isSaving = false.obs;
-  final isAnalyzing = false.obs;
-  final hasUnsavedChanges = false.obs;
+  final RxList<VideoChapter> currentChapters = <VideoChapter>[].obs;
+  final RxBool isSaving = false.obs;
+  final RxBool isAnalyzing = false.obs;
+  final RxBool hasUnsavedChanges = false.obs;
 
   @override
   void onInit() {

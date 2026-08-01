@@ -1,18 +1,12 @@
 import 'package:get/get.dart';
-import 'package:truthworld/core/services/ad_service.dart';
-import 'package:truthworld/core/services/watch_history_service.dart';
-import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
-import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
-import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
-import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
+import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
+import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/session_interest_tracker.dart';
-import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
-import 'package:truthworld/core/services/algorithm/algorithm_remote_config.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
-import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
-import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/repositories/channel_repository_impl.dart';
 import 'package:truthworld/data/repositories/comment_repository_impl.dart';
 import 'package:truthworld/data/repositories/community_repository_impl.dart';
@@ -27,6 +21,19 @@ import 'package:truthworld/domain/repositories/notification_repository.dart';
 import 'package:truthworld/domain/repositories/playlist_repository.dart';
 import 'package:truthworld/domain/repositories/search_repository.dart';
 import 'package:truthworld/domain/repositories/video_repository.dart';
+import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
+import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
+import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
+import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
+import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
+import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 
 class InitialBinding extends Bindings {
   @override
@@ -36,6 +43,9 @@ class InitialBinding extends Bindings {
 
     // Initialize miniplayer
     MiniplayerBinding().dependencies();
+
+    // Audio service
+    Get.lazyPut(AudioOnlyService.new, fenix: true);
 
     // Core analytics services (lazy, fenix for recreation if needed)
     Get.lazyPut(GeolocationService.new, fenix: true);
@@ -54,21 +64,32 @@ class InitialBinding extends Bindings {
     Get.lazyPut(FeedAlgorithmService.new, fenix: true);
 
     // Repositories
-    Get.lazyPut<VideoRepository>(() => VideoRepositoryImpl(), fenix: true);
-    Get.lazyPut<ChannelRepository>(() => ChannelRepositoryImpl(), fenix: true);
-    Get.lazyPut<CommentRepository>(() => CommentRepositoryImpl(), fenix: true);
+    Get.lazyPut<VideoRepository>(VideoRepositoryImpl.new, fenix: true);
+    Get.lazyPut<ChannelRepository>(ChannelRepositoryImpl.new, fenix: true);
+    Get.lazyPut<CommentRepository>(CommentRepositoryImpl.new, fenix: true);
     Get.lazyPut<CommunityRepository>(
-      () => CommunityRepositoryImpl(),
+      CommunityRepositoryImpl.new,
       fenix: true,
     );
     Get.lazyPut<PlaylistRepository>(
-      () => PlaylistRepositoryImpl(),
+      PlaylistRepositoryImpl.new,
       fenix: true,
     );
     Get.lazyPut<NotificationRepository>(
-      () => NotificationRepositoryImpl(),
+      NotificationRepositoryImpl.new,
       fenix: true,
     );
-    Get.lazyPut<SearchRepository>(() => SearchRepositoryImpl(), fenix: true);
+    Get.lazyPut<SearchRepository>(SearchRepositoryImpl.new, fenix: true);
+    Get.lazyPut(TopicRepository.new, fenix: true);
+
+    // Topic Controllers
+    Get.lazyPut(FollowingTopicsController.new, fenix: true);
+    Get.lazyPut(ExploreTopicsController.new, fenix: true);
+    Get.lazyPut(TopicController.new, fenix: true);
+
+    // Core Feature Controllers
+    Get.lazyPut(PlaylistController.new, fenix: true);
+    Get.lazyPut(SubscriptionController.new, fenix: true);
+    Get.lazyPut(WatchHistoryController.new, fenix: true);
   }
 }

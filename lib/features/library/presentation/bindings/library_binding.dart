@@ -4,6 +4,6 @@ import 'package:truthworld/features/library/presentation/controllers/library_con
 class LibraryBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => LibraryController(), fenix: true);
+    Get.lazyPut(LibraryController.new, fenix: true);
   }
 }

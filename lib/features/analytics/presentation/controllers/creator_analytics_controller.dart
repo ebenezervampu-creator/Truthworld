@@ -1,9 +1,9 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
@@ -776,11 +776,12 @@ class CreatorAnalyticsController extends GetxController {
       0xFF64748B,
       0xFF14B8A6,
     ];
-    if (count <= base.length)
+    if (count <= base.length) {
       return base.sublist(0, count.clamp(0, base.length));
+    }
     final extra = <int>[];
     for (var i = base.length; i < count; i++) {
-      final hue = (i * 360 / count).toInt();
+      final hue = i * 360 ~/ count;
       extra.add(
         HSVColor.fromAHSV(1, hue.toDouble(), 0.7, 0.8).toColor().toARGB32(),
       );

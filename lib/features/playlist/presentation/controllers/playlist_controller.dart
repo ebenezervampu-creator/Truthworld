@@ -1,10 +1,10 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -119,7 +119,7 @@ class PlaylistController extends GetxController {
     return filtered;
   }
 
-  final watchLaterVideoIds = <String>[].obs;
+  final RxList<String> watchLaterVideoIds = <String>[].obs;
   StreamSubscription? _watchLaterSub;
 
   void listenToWatchLater() {
@@ -196,7 +196,7 @@ class PlaylistController extends GetxController {
 
     // Listen to authentication state changes from AuthService
     // This ensures playlists are fetched only when a user is logged in
-    ever(AuthService.to.currentUser, (User? u) {
+    ever(AuthService.to.currentUser, (u) {
       if (u != null) {
         fetchPlaylists();
         fetchPublicPlaylists();

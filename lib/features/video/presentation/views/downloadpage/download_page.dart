@@ -64,7 +64,7 @@ class DownloadsPage extends StatefulWidget {
 
 class _DownloadsPageState extends State<DownloadsPage>
     with TickerProviderStateMixin {
-  final controller = Get.find<DownloadsController>();
+  final DownloadsController controller = Get.find<DownloadsController>();
 
   @override
   Widget build(BuildContext context) {

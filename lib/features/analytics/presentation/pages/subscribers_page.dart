@@ -229,9 +229,9 @@ class SubscribersPage extends StatelessWidget {
           series: <CartesianSeries<SubscribersTrendModel, DateTime>>[
             ColumnSeries<SubscribersTrendModel, DateTime>(
               dataSource: controller.subscribersTrendData,
-              xValueMapper: (SubscribersTrendModel data, _) => data.date,
-              yValueMapper: (SubscribersTrendModel data, _) => data.subscribers,
-              pointColorMapper: (SubscribersTrendModel data, _) =>
+              xValueMapper: (data, _) => data.date,
+              yValueMapper: (data, _) => data.subscribers,
+              pointColorMapper: (data, _) =>
                   data.subscribers >= 0
                   ? const Color(0xFF8B5CF6)
                   : const Color(0xFFEF4444),

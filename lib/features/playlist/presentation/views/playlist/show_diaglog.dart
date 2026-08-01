@@ -7,8 +7,8 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-final playlistController = Get.find<PlaylistController>();
-final playlistDialogController = Get.find<PlaylistDialogController>();
+final PlaylistController playlistController = Get.find<PlaylistController>();
+final PlaylistDialogController playlistDialogController = Get.find<PlaylistDialogController>();
 
 void showModernizedPlaylistDialog({
   required BuildContext context,
@@ -710,7 +710,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                     (_selectedPlaylist?.videoIds.contains(widget.videoId) ??
                         false);
 
-                String buttonText = 'Add Video';
+                var buttonText = 'Add Video';
                 if (isWatchLater) {
                   buttonText = isInWatchLater
                       ? 'Remove from Watch Later'

@@ -1,12 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as ctrl;
 import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
-import 'package:truthworld/components/ui/flip_coin_widget.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// GetX Controller to manage state for SubscribeButton
@@ -170,33 +170,34 @@ class SearchResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail with Duration
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Container(
-                      width: MediaQuery.of(context).size.width * 0.38,
-                      color: AppColors.textSecondary,
-                      child: result.thumbnail.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: result.thumbnail,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: AppColors.bgDivider),
-                              errorWidget: (context, url, error) => const Icon(
+            SizedBox(
+              width: MediaQuery.of(context).size.width * 0.38,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ColoredBox(
+                        color: AppColors.textSecondary,
+                        child: result.thumbnail.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: result.thumbnail,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    const ColoredBox(color: AppColors.bgDivider),
+                                errorWidget: (context, url, error) => const Icon(
+                                  Icons.play_circle_outline,
+                                  color: AppColors.textPrimary,
+                                ),
+                              )
+                            : const Icon(
                                 Icons.play_circle_outline,
-                                color: AppColors.textTertiary,
+                                color: AppColors.textPrimary,
                               ),
-                            )
-                          : const Icon(
-                              Icons.play_circle_outline,
-                              color: AppColors.textTertiary,
-                            ),
+                      ),
                     ),
                   ),
-                ),
                 if (durationStr != null)
                   Positioned(
                     bottom: 6,
@@ -221,6 +222,7 @@ class SearchResultCard extends StatelessWidget {
                     ),
                   ),
               ],
+              ),
             ),
             const SizedBox(width: 12),
             // Video Metadata
@@ -420,33 +422,34 @@ class SearchResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail with playlist overlay
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Container(
-                      width: MediaQuery.of(context).size.width * 0.38,
-                      color: AppColors.textSecondary,
-                      child: result.thumbnail.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: result.thumbnail,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: AppColors.bgDivider),
-                              errorWidget: (context, url, error) => const Icon(
+            SizedBox(
+              width: MediaQuery.of(context).size.width * 0.38,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ColoredBox(
+                        color: AppColors.textSecondary,
+                        child: result.thumbnail.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: result.thumbnail,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    const ColoredBox(color: AppColors.bgDivider),
+                                errorWidget: (context, url, error) => const Icon(
+                                  Icons.playlist_play,
+                                  color: AppColors.textPrimary,
+                                ),
+                              )
+                            : const Icon(
                                 Icons.playlist_play,
-                                color: AppColors.textTertiary,
+                                color: AppColors.textPrimary,
                               ),
-                            )
-                          : const Icon(
-                              Icons.playlist_play,
-                              color: AppColors.textTertiary,
-                            ),
+                      ),
                     ),
                   ),
-                ),
                 Positioned(
                   top: 0,
                   right: 0,
@@ -482,6 +485,7 @@ class SearchResultCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
             const SizedBox(width: 12),
             // Playlist Details
             Expanded(
@@ -533,51 +537,52 @@ class SearchResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail with Topic Badge
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Container(
-                      width: MediaQuery.of(context).size.width * 0.38,
-                      color: AppColors.textSecondary,
-                      child: result.thumbnail.isNotEmpty
-                          ? Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                CachedNetworkImage(
-                                  imageUrl: result.thumbnail,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) =>
-                                      const Icon(
-                                        Icons.topic,
-                                        color: AppColors.textTertiary,
-                                      ),
-                                ),
-                                Container(
-                                  color: Colors.black.withValues(alpha: 0.65),
-                                ),
-                                CachedNetworkImage(
-                                  imageUrl: result.thumbnail,
-                                  fit: BoxFit.contain,
-                                  placeholder: (context, url) =>
-                                      Container(color: AppColors.bgDivider),
-                                  errorWidget: (context, url, error) =>
-                                      const Icon(
-                                        Icons.topic,
-                                        color: AppColors.textTertiary,
-                                      ),
-                                ),
-                              ],
-                            )
-                          : const Icon(
-                              Icons.topic,
-                              color: AppColors.textTertiary,
-                            ),
+            SizedBox(
+              width: MediaQuery.of(context).size.width * 0.38,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ColoredBox(
+                        color: AppColors.textSecondary,
+                        child: result.thumbnail.isNotEmpty
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  CachedNetworkImage(
+                                    imageUrl: result.thumbnail,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(
+                                          Icons.topic,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                  ),
+                                  Container(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                  ),
+                                  CachedNetworkImage(
+                                    imageUrl: result.thumbnail,
+                                    fit: BoxFit.contain,
+                                    placeholder: (context, url) =>
+                                        const ColoredBox(color: AppColors.bgDivider),
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(
+                                          Icons.topic,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                  ),
+                                ],
+                              )
+                            : const Icon(
+                                Icons.topic,
+                                color: AppColors.textPrimary,
+                              ),
+                      ),
                     ),
                   ),
-                ),
                 Positioned(
                   top: 6,
                   left: 6,
@@ -602,6 +607,7 @@ class SearchResultCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
             const SizedBox(width: 12),
             // Topic Metadata
             Expanded(

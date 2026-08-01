@@ -19,6 +19,7 @@ linter:
     avoid_positional_boolean_parameters: false
     one_member_abstracts: false
     unawaited_futures: false
+    discarded_futures: false
     parameter_assignments: false
     deprecated_consistency: false
     no_default_cases: false

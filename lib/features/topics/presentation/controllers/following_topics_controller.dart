@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -28,6 +29,11 @@ class FollowingTopicsController extends GetxController {
   // Topic videos map: topic.id/slug -> List<Video>
   final RxMap<String, List<Video>> topicVideosMap = <String, List<Video>>{}.obs;
   final RxMap<String, bool> isLoadingVideosMap = <String, bool>{}.obs;
+
+  // Topic posts map: topic.id/slug -> List<CommunityPostModel>
+  final RxMap<String, List<CommunityPostModel>> topicPostsMap =
+      <String, List<CommunityPostModel>>{}.obs;
+  final RxMap<String, bool> isLoadingPostsMap = <String, bool>{}.obs;
 
   // Search & Filtering State (Matching PlaylistController model)
   final RxString searchQuery = ''.obs;
@@ -77,8 +83,9 @@ class FollowingTopicsController extends GetxController {
             !followedTopics.any((t) => t.id == selectedTopic.value?.id)) {
           selectedTopic.value = followedTopics.first;
         }
-        for (final topic in followedTopics) {
-          fetchVideosForTopic(topic);
+        for (final t in followedTopics) {
+          fetchVideosForTopic(t);
+          fetchPostsForTopic(t);
         }
       } else {
         selectedTopic.value = null;
@@ -115,11 +122,34 @@ class FollowingTopicsController extends GetxController {
     }
   }
 
+  /// Fetch community posts associated with a specific topic
+  Future<void> fetchPostsForTopic(Topic topic) async {
+    final key = topic.id;
+    if (topicPostsMap.containsKey(key) && isLoadingPostsMap[key] != true) {
+      return;
+    }
+
+    isLoadingPostsMap[key] = true;
+    try {
+      var posts = await _repository.getCommunityPostsByTopic(topic.slug);
+      if (posts.isEmpty && topic.id != topic.slug) {
+        posts = await _repository.getCommunityPostsByTopic(topic.id);
+      }
+      topicPostsMap[key] = posts;
+    } catch (e) {
+      debugPrint('Error fetching posts for topic ${topic.title}: $e');
+      topicPostsMap[key] = [];
+    } finally {
+      isLoadingPostsMap[key] = false;
+    }
+  }
+
   /// Select a topic pill
   void selectTopic(Topic? topic) {
     selectedTopic.value = topic;
     if (topic != null) {
       fetchVideosForTopic(topic);
+      fetchPostsForTopic(topic);
     }
   }
 

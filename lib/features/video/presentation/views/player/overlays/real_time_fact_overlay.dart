@@ -69,7 +69,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
       valColor = AppColors.success;
     } else if (upperVal.contains('LIMITED') ||
         upperVal.contains('MODERATE') ||
-        (upperVal.contains('NONE') == false && upperVal.contains('LOW'))) {
+        (!upperVal.contains('NONE') && upperVal.contains('LOW'))) {
       valColor = AppColors.brandHover;
     } else if (upperVal.contains('NONE') ||
         upperVal.contains('CONTRADICTED') ||

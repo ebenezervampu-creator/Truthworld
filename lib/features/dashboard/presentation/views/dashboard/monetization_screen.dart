@@ -835,7 +835,7 @@ class MonetizationScreen extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: videos.length,
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
                   const Divider(color: AppColors.bgDivider, height: 16),
               itemBuilder: (context, index) {
                 final video = videos[index];

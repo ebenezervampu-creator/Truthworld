@@ -1,15 +1,15 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class FeedbacksTab extends StatefulWidget {
   final AdminController controller;
-  const FeedbacksTab({super.key, required this.controller});
+  const FeedbacksTab({required this.controller, super.key});
 
   @override
   State<FeedbacksTab> createState() => _FeedbacksTabState();
@@ -49,10 +49,12 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
 
   List<Map<String, dynamic>> get filteredFeedbacks {
     return feedbacks.where((fb) {
-      if (filterType.value != 'All' && fb['feedbackType'] != filterType.value)
+      if (filterType.value != 'All' && fb['feedbackType'] != filterType.value) {
         return false;
-      if (filterStatus.value != 'All' && fb['status'] != filterStatus.value)
+      }
+      if (filterStatus.value != 'All' && fb['status'] != filterStatus.value) {
         return false;
+      }
       return true;
     }).toList();
   }
@@ -258,7 +260,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
       return ListView.separated(
         padding: const EdgeInsets.all(0),
         itemCount: items.length,
-        separatorBuilder: (_, __) =>
+        separatorBuilder: (_, _) =>
             const Divider(color: AppColors.bgDivider, height: 1),
         itemBuilder: (context, index) {
           final fb = items[index];
@@ -485,7 +487,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                           ),
                           ...List.generate(
                             5 - rating,
-                            (_) => Icon(
+                            (_) => const Icon(
                               Icons.star_outline_rounded,
                               color: AppColors.textTertiary,
                               size: 16,
@@ -587,7 +589,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                           width: 120,
                           height: 120,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorBuilder: (_, _, _) => Container(
                             width: 120,
                             height: 120,
                             decoration: BoxDecoration(
@@ -748,16 +750,12 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
     switch (status) {
       case 'new':
         color = const Color(0xFF4CAF50);
-        break;
       case 'reviewed':
         color = const Color(0xFF2196F3);
-        break;
       case 'resolved':
         color = const Color(0xFF9E9E9E);
-        break;
       case 'archived':
         color = const Color(0xFF616161);
-        break;
       default:
         color = const Color(0xFF4CAF50);
     }

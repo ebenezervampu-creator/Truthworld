@@ -5,7 +5,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class AnalyticsTab extends StatelessWidget {
   final AdminController controller;
-  const AnalyticsTab({super.key, required this.controller});
+  const AnalyticsTab({required this.controller, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +25,7 @@ class AnalyticsTab extends StatelessWidget {
                 children: [
                   Expanded(flex: 2, child: _buildViolationCategoryChart()),
                   const SizedBox(width: 24),
-                  Expanded(flex: 1, child: _buildTopOffendersList()),
+                  Expanded(child: _buildTopOffendersList()),
                 ],
               ),
             ],
@@ -70,7 +70,7 @@ class AnalyticsTab extends StatelessWidget {
   }
 
   Widget _buildMetricsCards(BoxConstraints constraints) {
-    final bool isSmall = constraints.maxWidth < 800;
+    final isSmall = constraints.maxWidth < 800;
 
     return Obx(() {
       final data = controller.analyticsData;
@@ -260,7 +260,7 @@ class AnalyticsTab extends StatelessWidget {
                     style: const TextStyle(color: AppColors.textPrimary),
                   ),
                   trailing: Text(
-                    '${(90 - index * 5)}% rej',
+                    '${90 - index * 5}% rej',
                     style: const TextStyle(color: AppColors.error),
                   ),
                 ),

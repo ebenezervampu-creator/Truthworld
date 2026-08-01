@@ -8,10 +8,10 @@ class StorageService extends GetxService {
   late final FirebaseStorage _storage;
 
   // Observable states
-  final isLoading = false.obs;
-  final uploadProgress = 0.0.obs;
-  final hasError = false.obs;
-  final errorMessage = ''.obs;
+  final RxBool isLoading = false.obs;
+  final RxDouble uploadProgress = 0.0.obs;
+  final RxBool hasError = false.obs;
+  final RxString errorMessage = ''.obs;
 
   @override
   void onInit() {
@@ -40,7 +40,7 @@ class StorageService extends GetxService {
       );
 
       uploadTask.snapshotEvents.listen(
-        (TaskSnapshot snapshot) {
+        (snapshot) {
           uploadProgress.value =
               snapshot.bytesTransferred / snapshot.totalBytes;
           if (uploadProgress.value == 1.0 || uploadProgress.value >= 0.9) {

@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -7,6 +6,8 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -15,7 +16,6 @@ import 'package:truthworld/features/search/data/models/search_result.dart'; // C
 import 'package:truthworld/features/search/data/services/search_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 
 class SearchSuggestion {
   SearchSuggestion({
@@ -976,6 +976,17 @@ class SearchController extends GetxController {
         results = await _searchService.getRecommended();
         fellBack = results.isNotEmpty;
       }
+
+      final hasDirectMatch = results.any((r) {
+        final title = r.title.toLowerCase();
+        final channel = r.channelName.toLowerCase();
+        return title.contains(normalized) || channel.contains(normalized);
+      });
+
+      if (hasDirectMatch) {
+        fellBack = false;
+      }
+
       isShowingFallback.value = fellBack;
 
       // Update UI with results

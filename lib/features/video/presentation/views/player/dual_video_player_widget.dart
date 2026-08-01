@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -17,10 +16,7 @@ class DualVideoPlayerWidget extends StatefulWidget {
   final VoidCallback onClose;
 
   const DualVideoPlayerWidget({
-    super.key,
-    required this.videoA,
-    required this.videoB,
-    required this.onClose,
+    required this.videoA, required this.videoB, required this.onClose, super.key,
   });
 
   @override
@@ -53,9 +49,9 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                   horizontal: 16,
                   vertical: 10,
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E2E),
-                  borderRadius: const BorderRadius.vertical(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1E1E2E),
+                  borderRadius: BorderRadius.vertical(
                     top: Radius.circular(14),
                   ),
                 ),
@@ -156,7 +152,7 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
           CachedNetworkImage(
             imageUrl: video.thumbnailUrl,
             fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => Container(color: Colors.black45),
+            errorWidget: (_, _, _) => Container(color: Colors.black45),
           ),
 
           // Dim overlay
@@ -239,12 +235,12 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                    shadows: [Shadow(blurRadius: 4)],
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  video.channelName ?? '',
+                  video.channelName,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 11,

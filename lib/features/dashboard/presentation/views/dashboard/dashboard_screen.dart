@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
@@ -18,26 +18,26 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/category_insights_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists_management_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
-import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/playlists_management_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/category_insights_screen.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -3023,8 +3023,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         series: <CartesianSeries<AnalyticsData, DateTime>>[
           SplineAreaSeries<AnalyticsData, DateTime>(
             dataSource: controller.analyticsData,
-            xValueMapper: (AnalyticsData data, _) => data.date,
-            yValueMapper: (AnalyticsData data, _) => data.views,
+            xValueMapper: (data, _) => data.date,
+            yValueMapper: (data, _) => data.views,
             gradient: LinearGradient(
               colors: [
                 const Color(0xFF6366F1).withValues(alpha: 0.3),

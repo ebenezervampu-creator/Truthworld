@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
@@ -14,6 +14,8 @@ import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
@@ -27,61 +29,69 @@ import 'package:uuid/uuid.dart';
 class CommunityPostUploadController extends GetxController
     with ContentValidationMixin {
   // ── Firebase ──────────────────────────────────────────────────────────────
-  final _firestore = FirebaseFirestore.instance;
-  final _storage = FirebaseStorage.instance;
-  final _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   final _uuid = const Uuid();
   final _imageVerificationService = ImageVerificationService();
+  final TopicRepository _topicRepository = TopicRepository();
 
   // ── Reactive State ────────────────────────────────────────────────────────
 
+  // Topic Selection State
+  final RxString selectedTopicId = ''.obs;
+  final RxMap<String, dynamic> newTopicData = <String, dynamic>{}.obs;
+  final RxList<Topic> availableTopics = <Topic>[].obs;
+  final RxBool isTopicsLoading = false.obs;
+  final RxString topicSearchQuery = ''.obs;
+
   // Channel Management with Error Handling
-  final channels = <Channel>[].obs;
+  final RxList<Channel> channels = <Channel>[].obs;
   final selectedChannel = Rx<Channel?>(null);
-  final isChannelsLoading = false.obs;
-  final channelsError = ''.obs;
+  final RxBool isChannelsLoading = false.obs;
+  final RxString channelsError = ''.obs;
   // _channelsSubscription removed for get() optimization
 
   // Moderation
   final Map<int, StreamSubscription> _moderationListeners = {};
-  final moderationStatuses =
+  final RxMap<int, String> moderationStatuses =
       <int, String>{}.obs; // index -> status (PENDING, APPROVED, REJECTED)
-  final moderationReasons = <int, String>{}.obs; // index -> reason if rejected
+  final RxMap<int, String> moderationReasons = <int, String>{}.obs; // index -> reason if rejected
 
   // Images (1-10, any aspect ratio)
-  final pickedImages = <PlatformFile>[].obs;
-  final imageUrls = <String>[].obs;
-  final imageUploadProgress = <int, double>{}.obs;
-  final overallProgress = 0.0.obs;
-  final isUploading = false.obs;
+  final RxList<PlatformFile> pickedImages = <PlatformFile>[].obs;
+  final RxList<String> imageUrls = <String>[].obs;
+  final RxMap<int, double> imageUploadProgress = <int, double>{}.obs;
+  final RxDouble overallProgress = 0.0.obs;
+  final RxBool isUploading = false.obs;
 
   static const int maxImages = 1;
   static const int maxImageSizeBytes = 20 * 1024 * 1024; // 20 MB
 
   // Poll
-  final hasPoll = false.obs;
-  final pollType = PollType.yesNo.obs;
-  final pollQuestion = ''.obs;
-  final pollOptions = <String>[].obs; // only for multiChoice
+  final RxBool hasPoll = false.obs;
+  final Rx<PollType> pollType = PollType.yesNo.obs;
+  final RxString pollQuestion = ''.obs;
+  final RxList<String> pollOptions = <String>[].obs; // only for multiChoice
   final pollDurationDays = Rx<int?>(null); // null = no expiry
 
   // Form
-  final selectedCategory = 'General'.obs;
-  final selectedVisibility = 'Public'.obs;
-  final isKidFriendly = false.obs;
-  final isScheduled = false.obs;
-  final scheduledDate = DateTime.now().add(const Duration(days: 1)).obs;
+  final RxString selectedCategory = 'General'.obs;
+  final RxString selectedVisibility = 'Public'.obs;
+  final RxBool isKidFriendly = false.obs;
+  final RxBool isScheduled = false.obs;
+  final Rx<DateTime> scheduledDate = DateTime.now().add(const Duration(days: 1)).obs;
 
   // Post Interactive Settings
-  final isLikeEnabled = true.obs;
-  final showLikeCount = true.obs;
-  final isDislikeEnabled = true.obs;
-  final showDislikeCount = true.obs;
-  final isCommentsEnabled = true.obs;
+  final RxBool isLikeEnabled = true.obs;
+  final RxBool showLikeCount = true.obs;
+  final RxBool isDislikeEnabled = true.obs;
+  final RxBool showDislikeCount = true.obs;
+  final RxBool isCommentsEnabled = true.obs;
 
   // DRAFT MANAGEMENT
   final currentDraft = Rx<CommunityDraft?>(null);
-  final isSavingDraft = false.obs;
+  final RxBool isSavingDraft = false.obs;
   final lastPublishedPostId = Rxn<String>();
 
   // Categories
@@ -102,6 +112,32 @@ class CommunityPostUploadController extends GetxController
       selectedChannel.value = auth.userChannel;
     }
     _fetchChannelsForCommunity();
+    fetchAvailableTopics();
+  }
+
+  Map<String, String>? getChannelMetadata(String channelId) {
+    for (final ch in channels) {
+      if (ch.channelId == channelId || ch.id == channelId) {
+        return {
+          'name': ch.channelName,
+          'handle': ch.handle,
+          'avatarUrl': ch.avatarUrl,
+        };
+      }
+    }
+    return null;
+  }
+
+  Future<void> fetchAvailableTopics() async {
+    try {
+      isTopicsLoading.value = true;
+      final topics = await _topicRepository.fetchTopics(category: 'all', limit: 50);
+      availableTopics.value = topics;
+    } catch (e) {
+      debugPrint('Error fetching topics in community upload: $e');
+    } finally {
+      isTopicsLoading.value = false;
+    }
   }
 
   @override
@@ -207,6 +243,9 @@ class CommunityPostUploadController extends GetxController
     pickedImages.clear();
     pollOptions.clear();
     pollQuestion.value = '';
+    selectedTopicId.value = '';
+    newTopicData.clear();
+    topicSearchQuery.value = '';
     moderationStatuses.clear();
     moderationReasons.clear();
     _moderationListeners.forEach((_, sub) => sub.cancel());
@@ -481,6 +520,73 @@ class CommunityPostUploadController extends GetxController
 
     isUploading.value = true;
     try {
+      // 1. Process inline topic creation if user drafted a new topic
+      if (newTopicData.isNotEmpty) {
+        final newTitle = (newTopicData['title'] as String? ?? '').trim();
+        if (newTitle.isNotEmpty) {
+          final newCategory = (newTopicData['category'] as String? ?? 'General').trim();
+          final newDescription = (newTopicData['description'] as String? ?? '').trim();
+          final newVisibilityStr = (newTopicData['visibility'] as String? ?? 'public').trim();
+          final newVisibility = TopicVisibilityType.fromJson(newVisibilityStr);
+          final newAccessCode = (newTopicData['accessCode'] as String? ?? '').trim();
+          final finalThumbnailUrl = newTopicData['thumbnailUrl'] as String?;
+
+          final newSlug = newTitle
+              .toLowerCase()
+              .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
+              .replaceAll(RegExp(r'\s+'), '-');
+
+          final existingSlug = await _firestore
+              .collection(FirestoreCollections.topics)
+              .where('slug', isEqualTo: newSlug)
+              .limit(1)
+              .get();
+
+          var finalSlug = newSlug;
+          if (existingSlug.docs.isNotEmpty) {
+            finalSlug = '$newSlug-${const Uuid().v4().substring(0, 6)}';
+          }
+
+          final rawHandle = (newTopicData['handle'] as String?) ?? '';
+          var cleanHandle = rawHandle.trim();
+          if (cleanHandle.startsWith('T/') || cleanHandle.startsWith('t/')) {
+            cleanHandle = cleanHandle.substring(2);
+          }
+          cleanHandle = cleanHandle
+              .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
+              .replaceAll(RegExp('-+'), '-');
+          if (cleanHandle.isEmpty) {
+            cleanHandle = finalSlug;
+          }
+          final finalHandle = 'T/$cleanHandle';
+          final finalHandleLowercase = finalHandle.toLowerCase();
+
+          final newTopicRef = _firestore.collection(FirestoreCollections.topics).doc();
+          final newTopic = Topic(
+            id: newTopicRef.id,
+            title: newTitle,
+            slug: finalSlug,
+            handle: finalHandle,
+            handleLowercase: finalHandleLowercase,
+            description: newDescription,
+            category: newCategory,
+            thumbnailUrl: finalThumbnailUrl,
+            channelId: selectedChannel.value?.channelId ?? '',
+            creatorId: _auth.currentUser?.uid,
+            visibilityType: newVisibility,
+            accessCode: newVisibility == TopicVisibilityType.private ? newAccessCode : null,
+            postCount: 1,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            status: 'underReview',
+          );
+
+          await newTopicRef.set(newTopic.toMap());
+          selectedTopicId.value = finalSlug;
+          newTopicData.clear();
+        }
+      }
+
       final docRef = _firestore
           .collection(FirestoreCollections.community)
           .doc();
@@ -516,6 +622,11 @@ class CommunityPostUploadController extends GetxController
         'isCommentsEnabled': isCommentsEnabled.value,
       };
 
+      if (selectedTopicId.value.isNotEmpty) {
+        data['topicId'] = selectedTopicId.value;
+        data['topics'] = [selectedTopicId.value];
+      }
+
       if (isScheduled.value) {
         data['scheduledTime'] = Timestamp.fromDate(scheduledDate.value);
       }
@@ -539,6 +650,21 @@ class CommunityPostUploadController extends GetxController
       }
 
       await docRef.set(data);
+
+      if (selectedTopicId.value.isNotEmpty) {
+        final topicQuery = await _firestore
+            .collection(FirestoreCollections.topics)
+            .where('slug', isEqualTo: selectedTopicId.value)
+            .limit(1)
+            .get();
+        if (topicQuery.docs.isNotEmpty) {
+          final topicDoc = topicQuery.docs.first;
+          await topicDoc.reference.update({
+            'postCount': FieldValue.increment(1),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }).catchError((e) => debugPrint('Error updating topic postCount: $e'));
+        }
+      }
 
       isUploading.value = false;
       resetForm();

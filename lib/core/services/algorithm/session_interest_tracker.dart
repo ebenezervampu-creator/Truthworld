@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'truthworld_algorithm.dart';
+import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 
 /// Tracks the user's interests within the current browsing session.
 /// Session interests decay after 30-60 minutes of inactivity.
@@ -40,7 +40,6 @@ class SessionInterestTracker {
     if (_events.isEmpty) return null;
 
     final categoryWeights = <String, double>{};
-    final now = DateTime.now();
 
     for (var i = 0; i < _events.length; i++) {
       final e = _events[i];
@@ -48,7 +47,7 @@ class SessionInterestTracker {
 
       // Recency multiplier (more recent events in session count more)
       final recencyFactor = pow(0.9, i).toDouble();
-      double weight = 1.0 * recencyFactor;
+      var weight = 1.0 * recencyFactor;
 
       if (e.type == 'like') weight *= 1.5;
       if (e.type == 'skip') weight *= -0.5;
@@ -79,7 +78,7 @@ class SessionInterestTracker {
 
       for (final topic in e.topics) {
         if (topic.isEmpty) continue;
-        double weight = 1.0 * recencyFactor;
+        var weight = 1.0 * recencyFactor;
         if (e.type == 'like') weight *= 1.5;
         if (e.type == 'skip') weight *= -0.5;
         topicWeights[topic] = (topicWeights[topic] ?? 0.0) + weight;
@@ -102,7 +101,7 @@ class SessionInterestTracker {
     final dominant = currentSessionDominantTopics;
     if (dominant.isEmpty) return 0.0;
 
-    double affinity = 0.0;
+    var affinity = 0.0;
     for (final topic in topics) {
       if (dominant.contains(topic)) {
         affinity += 0.4;

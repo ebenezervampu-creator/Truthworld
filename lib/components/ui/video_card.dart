@@ -1,4 +1,3 @@
-import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -10,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -90,13 +90,11 @@ class HoverPreviewCoordinator {
 
   static void setActiveCard(dynamic cardState) {
     if (cardState is! _VideoCardState) return;
-    if (_muteWorker == null) {
-      _muteWorker = ever(globalMute, (bool isMuted) {
+    _muteWorker ??= ever(globalMute, (isMuted) {
         if (!isMuted) {
           pauseAllMainPlayers();
         }
       });
-    }
     if (_activeCardState != null && _activeCardState != cardState) {
       _activeCardState!._handleHoverExit();
     }
@@ -169,7 +167,7 @@ class _VideoCardState extends State<VideoCard> {
     _realChannelAvatarUrl.value = widget.video.channelAvatarUrl;
     _realChannelName.value = widget.video.channelName;
     _loadRealChannelData();
-    _muteWorker = ever(HoverPreviewCoordinator.globalMute, (bool isMuted) {
+    _muteWorker = ever(HoverPreviewCoordinator.globalMute, (isMuted) {
       if (_videoPlayerController.value != null &&
           _isControllerInitialized.value) {
         _videoPlayerController.value!.setVolume(isMuted ? 0.0 : 1.0);
@@ -181,8 +179,9 @@ class _VideoCardState extends State<VideoCard> {
     if (widget.video.channelId.isEmpty) return;
     // Only query Firestore if Video model lacks avatar or name
     if (_realChannelAvatarUrl.value.isNotEmpty &&
-        _realChannelName.value.isNotEmpty)
+        _realChannelName.value.isNotEmpty) {
       return;
+    }
     try {
       final doc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.channels)

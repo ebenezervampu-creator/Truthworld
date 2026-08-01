@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,15 +9,14 @@ import 'package:intl/intl.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_video_player_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:video_player/video_player.dart';
-import 'package:truthworld/features/admin/presentation/views/user_management_tab.dart';
-import 'package:truthworld/features/admin/presentation/views/analytics_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/alerts_config_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/analytics_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/appeals_tab.dart';
-import 'package:truthworld/features/admin/presentation/views/security_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/feedbacks_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/help_support_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/security_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/user_management_tab.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   AdminDashboardScreen({super.key});
@@ -208,8 +208,8 @@ class AdminDashboardScreen extends StatelessWidget {
                   context: context,
                 ),
                 const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     'MANAGEMENT',
                     style: TextStyle(
@@ -257,8 +257,8 @@ class AdminDashboardScreen extends StatelessWidget {
                   context: context,
                 ),
                 const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     'SYSTEM',
                     style: TextStyle(
@@ -459,27 +459,36 @@ class AdminDashboardScreen extends StatelessWidget {
           : null,
       title: Obx(() {
         var title = 'Dashboard Overview';
-        if (controller.currentTab.value == 'videos')
+        if (controller.currentTab.value == 'videos') {
           title = 'Video Verification Queue';
-        if (controller.currentTab.value == 'images')
+        }
+        if (controller.currentTab.value == 'images') {
           title = 'Image Moderation Grid';
-        if (controller.currentTab.value == 'channels')
+        }
+        if (controller.currentTab.value == 'channels') {
           title = 'Channel Verification Queue';
-        if (controller.currentTab.value == 'reports')
+        }
+        if (controller.currentTab.value == 'reports') {
           title = 'Video Reports Review';
+        }
         if (controller.currentTab.value == 'logs') title = 'Audit History Logs';
         if (controller.currentTab.value == 'users') title = 'User Management';
-        if (controller.currentTab.value == 'analytics')
+        if (controller.currentTab.value == 'analytics') {
           title = 'Safety Analytics';
-        if (controller.currentTab.value == 'alerts')
+        }
+        if (controller.currentTab.value == 'alerts') {
           title = 'Alerts & Escalation';
+        }
         if (controller.currentTab.value == 'appeals') title = 'Content Appeals';
-        if (controller.currentTab.value == 'security')
+        if (controller.currentTab.value == 'security') {
           title = 'Security Center';
-        if (controller.currentTab.value == 'feedbacks')
+        }
+        if (controller.currentTab.value == 'feedbacks') {
           title = 'User Feedbacks & Feedback Requests';
-        if (controller.currentTab.value == 'help')
+        }
+        if (controller.currentTab.value == 'help') {
           title = 'Admin Help & Support';
+        }
         return Text(
           title,
           style: const TextStyle(

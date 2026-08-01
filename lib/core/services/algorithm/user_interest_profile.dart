@@ -296,7 +296,7 @@ class UserInterestProfile {
   double getCombinedTopicAffinity(List<String> videoTopics) {
     if (videoTopics.isEmpty) return 0.0;
 
-    double maxAffinity = 0.0;
+    var maxAffinity = 0.0;
     for (final topic in videoTopics) {
       final directAffinity = topicAffinities[topic] ?? 0.0;
       if (directAffinity > maxAffinity) {
@@ -341,7 +341,7 @@ class UserInterestProfile {
       return 0.8;
     }
 
-    double strength = 0.0;
+    var strength = 0.0;
     final skips = skippedCategoryCounts[category] ?? 0;
     final earlyExits = earlyExitCategoryCounts[category] ?? 0;
 

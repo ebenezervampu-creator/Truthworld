@@ -38,10 +38,10 @@ class HoverVideoPlayer extends StatefulWidget {
 class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
   final _controller = Rxn<VideoPlayerController>();
   Timer? _hoverTimer;
-  final _isHovered = false.obs;
-  final _isLoading = false.obs;
-  final _isInitialized = false.obs;
-  final _isMuted = HoverVideoPlayer.isGlobalMuted.obs;
+  final RxBool _isHovered = false.obs;
+  final RxBool _isLoading = false.obs;
+  final RxBool _isInitialized = false.obs;
+  final RxBool _isMuted = HoverVideoPlayer.isGlobalMuted.obs;
   final _position = Rx<Duration>(Duration.zero);
   final _duration = Rx<Duration>(Duration.zero);
 
