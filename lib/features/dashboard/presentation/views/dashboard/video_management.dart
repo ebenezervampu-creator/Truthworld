@@ -11,13 +11,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
-class VideoManagementController extends GetxController {
+class VideoManagementController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _firebaseStorage = FirebaseStorage.instance;
 
@@ -39,7 +40,7 @@ class VideoManagementController extends GetxController {
     isLoadingChannelVideos.value = true;
     channelVideosError.value = '';
     _videosSub?.cancel();
-    _videosSub = fetchChannelVideos(channelId).listen(
+    trackSubscription(_videosSub = fetchChannelVideos(channelId).listen(
       (videos) {
         channelVideos.assignAll(videos);
         isLoadingChannelVideos.value = false;
@@ -48,7 +49,7 @@ class VideoManagementController extends GetxController {
         channelVideosError.value = e.toString();
         isLoadingChannelVideos.value = false;
       },
-    );
+    ));
   }
 
   void listenToCommunityPosts(String channelId) {
@@ -181,7 +182,7 @@ class VideoManagementController extends GetxController {
       await docRef.set(newVideo.toMap());
 
       uploadProgress.value = 0.0;
-      Get.back();
+      Get.offAllNamed('/studio');
       Get.snackbar('Success', 'Video uploaded successfully!');
     } catch (e) {
       uploadProgress.value = 0.0;

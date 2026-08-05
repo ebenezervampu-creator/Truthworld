@@ -5,16 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class UserClipsController extends GetxController {
+class UserClipsController extends BaseController {
   final RxList<VideoClip> clips = <VideoClip>[].obs;
-  final RxBool isLoading = true.obs;
-  final RxString errorMessage = ''.obs;
+  final RxBool rxIsLoading = true.obs;
+  final RxString rxErrorMessage = ''.obs;
   final RxString searchQuery = ''.obs;
   final RxBool isSearchExpanded = false.obs;
   final RxBool isListView = true.obs;
@@ -27,11 +28,11 @@ class UserClipsController extends GetxController {
   }
 
   Future<void> fetchClips() async {
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      isLoading.value = false;
+      rxIsLoading.value = false;
       return;
     }
 
@@ -52,9 +53,9 @@ class UserClipsController extends GetxController {
       );
     } catch (e) {
       debugPrint('Error fetching clips: $e');
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -317,7 +318,7 @@ class ClipsPage extends StatelessWidget {
         ),
         SliverToBoxAdapter(child: _buildCategoryChips(controller)),
         Obx(() {
-          if (controller.isLoading.value) {
+          if (controller.rxIsLoading.value) {
             return const SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
@@ -327,13 +328,13 @@ class ClipsPage extends StatelessWidget {
             );
           }
 
-          if (controller.errorMessage.isNotEmpty) {
+          if (controller.rxErrorMessage.isNotEmpty) {
             return SliverToBoxAdapter(
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Error: ${controller.errorMessage.value}',
+                    'Error: ${controller.rxErrorMessage.value}',
                     style: const TextStyle(color: AppColors.textPrimary),
                     textAlign: TextAlign.center,
                   ),

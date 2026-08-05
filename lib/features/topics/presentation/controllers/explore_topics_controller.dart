@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
@@ -15,7 +17,7 @@ import 'package:truthworld/features/topics/presentation/controllers/topic_contro
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// GetX Controller for the Topic Discovery Platform UI
-class ExploreTopicsController extends GetxController {
+class ExploreTopicsController extends BaseController {
   ExploreTopicsController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
@@ -35,10 +37,10 @@ class ExploreTopicsController extends GetxController {
   final RxMap<String, List<Video>> topicVideosMap = <String, List<Video>>{}.obs;
   final RxMap<String, bool> isLoadingVideosMap = <String, bool>{}.obs;
 
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
   final RxBool isLoadingMore = false.obs;
-  final RxBool hasMore = true.obs;
-  final RxString errorMessage = ''.obs;
+  final RxBool rxHasMore = true.obs;
+  final RxString rxErrorMessage = ''.obs;
 
   // Pagination cursor
   DocumentSnapshot? _lastDoc;
@@ -68,8 +70,8 @@ class ExploreTopicsController extends GetxController {
 
   /// Initialize and fetch initial feeds (both curated featured & paginated browse)
   Future<void> initialFetch() async {
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
 
     try {
       // 1. Fetch available categories with at least 2 videos
@@ -81,30 +83,30 @@ class ExploreTopicsController extends GetxController {
       // 3. Fetch paginated topics
       await loadTopics(reset: true);
     } catch (e) {
-      errorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
+      rxErrorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,
         defaultActionMessage: 'load topic feed',
       );
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
   /// Paginated fetch of topics depending on active category, mode, and search state
   Future<void> loadTopics({bool reset = false}) async {
     if (isLoadingMore.value) return;
-    if (isLoading.value && !reset) return;
+    if (rxIsLoading.value && !reset) return;
 
     if (reset) {
       topics.clear();
       _lastDoc = null;
-      hasMore.value = true;
+      rxHasMore.value = true;
     }
 
-    if (!hasMore.value && !reset) return;
+    if (!rxHasMore.value && !reset) return;
 
     if (reset) {
-      isLoading.value = true;
+      rxIsLoading.value = true;
     } else {
       isLoadingMore.value = true;
     }
@@ -117,7 +119,7 @@ class ExploreTopicsController extends GetxController {
         // Query-driven searching (zero-cost cached scan lookup fallback for MVP)
         final prefix = searchQuery.value.trim();
         newTopics = await _repository.searchTopics(prefix, limit: _pageSize);
-        hasMore.value =
+        rxHasMore.value =
             false; // Search results are currently non-paginated for search accuracy
       } else {
         // Standard paginated database retrieval
@@ -153,10 +155,10 @@ class ExploreTopicsController extends GetxController {
           }
 
           if (newTopics.length < _pageSize) {
-            hasMore.value = false;
+            rxHasMore.value = false;
           }
         } else {
-          hasMore.value = false;
+          rxHasMore.value = false;
         }
       }
 
@@ -182,7 +184,7 @@ class ExploreTopicsController extends GetxController {
       // Fetch videos for newly added topics
       uniqueNewTopics.forEach(fetchVideosForTopic);
     } catch (e) {
-      errorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
+      rxErrorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,
         defaultActionMessage: 'load topics',
       );
@@ -195,7 +197,7 @@ class ExploreTopicsController extends GetxController {
         );
       }
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
       isLoadingMore.value = false;
     }
   }
@@ -224,7 +226,7 @@ class ExploreTopicsController extends GetxController {
 
   /// Paging handler
   Future<void> loadMoreTopics() async {
-    if (!isLoadingMore.value && hasMore.value) {
+    if (!isLoadingMore.value && rxHasMore.value) {
       await loadTopics();
     }
   }

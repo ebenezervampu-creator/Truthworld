@@ -12,6 +12,7 @@ import 'package:get/get.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:profanity_filter/profanity_filter.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/verification_cache_service.dart';
@@ -26,7 +27,7 @@ import 'package:universal_html/html.dart' as html;
 import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 
-class UploadController extends GetxController with ContentValidationMixin {
+class UploadController extends BaseController with ContentValidationMixin {
   final _imageVerificationService = ImageVerificationService();
   final _cacheService = VerificationCacheService();
   StreamSubscription? _thumbnailModerationSubscription;
@@ -50,14 +51,13 @@ class UploadController extends GetxController with ContentValidationMixin {
   static const Set<String> categoriesWithoutFactCheck = {
     'Music',
     'Entertainment',
-    'Gaming',
     'Comedy',
     'Animation',
     'Movies',
     'Lifestyle',
     'Sports',
     'Pets & Animals',
-    'Fashion & Beauty',
+    'Fashion',
     'Food & Cooking',
     'DIY & How-to',
   };
@@ -207,7 +207,6 @@ class UploadController extends GetxController with ContentValidationMixin {
     'Music',
     'News',
     'Sports',
-    'Gaming',
     'Technology',
     'Science',
     'Travel',
@@ -219,7 +218,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     'Vlogs',
     'DIY & How-to',
     'Health & Fitness',
-    'Fashion & Beauty',
+    'Fashion',
     'Food & Cooking',
     'Business & Finance',
     'Animation',
@@ -298,7 +297,7 @@ class UploadController extends GetxController with ContentValidationMixin {
   // Validation constants
   static const int maxTitleLength = 100;
   static const int maxDescriptionLength = 5000;
-  static const int maxTags = 15;
+  static const int maxTags = 5;
 
   @override
   void onInit() {
@@ -1257,7 +1256,7 @@ class UploadController extends GetxController with ContentValidationMixin {
               );
             }
 
-            if (status != 'PENDING') {
+            if (status == 'APPROVED' || status == 'REJECTED') {
               Future.delayed(const Duration(seconds: 2), () {
                 if (forCommunity) {
                   _communityImageModerationSubscription?.cancel();
@@ -1378,9 +1377,10 @@ class UploadController extends GetxController with ContentValidationMixin {
     String channelId,
     String channelImage,
     List<String> tags,
-    List<String> selectedLanguages,
-  ) async {
-    debugPrint('Starting final video metadata update...');
+    List<String> selectedLanguages, {
+    bool isDraft = false,
+  }) async {
+    debugPrint('Starting final video metadata update (isDraft: $isDraft)...');
 
     // Store metadata for multi-stage flow
     _videoMetadata = {
@@ -1537,7 +1537,7 @@ class UploadController extends GetxController with ContentValidationMixin {
             : selectedCategory.value,
         'tags': validTags,
         'languages': validLanguages,
-        'visibility': selectedVisibility.value,
+        'visibility': isDraft ? 'private' : selectedVisibility.value,
         'isKidFriendly': isKidFriendly.value,
         'isShort': isShort.value,
         'uploadQuality': uploadQuality.value.isEmpty
@@ -1547,8 +1547,12 @@ class UploadController extends GetxController with ContentValidationMixin {
         'allowRatings': allowRatings.value,
         'durationMs': durationMs,
         'fileName': pickedVideo.value?.name ?? 'unnamed_video.mp4',
-        'status': isScheduled.value ? 'scheduled' : 'published',
-        'aiFeatures': buildFeaturesMap(pipelineStage: 'published'),
+        'status': isDraft
+            ? 'draft'
+            : (isScheduled.value ? 'scheduled' : 'published'),
+        'aiFeatures': buildFeaturesMap(
+          pipelineStage: isDraft ? 'draft' : 'published',
+        ),
       };
 
       // Handle inline topic creation if needed
@@ -1728,6 +1732,9 @@ class UploadController extends GetxController with ContentValidationMixin {
       Get.snackbar('Success', 'Video uploaded successfully!');
       uploadProgress.value = 0.0;
       _resetUploads();
+      if (Get.currentRoute != '/studio') {
+        Get.offAllNamed('/studio');
+      }
     } on FirebaseException catch (e) {
       debugPrint('🔥 FirebaseException caught:');
       debugPrint('   Code: ${e.code}');
@@ -1899,6 +1906,9 @@ class UploadController extends GetxController with ContentValidationMixin {
       Get.snackbar('Success', 'Community Post uploaded successfully!');
       uploadProgress.value = 0.0;
       _resetUploads();
+      if (Get.currentRoute != '/studio') {
+        Get.offAllNamed('/studio');
+      }
     } on FirebaseException catch (e) {
       debugPrint('🔥 FirebaseException: ${e.code} - ${e.message}');
       var errorMessage = 'Failed to upload community post: ';

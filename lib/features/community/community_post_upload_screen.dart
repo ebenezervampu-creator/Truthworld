@@ -972,10 +972,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
         const SizedBox(height: 16),
         UploadInputField(
           controller: _tagsCtrl,
-          label: 'Tags',
+          label: 'Tags (Max 5)',
           icon: Icons.tag_rounded,
-          hint: 'Add tags separated by commas',
+          hint: 'Add tags separated by commas (max 5 tags)',
           maxLength: 200,
+          validator: (val) {
+            if (val != null && val.trim().isNotEmpty) {
+              final count = val.split(',').where((e) => e.trim().isNotEmpty).length;
+              if (count > 5) {
+                return 'Maximum 5 tags allowed';
+              }
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         Text(

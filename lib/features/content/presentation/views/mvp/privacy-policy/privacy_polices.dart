@@ -271,7 +271,8 @@ When you create an account or use our services, we may collect:
 • Full name and username
 • Email address
 • Phone number (optional)
-• Date of birth
+• Age group and gender preferences (optional)
+• Displayed location (city, state, country - optional)
 • Password (encrypted)
 • Profile picture and cover photo
 • Payment information (credit card, billing address) when you make purchases
@@ -289,10 +290,10 @@ When you upload, share, or interact with content on our Platform:
 
 Please note: Content you share publicly may be viewed, copied, and redistributed by other users and third parties.
 
-2.3 Automatically Collected Information
+2.3 Automatically Collected & Approximate Location Information
 
 We automatically collect certain information when you use our Platform:
-• IP address and general location information
+• IP address and approximate location information (city, state, country) derived via IP lookup or Google account integration. We treat IP-based location strictly as approximate, as network geolocations can be imprecise.
 • Device type, operating system, and browser type
 • Unique device identifiers
 • Viewing history and watch time
@@ -302,7 +303,17 @@ We automatically collect certain information when you use our Platform:
 • Performance data and crash reports
 • Referral URLs and page interactions
 
-2.4 Cookies and Tracking Technologies
+2.4 Google Sign-In & Integration Scopes
+
+When you sign in using Google, we request only minimal, necessary OAuth permissions:
+• Email and Profile info (`userinfo.email`, `userinfo.profile`): To create and authenticate your account.
+• Addresses/Location scope (`user.addresses.read`): Requested solely to pre-fill your approximate city and country during sign-in so you do not have to enter it manually. 
+
+Why We Request Location: We use approximate location to personalize video recommendations, display relevant local content, and improve platform performance. We do NOT track precise GPS coordinates, nor do we request broader Google scopes than necessary.
+
+User Location Control: You have complete control over your displayed location. You can view, edit, or completely remove your location at any time directly in your account Settings under "Edit Profile."
+
+2.5 Cookies and Tracking Technologies
 
 We use cookies, web beacons, pixels, and similar technologies to:
 • Maintain your login session

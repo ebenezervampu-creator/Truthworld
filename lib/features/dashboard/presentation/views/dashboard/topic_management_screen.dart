@@ -28,10 +28,9 @@ class TopicManagementScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<TopicManagementController>()) {
-      Get.find<TopicManagementController>();
-    }
-    final controller = Get.find<TopicManagementController>();
+    final controller = Get.isRegistered<TopicManagementController>()
+        ? Get.find<TopicManagementController>()
+        : Get.put(TopicManagementController());
 
     // Register edit topic dialog handler
     controller.onEditTopicRequested = (ctx, topic) {
@@ -527,7 +526,7 @@ class TopicManagementScreen extends StatelessWidget {
               child: const Icon(
                 Icons.folder_special_rounded,
                 size: 40,
-                color: Color(0xFF3B82F6),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 20),
@@ -553,7 +552,7 @@ class TopicManagementScreen extends StatelessWidget {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () => _showCreateTopicDialog(context, controller),
-              icon: const Icon(Icons.add_rounded, size: 18),
+              icon: const Icon(Icons.add_rounded, size: 18, color: AppColors.textPrimary),
               label: const Text(
                 'Create Topic',
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -1050,7 +1049,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                       style: TextStyle(
                         color: widget.isDarkMode
                             ? AppColors.textPrimary
-                            : AppColors.bgPage,
+                            : Colors.black,
                       ),
                       decoration: InputDecoration(
                         enabledBorder: OutlineInputBorder(
@@ -1099,7 +1098,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                       style: TextStyle(
                         color: widget.isDarkMode
                             ? AppColors.textPrimary
-                            : AppColors.bgPage,
+                            : Colors.black,
                       ),
                       decoration: InputDecoration(
                         enabledBorder: OutlineInputBorder(
@@ -1242,7 +1241,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                         ? AppColors.textPrimary
                                         : (widget.isDarkMode
                                               ? AppColors.textSecondary
-                                              : AppColors.bgPage54),
+                                              : Colors.black),
                                   ),
                                 ),
                               ),
@@ -1273,7 +1272,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                         ? AppColors.textPrimary
                                         : (widget.isDarkMode
                                               ? AppColors.textSecondary
-                                              : AppColors.bgPage54),
+                                              : Colors.black),
                                   ),
                                 ),
                               ),
@@ -1380,7 +1379,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                             size: 32,
                                             color: widget.isDarkMode
                                                 ? AppColors.textSecondary
-                                                : AppColors.bgPage54,
+                                                : Colors.black,
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
@@ -1389,7 +1388,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                               fontSize: 12,
                                               color: widget.isDarkMode
                                                   ? AppColors.textSecondary
-                                                  : AppColors.bgPage54,
+                                                  : Colors.black,
                                             ),
                                           ),
                                         ],
@@ -1408,7 +1407,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                               fontStyle: FontStyle.italic,
                               color: widget.isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.bgPage54,
+                                  : Colors.black,
                             ),
                           ),
                         )
@@ -1594,7 +1593,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                   style: TextStyle(
                                     color: widget.isDarkMode
                                         ? AppColors.textPrimary
-                                        : AppColors.bgPage,
+                                        : Colors.black,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
                                   ),

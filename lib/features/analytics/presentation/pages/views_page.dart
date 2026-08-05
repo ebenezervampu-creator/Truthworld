@@ -433,6 +433,21 @@ class _VideoStatCard extends StatelessWidget {
                 width: 100,
                 height: 56,
                 fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  width: 100,
+                  height: 56,
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  width: 100,
+                  height: 56,
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
+                  child: const Icon(
+                    Icons.video_library_rounded,
+                    color: AppColors.textPrimary,
+                    size: 20,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),

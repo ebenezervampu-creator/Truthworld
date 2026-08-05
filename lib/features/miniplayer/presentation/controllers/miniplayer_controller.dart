@@ -214,6 +214,15 @@ class MiniplayerController extends GetxController
       currentSubtitle.value = '';
     }
 
+    if (video.status == VideoStatus.rejected ||
+        video.visibility == 'rejected' ||
+        video.channelStatus == 'rejected') {
+      isBuffering.value = false;
+      error.value =
+          'This video has been removed for violating community guidelines.';
+      return;
+    }
+
     try {
       final handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
       final VideoPlayerController vpc;
@@ -668,10 +677,24 @@ class MiniplayerController extends GetxController
 
   void _disposeVideoControllers() {
     _stopPositionTimer();
-    _chewie?.dispose();
-    _chewie = null;
-    _vpc?.dispose();
-    _vpc = null;
+    if (_chewie != null) {
+      try {
+        _chewie!.pause();
+      } catch (_) {}
+      try {
+        _chewie!.dispose();
+      } catch (_) {}
+      _chewie = null;
+    }
+    if (_vpc != null) {
+      try {
+        _vpc!.pause();
+      } catch (_) {}
+      try {
+        _vpc!.dispose();
+      } catch (_) {}
+      _vpc = null;
+    }
   }
 
   Widget _errorWidget(String msg) {

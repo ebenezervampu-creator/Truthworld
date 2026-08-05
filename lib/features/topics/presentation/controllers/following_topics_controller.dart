@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
@@ -9,7 +11,7 @@ import 'package:truthworld/features/topics/data/repositories/topic_repository.da
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// GetX controller for the Following Topics page
-class FollowingTopicsController extends GetxController {
+class FollowingTopicsController extends BaseController {
   FollowingTopicsController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
@@ -20,8 +22,8 @@ class FollowingTopicsController extends GetxController {
   final RxList<Topic> followedTopics = <Topic>[].obs;
   final RxList<Topic> favoriteTopics = <Topic>[].obs;
   final RxString activeTab = 'Following'.obs; // 'Following', 'Favorites'
-  final RxBool isLoading = false.obs;
-  final RxString errorMessage = ''.obs;
+  final RxBool rxIsLoading = false.obs;
+  final RxString rxErrorMessage = ''.obs;
 
   // Selected topic for filtering (null means 'All' selected)
   final Rxn<Topic> selectedTopic = Rxn<Topic>();
@@ -54,12 +56,12 @@ class FollowingTopicsController extends GetxController {
   Future<void> fetchFollowingTopics() async {
     final userId = AuthService.to.uid;
     if (userId.isEmpty) {
-      errorMessage.value = 'Please sign in to view your followed topics.';
+      rxErrorMessage.value = 'Please sign in to view your followed topics.';
       return;
     }
 
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
 
     try {
       final results = await Future.wait([
@@ -91,12 +93,12 @@ class FollowingTopicsController extends GetxController {
         selectedTopic.value = null;
       }
     } catch (e) {
-      errorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
+      rxErrorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,
         defaultActionMessage: 'fetch followed topics',
       );
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

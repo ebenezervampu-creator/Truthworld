@@ -2,6 +2,7 @@ import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
@@ -33,13 +34,13 @@ class AudioTrackOption {
 /// Usage:
 ///   final ctrl = Get.find`MultiAudioPlayerController`();
 ///   ctrl.initialize(videoUrl, tracks);
-class MultiAudioPlayerController extends GetxController {
+class MultiAudioPlayerController extends BaseController {
   static const _tag = 'MultiAudioPlayerController';
 
   // ── Observable state ────────────────────────────────────────────────────────
   final RxBool isInitializing = true.obs;
   final RxBool hasError = false.obs;
-  final RxString errorMessage = ''.obs;
+  final RxString rxErrorMessage = ''.obs;
 
   final RxBool isPlaying = false.obs;
   final RxBool isMuted = false.obs;
@@ -162,7 +163,7 @@ class MultiAudioPlayerController extends GetxController {
         tag: _tag,
       );
       hasError.value = true;
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
       isInitializing.value = false;
     }
   }

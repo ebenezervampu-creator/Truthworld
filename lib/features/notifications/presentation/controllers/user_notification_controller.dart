@@ -3,15 +3,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 
-class UserNotificationController extends GetxController {
+class UserNotificationController extends BaseController {
   final UserNotificationService _service = UserNotificationService();
   final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
 
   RxList<UserNotification> notifications = <UserNotification>[].obs;
-  RxBool isLoading = true.obs;
+  RxBool rxIsLoading = true.obs;
   RxString selectedSeverityFilter = 'all'.obs;
   RxString selectedTypeFilter = 'all'.obs;
   RxString searchQuery = ''.obs;
@@ -33,18 +35,18 @@ class UserNotificationController extends GetxController {
 
   /// Real-time Firestore stream — notifications appear instantly without refresh
   void _listenToCloudNotifications() {
-    isLoading.value = true;
+    rxIsLoading.value = true;
 
     _subscription = _service
         .getNotificationsStream(userId, limit: 100)
         .listen(
           (list) {
             notifications.value = list;
-            isLoading.value = false;
+            rxIsLoading.value = false;
           },
           onError: (e) {
             debugPrint('Error in real-time cloud notifications stream: $e');
-            isLoading.value = false;
+            rxIsLoading.value = false;
             // Fallback to callable on stream error
             _fetchFromCloudFunction();
           },
@@ -59,7 +61,7 @@ class UserNotificationController extends GetxController {
     } catch (e) {
       debugPrint('Error fetching cloud notifications via Cloud Function: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

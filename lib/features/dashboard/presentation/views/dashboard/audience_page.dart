@@ -37,10 +37,10 @@ class _AudiencePageState extends State<AudiencePage> {
         : AppColors.bgPage;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
-        : AppColors.textPrimary;
+        : Colors.black;
     final subtitleColor = widget.isDarkMode
         ? AppColors.textSecondary
-        : AppColors.textSecondary;
+        : Colors.black;
     final borderColor = widget.isDarkMode
         ? const Color(0xFF2A2A2A)
         : AppColors.bgDivider;

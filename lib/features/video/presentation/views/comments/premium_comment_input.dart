@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class PremiumCommentInputController extends GetxController {
+class PremiumCommentInputController extends BaseController {
   final TextEditingController commentController = TextEditingController();
   final FocusNode focusNode = FocusNode();
   final RxBool isSubmitting = false.obs;
@@ -17,6 +18,7 @@ class PremiumCommentInputController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    trackTextController(commentController);
     focusNode.addListener(() {
       isFocused.value = focusNode.hasFocus;
     });
@@ -27,7 +29,6 @@ class PremiumCommentInputController extends GetxController {
 
   @override
   void onClose() {
-    commentController.dispose();
     focusNode.dispose();
     super.onClose();
   }

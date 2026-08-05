@@ -29,14 +29,48 @@ let cachedIndexHtml: string | null = null;
 async function fetchIndexHtml(): Promise<string> {
   if (cachedIndexHtml) return cachedIndexHtml;
   try {
-    const response = await axios.get(`${DOMAIN}/index.html`);
+    // Read index.html directly from the default hosting bucket
+    // to avoid circular dependency when seoServer rewrites intercept the fetch.
+    const bucket = admin.storage().bucket();
+    const file = bucket.file("hosting/index.html");
+    const [exists] = await file.exists();
+    if (exists) {
+      const [buffer] = await file.download();
+      cachedIndexHtml = buffer.toString("utf8");
+      return cachedIndexHtml!;
+    }
+  } catch (e) {
+    console.warn("Failed to read index.html from Storage, trying HTTP", e);
+  }
+
+  // Fallback: fetch via HTTP with a direct path that bypasses rewrites
+  try {
+    const response = await axios.get(`${DOMAIN}/index.html`, {
+      headers: { "X-Firebase-Hosting-Redirect": "bypass" },
+      timeout: 5000,
+    });
     cachedIndexHtml = response.data;
     return cachedIndexHtml!;
   } catch (e) {
-    console.error("Failed to fetch index.html", e);
-    return `<!DOCTYPE html><html><head><title>Truthworld</title></head><body></body></html>`;
+    console.error("Failed to fetch index.html via HTTP", e);
   }
+
+  // Last resort: return minimal HTML that bootstraps Flutter
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <base href="/" />
+  <title>Truthworld</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>html, body { width: 100%; height: 100%; margin: 0; background: #0D0014; }</style>
+</head>
+<body>
+  <script src="flutter_bootstrap.js"></script>
+</body>
+</html>`;
 }
+
 
 function sendHtmlResponse(req: Request, res: Response, html: string, etagStr: string, lastModifiedStr: string): void {
   const clientEtag = req.headers["if-none-match"];

@@ -72,7 +72,7 @@ class SubscriptionsPage extends StatelessWidget {
 
                   // ── Content Grid / List ──
                   Obx(() {
-                    if (controller.isLoading.value &&
+                    if (controller.isLoading &&
                         controller.allContent.isEmpty) {
                       return _buildLoadingState(context);
                     }
@@ -390,7 +390,7 @@ class SubscriptionsPage extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              controller.errorMessage.value,
+              controller.errorMessage,
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             TextButton(

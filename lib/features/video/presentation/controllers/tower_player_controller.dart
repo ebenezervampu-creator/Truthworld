@@ -11,6 +11,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
@@ -35,7 +36,7 @@ import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
-class TowerPlayerController extends GetxController {
+class TowerPlayerController extends BaseController {
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     try {
       _rxValue = videoPlayerController.value.obs;
@@ -100,7 +101,15 @@ class TowerPlayerController extends GetxController {
   final String? tag;
 
   void _initChewieController() {
-    chewieController?.dispose();
+    if (chewieController != null) {
+      try {
+        chewieController!.pause();
+      } catch (_) {}
+      try {
+        chewieController!.dispose();
+      } catch (_) {}
+      chewieController = null;
+    }
     chewieController = ChewieController(
       videoPlayerController: videoPlayerController,
       looping: isLooping.value,
@@ -947,9 +956,15 @@ class TowerPlayerController extends GetxController {
       } catch (_) {}
       _audioTrackController = null;
     }
-    try {
-      chewieController?.dispose();
-    } catch (_) {}
+    if (chewieController != null) {
+      try {
+        chewieController!.pause();
+      } catch (_) {}
+      try {
+        chewieController!.dispose();
+      } catch (_) {}
+      chewieController = null;
+    }
     _activePlayers.remove(this);
     _autoplayTimer?.cancel();
     _timers.cancelAll();
@@ -2310,11 +2325,13 @@ class TowerPlayerController extends GetxController {
 
     final ad = MockAd(
       videoUrl: resolvedUrl,
-      title: sponsorAd.title,
-      description: sponsorAd.description,
+      title: isPreRoll ? sponsorAd.sponsorBumperText : sponsorAd.title,
+      description: isPreRoll
+          ? 'Official Video Sponsor Bumper (5s Intro)'
+          : sponsorAd.description,
       clickUrl: sponsorAd.ctaTarget,
-      skippable: !isPreRoll, // pre-roll is non-skippable, mid-roll is skippable
-      duration: const Duration(seconds: 15),
+      skippable: !isPreRoll, // 5s bumper intro is non-skippable, mid-roll is skippable
+      duration: isPreRoll ? const Duration(seconds: 5) : const Duration(seconds: 15),
     );
 
     currentAd.value = ad;

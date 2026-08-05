@@ -6,6 +6,7 @@ import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Utility helpers for miniplayer navigation and state management.
@@ -34,6 +35,9 @@ class MiniplayerNavigationHelper {
           tag: _tag,
         );
         // Continue with navigation even if video is invalid
+      } else {
+        // Pre-warm CDN stream immediately for instant YouTube-style low-latency playback
+        VideoPlaybackHandoff.prewarmVideo(video);
       }
 
       // Navigate directly to video screen without eagerly instantiating miniplayer

@@ -1,7 +1,7 @@
 # Copy SEO files to build directory after Flutter build
 # This script copies sitemap.xml and robots.txt from web/ to build/web/
 
-$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$projectRoot = Split-Path -Parent $PSScriptRoot
 $webDir = Join-Path $projectRoot "web"
 $buildWebDir = Join-Path $projectRoot "build\web"
 

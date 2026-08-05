@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -9,9 +11,9 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:url_launcher/url_launcher.dart';
 
-class PremiumController extends GetxController {
+class PremiumController extends BaseController {
   final RxString selectedPlanId = 'individual_monthly'.obs;
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
   final RxBool isSimulating = false.obs;
 
   void selectPlan(String planId) {
@@ -39,7 +41,7 @@ class PremiumController extends GetxController {
     }
 
     try {
-      isLoading.value = true;
+      rxIsLoading.value = true;
 
       // Get origin URL for redirection after payment
       var clientOrigin = 'http://localhost:5000';
@@ -78,7 +80,7 @@ class PremiumController extends GetxController {
         colorText: AppColors.textPrimary,
       );
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

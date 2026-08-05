@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -17,7 +19,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// - Video pagination with infinite scroll
 /// - Related topics
 /// - UI state (loading, error, empty)
-class TopicController extends GetxController {
+class TopicController extends BaseController {
   TopicController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
   final TopicRepository _repository;
@@ -51,10 +53,10 @@ class TopicController extends GetxController {
   final RxList<CommunityPostModel> relatedPosts = <CommunityPostModel>[].obs;
 
   /// UI State
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
   final RxBool isLoadingMore = false.obs;
   final RxBool hasError = false.obs;
-  final RxString errorMessage = ''.obs;
+  final RxString rxErrorMessage = ''.obs;
   final RxBool hasMoreVideos = true.obs;
 
   /// Search & View state
@@ -84,7 +86,7 @@ class TopicController extends GetxController {
 
   String get topicSlug => topic.value?.slug ?? '';
   String get topicTitle => topic.value?.title ?? 'Topic';
-  bool get isEmpty => filteredVideos.isEmpty && !isLoading.value;
+  bool get rxIsEmpty => filteredVideos.isEmpty && !rxIsLoading.value;
 
   bool get hasFactCheckedVideos {
     return videos.any((v) => v.factCheckUrl.isNotEmpty);
@@ -241,9 +243,9 @@ class TopicController extends GetxController {
 
   /// Load topic and initial videos
   Future<void> loadTopic(String slug) async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     hasError.value = false;
-    errorMessage.value = '';
+    rxErrorMessage.value = '';
 
     try {
       // Load topic metadata
@@ -257,12 +259,12 @@ class TopicController extends GetxController {
             excludeSlug: currentPreloaded.slug,
           );
           await _loadVideos(reset: true);
-          isLoading.value = false;
+          rxIsLoading.value = false;
           return;
         }
         hasError.value = true;
-        errorMessage.value = 'Topic not found';
-        isLoading.value = false;
+        rxErrorMessage.value = 'Topic not found';
+        rxIsLoading.value = false;
         return;
       }
 
@@ -299,9 +301,9 @@ class TopicController extends GetxController {
       await _loadVideos(reset: true);
     } catch (e) {
       hasError.value = true;
-      errorMessage.value = 'Failed to load topic: $e';
+      rxErrorMessage.value = 'Failed to load topic: $e';
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

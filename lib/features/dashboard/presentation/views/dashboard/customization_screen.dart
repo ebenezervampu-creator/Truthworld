@@ -125,7 +125,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         ],
       ),
       body: Obx(() {
-        if (controller.isLoading.value) {
+        if (controller.isLoading) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
@@ -333,14 +333,20 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       title = '${isBanner ? "Banner" : "Avatar"} Rejected';
       subtitle = reason.isNotEmpty
           ? reason
-          : 'This image does not comply with our safety and community guidelines. Please upload a different image.';
+          : 'This image does not comply with safety guidelines. Please upload a new image or request manual review if you believe it complies.';
     } else if (status == 'FLAGGED') {
       color = AppColors.warning;
       icon = Icons.warning_amber_rounded;
       title = '${isBanner ? "Banner" : "Avatar"} Review Needed';
       subtitle = reason.isNotEmpty
           ? reason
-          : 'This image has been flagged for manual review. You can upload a different image if you wish.';
+          : 'This image has been flagged for potential review. You can upload a new image or request manual admin review.';
+    } else if (status == 'MANUAL_REVIEW') {
+      color = const Color(0xFF8B5CF6);
+      icon = Icons.rate_review_rounded;
+      title = '${isBanner ? "Banner" : "Avatar"} Under Manual Review';
+      subtitle =
+          'Your appeal has been submitted. Our moderation team is reviewing your image.';
     } else {
       return const SizedBox.shrink();
     }
@@ -390,6 +396,32 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                     height: 1.3,
                   ),
                 ),
+                if (status == 'REJECTED' || status == 'FLAGGED') ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        controller.requestManualReview(isBanner: isBanner),
+                    icon: const Icon(
+                      Icons.rate_review_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    label: const Text(
+                      'Request Manual Review',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: BorderSide(color: color),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
                 if (isPending) ...[
                   const SizedBox(height: 8),
                   TextButton.icon(
@@ -397,7 +429,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                     icon: const Icon(
                       Icons.check_circle_outline_rounded,
                       size: 14,
-                      color: AppColors.textSecondary,
+                      color: Colors.white,
                     ),
                     label: const Text(
                       'Bypass Verification (Local Dev/Test)',

@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 
-class ChannelLoaderController extends GetxController {
+class ChannelLoaderController extends BaseController {
   @override
   void onInit() {
     super.onInit();

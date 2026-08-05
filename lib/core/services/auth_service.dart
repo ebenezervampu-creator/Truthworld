@@ -4,9 +4,11 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart' hide GoogleSignInException;
 import 'package:http/http.dart' as http;
+import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/google_signin_exception_handler.dart';
@@ -43,11 +45,13 @@ class AuthService extends GetxService {
   final RxnString premiumPlanId = RxnString();
   final RxnString userGender = RxnString();
   final RxnInt userAge = RxnInt();
+  final RxnString userAgeGroup = RxnString();
   final RxnString userBirthdate = RxnString();
   final RxnString userLocation = RxnString();
   final RxnString userCity = RxnString();
   final RxnString userState = RxnString();
   final RxnString userCountry = RxnString();
+  final RxBool needsOnboarding = false.obs;
   Map<String, dynamic>? _lastGooglePeopleData;
   StreamSubscription? _userDocSubscription;
 
@@ -155,6 +159,7 @@ class AuthService extends GetxService {
       premiumPlanId.value = null;
       userGender.value = null;
       userAge.value = null;
+      userAgeGroup.value = null;
       userBirthdate.value = null;
       userLocation.value = null;
       userCity.value = null;
@@ -174,6 +179,7 @@ class AuthService extends GetxService {
               premiumPlanId.value = data['premiumPlanId'] as String?;
               userGender.value = data['gender'] as String?;
               userAge.value = (data['age'] as num?)?.toInt();
+              userAgeGroup.value = data['ageGroup'] as String?;
               userBirthdate.value = data['birthdate'] as String?;
               userLocation.value = data['location'] as String?;
               userCity.value = data['city'] as String?;
@@ -184,6 +190,7 @@ class AuthService extends GetxService {
               premiumPlanId.value = null;
               userGender.value = null;
               userAge.value = null;
+              userAgeGroup.value = null;
               userBirthdate.value = null;
               userLocation.value = null;
               userCity.value = null;
@@ -250,8 +257,6 @@ class AuthService extends GetxService {
     final provider = GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/userinfo.email');
     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
-    provider.addScope('https://www.googleapis.com/auth/user.gender.read');
-    provider.addScope('https://www.googleapis.com/auth/user.birthday.read');
     provider.addScope('https://www.googleapis.com/auth/user.addresses.read');
     provider.setCustomParameters({'prompt': 'select_account'});
 
@@ -266,7 +271,7 @@ class AuthService extends GetxService {
     final googleUser = await _googleSignIn.authenticate();
     final googleAuth = googleUser.authentication;
 
-    // Fetch gender, birthday, and location from Google People API if accessible
+    // Fetch location from Google People API if accessible
     _lastGooglePeopleData = await _fetchGooglePeopleData(googleUser);
 
     final credential = GoogleAuthProvider.credential(
@@ -280,53 +285,24 @@ class AuthService extends GetxService {
     GoogleSignInAccount googleUser,
   ) async {
     try {
-      final dynamic user = googleUser;
-      final Map<String, String>? headers = await user.authHeaders;
-      if (headers == null) return {};
+      final token = googleUser.authentication.idToken;
+      if (token == null || token.isEmpty) return {};
+      final headers = {'Authorization': 'Bearer $token'};
       final response = await http.get(
         Uri.parse(
-          'https://people.googleapis.com/v1/people/me?personFields=genders,birthdays,ageRanges,addresses,locations',
+          'https://people.googleapis.com/v1/people/me?personFields=addresses,locations',
         ),
         headers: headers,
       );
 
-      String? gender;
-      String? birthdate;
-      int? age;
       String? location;
       String? city;
       String? state;
       String? country;
+      var isApproximate = false;
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        if (data['genders'] != null && (data['genders'] as List).isNotEmpty) {
-          final rawVal = data['genders'][0]['value']?.toString();
-          if (rawVal != null && rawVal.isNotEmpty) {
-            gender =
-                rawVal[0].toUpperCase() + rawVal.substring(1).toLowerCase();
-          }
-        }
-
-        if (data['birthdays'] != null &&
-            (data['birthdays'] as List).isNotEmpty) {
-          final bdayObj = data['birthdays'][0]['date'];
-          if (bdayObj != null) {
-            final year = bdayObj['year'] as int?;
-            final month = bdayObj['month'] as int?;
-            final day = bdayObj['day'] as int?;
-            if (year != null && month != null && day != null) {
-              birthdate =
-                  '$year-${month.toString().padLeft(2, '0')}-${day.toString().padLeft(2, '0')}';
-              final now = DateTime.now();
-              age = now.year - year;
-              if (now.month < month || (now.month == month && now.day < day)) {
-                age--;
-              }
-            }
-          }
-        }
 
         if (data['addresses'] != null &&
             (data['addresses'] as List).isNotEmpty) {
@@ -361,19 +337,18 @@ class AuthService extends GetxService {
             ].where((s) => s != null && s.isNotEmpty).toList();
             if (parts.isNotEmpty) {
               location = parts.join(', ');
+              isApproximate = true;
             }
           }
         } catch (_) {}
       }
 
       return {
-        'gender': ?gender,
-        'birthdate': ?birthdate,
-        'age': ?age,
-        'location': ?location,
-        'city': ?city,
-        'state': ?state,
-        'country': ?country,
+        'location': location,
+        'city': city,
+        'state': state,
+        'country': country,
+        'isApproximateLocation': isApproximate,
       };
     } catch (e) {
       debugPrint(
@@ -477,15 +452,16 @@ class AuthService extends GetxService {
         debugPrint(
           'AuthService: [SYNC] No document found. Initializing NEW user record...',
         );
+        needsOnboarding.value = true;
         final newUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
-          gender: _lastGooglePeopleData?['gender'],
           age: _lastGooglePeopleData?['age'],
           birthdate: _lastGooglePeopleData?['birthdate'],
           location: _lastGooglePeopleData?['location'],
           city: _lastGooglePeopleData?['city'],
           state: _lastGooglePeopleData?['state'],
           country: _lastGooglePeopleData?['country'],
+          hasCompletedOnboarding: false,
         );
 
         await userDoc.set(newUser.toFirestoreCreate());
@@ -496,20 +472,25 @@ class AuthService extends GetxService {
         debugPrint(
           'AuthService: [SYNC] Document exists. Updating lifecycle timestamps...',
         );
+        final docData = docSnapshot.data() ?? {};
+        final hasCompletedOnboarding =
+            docData['hasCompletedOnboarding'] as bool? ??
+            (docData['birthdate'] != null &&
+                docData['birthdate'].toString().isNotEmpty);
+        needsOnboarding.value = !hasCompletedOnboarding;
+
         final currentUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
-          gender: _lastGooglePeopleData?['gender'],
           age: _lastGooglePeopleData?['age'],
           birthdate: _lastGooglePeopleData?['birthdate'],
           location: _lastGooglePeopleData?['location'],
           city: _lastGooglePeopleData?['city'],
           state: _lastGooglePeopleData?['state'],
           country: _lastGooglePeopleData?['country'],
+          hasCompletedOnboarding: hasCompletedOnboarding,
         );
 
         final updateData = currentUser.toFirestoreUpdate();
-        // Merge metadata into existing doc to preserve platform history if needed
-        // Here we overwrite as it's volatile session metadata
         updateData['metadata'] = metadata;
 
         await userDoc.update(updateData);
@@ -527,7 +508,6 @@ class AuthService extends GetxService {
           'AuthService: [SYNC] Attempting idempotent fallback (set with merge)...',
         );
         final fallbackUser = UserModel.fromFirebaseUser(user).copyWith(
-          gender: _lastGooglePeopleData?['gender'],
           age: _lastGooglePeopleData?['age'],
           birthdate: _lastGooglePeopleData?['birthdate'],
           location: _lastGooglePeopleData?['location'],
@@ -545,6 +525,55 @@ class AuthService extends GetxService {
           'AuthService: [SYNC] ❌ CRITICAL: Fallback also failed: $fallbackError',
         );
       }
+    }
+  }
+
+  /// Updates profile with optional Age Group and optional Gender after Google Sign-In
+  Future<void> updateUserProfileOnboarding({
+    String? ageGroup,
+    String? gender,
+  }) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    final updateData = <String, dynamic>{
+      'hasCompletedOnboarding': true,
+    };
+
+    if (ageGroup != null && ageGroup.trim().isNotEmpty) {
+      updateData['ageGroup'] = ageGroup.trim();
+    }
+
+    if (gender != null && gender.trim().isNotEmpty) {
+      updateData['gender'] = gender.trim();
+    }
+
+    await FirebaseFirestore.instance
+        .collection(FirestoreCollections.users)
+        .doc(currentUser.uid)
+        .update(updateData);
+
+    needsOnboarding.value = false;
+  }
+
+  /// Skips onboarding while marking it as completed for the current user
+  Future<void> skipUserOnboarding() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    await FirebaseFirestore.instance
+        .collection(FirestoreCollections.users)
+        .doc(currentUser.uid)
+        .update({'hasCompletedOnboarding': true});
+
+    needsOnboarding.value = false;
+  }
+
+  /// Prompts onboarding sheet if the user needs to complete Date of Birth / Gender details
+  Future<void> checkAndPromptOnboarding([BuildContext? context]) async {
+    final ctx = context ?? Get.context;
+    if (needsOnboarding.value && ctx != null) {
+      await GoogleOnboardingSheet.show(ctx);
     }
   }
 }

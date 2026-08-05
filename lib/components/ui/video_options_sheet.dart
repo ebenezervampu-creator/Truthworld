@@ -7,6 +7,7 @@ import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as search_ctrl;
@@ -374,6 +375,7 @@ class VideoOptionsSheet extends StatelessWidget {
     ];
 
     final selectedReason = RxnString();
+    final isSubmitting = false.obs;
 
     showDialog(
       context: context,
@@ -427,20 +429,21 @@ class VideoOptionsSheet extends StatelessWidget {
                 ),
               ),
               ElevatedButton(
-                onPressed: selectedReason.value == null
+                onPressed: (selectedReason.value == null || isSubmitting.value)
                     ? null
                     : () {
+                        isSubmitting.value = true;
+                        final reason = selectedReason.value!;
                         Navigator.of(context).pop();
-                        AppSnackbar.show(
-                          'Thank you',
-                          'We have received your report and will review this video.',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.brand.withValues(
-                            alpha: 0.8,
-                          ),
-                          colorText: AppColors.textPrimary,
-                          margin: const EdgeInsets.all(20),
-                          borderRadius: 16,
+                        final mainController = Get.isRegistered<MainController>()
+                            ? Get.find<MainController>()
+                            : Get.put(MainController());
+                        mainController.reportVideo(
+                          context: context,
+                          videoId: video.id,
+                          channelId: video.channelId,
+                          reason: reason,
+                          comment: '',
                         );
                       },
                 style: ElevatedButton.styleFrom(

@@ -1,7 +1,9 @@
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 
-class PlaylistDetailController extends GetxController {
-  RxBool isLoading = true.obs;
+
+class PlaylistDetailController extends BaseController {
+  RxBool rxIsLoading = true.obs;
   RxBool isReordering = false.obs;
   RxBool isDragging = false.obs;
   RxString selectedVideoId = ''.obs;
@@ -14,7 +16,7 @@ class PlaylistDetailController extends GetxController {
   RxInt dragStartIndex = (-1).obs;
 
   void setLoading(bool value) {
-    isLoading.value = value;
+    rxIsLoading.value = value;
   }
 
   void setReordering(bool value) {
@@ -58,7 +60,7 @@ class PlaylistDetailController extends GetxController {
   }
 
   void reset() {
-    isLoading.value = false;
+    rxIsLoading.value = false;
     isReordering.value = false;
     isDragging.value = false;
     selectedVideoId.value = '';

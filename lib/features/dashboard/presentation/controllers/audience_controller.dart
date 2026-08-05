@@ -275,6 +275,13 @@ class AudienceController extends BaseController {
   // ---------------------------------------------------------------------------
 
   void fetchAudienceData() {
+    if (channelId.isEmpty) {
+      logger.warning(
+        'Cannot fetch audience data: channelId is empty.',
+        tag: 'AudienceController',
+      );
+      return;
+    }
     runTask(() async {
       logger.info(
         'Fetching aggregated audience data for channel: $channelId',

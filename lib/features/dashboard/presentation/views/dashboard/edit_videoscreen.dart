@@ -23,7 +23,9 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final VideoManagementController _controller =
-      Get.find<VideoManagementController>();
+      Get.isRegistered<VideoManagementController>()
+          ? Get.find<VideoManagementController>()
+          : Get.put(VideoManagementController());
 
   @override
   void initState() {
@@ -52,7 +54,12 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
       final updatedData = {
         'title': _titleController.text,
         'description': _descriptionController.text,
-        'tags': _tagsController.text.split(',').map((e) => e.trim()).toList(),
+        'tags': _tagsController.text
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .take(5)
+            .toList(),
         'visibility': _selectedVisibility.value,
         'isKidFriendly': _isKidFriendly.value,
         'showLikeCount': _showLikeCount.value,

@@ -712,12 +712,6 @@ class AIFeaturesSelector extends StatelessWidget {
       final isNoFactCheckNeeded =
           category.isNotEmpty && _noFactCheckCategories.contains(category);
 
-      if (isNoFactCheckNeeded && factCheckEnabled.value) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          factCheckEnabled.value = false;
-        });
-      }
-
       final isEnabled = factCheckEnabled.value && !isNoFactCheckNeeded;
 
       return Column(
@@ -729,7 +723,7 @@ class AIFeaturesSelector extends StatelessWidget {
             subtitle: isNoFactCheckNeeded
                 ? 'No fact checking needed for $category'
                 : 'Verify claims and ensure accuracy (Gemini)',
-            value: factCheckEnabled,
+            value: isNoFactCheckNeeded ? false.obs : factCheckEnabled,
             gradient: isNoFactCheckNeeded
                 ? [const Color(0xFF6B7280), const Color(0xFF4B5563)]
                 : [const Color(0xFF14B8A6), const Color(0xFF0D9488)],

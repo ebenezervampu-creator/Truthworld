@@ -1,21 +1,22 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/comment_report.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Premium report dialog for comments and replies
-class CommentReportController extends GetxController {
+class CommentReportController extends BaseController {
   final TextEditingController descriptionController = TextEditingController();
   final Rxn<ReportReason> selectedReason = Rxn<ReportReason>();
   final RxBool isSubmitting = false.obs;
 
   @override
-  void onClose() {
-    descriptionController.dispose();
-    super.onClose();
+  void onInit() {
+    super.onInit();
+    trackTextController(descriptionController);
   }
 }
 

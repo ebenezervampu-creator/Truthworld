@@ -8,12 +8,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -108,7 +110,7 @@ class ImageData {
 // UNIFIED CHANNEL CONTROLLER
 // ==========================================================================
 
-class ChannelController extends GetxController
+class ChannelController extends BaseController
     with GetTickerProviderStateMixin, ContentValidationMixin {
   static final RxMap<String, int> globalSubscriberCounts = <String, int>{}.obs;
   // Flag to track disposal state and prevent ticker errors
@@ -138,7 +140,7 @@ class ChannelController extends GetxController
 
   // Constants
   static const String _channelsCol = 'channels';
-  static const String _subsCol = 'subscriptions';
+
   static const int maxChannelsPerUser = 1;
   static const int debounceDurationMs = 500;
   static const int minChannelNameLength = 3;
@@ -146,7 +148,7 @@ class ChannelController extends GetxController
   static const int minCustomUrlLength = 3;
   static const int maxCustomUrlLength = 30;
   static const int maxDescriptionLength = 1000;
-  static const int maxTags = 10;
+  static const int maxTags = 5;
   static const int maxBannerSize = 5 * 1024 * 1024; // 5MB
   static const int maxAvatarSize = 2 * 1024 * 1024; // 2MB
   static const double recommendedBannerRatio = 16 / 9;
@@ -184,16 +186,18 @@ class ChannelController extends GetxController
   // Reactive State - Channel List
   RxList<Channel> channels = RxList<Channel>();
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
-  RxBool isSubscribed = false.obs;
-  RxBool isSubscriptionLoading = true.obs;
-  final RxBool notificationsEnabled = true.obs;
-  final RxString notificationOption = 'all'.obs;
-  final RxMap<String, RxBool> _subscribedMap = <String, RxBool>{}.obs;
-  RxInt subscriberCount = 0.obs;
-  RxBool isLoading = false.obs;
-  // Track channels subscribed to during this app session for "new subscriber" analytics
-  final Set<String> _sessionSubscribedChannels = {};
-  RxString errorMessage = ''.obs;
+
+  late final ChannelSubscriptionController _subController;
+
+  RxBool get isSubscribed => _subController.isSubscribed;
+  RxBool get isSubscriptionLoading => _subController.isLoadingSubscription;
+  RxBool get notificationsEnabled => _subController.notificationsEnabled;
+  RxString get notificationOption => _subController.notificationOption;
+  RxInt get subscriberCount => _subController.subscriberCount;
+  RxList<Channel> get subscribedChannels => _subController.subscribedChannels;
+
+  RxBool rxIsLoading = false.obs;
+  RxString rxErrorMessage = ''.obs;
   RxDouble uploadProgress = 0.0.obs;
   final RxString channelNameMessage = ''.obs;
   final Rx<ChannelType> selectedChannelType = ChannelType.standard.obs;
@@ -349,8 +353,6 @@ class ChannelController extends GetxController
   String _lastAutoSlug = '';
 
   // Subscriptions
-  StreamSubscription? _subscriptionListener;
-  StreamSubscription? _countListener;
   final Map<String, StreamSubscription> _moderationListeners = {};
   List<String> uploadedDocIds = [];
 
@@ -377,7 +379,6 @@ class ChannelController extends GetxController
   ];
 
   final List<String> categories = [
-    'Gaming',
     'Music',
     'Entertainment',
     'Education',
@@ -399,7 +400,6 @@ class ChannelController extends GetxController
     'Pets & Animals',
     'DIY & How-to',
     'Fitness',
-    'Beauty',
     'Finance',
     'History',
     'Nature',
@@ -450,10 +450,22 @@ class ChannelController extends GetxController
   @override
   void onInit() {
     super.onInit();
+    _subController = Get.isRegistered<ChannelSubscriptionController>()
+        ? Get.find<ChannelSubscriptionController>()
+        : Get.put(ChannelSubscriptionController());
 
     // Init UI controllers immediately so they are never null
     scrollController = ScrollController();
+    trackScrollController(scrollController);
     tabController = TabController(length: tabs.length, vsync: this);
+
+    // Track text controllers
+    trackTextController(channelName);
+    trackTextController(description);
+    trackTextController(customUrl);
+    trackTextController(tags);
+    trackTextController(contactEmail);
+    trackTextController(websiteUrl);
 
     initializeContentFilters();
     _initializeAnimations();
@@ -475,8 +487,8 @@ class ChannelController extends GetxController
       startAnimations();
 
       // Keep channels RxList in sync with Firestore
-      isLoading.value = true;
-      _firestore
+      rxIsLoading.value = true;
+      final sub = _firestore
           .collection(_channelsCol)
           .where('ownerId', isEqualTo: user.uid)
           .snapshots()
@@ -487,13 +499,14 @@ class ChannelController extends GetxController
                   .where((channel) => !channel.isArchived)
                   .toList();
               channels.assignAll(results);
-              isLoading.value = false;
+              rxIsLoading.value = false;
             },
             onError: (error) {
               debugPrint('Error fetching channels: $error');
-              isLoading.value = false;
+              rxIsLoading.value = false;
             },
           );
+      trackSubscription(sub);
     }
   }
 
@@ -503,7 +516,7 @@ class ChannelController extends GetxController
     if (user == null) return;
 
     try {
-      isLoading.value = true;
+      rxIsLoading.value = true;
       final snapshot = await _firestore
           .collection(_channelsCol)
           .where('ownerId', isEqualTo: user.uid)
@@ -518,7 +531,7 @@ class ChannelController extends GetxController
     } catch (e) {
       debugPrint('Error fetching channels: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -722,14 +735,6 @@ class ChannelController extends GetxController
   void onClose() {
     _isDisposed = true;
 
-    // Dispose text controllers
-    channelName.dispose();
-    description.dispose();
-    customUrl.dispose();
-    tags.dispose();
-    contactEmail.dispose();
-    websiteUrl.dispose();
-
     // Dispose animation controllers
     formFadeAnimationController.dispose();
     formSlideAnimationController.dispose();
@@ -744,14 +749,7 @@ class ChannelController extends GetxController
     subscriptionAnimationController.dispose();
 
     // Dispose UI controllers
-    scrollController.dispose();
     tabController.dispose();
-
-    // Cancel subscriptions
-    _subscriptionListener?.cancel();
-    _countListener?.cancel();
-    _channelNameDebounceTimer?.cancel();
-    _customUrlDebounceTimer?.cancel();
 
     // Cancel moderation listeners
     for (final sub in _moderationListeners.values) {
@@ -1121,24 +1119,22 @@ class ChannelController extends GetxController
         return;
       }
 
-      /* Images are now optional for smoother creation
-      if (bannerUrl.value.isEmpty) {
-        _showErrorSnackbar("Please upload a banner image.");
+      if (avatarUrl.value.isEmpty || avatarFileId.value.isEmpty) {
+        _showErrorSnackbar('Please upload a channel avatar image.');
         return;
       }
 
-      if (avatarUrl.value.isEmpty) {
-        _showErrorSnackbar("Please upload an avatar image.");
+      if (bannerUrl.value.isEmpty || bannerFileId.value.isEmpty) {
+        _showErrorSnackbar('Please upload a channel banner image.');
         return;
       }
-      */
 
       // 2. Moderation checks (Background verification does not block creation if status is PENDING)
       if (avatarUrl.value.isNotEmpty) {
         if (avatarStatus.value == 'REJECTED' ||
             avatarStatus.value == 'FLAGGED') {
           _showErrorSnackbar(
-            'Your avatar was rejected or flagged: ${avatarStatusReason.value}',
+            'Your avatar was rejected or flagged: ${avatarStatusReason.value}. Please select a different image.',
           );
           return;
         }
@@ -1148,7 +1144,7 @@ class ChannelController extends GetxController
         if (bannerStatus.value == 'REJECTED' ||
             bannerStatus.value == 'FLAGGED') {
           _showErrorSnackbar(
-            'Your banner was rejected or flagged: ${bannerStatusReason.value}',
+            'Your banner was rejected or flagged: ${bannerStatusReason.value}. Please select a different image.',
           );
           return;
         }
@@ -1184,11 +1180,6 @@ class ChannelController extends GetxController
       final channelNameText = channelName.text.trim();
       final customUrlText = customUrl.text.trim();
 
-      const defaultBanner =
-          'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2670&auto=format&fit=crop';
-      const defaultAvatar =
-          'https://ui-avatars.com/api/?background=6B46C1&color=fff&size=512&name=';
-
       final channelData = {
         // Core fields matching Channel model (V2)
         'channelType': selectedChannelType.value.name,
@@ -1197,12 +1188,10 @@ class ChannelController extends GetxController
         'channelName': channelNameText,
         'channelNameLowercase': channelNameText.toLowerCase(),
         'description': description.text.trim(),
-        'bannerUrl': bannerUrl.value.isEmpty ? defaultBanner : bannerUrl.value,
-        'avatarUrl': avatarUrl.value.isEmpty
-            ? '$defaultAvatar$channelNameText'
-            : avatarUrl.value,
-        'avatarFileId': avatarFileId.value.isEmpty ? null : avatarFileId.value,
-        'bannerFileId': bannerFileId.value.isEmpty ? null : bannerFileId.value,
+        'bannerUrl': bannerUrl.value,
+        'avatarUrl': avatarUrl.value,
+        'avatarFileId': avatarFileId.value,
+        'bannerFileId': bannerFileId.value,
         'avatarStatus': avatarStatus.value,
         'bannerStatus': bannerStatus.value,
         'ownerId': uid,
@@ -1355,233 +1344,25 @@ class ChannelController extends GetxController
   // SUBSCRIPTIONS
   // ==========================================================================
 
-  Future<bool> subscribeToChannel(String channelId) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      _showErrorSnackbar('You must be logged in to subscribe.');
-      return false;
-    }
+  Future<bool> subscribeToChannel(String channelId) => _subController.subscribeToChannel(channelId);
 
-    final subDocId = '${channelId}_${user.uid}';
-    final subRef = _firestore.collection(_subsCol).doc(subDocId);
-    final channelRef = _firestore.collection(_channelsCol).doc(channelId);
+  Future<bool> unsubscribeFromChannel(String channelId) => _subController.unsubscribeFromChannel(channelId);
 
-    try {
-      // 1. Check local state first for instant feedback (Optimistic UI handled by caller)
+  Future<void> toggleSubscription(String channelId) => _subController.toggleSubscription(channelId);
+  Future<void> fetchSubscribedChannels() => _subController.fetchSubscribedChannels();
 
-      // 2. We use a transaction because we need to check if already subscribed
-      // AND increment the counter atomically.
-      // To scale for millions, we'd typically use a Cloud Function for the increment,
-      // but for client-side, we can optimize by using deterministic IDs.
-      await _firestore.runTransaction((tx) async {
-        final txSubSnapshot = await tx.get(subRef);
-        if (txSubSnapshot.exists) {
-          throw Exception('already_subscribed');
-        }
+  bool isNewSubscriber(String channelId) => _subController.isNewSubscriber(channelId);
 
-        // Create subscription document
-        tx.set(subRef, {
-          'userId': user.uid,
-          'channelId': channelId,
-          'subscribedAt': FieldValue.serverTimestamp(),
-          'notificationsEnabled': true,
-        });
+  void listenSubscription(String channelId) => _subController.listenSubscription(channelId);
 
-        // Increment counter - FieldValue.increment is atomic and safe
-        tx.update(channelRef, {
-          'subscriberCount': FieldValue.increment(1),
-          'lastActiveAt': FieldValue.serverTimestamp(),
-        });
-      }, maxAttempts: 3); // Faster fail for high contention
-
-      isSubscribed.value = true;
-      subscriberCount.value++;
-      _showSuccessSnackbar('Subscribed successfully');
-      return true;
-    } catch (e) {
-      if (e.toString().contains('already_subscribed')) {
-        isSubscribed.value = true;
-        return false;
-      }
-      _showErrorSnackbar('Failed to subscribe: $e');
-      return false;
-    }
-  }
-
-  Future<bool> unsubscribeFromChannel(String channelId) async {
-    final user = _auth.currentUser;
-    if (user == null) return false;
-
-    final subDocId = '${channelId}_${user.uid}';
-    final subRef = _firestore.collection(_subsCol).doc(subDocId);
-    final channelRef = _firestore.collection(_channelsCol).doc(channelId);
-
-    try {
-      await _firestore.runTransaction((tx) async {
-        final subDoc = await tx.get(subRef);
-        if (!subDoc.exists) return; // Already unsubscribed
-
-        tx.delete(subRef);
-        tx.update(channelRef, {'subscriberCount': FieldValue.increment(-1)});
-      }, maxAttempts: 3);
-
-      isSubscribed.value = false;
-      subscriberCount.value = (subscriberCount.value - 1).clamp(0, 999999999);
-      _showSuccessSnackbar('Unsubscribed successfully');
-      return true;
-    } catch (e) {
-      _showErrorSnackbar('Failed to unsubscribe');
-      return false;
-    }
-  }
-
-  Future<void> toggleSubscription(String channelId) async {
-    // â”€â”€ Optimistic update: toggle instantly â”€â”€
-    final wasSubscribed = isSubscribed.value;
-    isSubscribed.value = !wasSubscribed;
-    subscriberCount.value += wasSubscribed ? -1 : 1;
-    if (subscriberCount.value < 0) subscriberCount.value = 0;
-
-    // Track as 'new subscriber' for session analytics if they just subscribed
-    if (!wasSubscribed) {
-      _sessionSubscribedChannels.add(channelId);
-    } else {
-      _sessionSubscribedChannels.remove(channelId);
-    }
-
-    // â”€â”€ Fire-and-forget API call â”€â”€
-    try {
-      if (wasSubscribed) {
-        await unsubscribeFromChannel(channelId);
-      } else {
-        await subscribeToChannel(channelId);
-      }
-    } catch (_) {
-      // Revert on error
-      isSubscribed.value = wasSubscribed;
-      subscriberCount.value += wasSubscribed ? 1 : -1;
-      if (subscriberCount.value < 0) subscriberCount.value = 0;
-      _sessionSubscribedChannels.remove(channelId);
-    }
-  }
-
-  /// Returns true if the user subscribed to this channel during the current app session
-  bool isNewSubscriber(String channelId) {
-    return _sessionSubscribedChannels.contains(channelId);
-  }
-
-  void listenSubscription(String channelId) {
-    final user = _auth.currentUser;
-    if (user == null) {
-      isSubscribed.value = false;
-      isSubscriptionLoading.value = false;
-      return;
-    }
-
-    isSubscriptionLoading.value = true;
-    _subscriptionListener?.cancel();
-
-    // COST-EFFECTIVE: Use doc lookup by deterministic ID instead of collection query
-    final subDocId = '${channelId}_${user.uid}';
-    _subscriptionListener = _firestore
-        .collection(_subsCol)
-        .doc(subDocId)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            isSubscribed.value = snapshot.exists;
-            if (snapshot.exists) {
-              final data = snapshot.data();
-              notificationsEnabled.value =
-                  data?['notificationsEnabled'] ?? true;
-              notificationOption.value =
-                  data?['notificationOption'] as String? ??
-                  (notificationsEnabled.value ? 'all' : 'none');
-            }
-            isSubscriptionLoading.value = false;
-          },
-          onError: (error) {
-            isSubscribed.value = false;
-            isSubscriptionLoading.value = false;
-          },
-        );
-  }
-
-  Future<void> updateNotificationPreference(
-    String channelId,
-    String option,
-  ) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      _showErrorSnackbar('You must be logged in to update preferences.');
-      return;
-    }
-
-    final subDocId = '${channelId}_${user.uid}';
-    final subRef = _firestore.collection(_subsCol).doc(subDocId);
-    final enabled = option != 'none';
-
-    try {
-      await subRef.set({
-        'notificationsEnabled': enabled,
-        'notificationOption': option,
-      }, SetOptions(merge: true));
-      notificationsEnabled.value = enabled;
-      notificationOption.value = option;
-      final msg = option == 'all'
-          ? 'All notifications turned on'
-          : (option == 'personalized'
-                ? 'Personalized notifications set'
-                : 'Notifications turned off');
-      _showSuccessSnackbar(msg);
-    } catch (e) {
-      _showErrorSnackbar('Failed to update notification preferences');
-    }
-  }
+  Future<void> updateNotificationPreference(String channelId, String option) => _subController.updateNotificationPreference(channelId, option);
 
   /// Check if current user is subscribed to a specific channel (reactive)
-  RxBool isSubscribedTo(String channelId) {
-    final user = _auth.currentUser;
-    if (user == null) return false.obs;
+  RxBool isSubscribedTo(String channelId) => _subController.isSubscribedTo(channelId);
 
-    // Return cached if exists
-    if (_subscribedMap.containsKey(channelId)) {
-      return _subscribedMap[channelId]!;
-    }
+  void fetchSubscriberCount(String channelId) => _subController.fetchSubscriberCount(channelId);
 
-    final rx = false.obs;
-    _subscribedMap[channelId] = rx;
-
-    final subDocId = '${channelId}_${user.uid}';
-    _firestore
-        .collection(_subsCol)
-        .doc(subDocId)
-        .snapshots()
-        .listen((snap) => rx.value = snap.exists);
-
-    return rx;
-  }
-
-  void fetchSubscriberCount(String channelId) {
-    _countListener?.cancel();
-    _countListener = _firestore
-        .collection(_channelsCol)
-        .doc(channelId)
-        .snapshots()
-        .listen((snapshot) {
-          if (snapshot.exists) {
-            final count = snapshot.data()?['subscriberCount'] ?? 0;
-            subscriberCount.value = count is int
-                ? count
-                : (count as num).toInt();
-            final updatedChannel = Channel.fromDocumentSnapshot(snapshot);
-            selectedChannel.value = updatedChannel;
-          }
-        });
-  }
-
-  String get formattedSubscribers =>
-      FormatUtils.formatCount(subscriberCount.value);
+  String get formattedSubscribers => FormatUtils.formatCount(subscriberCount.value);
 
   // ==========================================================================
   // MODERATION
@@ -1924,7 +1705,7 @@ class ChannelController extends GetxController
   }
 
   void fetchChannel(String channelId) {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     _firestore
         .collection(_channelsCol)
         .doc(channelId)
@@ -1933,11 +1714,11 @@ class ChannelController extends GetxController
           if (doc.exists) {
             selectedChannel.value = Channel.fromDocumentSnapshot(doc);
           }
-          isLoading.value = false;
+          rxIsLoading.value = false;
         })
         .catchError((e) {
-          errorMessage.value = e.toString();
-          isLoading.value = false;
+          rxErrorMessage.value = e.toString();
+          rxIsLoading.value = false;
         });
   }
 
@@ -2031,6 +1812,48 @@ class ChannelController extends GetxController
     checkChannelContent(channel.channelId);
   }
 
+  Future<void> requestManualReview({
+    required String channelId,
+    required bool isBanner,
+    String? reason,
+  }) async {
+    try {
+      final statusField = isBanner ? 'bannerStatus' : 'avatarStatus';
+      final reasonField =
+          isBanner ? 'bannerStatusReason' : 'avatarStatusReason';
+      final userReason = reason ?? 'Creator requested manual review.';
+
+      await _firestore.collection(_channelsCol).doc(channelId).update({
+        statusField: 'MANUAL_REVIEW',
+        reasonField: userReason,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (isBanner) {
+        detailsBannerStatus.value = 'MANUAL_REVIEW';
+        detailsBannerReason.value = userReason;
+      } else {
+        detailsAvatarStatus.value = 'MANUAL_REVIEW';
+        detailsAvatarReason.value = userReason;
+      }
+
+      Get.snackbar(
+        'Manual Review Requested',
+        'Your image has been queued for manual admin review.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      debugPrint('Error requesting manual review: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to request manual review: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+    }
+  }
+
   void _attachScrollListener() {
     // Only add if not already attached
     scrollController.removeListener(_onScrollListener);
@@ -2043,7 +1866,7 @@ class ChannelController extends GetxController
   }
 
   void onScroll(ScrollController scrollController) {
-    if (!scrollController.hasClients) return;
+    if (!scrollController.hasClients || scrollController.positions.length != 1) return;
 
     final offset = scrollController.offset;
     final isExpanded = offset > 200;
@@ -2170,7 +1993,6 @@ class ChannelController extends GetxController
     isLoadingVideos.value = false;
     selectedChannel.value = null;
     videoSortFilter.value = 'Latest';
-    _subscriptionListener?.cancel();
     _detailsAvatarSub?.cancel();
     _detailsBannerSub?.cancel();
     detailsAvatarStatus.value = '';

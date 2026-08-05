@@ -14,7 +14,12 @@ class ChannelScreen extends StatelessWidget {
   bool get isMobile => Get.width < 600;
   bool get isTablet => Get.width >= 600 && Get.width < 1200;
   bool get isDesktop => Get.width >= 1200;
-  final ChannelController controller = Get.find<ChannelController>();
+  ChannelController get controller {
+    if (Get.isRegistered<ChannelController>()) {
+      return Get.find<ChannelController>();
+    }
+    return Get.put(ChannelController());
+  }
   final RxInt currentStep = 0.obs; // 0-3 for 4 steps
   final RxBool draftDialogShown = false.obs; // Track if dialog was shown
   final RxBool forceValidationUpdate =
@@ -105,138 +110,145 @@ class ChannelScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.close,
-                  color: isDarkMode
-                      ? AppColors.textSecondary
-                      : const Color(0xFF718096),
-                ),
-                onPressed: () => _handleClose(isDarkMode),
-              ),
-              Expanded(
-                child: Obx(
-                  () => Text(
-                    _getStepTitle(currentStep.value),
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : const Color(0xFF2D3748),
-                    ),
-                    textAlign: TextAlign.center,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : const Color(0xFF718096),
                   ),
+                  onPressed: () => _handleClose(isDarkMode),
                 ),
-              ),
-              PopupMenuButton<String>(
-                icon: Icon(
-                  Icons.more_vert,
-                  color: isDarkMode
-                      ? AppColors.textSecondary
-                      : const Color(0xFF718096),
-                ),
-                onSelected: (value) async {
-                  if (value == 'save_draft') {
-                    await controller.saveDraft(currentStep: currentStep.value);
-                  } else if (value == 'delete_draft') {
-                    _showDeleteDraftDialog(isDarkMode);
-                  }
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'save_draft',
-                    child: Row(
-                      children: [
-                        Obx(
-                          () => controller.isSavingDraft.value
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.save_outlined),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text('Save Draft'),
-                      ],
+                Expanded(
+                  child: Obx(
+                    () => Text(
+                      _getStepTitle(currentStep.value),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode
+                            ? AppColors.textPrimary
+                            : const Color(0xFF2D3748),
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                  if (controller.hasDraft.value)
-                    const PopupMenuItem(
-                      value: 'delete_draft',
+                ),
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: isDarkMode
+                        ? AppColors.textSecondary
+                        : const Color(0xFF718096),
+                  ),
+                  onSelected: (value) async {
+                    if (value == 'save_draft') {
+                      await controller.saveDraft(currentStep: currentStep.value);
+                    } else if (value == 'delete_draft') {
+                      _showDeleteDraftDialog(isDarkMode);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'save_draft',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline, color: AppColors.error),
-                          SizedBox(width: 12),
-                          Text(
-                            'Delete Draft',
-                            style: TextStyle(color: AppColors.error),
+                          Obx(
+                            () => controller.isSavingDraft.value
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
                           ),
+                          const SizedBox(width: 12),
+                          const Text('Save Draft'),
                         ],
                       ),
                     ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Obx(
-            () => Column(
-              children: [
-                Row(
-                  children: List.generate(3, (index) {
-                    final isActive = index == currentStep.value;
-                    final isCompleted = index < currentStep.value;
-                    return Expanded(
-                      child: Container(
-                        height: 4,
-                        margin: EdgeInsets.only(left: index > 0 ? 8 : 0),
-                        decoration: BoxDecoration(
-                          color: isCompleted || isActive
-                              ? const Color(0xFF6B46C1)
-                              : (isDarkMode
-                                    ? const Color(0xFF2D3748)
-                                    : AppColors.bgDivider),
-                          borderRadius: BorderRadius.circular(2),
+                    if (controller.hasDraft.value)
+                      const PopupMenuItem(
+                        value: 'delete_draft',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              color: AppColors.error,
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Delete Draft',
+                              style: TextStyle(color: AppColors.error),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  }),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Step ${currentStep.value + 1} of 3',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF6B46C1),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      '${((currentStep.value + 1) * 33.3).toInt()}% Complete',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : const Color(0xFF718096),
-                      ),
-                    ),
                   ],
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            // Progress Bar & Step Indicator
+            Obx(
+              () => Column(
+                children: [
+                  Row(
+                    children: List.generate(4, (index) {
+                      final isActive = index == currentStep.value;
+                      final isCompleted = index < currentStep.value;
+                      return Expanded(
+                        child: Container(
+                          height: 4,
+                          margin: EdgeInsets.only(left: index > 0 ? 8 : 0),
+                          decoration: BoxDecoration(
+                            color: isCompleted || isActive
+                                ? const Color(0xFF6B46C1)
+                                : (isDarkMode
+                                      ? const Color(0xFF2D3748)
+                                      : AppColors.bgDivider),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Step ${currentStep.value + 1} of 4',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF6B46C1),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '${(currentStep.value + 1) * 25}% Complete',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDarkMode
+                              ? AppColors.textSecondary
+                              : const Color(0xFF718096),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -244,11 +256,13 @@ class ChannelScreen extends StatelessWidget {
   String _getStepTitle(int step) {
     switch (step) {
       case 0:
-        return 'Channel Identity';
+        return 'Channel Type & Plan';
       case 1:
-        return 'Customization';
+        return 'Basic Info & Branding';
       case 2:
-        return 'Finalize';
+        return 'Social Links & Contact';
+      case 3:
+        return 'Review & Finalize';
       default:
         return 'Create Channel';
     }
@@ -280,7 +294,7 @@ class ChannelScreen extends StatelessWidget {
   // ========================================================================
   Widget _buildMobileView(bool isDarkMode) {
     return Obx(() {
-      if (currentStep.value == 2) {
+      if (currentStep.value == 3) {
         // Show preview in final step
         return SingleChildScrollView(
           child: Column(
@@ -306,24 +320,24 @@ class ChannelScreen extends StatelessWidget {
       Widget stepWidget;
       switch (currentStep.value) {
         case 0:
+          stepWidget = _buildStepChannelTypeAndPlan(isDarkMode);
+        case 1:
           stepWidget = Column(
             children: [
-              _buildStepBasics(isDarkMode),
-              const SizedBox(height: 32),
-              _buildChannelTypeSelectionSection(isDarkMode),
-              const SizedBox(height: 32),
               _buildStepBranding(isDarkMode),
+              const SizedBox(height: 32),
+              _buildStepBasics(isDarkMode),
               const SizedBox(height: 48),
               _buildQuickCreateSection(isDarkMode),
               const SizedBox(height: 24),
             ],
           );
-        case 1:
-          stepWidget = _buildStepSocial(isDarkMode);
         case 2:
+          stepWidget = _buildStepSocial(isDarkMode);
+        case 3:
           stepWidget = _buildStepReview(isDarkMode);
         default:
-          stepWidget = _buildStepBasics(isDarkMode);
+          stepWidget = _buildStepChannelTypeAndPlan(isDarkMode);
       }
 
       return SingleChildScrollView(
@@ -334,6 +348,26 @@ class ChannelScreen extends StatelessWidget {
         ),
       );
     });
+  }
+
+  // ========================================================================
+  // STEP 0: CHANNEL TYPE & PLAN
+  // ========================================================================
+  Widget _buildStepChannelTypeAndPlan(bool isDarkMode) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepHeader(
+          'Select Channel Type & Plan',
+          'Choose your monetization model, revenue share, and hosting structure before entering channel details.',
+          Icons.tune_rounded,
+          isDarkMode,
+        ),
+        const SizedBox(height: 24),
+        _buildChannelTypeSelectionSection(isDarkMode),
+        const SizedBox(height: 24),
+      ],
+    );
   }
 
   // ========================================================================
@@ -562,7 +596,7 @@ class ChannelScreen extends StatelessWidget {
                     type: ChannelType.standard,
                     title: 'Standard Channel',
                     subtitle:
-                        '55% Net Revenue • Zero hosting fees • Up to 5 Videos limit',
+                        '70% Revenue Share • 100% Free Hosting • 10 min daily upload limit • Up to 1080p',
                     icon: Icons.play_circle_filled,
                     primaryColor: const Color(0xFF3B82F6),
                     isSelected: isStandard,
@@ -575,7 +609,7 @@ class ChannelScreen extends StatelessWidget {
                     type: ChannelType.custom,
                     title: 'Custom Channel',
                     subtitle:
-                        '100% Gross - Infra • Unlimited Videos • Instant Cashout',
+                        r'100% Ad Revenue • $10 Free Grant • Unlimited Duration • Up to 4K • Infra Tiers ($15, $30, $45/mo)',
                     icon: Icons.rocket_launch,
                     primaryColor: const Color(0xFF8B5CF6),
                     isSelected: isCustom,
@@ -628,20 +662,23 @@ class ChannelScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   if (isStandard) ...[
                     _buildWizardBullet(
-                      r'55% Net Creator Revenue Share ($0 Upfront Fees)',
+                      '70% Revenue Share from ads revenue and premium subscribers',
                     ),
                     _buildWizardBullet(
-                      'Up to 5 Videos Upload limit (Min 2 min per video, 10 min total duration)',
+                      '10 minutes total video upload duration limit per day (dynamic split e.g. 2 x 5 min or 7 min + 3 min)',
                     ),
                     _buildWizardBullet(
-                      '10 Hours watch-time cash-out threshold per video',
+                      'Resolution support up to 1080p Full HD',
                     ),
                     _buildWizardBullet(
-                      '100% Free platform hosting and video transcoding',
+                      r'100% Free platform hosting and video transcoding ($0 upfront fees)',
+                    ),
+                    _buildWizardBullet(
+                      '100% Direct Fan Revenue: 0% commission to Truthworld on Memberships & Superchats!',
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'How It Works: Standard channels are zero-maintenance. The platform hosts your content and handles streaming. Earnings start from Day 1 and become withdrawable per video after 10 hours watch time.',
+                      'How It Works: Standard channels are 100% free to operate. Truthworld covers video hosting & transcoding. You earn a 70% revenue share on ads & premium views, and retain 100% of direct fan support (Memberships, Superchats, etc.) with 0% platform commission.',
                       style: TextStyle(
                         fontSize: 12,
                         color: isDarkMode
@@ -652,20 +689,23 @@ class ChannelScreen extends StatelessWidget {
                     ),
                   ] else ...[
                     _buildWizardBullet(
-                      '100% Gross Creator Revenue Share (minus raw infrastructure usage)',
+                      r'🎁 $10 Free Infrastructure Grant included for every new Custom Channel!',
                     ),
                     _buildWizardBullet(
-                      'Unlimited Video Uploads (up to 24 Hours video length)',
+                      '100% Revenue retention on ads, premium views, and content',
                     ),
                     _buildWizardBullet(
-                      'Instant Cash Withdrawals without watch-time gates',
+                      'Unlimited video upload duration & max resolution up to 4K Ultra HD',
                     ),
                     _buildWizardBullet(
-                      'Full control over media storage and streaming bandwidth',
+                      r'Flexible Infrastructure Tiers ($15, $30, $45/mo, etc.) with allocated storage & bandwidth',
+                    ),
+                    _buildWizardBullet(
+                      '100% Direct Fan Revenue: 0% commission to Truthworld on Memberships & Superchats!',
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'How It Works: Custom channels provide 100% gross earnings retention. You pay only for raw cloud bandwidth & storage consumed, with instant cash out availability.',
+                      r'How It Works: Custom channels provide maximum earning power with 100% ad & content revenue retention. Every new custom channel receives a $10 free infrastructure grant automatically credited to your balance. Choose an infrastructure plan ($15, $30, $45/mo) tailored to your storage & bandwidth needs, and stream in up to 4K Ultra HD with 0% commission on direct fan contributions.',
                       style: TextStyle(
                         fontSize: 12,
                         color: isDarkMode
@@ -1519,145 +1559,154 @@ class ChannelScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Obx(() {
-        final isFirstStep = currentStep.value == 0;
-        final isLastStep = currentStep.value == 2;
-        // Recalculate on every Obx rebuild to react to field changes
-        final canProceed = _canProceedFromCurrentStep();
-        final isCreating = controller.isSubmitting.value;
+      child: SafeArea(
+        top: false,
+        child: Obx(() {
+          final isFirstStep = currentStep.value == 0;
+          final isLastStep = currentStep.value == 3;
+          // Recalculate on every Obx rebuild to react to field changes
+          final canProceed = _canProceedFromCurrentStep();
+          final isCreating = controller.isSubmitting.value;
 
-        return Row(
-          children: [
-            if (!isFirstStep) ...[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    currentStep.value--;
-                    HapticFeedback.lightImpact();
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(
-                      color: isDarkMode
-                          ? AppColors.textDisabled
-                          : AppColors.bgDivider,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.arrow_back,
+          return Row(
+            children: [
+              if (!isFirstStep) ...[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      currentStep.value--;
+                      HapticFeedback.lightImpact();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(
                         color: isDarkMode
-                            ? AppColors.textPrimary
-                            : const Color(0xFF2D3748),
+                            ? AppColors.textDisabled
+                            : AppColors.bgDivider,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Back',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.arrow_back,
                           color: isDarkMode
                               ? AppColors.textPrimary
                               : const Color(0xFF2D3748),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          'Back',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: isDarkMode
+                                ? AppColors.textPrimary
+                                : const Color(0xFF2D3748),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
-            ],
-            Expanded(
-              flex: isFirstStep ? 1 : 2,
-              child: ElevatedButton(
-                onPressed: canProceed && !isCreating
-                    ? () async {
-                        if (isLastStep) {
-                          _handleCreateChannel();
-                        } else {
-                          // Auto-save draft before moving to next step
-                          await controller.saveDraft(
-                            currentStep: currentStep.value,
-                          );
-                          currentStep.value++;
-                          HapticFeedback.lightImpact();
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                flex: isFirstStep ? 1 : 2,
+                child: ElevatedButton(
+                  onPressed: canProceed && !isCreating
+                      ? () async {
+                          if (isLastStep) {
+                            _handleCreateChannel();
+                          } else {
+                            // Auto-save draft before moving to next step
+                            await controller.saveDraft(
+                              currentStep: currentStep.value,
+                            );
+                            currentStep.value++;
+                            HapticFeedback.lightImpact();
+                          }
                         }
-                      }
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: const Color(0xFF6B46C1),
-                  disabledBackgroundColor: isDarkMode
-                      ? const Color(0xFF2D3748)
-                      : AppColors.bgDivider,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: const Color(0xFF6B46C1),
+                    disabledBackgroundColor: isDarkMode
+                        ? const Color(0xFF2D3748)
+                        : AppColors.bgDivider,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: canProceed ? 2 : 0,
                   ),
-                  elevation: canProceed ? 2 : 0,
-                ),
-                child: isCreating
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.textPrimary,
+                  child: isCreating
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.textPrimary,
+                                ),
                               ),
                             ),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Creating...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                            SizedBox(width: 12),
+                            Text(
+                              'Creating...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            isLastStep ? 'Create Channel' : 'Next',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              isLastStep
+                                  ? 'Create Channel'
+                                  : (currentStep.value == 0
+                                      ? 'Next: Channel Details'
+                                      : (currentStep.value == 1
+                                          ? 'Next: Social Links'
+                                          : 'Next: Review & Create')),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: canProceed
+                                    ? AppColors.textPrimary
+                                    : (isDarkMode
+                                          ? AppColors.textDisabled
+                                          : Colors.black26),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              isLastStep
+                                  ? Icons.check_circle_outline
+                                  : Icons.arrow_forward,
                               color: canProceed
                                   ? AppColors.textPrimary
                                   : (isDarkMode
                                         ? AppColors.textDisabled
                                         : Colors.black26),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            isLastStep
-                                ? Icons.rocket_launch
-                                : Icons.arrow_forward,
-                            color: canProceed
-                                ? AppColors.textPrimary
-                                : (isDarkMode
-                                      ? AppColors.textDisabled
-                                      : Colors.black26),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                ),
               ),
-            ),
-          ],
-        );
-      }),
+            ],
+          );
+        }),
+      ),
     );
   }
 
@@ -1732,106 +1781,36 @@ class ChannelScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.category_rounded,
-                  size: 18,
-                  color: isDarkMode
-                      ? AppColors.textSecondary
-                      : const Color(0xFF718096),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Channel Categories',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDarkMode
-                        ? AppColors.textPrimary
-                        : const Color(0xFF2D3748),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Text(
-                  '*',
-                  style: TextStyle(
-                    color: Color(0xFFE53E3E),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            const Icon(
+              Icons.category_rounded,
+              size: 18,
+              color: Colors.white,
             ),
-            Obx(() {
-              final isAll = controller.isAllCategoriesSelected;
-              return InkWell(
-                onTap: () {
-                  if (isAll) {
-                    controller.deselectAllCategories();
-                  } else {
-                    controller.selectAllCategories();
-                  }
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isAll
-                        ? const Color(0xFF6B46C1).withValues(alpha: 0.15)
-                        : (isDarkMode
-                              ? Colors.white.withValues(alpha: 0.05)
-                              : const Color(0xFFEDF2F7)),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isAll
-                          ? const Color(0xFF6B46C1)
-                          : (isDarkMode
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : const Color(0xFFCBD5E0)),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isAll
-                            ? Icons.done_all_rounded
-                            : Icons.select_all_rounded,
-                        size: 14,
-                        color: isAll
-                            ? const Color(0xFF6B46C1)
-                            : (isDarkMode
-                                  ? AppColors.textSecondary
-                                  : const Color(0xFF4A5568)),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isAll ? 'Selected All' : 'Select All Categories',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isAll
-                              ? const Color(0xFF6B46C1)
-                              : (isDarkMode
-                                    ? AppColors.textSecondary
-                                    : const Color(0xFF4A5568)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+            const SizedBox(width: 8),
+            Text(
+              'Channel Categories',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDarkMode
+                    ? AppColors.textPrimary
+                    : const Color(0xFF2D3748),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Text(
+              '*',
+              style: TextStyle(
+                color: Color(0xFFE53E3E),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
-          'Select one, multiple, or all categories that describe your channel.',
+          'Select categories that describe your channel.',
           style: TextStyle(
             fontSize: 12,
             color: isDarkMode
@@ -1841,94 +1820,304 @@ class ChannelScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Obx(() {
-          final count = controller.selectedCategories.length;
+          final selected = controller.selectedCategories;
+          final count = selected.length;
           final total = controller.categories.length;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
+
+          return InkWell(
+            onTap: () => _showCategorySelectionDialog(isDarkMode),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDarkMode
+                    ? AppColors.bgInput
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
                   color: count > 0
-                      ? const Color(0xFF6B46C1).withValues(alpha: 0.1)
-                      : const Color(0xFFE53E3E).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  count == total
-                      ? 'All Categories Selected ($total/$total)'
-                      : (count > 0
-                            ? '$count of $total Categories Selected'
-                            : 'No category selected - please pick at least one'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: count > 0
-                        ? const Color(0xFF6B46C1)
-                        : const Color(0xFFE53E3E),
-                  ),
+                      ? const Color(0xFF6B46C1)
+                      : (isDarkMode
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFE2E8F0)),
+                  width: count > 0 ? 2 : 1,
                 ),
               ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: controller.categories.map((category) {
-                  final isSelected = controller.isCategorySelected(category);
-                  return FilterChip(
-                    avatar: Icon(
-                      _getCategoryIcon(category),
-                      size: 16,
-                      color: isSelected
-                          ? Colors.white
-                          : (isDarkMode
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6B46C1).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.tune_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          count == 0
+                              ? 'Tap to Select Categories'
+                              : (count == total
+                                    ? 'All Categories Selected ($total)'
+                                    : '$count Categories Selected'),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: count > 0
+                                ? (isDarkMode
+                                      ? AppColors.textPrimary
+                                      : const Color(0xFF0F172A))
+                                : const Color(0xFFE53E3E),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          count > 0
+                              ? selected.take(3).join(', ') +
+                                  (count > 3 ? ' (+${count - 3} more)' : '')
+                              : 'At least 1 category is required',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDarkMode
                                 ? AppColors.textSecondary
-                                : const Color(0xFF4A5568)),
+                                : const Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    label: Text(category),
-                    selected: isSelected,
-                    onSelected: (_) => controller.toggleCategory(category),
-                    selectedColor: const Color(0xFF6B46C1),
-                    backgroundColor: isDarkMode
-                        ? Colors.white.withValues(alpha: 0.05)
-                        : const Color(0xFFF7FAFC),
-                    checkmarkColor: Colors.white,
-                    labelStyle: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.w500,
-                      color: isSelected
-                          ? Colors.white
-                          : (isDarkMode
-                                ? AppColors.textPrimary
-                                : const Color(0xFF2D3748)),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: isSelected
-                            ? const Color(0xFF6B46C1)
-                            : (isDarkMode
-                                  ? Colors.white.withValues(alpha: 0.1)
-                                  : const Color(0xFFE2E8F0)),
-                      ),
-                    ),
-                    elevation: isSelected ? 2 : 0,
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
+                      horizontal: 12,
                       vertical: 6,
                     ),
-                  );
-                }).toList(),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6B46C1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Select',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(
+                          Icons.open_in_new_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           );
         }),
       ],
+    );
+  }
+
+  void _showCategorySelectionDialog(bool isDarkMode) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
+        child: Container(
+          width: 540,
+          constraints: const BoxConstraints(maxHeight: 620),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.category_rounded, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Select Categories',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode
+                              ? AppColors.textPrimary
+                              : const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : const Color(0xFF64748B),
+                    ),
+                    onPressed: Get.back,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose one or more categories that best describe your channel content:',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Obx(() {
+                final isAll = controller.isAllCategoriesSelected;
+                final count = controller.selectedCategories.length;
+                final total = controller.categories.length;
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$count of $total Selected',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: count > 0
+                            ? const Color(0xFF6B46C1)
+                            : const Color(0xFFE53E3E),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () {
+                        if (isAll) {
+                          controller.deselectAllCategories();
+                        } else {
+                          controller.selectAllCategories();
+                        }
+                        forceValidationUpdate.toggle();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6B46C1).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isAll ? 'Deselect All' : 'Select All',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6B46C1),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Obx(
+                    () => Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: controller.categories.map((category) {
+                        final isSelected = controller.isCategorySelected(category);
+                        return FilterChip(
+                          avatar: Icon(
+                            _getCategoryIcon(category),
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          label: Text(category),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            controller.toggleCategory(category);
+                            forceValidationUpdate.toggle();
+                          },
+                          selectedColor: const Color(0xFF6B46C1),
+                          backgroundColor: isDarkMode
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFF1F5F9),
+                          checkmarkColor: Colors.white,
+                          labelStyle: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : (isDarkMode
+                                      ? AppColors.textPrimary
+                                      : const Color(0xFF2D3748)),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF6B46C1)
+                                  : (isDarkMode
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: Get.back,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: const Color(0xFF6B46C1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Confirm Categories',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1941,17 +2130,22 @@ class ChannelScreen extends StatelessWidget {
     forceValidationUpdate.value;
 
     switch (currentStep.value) {
-      case 0: // Identity
+      case 0: // Channel Type & Plan
+        return true; // Validated by default option selection
+
+      case 1: // Basic Info & Branding
         return controller.channelName.text.trim().length >= 3 &&
             controller.customUrl.text.trim().length >=
                 ChannelController.minCustomUrlLength &&
             controller.description.text.trim().isNotEmpty &&
-            controller.selectedCategories.isNotEmpty;
+            controller.selectedCategories.isNotEmpty &&
+            controller.avatarFileId.value.isNotEmpty &&
+            controller.bannerFileId.value.isNotEmpty;
 
-      case 1: // Customization
+      case 2: // Social Links & Contact
         return true; // Optional
 
-      case 2: // Finalize
+      case 3: // Review & Finalize
         return true; // Always allow
 
       default:
@@ -2055,23 +2249,24 @@ class ChannelScreen extends StatelessWidget {
       return InkWell(
         onTap: () => controller.pickImage(true),
         borderRadius: BorderRadius.circular(24),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: 200,
-          decoration: BoxDecoration(
-            color: isDarkMode
-                ? const Color(0xFF1E1E1E)
-                : const Color(0xFFF7FAFC),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: imageData != null
-                  ? const Color(0xFF6B46C1)
-                  : (isDarkMode
-                        ? const Color(0xFF2D3748)
-                        : AppColors.bgDivider),
-              width: 2,
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              color: isDarkMode
+                  ? const Color(0xFF1E1E1E)
+                  : const Color(0xFFF7FAFC),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: imageData != null
+                    ? const Color(0xFF6B46C1)
+                    : (isDarkMode
+                          ? const Color(0xFF2D3748)
+                          : AppColors.bgDivider),
+                width: 2,
+              ),
             ),
-          ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(22),
             child: imageData != null
@@ -2126,7 +2321,8 @@ class ChannelScreen extends StatelessWidget {
                   ),
           ),
         ),
-      );
+      ),
+    );
     });
   }
 

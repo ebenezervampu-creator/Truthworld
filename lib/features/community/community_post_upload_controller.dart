@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -26,7 +27,7 @@ import 'package:uuid/uuid.dart';
 /// - Parallel image uploads with per-image progress
 /// - Polls (Yes/No or Multi-Choice with 3–5 options)
 /// - Content validation via [ContentValidationMixin]
-class CommunityPostUploadController extends GetxController
+class CommunityPostUploadController extends BaseController
     with ContentValidationMixin {
   // ── Firebase ──────────────────────────────────────────────────────────────
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -595,6 +596,7 @@ class CommunityPostUploadController extends GetxController
           .split(',')
           .map((t) => t.trim())
           .where((t) => t.isNotEmpty)
+          .take(5)
           .toList();
 
       final data = <String, dynamic>{
@@ -668,7 +670,7 @@ class CommunityPostUploadController extends GetxController
 
       isUploading.value = false;
       resetForm();
-      Get.back();
+      Get.offAllNamed('/studio');
       AppSnackbar.show(
         'Published',
         'Your community post is live',

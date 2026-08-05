@@ -304,6 +304,10 @@ class AvailabilityMessageWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status == AvailabilityStatus.available) {
+      return const SizedBox.shrink();
+    }
+
     final message = customMessage ?? status.message;
 
     if (message.isEmpty) {

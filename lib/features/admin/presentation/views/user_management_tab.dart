@@ -81,7 +81,7 @@ class UserManagementTab extends StatelessWidget {
                 return const Center(
                   child: Text(
                     'No users found',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 );
               }
@@ -108,7 +108,7 @@ class UserManagementTab extends StatelessWidget {
                       ),
                       subtitle: Text(
                         user['email'] ?? '',
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style: const TextStyle(color: AppColors.textPrimary),
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: FittedBox(
@@ -147,7 +147,7 @@ class UserManagementTab extends StatelessWidget {
       child: const Center(
         child: Text(
           'Select a user to view details',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.textPrimary),
         ),
       ),
     );
@@ -193,7 +193,7 @@ class UserManagementTab extends StatelessWidget {
                       ),
                       Text(
                         user['email'] ?? '',
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style: const TextStyle(color: AppColors.textPrimary),
                       ),
                     ],
                   ),
@@ -348,15 +348,15 @@ class UserManagementTab extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Total Uploads: ${stats['totalUploads'] ?? 0}',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: const TextStyle(color: AppColors.textPrimary),
           ),
           Text(
             'Approval Rate: ${stats['approvalRate'] ?? 0}%',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: const TextStyle(color: AppColors.textPrimary),
           ),
           Text(
             'Rejection Rate: ${stats['rejectionRate'] ?? 0}%',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: const TextStyle(color: AppColors.textPrimary),
           ),
         ],
       ),
@@ -452,7 +452,7 @@ class UserManagementTab extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text(
               'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           ),
           ElevatedButton(

@@ -58,8 +58,15 @@ class _ChannelMonetizationDashboardViewState
     return max(0, difference);
   }
 
+  ChannelController get _channelController {
+    if (Get.isRegistered<ChannelController>()) {
+      return Get.find<ChannelController>();
+    }
+    return Get.put(ChannelController());
+  }
+
   Future<void> _scheduleTierChange() async {
-    final controller = Get.find<ChannelController>();
+    final controller = _channelController;
     final newType = _channel.channelType == ChannelType.standard
         ? ChannelType.custom
         : ChannelType.standard;
@@ -128,7 +135,7 @@ class _ChannelMonetizationDashboardViewState
   }
 
   Future<void> _cancelScheduledChange() async {
-    final controller = Get.find<ChannelController>();
+    final controller = _channelController;
 
     setState(() => _isUpdating = true);
 
@@ -302,8 +309,8 @@ class _ChannelMonetizationDashboardViewState
                     ),
                     Text(
                       isCustom
-                          ? 'Custom Channel: Instant withdrawals on all revenue.'
-                          : 'Standard Channel: Video earnings unlock for withdrawal after crossing 10 Hours watch time.',
+                          ? 'Custom Channel: Instant withdrawals on all revenue (100% retention).'
+                          : 'Standard Channel: 70% Ad & Premium revenue share. 100% Creator retention on Memberships & Superchats.',
                       style: typography.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                       ),

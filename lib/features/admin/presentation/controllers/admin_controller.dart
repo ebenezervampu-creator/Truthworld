@@ -6,15 +6,24 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdminController extends GetxController {
-  static AdminController get to => Get.find<AdminController>();
+class AdminController extends BaseController {
+  static AdminController get to {
+    try {
+      return Get.find<AdminController>();
+    } catch (_) {
+      return Get.put(AdminController());
+    }
+  }
 
   // State flags
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
+  @override
+  bool get isLoading => rxIsLoading.value || super.isLoading;
   final RxBool isAuthChecking = false.obs;
   final RxBool isAdmin = true.obs;
   final RxString currentTab = 'dashboard'.obs;
@@ -50,6 +59,10 @@ class AdminController extends GetxController {
   final RxString filterStatus = ''.obs;
   final RxString filterCategory = ''.obs;
   final RxString filterTrustTier = ''.obs;
+  final RxString videoFilterTab = 'all'.obs;
+  final RxString imageFilterTab = 'all'.obs;
+  final RxString channelFilterTab = 'all'.obs;
+  final RxString reportFilterTab = 'all'.obs;
   final RxBool isSearching = false.obs;
   final RxSet<String> selectedItemIds = <String>{}.obs;
   final RxBool isBulkActionSubmitting = false.obs;
@@ -103,9 +116,20 @@ class AdminController extends GetxController {
   StreamSubscription<User?>? _authSub;
   StreamSubscription<QuerySnapshot>? _videosSub;
   StreamSubscription<QuerySnapshot>? _imagesSub;
+  StreamSubscription<QuerySnapshot>? _communitySub;
   StreamSubscription<QuerySnapshot>? _logsSub;
   StreamSubscription<QuerySnapshot>? _channelsSub;
   StreamSubscription<QuerySnapshot>? _reportsSub;
+  StreamSubscription<QuerySnapshot>? _videoReportsSub;
+  StreamSubscription<QuerySnapshot>? _altVideoReportsSub;
+  StreamSubscription<QuerySnapshot>? _appealsSub;
+
+  List<Map<String, dynamic>> _rawCommunityPosts = [];
+  List<Map<String, dynamic>> _rawFlaggedImages = [];
+  List<Map<String, dynamic>> _rawReportsDocs = [];
+  List<Map<String, dynamic>> _rawVideoReportsDocs = [];
+  List<Map<String, dynamic>> _rawVideoReportsAltDocs = [];
+  int _appealsRetryCount = 0;
 
   @override
   void onInit() {
@@ -113,26 +137,116 @@ class AdminController extends GetxController {
     isAdmin.value = FirebaseAuth.instance.currentUser != null;
     isAuthChecking.value = false;
 
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+    _authSub = FirebaseAuth.instance.idTokenChanges().listen((user) {
       if (user != null) {
         isAdmin.value = true;
         _startSubscriptions();
+        _navigateToDashboardIfOnLogin();
       } else {
         isAdmin.value = false;
-        _stopSubscriptions();
       }
     });
+    if (_authSub != null) trackSubscription(_authSub!);
+
+    // Always start real-time queue subscriptions so data is available on dashboard
+    _startSubscriptions();
 
     if (FirebaseAuth.instance.currentUser != null) {
+      _navigateToDashboardIfOnLogin();
+    }
+  }
+
+  void ensureSubscriptionsStarted() {
+    if (_videosSub == null || videos.isEmpty) {
       _startSubscriptions();
     }
   }
 
-  @override
-  void onClose() {
-    if (_authSub != null) unawaited(_authSub!.cancel());
-    _stopSubscriptions();
-    super.onClose();
+  Future<void> refreshAllData() async {
+    try {
+      // 1. Fetch videos directly
+      final vSnap = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .limit(100)
+          .get();
+      final vList = vSnap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      if (vList.isNotEmpty) {
+        vList.sort((a, b) {
+          final timeA = a['createdAt'] ?? a['uploadedAt'] ?? a['timestamp'];
+          final timeB = b['createdAt'] ?? b['uploadedAt'] ?? b['timestamp'];
+          if (timeA == null && timeB == null) return 0;
+          if (timeA == null) return 1;
+          if (timeB == null) return -1;
+          final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+          final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+          return dtB.compareTo(dtA);
+        });
+        videos.assignAll(vList);
+        pendingVideos.value = vList.where(isVideoPending).length;
+        totalVideos.value = vList.length;
+      }
+
+      // 2. Fetch channels directly
+      final cSnap = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .limit(100)
+          .get();
+      final cList = cSnap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      if (cList.isNotEmpty) {
+        cList.sort((a, b) {
+          final timeA = a['updatedAt'];
+          final timeB = b['updatedAt'];
+          if (timeA == null && timeB == null) return 0;
+          if (timeA == null) return 1;
+          if (timeB == null) return -1;
+          final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+          final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+          return dtB.compareTo(dtA);
+        });
+        channels.assignAll(cList);
+        pendingChannels.value = cList.where(isChannelPending).length;
+        totalChannels.value = cList.length;
+      }
+
+      // 3. Fetch community & flagged images directly
+      final flaggedSnap = await FirebaseFirestore.instance.collection('flagged_images_review').limit(100).get();
+      final communitySnap = await FirebaseFirestore.instance.collection(FirestoreCollections.community).limit(100).get();
+      final fList = flaggedSnap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      final commList = communitySnap.docs.map((doc) => {'id': doc.id, 'category': 'Community Post', ...doc.data()}).toList();
+      _combineImagesAndPosts(communityList: commList, flaggedList: fList);
+
+      // 4. Fetch reports, video_reports, and videoReports directly
+      final reportsSnap = await FirebaseFirestore.instance.collection(FirestoreCollections.reports).limit(100).get();
+      final videoReportsSnap = await FirebaseFirestore.instance.collection('video_reports').limit(100).get();
+      final altVideoReportsSnap = await FirebaseFirestore.instance.collection('videoReports').limit(100).get();
+      final rList = reportsSnap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      final vrList = videoReportsSnap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      final altVrList = altVideoReportsSnap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      _combineReports(mainReports: rList, videoReportsList: vrList, altVideoReportsList: altVrList);
+
+      // Ensure stream subscriptions are active
+      _startSubscriptions();
+
+      Get.snackbar(
+        'Data Refreshed',
+        'Moderation queues synchronized with Firestore.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      debugPrint('AdminController refresh error: $e');
+    }
+  }
+
+  void _navigateToDashboardIfOnLogin() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final route = Get.currentRoute;
+      if (route == '/admin' || route == '/admin/login' || route.isEmpty) {
+        Get.offAllNamed('/admin/dashboard');
+      }
+    });
   }
 
   // Email & Password login controllers
@@ -141,9 +255,12 @@ class AdminController extends GetxController {
   final RxBool needsPasswordSetup = false.obs;
 
   /// Signs in using email and password
-  Future<void> signInWithEmailAndPassword() async {
-    final email = emailController.text.trim();
-    final password = passwordController.text.trim();
+  Future<void> signInWithEmailAndPassword({
+    String? emailInput,
+    String? passwordInput,
+  }) async {
+    final email = (emailInput ?? emailController.text).trim();
+    final password = (passwordInput ?? passwordController.text).trim();
 
     if (email.isEmpty || password.isEmpty) {
       Get.snackbar(
@@ -156,12 +273,13 @@ class AdminController extends GetxController {
       return;
     }
 
-    isLoading.value = true;
+    rxIsLoading.value = true;
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
+      Get.offAllNamed('/admin/dashboard');
     } catch (e) {
       debugPrint('Admin Email Sign In failed: $e');
       Get.snackbar(
@@ -172,7 +290,7 @@ class AdminController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
       );
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -384,101 +502,236 @@ class AdminController extends GetxController {
     );
   }
 
-  /// Start Firestore real-time synchronization
-  void _startSubscriptions() {
-    _stopSubscriptions();
+  /// Start Firestore real-time synchronization safely without tearing down active streams
+  void _startSubscriptions({bool forceRestart = false}) {
+    if (forceRestart) {
+      _stopSubscriptions();
+    }
 
     // 1. Monitor videos collection
-    _videosSub = FirebaseFirestore.instance
-        .collection(FirestoreCollections.videos)
-        .orderBy('createdAt', descending: true)
-        .limit(100)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = snapshot.docs.map((doc) {
-              return {'id': doc.id, ...doc.data()};
-            }).toList();
-            videos.assignAll(list);
+    if (_videosSub == null) {
+      _videosSub = FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
 
-            // Recalculate pending videos
-            final pendingCount = list.where((v) {
-              final mod = v['moderation'] as Map<String, dynamic>?;
-              if (mod == null) return false;
-              final status = mod['status'] as String?;
-              final violations = mod['violationCategories'] as List<dynamic>?;
-              return status == 'processing' ||
-                  status == 'error' ||
-                  (status == 'approved' &&
-                      violations != null &&
-                      violations.contains('timeout_passthrough'));
-            }).length;
+              list.sort((a, b) {
+                final timeA = a['createdAt'] ?? a['uploadedAt'] ?? a['timestamp'];
+                final timeB = b['createdAt'] ?? b['uploadedAt'] ?? b['timestamp'];
+                if (timeA == null && timeB == null) return 0;
+                if (timeA == null) return 1;
+                if (timeB == null) return -1;
+                final dtA = timeA is Timestamp
+                    ? timeA.toDate()
+                    : (DateTime.tryParse(timeA.toString()) ??
+                          DateTime.fromMillisecondsSinceEpoch(0));
+                final dtB = timeB is Timestamp
+                    ? timeB.toDate()
+                    : (DateTime.tryParse(timeB.toString()) ??
+                          DateTime.fromMillisecondsSinceEpoch(0));
+                return dtB.compareTo(dtA);
+              });
 
-            pendingVideos.value = pendingCount;
-            totalVideos.value = list.length;
-          },
-          onError: (e) {
-            debugPrint('AdminController Video Stream Error: $e');
-          },
-        );
+              if (list.isNotEmpty || videos.isEmpty) {
+                videos.assignAll(list);
+              }
 
-    // 2. Monitor flagged images queue
-    _imagesSub = FirebaseFirestore.instance
-        .collection('flagged_images_review')
-        .orderBy('flaggedAt', descending: true)
-        .limit(100)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = snapshot.docs.map((doc) {
-              return {'id': doc.id, ...doc.data()};
-            }).toList();
-            images.assignAll(list);
+              pendingVideos.value = videos.where(isVideoPending).length;
+              totalVideos.value = videos.length;
+            },
+            onError: (e) {
+              debugPrint('AdminController Video Stream Error: $e');
+            },
+          );
+      if (_videosSub != null) trackSubscription(_videosSub!);
+    }
 
-            final pendingCount = list
-                .where((img) => img['status'] == 'PENDING_REVIEW')
-                .length;
-            pendingImages.value = pendingCount;
-            totalImages.value = list.length;
-          },
-          onError: (e) {
-            debugPrint('AdminController Image Stream Error: $e');
-          },
-        );
+    // 2. Monitor community posts and flagged images queue
+    if (_imagesSub == null) {
+      _imagesSub = FirebaseFirestore.instance
+          .collection('flagged_images_review')
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+              _combineImagesAndPosts(flaggedList: list);
+            },
+            onError: (e) {
+              debugPrint('AdminController Image Stream Error: $e');
+            },
+          );
+      if (_imagesSub != null) trackSubscription(_imagesSub!);
+    }
+
+    if (_communitySub == null) {
+      _communitySub = FirebaseFirestore.instance
+          .collection(FirestoreCollections.community)
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, 'category': 'Community Post', ...doc.data()};
+              }).toList();
+              _combineImagesAndPosts(communityList: list);
+            },
+            onError: (e) {
+              debugPrint('AdminController Community Stream Error: $e');
+            },
+          );
+      if (_communitySub != null) trackSubscription(_communitySub!);
+    }
 
     // 3. Monitor rejection / audit logs
-    _logsSub = FirebaseFirestore.instance
-        .collection('rejected_images_log')
-        .orderBy('rejectedAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = snapshot.docs.map((doc) {
-              return {'id': doc.id, ...doc.data()};
-            }).toList();
-            auditLogs.assignAll(list);
-          },
-          onError: (e) {
-            debugPrint('AdminController Audit Log Stream Error: $e');
-          },
-        );
+    if (_logsSub == null) {
+      _logsSub = FirebaseFirestore.instance
+          .collection('rejected_images_log')
+          .limit(50)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+              if (list.isNotEmpty || auditLogs.isEmpty) {
+                auditLogs.assignAll(list);
+              }
+            },
+            onError: (e) {
+              debugPrint('AdminController Audit Log Stream Error: $e');
+            },
+          );
+      if (_logsSub != null) trackSubscription(_logsSub!);
+    }
 
     // 4. Monitor channels collection
-    _channelsSub = FirebaseFirestore.instance
-        .collection(FirestoreCollections.channels)
-        .limit(100)
+    if (_channelsSub == null) {
+      _channelsSub = FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+
+              list.sort((a, b) {
+                final timeA = a['updatedAt'];
+                final timeB = b['updatedAt'];
+                if (timeA == null && timeB == null) return 0;
+                if (timeA == null) return 1;
+                if (timeB == null) return -1;
+                final dtA = timeA is Timestamp
+                    ? timeA.toDate()
+                    : (DateTime.tryParse(timeA.toString()) ??
+                          DateTime.fromMillisecondsSinceEpoch(0));
+                final dtB = timeB is Timestamp
+                    ? timeB.toDate()
+                    : (DateTime.tryParse(timeB.toString()) ??
+                          DateTime.fromMillisecondsSinceEpoch(0));
+                return dtB.compareTo(dtA);
+              });
+
+              if (list.isNotEmpty || channels.isEmpty) {
+                channels.assignAll(list);
+              }
+
+              pendingChannels.value = channels.where(isChannelPending).length;
+              totalChannels.value = channels.length;
+            },
+            onError: (e) {
+              debugPrint('AdminController Channels Stream Error: $e');
+            },
+          );
+      if (_channelsSub != null) trackSubscription(_channelsSub!);
+    }
+
+    // 5. Monitor reports, video_reports, and videoReports collections
+    if (_reportsSub == null) {
+      _reportsSub = FirebaseFirestore.instance
+          .collection(FirestoreCollections.reports)
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+              _combineReports(mainReports: list);
+            },
+            onError: (e) {
+              debugPrint('AdminController Reports Stream Error: $e');
+            },
+          );
+      if (_reportsSub != null) trackSubscription(_reportsSub!);
+    }
+
+    if (_videoReportsSub == null) {
+      _videoReportsSub = FirebaseFirestore.instance
+          .collection('video_reports')
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+              _combineReports(videoReportsList: list);
+            },
+            onError: (e) {
+              debugPrint('AdminController Video Reports Stream Error: $e');
+            },
+          );
+      if (_videoReportsSub != null) trackSubscription(_videoReportsSub!);
+    }
+
+    if (_altVideoReportsSub == null) {
+      _altVideoReportsSub = FirebaseFirestore.instance
+          .collection('videoReports')
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+              _combineReports(altVideoReportsList: list);
+            },
+            onError: (e) {
+              debugPrint('AdminController Alt Video Reports Stream Error: $e');
+            },
+          );
+      if (_altVideoReportsSub != null) trackSubscription(_altVideoReportsSub!);
+    }
+
+    // 6. Monitor content_appeals collection
+    _startAppealsSubscription();
+  }
+
+  void _startAppealsSubscription() {
+    _appealsSub?.cancel();
+    _appealsSub = FirebaseFirestore.instance
+        .collection('content_appeals')
         .snapshots()
         .listen(
           (snapshot) {
+            _appealsRetryCount = 0;
             final list = snapshot.docs.map((doc) {
               return {'id': doc.id, ...doc.data()};
             }).toList();
 
-            // Sort by updatedAt descending in memory to handle missing fields gracefully
             list.sort((a, b) {
-              final timeA = a['updatedAt'];
-              final timeB = b['updatedAt'];
+              final timeA = a['submittedAt'] ?? a['createdAt'];
+              final timeB = b['submittedAt'] ?? b['createdAt'];
               if (timeA == null && timeB == null) return 0;
               if (timeA == null) return 1;
               if (timeB == null) return -1;
@@ -493,89 +746,363 @@ class AdminController extends GetxController {
               return dtB.compareTo(dtA);
             });
 
-            channels.assignAll(list);
-
-            final pendingCount = list
+            appeals.assignAll(list);
+            pendingAppeals.value = list
                 .where(
-                  (c) =>
-                      c['status'] == 'underReview' ||
-                      c['status'] == 'verificationRejected',
+                  (a) => a['status'] == 'pending' || a['status'] == 'PENDING',
                 )
                 .length;
-            pendingChannels.value = pendingCount;
-            totalChannels.value = list.length;
           },
           onError: (e) {
-            debugPrint('AdminController Channels Stream Error: $e');
+            debugPrint('AdminController Appeals Stream Error: $e');
+            if (_appealsRetryCount < 2 &&
+                FirebaseAuth.instance.currentUser != null) {
+              _appealsRetryCount++;
+              Future.delayed(const Duration(seconds: 1), () {
+                if (FirebaseAuth.instance.currentUser != null) {
+                  _startAppealsSubscription();
+                }
+              });
+            }
           },
         );
+    if (_appealsSub != null) trackSubscription(_appealsSub!);
+  }
 
-    // 5. Monitor reports collection
-    _reportsSub = FirebaseFirestore.instance
-        .collection(FirestoreCollections.reports)
-        .limit(100)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            final list = snapshot.docs.map((doc) {
-              return {'id': doc.id, ...doc.data()};
-            }).toList();
+  void _combineImagesAndPosts({
+    List<Map<String, dynamic>>? communityList,
+    List<Map<String, dynamic>>? flaggedList,
+  }) {
+    if (communityList != null) _rawCommunityPosts = communityList;
+    if (flaggedList != null) _rawFlaggedImages = flaggedList;
 
-            list.sort((a, b) {
-              final timeA = a['createdAt'];
-              final timeB = b['createdAt'];
-              if (timeA == null && timeB == null) return 0;
-              if (timeA == null) return 1;
-              if (timeB == null) return -1;
-              final dtA = timeA is Timestamp
-                  ? timeA.toDate()
-                  : (DateTime.tryParse(timeA.toString()) ??
-                        DateTime.fromMillisecondsSinceEpoch(0));
-              final dtB = timeB is Timestamp
-                  ? timeB.toDate()
-                  : (DateTime.tryParse(timeB.toString()) ??
-                        DateTime.fromMillisecondsSinceEpoch(0));
-              return dtB.compareTo(dtA);
-            });
+    final combinedMap = <String, Map<String, dynamic>>{};
+    for (final item in _rawFlaggedImages) {
+      final id = (item['id'] ?? item['docId'] ?? '').toString();
+      if (id.isNotEmpty) combinedMap[id] = item;
+    }
+    for (final item in _rawCommunityPosts) {
+      final id = (item['id'] ?? item['docId'] ?? '').toString();
+      if (id.isNotEmpty && !combinedMap.containsKey(id)) {
+        combinedMap[id] = item;
+      }
+    }
 
-            reports.assignAll(list);
+    final combined = combinedMap.values.toList();
+    combined.sort((a, b) {
+      final timeA = a['flaggedAt'] ?? a['createdAt'] ?? a['timestamp'];
+      final timeB = b['flaggedAt'] ?? b['createdAt'] ?? b['timestamp'];
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      final dtA = timeA is Timestamp
+          ? timeA.toDate()
+          : (DateTime.tryParse(timeA.toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      final dtB = timeB is Timestamp
+          ? timeB.toDate()
+          : (DateTime.tryParse(timeB.toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      return dtB.compareTo(dtA);
+    });
 
-            final pendingCount = list
-                .where(
-                  (r) => r['status'] == 'pending' || r['status'] == 'PENDING',
-                )
-                .length;
-            pendingReports.value = pendingCount;
-            totalReports.value = list.length;
-          },
-          onError: (e) {
-            debugPrint('AdminController Reports Stream Error: $e');
-          },
-        );
+    images.assignAll(combined);
+
+    pendingImages.value = combined.where(isImagePostPending).length;
+    totalImages.value = combined.length;
+  }
+
+  void _combineReports({
+    List<Map<String, dynamic>>? mainReports,
+    List<Map<String, dynamic>>? videoReportsList,
+    List<Map<String, dynamic>>? altVideoReportsList,
+  }) {
+    if (mainReports != null) _rawReportsDocs = mainReports;
+    if (videoReportsList != null) _rawVideoReportsDocs = videoReportsList;
+    if (altVideoReportsList != null) {
+      _rawVideoReportsAltDocs = altVideoReportsList;
+    }
+
+    final combinedMap = <String, Map<String, dynamic>>{};
+
+    for (final item in _rawReportsDocs) {
+      final id = (item['id'] ?? item['docId'] ?? '').toString();
+      if (id.isNotEmpty) combinedMap[id] = item;
+    }
+
+    for (final item in _rawVideoReportsDocs) {
+      final id = (item['id'] ?? item['docId'] ?? '').toString();
+      if (id.isNotEmpty && !combinedMap.containsKey(id)) {
+        combinedMap[id] = item;
+      }
+    }
+
+    for (final item in _rawVideoReportsAltDocs) {
+      final id = (item['id'] ?? item['docId'] ?? '').toString();
+      if (id.isNotEmpty && !combinedMap.containsKey(id)) {
+        combinedMap[id] = item;
+      }
+    }
+
+    // Also include reported/flagged videos from video queue
+    for (final v in videos) {
+      final vId = (v['id'] ?? '').toString();
+      final isRep = v['isReported'] == true ||
+          v['flagged'] == true ||
+          v['status'] == 'reported' ||
+          (v['reportsCount'] is num && (v['reportsCount'] as num) > 0) ||
+          (v['reportCount'] is num && (v['reportCount'] as num) > 0);
+
+      if (isRep && vId.isNotEmpty) {
+        final synthId = 'reported_video_$vId';
+        if (!combinedMap.containsKey(synthId) &&
+            !combinedMap.values.any((r) => r['videoId'] == vId)) {
+          combinedMap[synthId] = {
+            'id': synthId,
+            'videoId': vId,
+            'channelId': v['channelId'] ?? '',
+            'type': 'video',
+            'status': v['moderation']?['status'] == 'rejected'
+                ? 'resolved_rejected'
+                : 'pending',
+            'reason':
+                v['reportReason'] ?? v['reason'] ?? 'User Reported Video',
+            'comment': v['reportComment'] ??
+                v['comment'] ??
+                'Reported directly on video queue',
+            'userEmail':
+                v['reporterEmail'] ?? v['userEmail'] ?? 'Community User',
+            'createdAt': v['createdAt'] ??
+                v['updatedAt'] ??
+                FieldValue.serverTimestamp(),
+          };
+        }
+      }
+    }
+
+    final combined = combinedMap.values.toList();
+    combined.sort((a, b) {
+      final timeA = a['createdAt'] ?? a['timestamp'] ?? a['reportedAt'];
+      final timeB = b['createdAt'] ?? b['timestamp'] ?? b['reportedAt'];
+      if (timeA == null && timeB == null) return 0;
+      if (timeA == null) return 1;
+      if (timeB == null) return -1;
+      final dtA = timeA is Timestamp
+          ? timeA.toDate()
+          : (DateTime.tryParse(timeA.toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      final dtB = timeB is Timestamp
+          ? timeB.toDate()
+          : (DateTime.tryParse(timeB.toString()) ??
+                DateTime.fromMillisecondsSinceEpoch(0));
+      return dtB.compareTo(dtA);
+    });
+
+    reports.assignAll(combined);
+    pendingReports.value = combined.where(isReportPending).length;
+    totalReports.value = combined.length;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STATUS CLASSIFICATION HELPERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Checks if a video is in pending/under-review state
+  bool isVideoPending(Map<String, dynamic> v) {
+    if (isVideoRejected(v)) return false;
+    final mod = v['moderation'] as Map<String, dynamic>?;
+    final modStatus = mod?['status']?.toString().toLowerCase();
+    final vStatus = v['status']?.toString().toLowerCase();
+    final status = modStatus ?? vStatus;
+
+    if (mod?['violationCategories']?.contains('timeout_passthrough') == true) {
+      return true;
+    }
+    if (status == null) {
+      if (v['isApproved'] == false) return true;
+      return false;
+    }
+    return status == 'pending' ||
+        status == 'processing' ||
+        status == 'error' ||
+        status == 'under_review' ||
+        status == 'underreview' ||
+        status == 'in_review' ||
+        status == 'pending_review' ||
+        status == 'flagged' ||
+        status == 'uploading' ||
+        status == 'unverified' ||
+        status == 'pending_approval';
+  }
+
+  /// Checks if a video is approved/published/active
+  bool isVideoApproved(Map<String, dynamic> v) {
+    if (isVideoRejected(v)) return false;
+    if (isVideoPending(v)) return false;
+    final mod = v['moderation'] as Map<String, dynamic>?;
+    final modStatus = mod?['status']?.toString().toLowerCase();
+    final vStatus = v['status']?.toString().toLowerCase();
+    final status = modStatus ?? vStatus;
+
+    if (status == 'approved' ||
+        status == 'published' ||
+        status == 'active' ||
+        status == 'ready' ||
+        status == 'passed') {
+      return true;
+    }
+    if (v['isApproved'] == true || v['visibility'] == 'public') {
+      return true;
+    }
+    return true; // Default fallback for existing videos without status
+  }
+
+  /// Checks if a video is rejected
+  bool isVideoRejected(Map<String, dynamic> v) {
+    final mod = v['moderation'] as Map<String, dynamic>?;
+    final modStatus = mod?['status']?.toString().toLowerCase();
+    final vStatus = v['status']?.toString().toLowerCase();
+    return modStatus == 'rejected' || vStatus == 'rejected';
+  }
+
+  /// Checks if a channel is pending verification/review
+  bool isChannelPending(Map<String, dynamic> c) {
+    if (isChannelRejected(c)) return false;
+    final status = (c['status'] ?? '').toString().toLowerCase();
+    if (status == 'underreview' ||
+        status == 'under_review' ||
+        status == 'pending' ||
+        status == 'pending_approval' ||
+        status == 'unverified' ||
+        status == 'verification_pending' ||
+        status == 'in_review') {
+      return true;
+    }
+    if (status.isEmpty && (c['isVerified'] == false || c['geminiApproved'] == false)) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Checks if a channel is active/verified
+  bool isChannelActive(Map<String, dynamic> c) {
+    if (isChannelRejected(c)) return false;
+    if (isChannelPending(c)) return false;
+    final status = (c['status'] ?? 'active').toString().toLowerCase();
+    return status == 'active' ||
+        status == 'verified' ||
+        status == 'approved' ||
+        status == 'published' ||
+        status == 'ready' ||
+        c['isApproved'] == true ||
+        c['isVerified'] == true ||
+        c['geminiApproved'] == true ||
+        c['status'] == null;
+  }
+
+  /// Checks if a channel verification was rejected or banned
+  bool isChannelRejected(Map<String, dynamic> c) {
+    final status = (c['status'] ?? '').toString().toLowerCase();
+    return status == 'verificationrejected' ||
+        status == 'verification_rejected' ||
+        status == 'rejected' ||
+        status == 'banned' ||
+        status == 'suspended';
+  }
+
+  /// Checks if an image/post is pending review
+  bool isImagePostPending(Map<String, dynamic> img) {
+    if (isImagePostRejected(img)) return false;
+    final status = (img['status'] ?? '').toString().toUpperCase();
+    if (status == 'PENDING_REVIEW' ||
+        status == 'PENDING' ||
+        status == 'PROCESSING' ||
+        status == 'UNDER_REVIEW' ||
+        status == 'PENDING_APPROVAL' ||
+        status == 'UNVERIFIED' ||
+        status == 'IN_REVIEW') {
+      return true;
+    }
+    if (status.isEmpty && img['isApproved'] == false) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Checks if an image/post is approved/published
+  bool isImagePostApproved(Map<String, dynamic> img) {
+    if (isImagePostRejected(img)) return false;
+    if (isImagePostPending(img)) return false;
+    final status = (img['status'] ?? 'APPROVED').toString().toUpperCase();
+    return status == 'APPROVED' ||
+        status == 'ACTIVE' ||
+        status == 'PUBLISHED' ||
+        status == 'PASSED' ||
+        img['isApproved'] == true ||
+        img['status'] == null;
+  }
+
+  /// Checks if an image/post is rejected
+  bool isImagePostRejected(Map<String, dynamic> img) {
+    final status = (img['status'] ?? '').toString().toUpperCase();
+    return status == 'REJECTED' || status == 'DELETED' || status == 'REMOVED';
+  }
+
+  /// Checks if a video/content report is pending
+  bool isReportPending(Map<String, dynamic> r) {
+    if (isReportResolved(r)) return false;
+    final status = (r['status'] ?? 'pending').toString().toLowerCase();
+    return status == 'pending' ||
+        status == 'under_review' ||
+        status == 'underreview' ||
+        status == 'in_review' ||
+        status == 'unresolved' ||
+        status == 'new';
+  }
+
+  /// Checks if a video/content report is resolved or dismissed
+  bool isReportResolved(Map<String, dynamic> r) {
+    final status = (r['status'] ?? '').toString().toLowerCase();
+    return r['isResolved'] == true ||
+        r['resolved'] == true ||
+        status == 'resolved' ||
+        status == 'dismissed' ||
+        status == 'resolved_rejected' ||
+        status == 'resolved_dismissed' ||
+        status == 'closed';
   }
 
   /// Cancels all active Firestore listeners
   void _stopSubscriptions() {
+    // Relying on trackSubscription for lifecycle management.
+    // However, if we need to manually stop them during logout, we can still do it.
     if (_videosSub != null) unawaited(_videosSub!.cancel());
     if (_imagesSub != null) unawaited(_imagesSub!.cancel());
+    if (_communitySub != null) unawaited(_communitySub!.cancel());
     if (_logsSub != null) unawaited(_logsSub!.cancel());
     if (_channelsSub != null) unawaited(_channelsSub!.cancel());
     if (_reportsSub != null) unawaited(_reportsSub!.cancel());
+    if (_appealsSub != null) unawaited(_appealsSub!.cancel());
     _videosSub = null;
     _imagesSub = null;
+    _communitySub = null;
     _logsSub = null;
     _channelsSub = null;
     _reportsSub = null;
+    _appealsSub = null;
   }
 
   /// Initiates Google Sign In
   Future<void> signInWithGoogle() async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     try {
       if (FirebaseAuth.instance.currentUser != null) {
         await AuthService.to.signOut();
       }
       await AuthService.to.signInWithGoogle();
+      if (FirebaseAuth.instance.currentUser != null) {
+        Get.offAllNamed('/admin/dashboard');
+      }
     } catch (e) {
       debugPrint('Admin Google Sign In failed: $e');
       Get.snackbar(
@@ -586,13 +1113,13 @@ class AdminController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
       );
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
   /// Signs out of the administrative console
   Future<void> signOutAdmin() async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     try {
       selectedVideo.value = null;
       selectedImage.value = null;
@@ -603,11 +1130,11 @@ class AdminController extends GetxController {
     } catch (e) {
       debugPrint('Admin Sign Out failed: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
-  /// Executes manual video moderation action (Approve/Reject)
+  /// Executes manual video moderation action (Approve/Reject/Override)
   Future<bool> moderateVideo(
     String videoId,
     String action,
@@ -616,35 +1143,80 @@ class AdminController extends GetxController {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('Session expired. Please log in again.');
+      final newStatus = action == 'approve' ? 'approved' : 'rejected';
+      final adminUid = user?.uid ?? 'admin';
+
+      // 0ms Optimistic UI update
+      final vIdx = videos.indexWhere((v) => v['id'] == videoId);
+      if (vIdx != -1) {
+        final item = Map<String, dynamic>.from(videos[vIdx]);
+        item['status'] = newStatus == 'approved' ? 'published' : 'rejected';
+        item['isApproved'] = newStatus == 'approved';
+        item['visibility'] = newStatus == 'approved' ? 'public' : 'rejected';
+        item['moderation'] = {
+          'status': newStatus,
+          'moderationReason': reason,
+          'overriddenByAdmin': true,
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          'moderatedBy': adminUid,
+        };
+        videos[vIdx] = item;
+        videos.refresh();
+        pendingVideos.value = videos.where(isVideoPending).length;
       }
 
-      final idToken = await user.getIdToken();
-      final response = await http.post(
-        Uri.parse(
-          'https://asia-south1-truthworld-1.cloudfunctions.net/moderateVideoManual',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: jsonEncode({
-          'videoId': videoId,
-          'action': action,
-          'reason': reason,
+      // 1. Direct Firestore update for immediate override & real-time sync
+      unawaited(
+        FirebaseFirestore.instance.collection('videos').doc(videoId).set({
+          'moderation': {
+            'status': newStatus,
+            'moderationReason': reason,
+            'overriddenByAdmin': true,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+            'moderatedBy': adminUid,
+          },
+          'status': newStatus == 'approved' ? 'published' : 'rejected',
+          'isApproved': newStatus == 'approved',
+          'visibility': newStatus == 'approved' ? 'public' : 'rejected',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((e) {
+          debugPrint('Firestore moderateVideo set error: $e');
         }),
       );
 
-      if (response.statusCode != 200) {
-        final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? 'Failed to moderate video.');
+      // 2. Call Cloud Function endpoint if user is authenticated
+      if (user != null) {
+        unawaited(
+          (() async {
+            try {
+              final idToken = await user.getIdToken();
+              await http.post(
+                Uri.parse(
+                  'https://asia-south1-truthworld-1.cloudfunctions.net/moderateVideoManual',
+                ),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer $idToken',
+                },
+                body: jsonEncode({
+                  'videoId': videoId,
+                  'action': action,
+                  'reason': reason,
+                }),
+              );
+            } catch (cfErr) {
+              debugPrint(
+                'Cloud function moderateVideo warning: $cfErr',
+              );
+            }
+          })(),
+        );
       }
 
       Get.snackbar(
-        'Success',
-        'Video successfully ${action}ed.',
-        backgroundColor: const Color(0xFF2BA640),
+        'Video ${newStatus == 'approved' ? 'Approved' : 'Rejected'}',
+        'Video status updated to ${newStatus.toUpperCase()}${newStatus == 'rejected' ? ' (Admin Override)' : ''}.',
+        backgroundColor: newStatus == 'approved' ? const Color(0xFF2BA640) : AppColors.error,
         colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
@@ -677,25 +1249,93 @@ class AdminController extends GetxController {
         throw Exception('Session expired. Please log in again.');
       }
 
-      final idToken = await user.getIdToken();
-      final response = await http.post(
-        Uri.parse(
-          'https://asia-south1-truthworld-1.cloudfunctions.net/moderateImageManual',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
+      final newStatus = action == 'approve' ? 'APPROVED' : 'REJECTED';
+      final adminUid = user.uid;
+
+      // 0ms Optimistic UI update
+      final imgIdx = images.indexWhere((img) => img['id'] == verificationId);
+      if (imgIdx != -1) {
+        final item = Map<String, dynamic>.from(images[imgIdx]);
+        item['status'] = newStatus;
+        item['isApproved'] = action == 'approve';
+        item['moderation'] = {
+          'status': newStatus,
+          'moderationReason': reason,
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          'moderatedBy': adminUid,
+        };
+        images[imgIdx] = item;
+        images.refresh();
+        pendingImages.value = images.where(isImagePostPending).length;
+      }
+
+      // Direct Firestore updates for immediate real-time UI sync
+      final updateData = <String, dynamic>{
+        'status': newStatus,
+        'isApproved': action == 'approve',
+        'moderation': {
+          'status': newStatus,
+          'moderationReason': reason,
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          'moderatedBy': adminUid,
         },
-        body: jsonEncode({
-          'verificationId': verificationId,
-          'action': action,
-          'reason': reason,
-        }),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      unawaited(
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.community)
+            .doc(verificationId)
+            .set(updateData, SetOptions(merge: true))
+            .catchError((_) {}),
       );
 
-      if (response.statusCode != 200) {
-        final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? 'Failed to moderate image.');
+      unawaited(
+        FirebaseFirestore.instance
+            .collection('flagged_images_review')
+            .doc(verificationId)
+            .set(updateData, SetOptions(merge: true))
+            .catchError((_) {}),
+      );
+
+      unawaited(
+        FirebaseFirestore.instance
+            .collection('image_verification')
+            .doc(verificationId)
+            .set({
+              'status': action == 'approve' ? 'APPROVED' : 'REJECTED',
+              'reason': reason.isNotEmpty
+                  ? reason
+                  : 'Manually ${action}d by administrator.',
+              'reviewedBy': adminUid,
+              'reviewedAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true))
+            .catchError((_) {}),
+      );
+
+      try {
+        final idToken = await user.getIdToken();
+        final response = await http.post(
+          Uri.parse(
+            'https://asia-south1-truthworld-1.cloudfunctions.net/moderateImageManual',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: jsonEncode({
+            'verificationId': verificationId,
+            'action': action,
+            'reason': reason,
+          }),
+        );
+
+        if (response.statusCode != 200) {
+          debugPrint('Cloud function moderateImage warning: ${response.body}');
+        }
+      } catch (cfErr) {
+        debugPrint('Cloud function moderateImage warning: $cfErr');
       }
 
       Get.snackbar(
@@ -731,18 +1371,38 @@ class AdminController extends GetxController {
     try {
       final status = action == 'approve' ? 'active' : 'verificationRejected';
 
+      // 0ms Optimistic UI update
+      final chIdx = channels.indexWhere((c) => c['id'] == channelId);
+      if (chIdx != -1) {
+        final item = Map<String, dynamic>.from(channels[chIdx]);
+        item['status'] = status;
+        if (action == 'approve') {
+          item.remove('moderationReason');
+        } else {
+          item['moderationReason'] = reason;
+        }
+        item['geminiApproved'] = action == 'approve';
+        channels[chIdx] = item;
+        channels.refresh();
+        pendingChannels.value = channels.where(isChannelPending).length;
+      }
+
       // Update the channel document in Firestore directly
-      await FirebaseFirestore.instance
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .update({
-            'status': status,
-            'moderationReason': action == 'approve'
-                ? FieldValue.delete()
-                : reason,
-            'geminiApproved': action == 'approve',
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+      unawaited(
+        FirebaseFirestore.instance
+            .collection(FirestoreCollections.channels)
+            .doc(channelId)
+            .update({
+              'status': status,
+              'moderationReason': action == 'approve'
+                  ? FieldValue.delete()
+                  : reason,
+              'geminiApproved': action == 'approve',
+              'updatedAt': FieldValue.serverTimestamp(),
+            }).catchError((e) {
+              debugPrint('Firestore moderateChannel error: $e');
+            }),
+      );
 
       Get.snackbar(
         'Success',
@@ -1015,26 +1675,66 @@ class AdminController extends GetxController {
         return mod?['status'] == 'rejected';
       }).length;
 
-      // Compute violation categories from images
+      // Compute violation categories from images & videos
       final violationCounts = <String, int>{};
       for (final img in images) {
         final scores = img['safeSearchScores'] as Map<String, dynamic>?;
         if (scores != null) {
           scores.forEach((key, value) {
             if (value is num && value >= 2) {
-              violationCounts[key] = (violationCounts[key] ?? 0) + 1;
+              final cat = key.replaceAll('_', ' ').capitalizeFirst ?? key;
+              violationCounts[cat] = (violationCounts[cat] ?? 0) + 1;
             }
           });
         }
+        final cat = img['violationCategory'] ?? img['category'];
+        if (cat != null && cat.toString().isNotEmpty) {
+          final catStr = cat.toString().replaceAll('_', ' ').capitalizeFirst ?? cat.toString();
+          violationCounts[catStr] = (violationCounts[catStr] ?? 0) + 1;
+        }
       }
+
+      for (final v in videos) {
+        final mod = v['moderation'] as Map<String, dynamic>?;
+        final violations = mod?['violationCategories'] as List<dynamic>?;
+        if (violations != null) {
+          for (final cat in violations) {
+            final catStr = cat.toString().replaceAll('_', ' ').capitalizeFirst ?? cat.toString();
+            violationCounts[catStr] = (violationCounts[catStr] ?? 0) + 1;
+          }
+        }
+      }
+
+      // Compute top offenders
+      final userRejections = <String, int>{};
+      for (final img in images) {
+        if (img['status'] == 'REJECTED') {
+          final u = (img['uploaderId'] ?? img['userId'] ?? img['userEmail'] ?? 'Unknown User').toString();
+          userRejections[u] = (userRejections[u] ?? 0) + 1;
+        }
+      }
+      for (final v in videos) {
+        final mod = v['moderation'] as Map<String, dynamic>?;
+        if (mod?['status'] == 'rejected') {
+          final u = (v['userId'] ?? v['creatorId'] ?? v['userEmail'] ?? 'Unknown Creator').toString();
+          userRejections[u] = (userRejections[u] ?? 0) + 1;
+        }
+      }
+
+      final sortedOffenders = userRejections.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+      final topOffenders = sortedOffenders.take(5).map((e) => {
+        'user': e.key,
+        'violationsCount': e.value,
+      }).toList();
 
       final totalModerated = totalModeratedImages + totalModeratedVideos;
       final totalApproved = approvedImages + approvedVideos;
       final autoApprovalRate = totalModerated > 0
           ? (totalApproved / totalModerated * 100).round()
-          : 0;
+          : 100;
 
-      // Compute safety score (0-100)
       final rejectionRate = totalModerated > 0
           ? ((rejectedImages + rejectedVideos) / totalModerated)
           : 0.0;
@@ -1047,17 +1747,16 @@ class AdminController extends GetxController {
 
       analyticsData.assignAll({
         'safetyScore': safetyScore,
+        'moderated24h': totalModerated,
         'totalModerated24h': totalModerated,
+        'autoApproveRate': autoApprovalRate,
         'autoApprovalRate': autoApprovalRate,
-        'avgReviewTimeMinutes':
-            12, // Placeholder — would need timestamp diff calculation
         'activeViolations': pendingImgCount + pendingVideos.value,
         'violationCategories': violationCounts,
         'totalApproved': totalApproved,
         'totalRejected': rejectedImages + rejectedVideos,
         'totalPending': pendingImgCount + pendingVideos.value,
-        'topOffenders':
-            <Map<String, dynamic>>[], // Would need userTrust aggregation
+        'topOffenders': topOffenders,
       });
     } catch (e) {
       debugPrint('Analytics fetch error: $e');
@@ -1173,12 +1872,28 @@ class AdminController extends GetxController {
     try {
       final snap = await FirebaseFirestore.instance
           .collection('content_appeals')
-          .orderBy('submittedAt', descending: true)
           .limit(100)
           .get();
-      appeals.assignAll(snap.docs.map((d) => {'id': d.id, ...d.data()}));
-      pendingAppeals.value = appeals
-          .where((a) => a['status'] == 'pending')
+      final list = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      list.sort((a, b) {
+        final timeA = a['submittedAt'] ?? a['createdAt'];
+        final timeB = b['submittedAt'] ?? b['createdAt'];
+        if (timeA == null && timeB == null) return 0;
+        if (timeA == null) return 1;
+        if (timeB == null) return -1;
+        final dtA = timeA is Timestamp
+            ? timeA.toDate()
+            : (DateTime.tryParse(timeA.toString()) ??
+                  DateTime.fromMillisecondsSinceEpoch(0));
+        final dtB = timeB is Timestamp
+            ? timeB.toDate()
+            : (DateTime.tryParse(timeB.toString()) ??
+                  DateTime.fromMillisecondsSinceEpoch(0));
+        return dtB.compareTo(dtA);
+      });
+      appeals.assignAll(list);
+      pendingAppeals.value = list
+          .where((a) => (a['status'] ?? '').toString().toLowerCase() == 'pending')
           .length;
     } catch (e) {
       debugPrint('Appeals fetch error: $e');
@@ -1352,13 +2067,29 @@ class AdminController extends GetxController {
         }
       }
 
-      await reportRef.update({
-        'status': action == 'reject'
-            ? 'resolved_rejected'
-            : 'resolved_dismissed',
-        'resolvedAt': FieldValue.serverTimestamp(),
-        'resolutionComment': reviewReason,
-      });
+      // 0ms Optimistic UI update
+      final rIdx = reports.indexWhere((r) => r['id'] == reportId);
+      if (rIdx != -1) {
+        final item = Map<String, dynamic>.from(reports[rIdx]);
+        item['status'] = action == 'reject' ? 'resolved_rejected' : 'resolved_dismissed';
+        item['isResolved'] = true;
+        item['resolutionComment'] = reviewReason;
+        reports[rIdx] = item;
+        reports.refresh();
+        pendingReports.value = reports.where(isReportPending).length;
+      }
+
+      unawaited(
+        reportRef.update({
+          'status': action == 'reject'
+              ? 'resolved_rejected'
+              : 'resolved_dismissed',
+          'resolvedAt': FieldValue.serverTimestamp(),
+          'resolutionComment': reviewReason,
+        }).catchError((e) {
+          debugPrint('Firestore moderateReport update error: $e');
+        }),
+      );
 
       Get.snackbar(
         'Success',

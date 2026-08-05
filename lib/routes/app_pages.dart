@@ -12,8 +12,10 @@ import 'package:truthworld/features/admin/presentation/views/admin_dashboard_scr
     deferred as admin_dashboard;
 import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart'
     deferred as admin_login;
+import 'package:truthworld/features/advertiser/presentation/bindings/advertiser_binding.dart';
 import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart'
     deferred as advertiser_portal;
+import 'package:truthworld/features/category/presentation/bindings/category_binding.dart';
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
@@ -40,6 +42,7 @@ import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/l
 import 'package:truthworld/features/myvideos/presentation/bindings/my_videos_binding.dart';
 import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
     deferred as my_videos;
+import 'package:truthworld/features/notifications/presentation/bindings/notifications_binding.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
@@ -52,6 +55,7 @@ import 'package:truthworld/features/premium/presentation/views/premium_plans_scr
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as app;
 import 'package:truthworld/features/search/presentation/pages/search_page.dart';
+import 'package:truthworld/features/settings/presentation/bindings/settings_binding.dart';
 import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
     deferred as settings;
 import 'package:truthworld/features/subscriptions/presentation/bindings/subscriptions_binding.dart';
@@ -86,6 +90,7 @@ class AppPages {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
           if (host.startsWith('admin') ||
+              host.contains('admin') ||
               Uri.base.queryParameters.containsKey('admin')) {
             return DeferredWidget(
               loader: admin_dashboard.loadLibrary,
@@ -93,6 +98,7 @@ class AppPages {
             );
           }
           if (host.startsWith('studio') ||
+              host.contains('studio') ||
               Uri.base.queryParameters.containsKey('studio')) {
             return DeferredWidget(
               loader: dashboard.loadLibrary,
@@ -122,6 +128,7 @@ class AppPages {
       name: '/channelscreen',
       page: ChannelScreen.new,
       middlewares: [ChannelCreationGuard()],
+      binding: ChannelBinding(),
     ),
     GetPage(
       name: '/dashboard',
@@ -181,6 +188,7 @@ class AppPages {
         builder: () => channel_details.ChannelDetailsPage(),
       ),
       middlewares: [ChannelDetailsRedirectMiddleware()],
+      binding: ChannelBinding(),
     ),
     GetPage(
       name: '/videoscreen',
@@ -279,18 +287,22 @@ class AppPages {
     GetPage(
       name: '/watch/:videoId',
       page: VideoLoaderScreen.new,
+      binding: VideoBinding(),
     ),
     GetPage(
       name: '/playlist/:playlistId',
       page: PlaylistLoaderScreen.new,
+      binding: PlaylistBinding(),
     ),
     GetPage(
       name: '/post/:postId',
       page: Home.new,
+      binding: HomeBinding(),
     ),
     GetPage(
       name: '/community/:postId',
       page: Home.new,
+      binding: HomeBinding(),
     ),
     GetPage(
       name: '/playlist-detail',
@@ -321,6 +333,7 @@ class AppPages {
     GetPage(
       name: '/category',
       page: CategoryPage.new,
+      binding: CategoryBinding(),
     ),
     GetPage(
       name: '/topic/:slug',
@@ -341,6 +354,7 @@ class AppPages {
         builder: () => settings.SettingsScreen(),
       ),
       middlewares: [AuthGuard()],
+      binding: SettingsBinding(),
     ),
     GetPage(
       name: '/feedback',
@@ -356,6 +370,7 @@ class AppPages {
     GetPage(
       name: '/notifications',
       page: VideoFeedNotificationScreen.new,
+      binding: NotificationsBinding(),
     ),
     GetPage(
       name: '/downloads',
@@ -411,6 +426,7 @@ class AppPages {
     GetPage(
       name: '/browse',
       page: CategoryPage.new,
+      binding: CategoryBinding(),
     ),
     GetPage(
       name: '/clips',
@@ -418,6 +434,7 @@ class AppPages {
     ),
     GetPage(
       name: '/admin',
+      binding: AdminBinding(),
       page: () => DeferredWidget(
         loader: admin_login.loadLibrary,
         builder: () => admin_login.AdminLoginScreen(),
@@ -425,6 +442,7 @@ class AppPages {
     ),
     GetPage(
       name: '/admin/login',
+      binding: AdminBinding(),
       page: () => DeferredWidget(
         loader: admin_login.loadLibrary,
         builder: () => admin_login.AdminLoginScreen(),
@@ -432,6 +450,7 @@ class AppPages {
     ),
     GetPage(
       name: '/admin/dashboard',
+      binding: AdminBinding(),
       page: () => DeferredWidget(
         loader: admin_dashboard.loadLibrary,
         builder: () => admin_dashboard.AdminDashboardScreen(),
@@ -439,6 +458,7 @@ class AppPages {
     ),
     GetPage(
       name: '/advertiser',
+      binding: AdvertiserBinding(),
       page: () => DeferredWidget(
         loader: advertiser_portal.loadLibrary,
         builder: () => advertiser_portal.AdvertiserPortalScreen(),
@@ -446,6 +466,7 @@ class AppPages {
     ),
     GetPage(
       name: '/advertisements',
+      binding: AdvertiserBinding(),
       page: () => DeferredWidget(
         loader: advertiser_portal.loadLibrary,
         builder: () => advertiser_portal.AdvertiserPortalScreen(),
@@ -453,6 +474,7 @@ class AppPages {
     ),
     GetPage(
       name: '/ads',
+      binding: AdvertiserBinding(),
       page: () => DeferredWidget(
         loader: advertiser_portal.loadLibrary,
         builder: () => advertiser_portal.AdvertiserPortalScreen(),

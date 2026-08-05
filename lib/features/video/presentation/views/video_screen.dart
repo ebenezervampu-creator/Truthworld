@@ -137,11 +137,11 @@ class VideoScreen extends GetView<VideoController> {
     return null;
   }
 
-  MainController? get _mainController {
-    try {
-      if (Get.isRegistered<MainController>()) return Get.find<MainController>();
-    } catch (_) {}
-    return null;
+  MainController get _mainController {
+    if (Get.isRegistered<MainController>()) {
+      return Get.find<MainController>();
+    }
+    return Get.put(MainController());
   }
 
   PlaylistController? get _playlistController {
@@ -1458,6 +1458,7 @@ class VideoScreen extends GetView<VideoController> {
     final defaultTimestamp =
         '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     final includeTimestamp = false.obs;
+    final isSubmitting = false.obs;
 
     Get.bottomSheet(
       Obx(() {
@@ -1703,24 +1704,27 @@ class VideoScreen extends GetView<VideoController> {
                     ),
                     const SizedBox(width: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        Get.back();
+                      onPressed: isSubmitting.value
+                          ? null
+                          : () {
+                              isSubmitting.value = true;
+                              Get.back();
 
-                        // Build detailed comment including timestamp
-                        final timestampPrefix = includeTimestamp.value
-                            ? '[Timestamp: $defaultTimestamp] '
-                            : '';
-                        final finalComment =
-                            '$timestampPrefix${commentController.text.trim()}';
+                              // Build detailed comment including timestamp
+                              final timestampPrefix = includeTimestamp.value
+                                  ? '[Timestamp: $defaultTimestamp] '
+                                  : '';
+                              final finalComment =
+                                  '$timestampPrefix${commentController.text.trim()}';
 
-                        _mainController?.reportVideo(
-                          context: context,
-                          videoId: controller.video.id,
-                          channelId: controller.video.channelId,
-                          reason: selectedReason.value!,
-                          comment: finalComment,
-                        );
-                      },
+                              _mainController.reportVideo(
+                                context: context,
+                                videoId: controller.video.id,
+                                channelId: controller.video.channelId,
+                                reason: selectedReason.value!,
+                                comment: finalComment,
+                              );
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primary,
                         foregroundColor: Colors.white,
@@ -2299,7 +2303,7 @@ class VideoScreen extends GetView<VideoController> {
                   icon: Icons.share_rounded,
                   label: 'Share',
                   onTap: () {
-                    _mainController?.shareVideo(
+                    _mainController.shareVideo(
                       controller.video.id,
                       controller.video.title,
                       thumbnailUrl: controller.video.thumbnailUrl,
@@ -2441,7 +2445,7 @@ class VideoScreen extends GetView<VideoController> {
                   icon: Icons.share_rounded,
                   label: 'Share',
                   onTap: () {
-                    _mainController?.shareVideo(
+                    _mainController.shareVideo(
                       controller.video.id,
                       controller.video.title,
                       thumbnailUrl: controller.video.thumbnailUrl,
@@ -3265,7 +3269,7 @@ class VideoScreen extends GetView<VideoController> {
                             ChannelMembershipTier(
                               id: 'default_bronze',
                               name: 'Bronze Supporter',
-                              price: 1.99,
+                              price: 2.0,
                               perks: [
                                 'Exclusive channel loyalty badge next to your name',
                                 'Custom channel emojis in live chat & comments',
@@ -3275,7 +3279,7 @@ class VideoScreen extends GetView<VideoController> {
                             ChannelMembershipTier(
                               id: 'default_silver',
                               name: 'Silver Supporter',
-                              price: 4.99,
+                              price: 5.0,
                               perks: [
                                 'All Bronze perks included',
                                 'Priority reply to your comments from creator',
@@ -3286,7 +3290,7 @@ class VideoScreen extends GetView<VideoController> {
                             ChannelMembershipTier(
                               id: 'default_gold',
                               name: 'Gold VIP',
-                              price: 9.99,
+                              price: 10.0,
                               perks: [
                                 'All Silver & Bronze perks included',
                                 'Exclusive behind-the-scenes video updates',
@@ -4253,7 +4257,7 @@ class VideoScreen extends GetView<VideoController> {
                     runSpacing: 4,
                     children: [
                       Text(
-                        '${FormatUtils.formatCount(_mainController?.videoLikes[controller.video.id] ?? controller.video.likeCount)} likes',
+                        '${FormatUtils.formatCount(_mainController.videoLikes[controller.video.id] ?? controller.video.likeCount)} likes',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -4261,7 +4265,7 @@ class VideoScreen extends GetView<VideoController> {
                         ),
                       ),
                       Text(
-                        '${FormatUtils.formatCount(_mainController?.videoDislikes[controller.video.id] ?? controller.video.dislikeCount)} dislikes',
+                        '${FormatUtils.formatCount(_mainController.videoDislikes[controller.video.id] ?? controller.video.dislikeCount)} dislikes',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,

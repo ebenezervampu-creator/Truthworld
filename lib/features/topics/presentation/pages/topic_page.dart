@@ -55,6 +55,7 @@ class _TopicPageState extends State<TopicPage> {
 
   void _setupInfiniteScroll() {
     _scrollController.addListener(() {
+      if (!_scrollController.hasClients || _scrollController.positions.length != 1) return;
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 500) {
         controller.loadMoreVideos();
@@ -101,7 +102,7 @@ class _TopicPageState extends State<TopicPage> {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: Obx(() {
-        if (controller.isLoading.value && controller.videos.isEmpty) {
+        if (controller.rxIsLoading.value && controller.videos.isEmpty) {
           return _buildLoadingState(isDesktop, isTablet);
         }
 
@@ -740,7 +741,7 @@ class _TopicPageState extends State<TopicPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            controller.errorMessage.value,
+            controller.rxErrorMessage.value,
             style: const TextStyle(
               fontSize: 18,
               color: AppColors.textSecondary,

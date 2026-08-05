@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as search_ctrl;
 import 'package:truthworld/features/settings/data/models/accessibility_settings.dart';
@@ -12,7 +13,7 @@ import 'package:truthworld/features/settings/data/models/download_settings.dart'
 import 'package:truthworld/features/settings/data/models/playback_settings.dart';
 import 'package:truthworld/features/settings/data/repositories/settings_repository.dart';
 
-class UserSettingsController extends GetxController {
+class UserSettingsController extends BaseController {
   static UserSettingsController get to {
     if (Get.isRegistered<UserSettingsController>()) {
       return Get.find<UserSettingsController>();

@@ -18,12 +18,6 @@ class TopicCategoriesConfig {
           'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=90',
     ),
     TopicCategory(
-      id: 'gaming',
-      title: 'Gaming',
-      imageUrl:
-          'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=1200&q=90',
-    ),
-    TopicCategory(
       id: 'music',
       title: 'Music',
       imageUrl:
@@ -148,12 +142,6 @@ class TopicCategoriesConfig {
       title: 'Fitness',
       imageUrl:
           'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=1200&q=90',
-    ),
-    TopicCategory(
-      id: 'beauty',
-      title: 'Beauty',
-      imageUrl:
-          'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1200&q=90',
     ),
     TopicCategory(
       id: 'finance',

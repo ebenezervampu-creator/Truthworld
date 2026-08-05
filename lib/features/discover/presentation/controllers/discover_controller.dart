@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -11,7 +12,7 @@ class DiscoverCategoryData {
   final String imageUrl;
 }
 
-class DiscoverController extends GetxController {
+class DiscoverController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Realtime active channels list
@@ -20,7 +21,9 @@ class DiscoverController extends GetxController {
   // Filtering and Search State
   final RxString selectedCategory = ''.obs;
   final RxString searchQuery = ''.obs;
-  final RxBool isLoading = true.obs;
+  final RxBool rxIsLoading = true.obs;
+  @override
+  bool get isLoading => rxIsLoading.value || super.isLoading;
 
   late final TextEditingController searchController;
 
@@ -182,6 +185,7 @@ class DiscoverController extends GetxController {
   void onInit() {
     super.onInit();
     searchController = TextEditingController(text: searchQuery.value);
+    trackTextController(searchController);
     searchController.addListener(() {
       updateSearchQuery(searchController.text);
     });
@@ -189,7 +193,7 @@ class DiscoverController extends GetxController {
   }
 
   Future<void> _fetchChannels() async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     try {
       final snapshot = await _firestore
           .collection(FirestoreCollections.channels)
@@ -211,7 +215,7 @@ class DiscoverController extends GetxController {
     } catch (error) {
       debugPrint('DiscoverController: Error fetching channels: $error');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -273,9 +277,5 @@ class DiscoverController extends GetxController {
     return list;
   }
 
-  @override
-  void onClose() {
-    searchController.dispose();
-    super.onClose();
-  }
+
 }

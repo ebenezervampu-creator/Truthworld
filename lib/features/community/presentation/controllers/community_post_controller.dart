@@ -423,14 +423,10 @@ class CommunityPostController extends BaseController {
       return;
     }
     try {
-      if (Get.isRegistered<ChannelController>()) {
-        await Get.find<ChannelController>().unsubscribeFromChannel(
-          post.channelId,
-        );
-      } else {
-        final channelCtrl = Get.find<ChannelController>();
-        await channelCtrl.unsubscribeFromChannel(post.channelId);
-      }
+      final channelCtrl = Get.isRegistered<ChannelController>()
+          ? Get.find<ChannelController>()
+          : Get.put(ChannelController());
+      await channelCtrl.unsubscribeFromChannel(post.channelId);
     } catch (_) {}
 
     try {

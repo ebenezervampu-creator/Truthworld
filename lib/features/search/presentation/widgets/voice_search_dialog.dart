@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class VoiceSearchController extends GetxController
+class VoiceSearchController extends BaseController
     with GetSingleTickerProviderStateMixin {
   VoiceSearchController({required this.onSearch, required this.context});
   final Function(String) onSearch;
@@ -16,7 +17,7 @@ class VoiceSearchController extends GetxController
   final RxBool isListening = false.obs;
   final RxString text = 'Listening...'.obs;
   final RxDouble soundLevel = 0.0.obs;
-  final RxString errorMessage = ''.obs;
+  final RxString rxErrorMessage = ''.obs;
   late AnimationController pulsateController;
   bool _isSubmitting = false;
 
@@ -76,15 +77,15 @@ class VoiceSearchController extends GetxController
             return;
           }
           if (error.errorMsg == 'error_permission') {
-            errorMessage.value =
+            rxErrorMessage.value =
                 'Microphone permission is required for voice search. Please enable it in device settings.';
             text.value = 'Permission denied.';
           } else if (error.errorMsg == 'error_speech_timeout' ||
               error.errorMsg == 'error_no_match') {
-            errorMessage.value = '';
+            rxErrorMessage.value = '';
             text.value = "Didn't catch that. Tap mic to try again.";
           } else {
-            errorMessage.value = 'Speech recognition error: ${error.errorMsg}';
+            rxErrorMessage.value = 'Speech recognition error: ${error.errorMsg}';
             text.value = "Didn't catch that. Tap mic to try again.";
           }
         },
@@ -99,7 +100,7 @@ class VoiceSearchController extends GetxController
     } catch (e) {
       debugPrint('🎙️ [VoiceSearch] Exception in init: $e');
       text.value = 'Speech recognition initialization failed.';
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
     }
   }
 
@@ -111,7 +112,7 @@ class VoiceSearchController extends GetxController
     }
 
     text.value = 'Listening...';
-    errorMessage.value = '';
+    rxErrorMessage.value = '';
     soundLevel.value = 0.0;
 
     try {
@@ -270,7 +271,7 @@ class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
 
                   // Error message fallback
                   Obx(() {
-                    final err = controller.errorMessage.value;
+                    final err = controller.rxErrorMessage.value;
                     if (err.isEmpty) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 24),

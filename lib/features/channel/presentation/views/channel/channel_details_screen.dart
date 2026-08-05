@@ -81,7 +81,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
   @override
   Widget build(BuildContext context) {
-    Get.find<ChannelController>();
+    if (!Get.isRegistered<ChannelController>()) {
+      Get.put(ChannelController());
+    }
     final args = Get.arguments;
     final Channel? targetChannel =
         channel ??

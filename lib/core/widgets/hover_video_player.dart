@@ -80,8 +80,16 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
 
     final videoId = widget.video.id;
     if (_controller.value != null) {
+      final oldController = _controller.value;
       if (VideoPlaybackHandoff.isActive(videoId)) {
         VideoPlaybackHandoff.clear(videoId);
+      } else {
+        try {
+          oldController?.pause();
+          oldController?.dispose();
+        } catch (e) {
+          debugPrint('[HoverVideoPlayer] Error disposing player on exit: $e');
+        }
       }
     }
 

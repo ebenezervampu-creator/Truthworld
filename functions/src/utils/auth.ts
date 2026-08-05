@@ -25,6 +25,16 @@ export interface AuthenticatedUser {
  * if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
  * ```
  */
+/**
+ * Verifies the Firebase Auth Bearer token from the Authorization header.
+ * Returns the decoded user if valid, or null if missing/invalid.
+ *
+ * Usage:
+ * ```
+ * const user = await verifyAuth(req);
+ * if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+ * ```
+ */
 export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -36,10 +46,27 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
 
   try {
     const decoded = await admin.auth().verifyIdToken(token);
+    let isAdminUser = decoded.admin === true || decoded.role === "admin";
+
+    if (!isAdminUser) {
+      // Fallback check in Firestore users collection
+      try {
+        const userDoc = await admin.firestore().collection("users").doc(decoded.uid).get();
+        if (userDoc.exists) {
+          const data = userDoc.data();
+          if (data?.role === "admin" || data?.isAdmin === true) {
+            isAdminUser = true;
+          }
+        }
+      } catch (docErr) {
+        logger.warn("[Auth] Firestore admin role check failed:", docErr);
+      }
+    }
+
     return {
       uid: decoded.uid,
       email: decoded.email,
-      isAdmin: decoded.admin === true,
+      isAdmin: isAdminUser,
     };
   } catch (err) {
     logger.warn("[Auth] Invalid token:", err);
@@ -48,10 +75,25 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
 }
 
 /**
+ * Sets standard CORS headers on HTTP response.
+ */
+export function setCorsHeaders(req: Request, res: Response): void {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+}
+
+/**
  * Requires Firebase Auth. Returns 401 if not authenticated.
  * Returns the authenticated user if valid.
  */
 export async function requireAuth(req: Request, res: Response): Promise<AuthenticatedUser | null> {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return null;
+  }
+
   const user = await verifyAuth(req);
   if (!user) {
     res.status(401).json({ error: "Unauthorized. Bearer token required." });
@@ -65,6 +107,12 @@ export async function requireAuth(req: Request, res: Response): Promise<Authenti
  * Returns 401 if not authenticated, 403 if not admin.
  */
 export async function requireAdmin(req: Request, res: Response): Promise<AuthenticatedUser | null> {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return null;
+  }
+
   const user = await verifyAuth(req);
   if (!user) {
     res.status(401).json({ error: "Unauthorized. Bearer token required." });
@@ -76,3 +124,4 @@ export async function requireAdmin(req: Request, res: Response): Promise<Authent
   }
   return user;
 }
+

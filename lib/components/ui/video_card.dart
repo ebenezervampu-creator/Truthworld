@@ -241,7 +241,14 @@ class _VideoCardState extends State<VideoCard> {
       _isControllerInitialized.value = false;
       _isLoadingVideo.value = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        controller?.dispose();
+        try {
+          if (controller?.value.isInitialized ?? false) {
+            controller?.pause();
+          }
+          controller?.dispose();
+        } catch (e) {
+          debugPrint('Error disposing preview player: $e');
+        }
       });
     }
   }
@@ -374,6 +381,9 @@ class _VideoCardState extends State<VideoCard> {
       _videoPlayerController.value = null;
       _isControllerInitialized.value = false;
       _isLoadingVideo.value = false;
+    } else {
+      // Pre-warm CDN stream immediately for zero-latency startup
+      VideoPlaybackHandoff.prewarmVideo(widget.video);
     }
 
     if (widget.onTap != null) {

@@ -9,6 +9,13 @@ class AnalyticsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Trigger analytics fetch on initial load if analyticsData is empty
+    if (controller.analyticsData.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.fetchAnalytics();
+      });
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -20,14 +27,23 @@ class AnalyticsTab extends StatelessWidget {
               const SizedBox(height: 24),
               _buildMetricsCards(constraints),
               const SizedBox(height: 32),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 2, child: _buildViolationCategoryChart()),
-                  const SizedBox(width: 24),
-                  Expanded(child: _buildTopOffendersList()),
-                ],
-              ),
+              if (constraints.maxWidth > 800)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 2, child: _buildViolationCategoryChart()),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildTopOffendersList()),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildViolationCategoryChart(),
+                    const SizedBox(height: 24),
+                    _buildTopOffendersList(),
+                  ],
+                ),
             ],
           ),
         );
@@ -36,8 +52,11 @@ class AnalyticsTab extends StatelessWidget {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 12,
       children: [
         const Text(
           'Platform Safety Analytics',
@@ -74,32 +93,39 @@ class AnalyticsTab extends StatelessWidget {
 
     return Obx(() {
       final data = controller.analyticsData;
+      final safetyScore = data['safetyScore'] ?? 100;
+      final totalModerated = data['totalModerated24h'] ?? data['moderated24h'] ?? 0;
+      final autoApprovalRate = data['autoApprovalRate'] ?? data['autoApproveRate'] ?? 0;
+      final activeViolations = data['activeViolations'] ?? 0;
+
       return Wrap(
         spacing: 16,
         runSpacing: 16,
         children: [
           _buildMetricCard(
             'Platform Safety Score',
-            '${data['safetyScore'] ?? 92}/100',
-            Colors.green,
+            '$safetyScore/100',
+            safetyScore >= 80
+                ? Colors.green
+                : (safetyScore >= 50 ? Colors.amber : AppColors.error),
             isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
           ),
           _buildMetricCard(
-            'Total Moderated (24h)',
-            '${data['moderated24h'] ?? 1420}',
+            'Total Moderated',
+            '$totalModerated',
             AppColors.textPrimary,
             isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
           ),
           _buildMetricCard(
             'Auto-Approved Rate',
-            '${data['autoApproveRate'] ?? 87}%',
+            '$autoApprovalRate%',
             Colors.blue,
             isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
           ),
           _buildMetricCard(
             'Active Violations',
-            '${data['activeViolations'] ?? 34}',
-            AppColors.error,
+            '$activeViolations',
+            activeViolations > 0 ? AppColors.error : Colors.green,
             isSmall ? constraints.maxWidth : constraints.maxWidth / 4 - 16,
           ),
         ],
@@ -127,7 +153,7 @@ class AnalyticsTab extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: AppColors.textPrimary,
               fontSize: 14,
             ),
           ),
@@ -165,28 +191,80 @@ class AnalyticsTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          _buildBarChartRow('Hate Speech', 85, Colors.red),
-          _buildBarChartRow('Spam', 45, Colors.orange),
-          _buildBarChartRow('Harassment', 65, Colors.amber),
-          _buildBarChartRow('Nudity', 20, Colors.pink),
+          Obx(() {
+            final data = controller.analyticsData;
+            final categoriesRaw = data['violationCategories'];
+            final categories =
+                categoriesRaw is Map<String, dynamic> ? categoriesRaw : <String, dynamic>{};
+
+            if (categories.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32.0),
+                child: Center(
+                  child: Text(
+                    'No violation categories recorded.',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
+                ),
+              );
+            }
+
+            final totalCount = categories.values.fold<int>(
+              0,
+              (prev, curr) => prev + (curr is num ? curr.toInt() : 0),
+            );
+
+            final categoryList = categories.entries.toList()
+              ..sort((a, b) => (b.value as num).compareTo(a.value as num));
+
+            final chartColors = [
+              Colors.red,
+              Colors.orange,
+              Colors.amber,
+              Colors.pink,
+              Colors.purple,
+              Colors.blue,
+            ];
+
+            return Column(
+              children: List.generate(categoryList.length, (index) {
+                final entry = categoryList[index];
+                final count = entry.value is num ? (entry.value as num).toInt() : 0;
+                final percentage = totalCount > 0
+                    ? ((count / totalCount) * 100).roundToDouble()
+                    : 0.0;
+                final color = chartColors[index % chartColors.length];
+
+                return _buildBarChartRow(entry.key, percentage, count, color);
+              }),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildBarChartRow(String label, double percentage, Color color) {
+  Widget _buildBarChartRow(
+    String label,
+    double percentage,
+    int count,
+    Color color,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          SizedBox(
-            width: 120,
+          Flexible(
+            flex: 2,
             child: Text(
               label,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: const TextStyle(color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 8),
           Expanded(
+            flex: 3,
             child: Stack(
               children: [
                 Container(
@@ -197,7 +275,7 @@ class AnalyticsTab extends StatelessWidget {
                   ),
                 ),
                 FractionallySizedBox(
-                  widthFactor: percentage / 100,
+                  widthFactor: (percentage / 100).clamp(0.02, 1.0),
                   child: Container(
                     height: 16,
                     decoration: BoxDecoration(
@@ -209,12 +287,12 @@ class AnalyticsTab extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
           SizedBox(
-            width: 40,
+            width: 60,
             child: Text(
-              '${percentage.toInt()}%',
-              style: const TextStyle(color: AppColors.textPrimary),
+              '${percentage.toInt()}% ($count)',
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
             ),
           ),
         ],
@@ -242,31 +320,54 @@ class AnalyticsTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 5,
-            itemBuilder: (context, index) {
-              return Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.bgElevated,
-                    child: Icon(Icons.person, color: AppColors.textPrimary),
-                  ),
-                  title: Text(
-                    'User ${index + 1}',
-                    style: const TextStyle(color: AppColors.textPrimary),
-                  ),
-                  trailing: Text(
-                    '${90 - index * 5}% rej',
-                    style: const TextStyle(color: AppColors.error),
+          Obx(() {
+            final data = controller.analyticsData;
+            final offendersRaw = data['topOffenders'];
+            final offenders = offendersRaw is List ? offendersRaw : [];
+
+            if (offenders.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32.0),
+                child: Center(
+                  child: Text(
+                    'No repeat offenders recorded.',
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
               );
-            },
-          ),
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: offenders.length,
+              itemBuilder: (context, index) {
+                final item = offenders[index];
+                final username = (item['user'] ?? 'Unknown User').toString();
+                final count = item['violationsCount'] ?? 0;
+
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const CircleAvatar(
+                      backgroundColor: AppColors.bgElevated,
+                      child: Icon(Icons.person, color: AppColors.textPrimary),
+                    ),
+                    title: Text(
+                      username,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Text(
+                      '$count violation${count == 1 ? '' : 's'}',
+                      style: const TextStyle(color: AppColors.error),
+                    ),
+                  ),
+                );
+              },
+            );
+          }),
         ],
       ),
     );

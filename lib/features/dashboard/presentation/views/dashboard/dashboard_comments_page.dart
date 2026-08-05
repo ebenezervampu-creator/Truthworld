@@ -33,7 +33,9 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
   @override
   void initState() {
     super.initState();
-    controller = Get.find<DashboardCommentsController>();
+    controller = Get.isRegistered<DashboardCommentsController>()
+        ? Get.find<DashboardCommentsController>()
+        : Get.put(DashboardCommentsController());
     _tabController = TabController(length: 2, vsync: this);
   }
 
@@ -84,14 +86,16 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
                       Container(
                         width: 320,
                         decoration: const BoxDecoration(
-                          color: AppColors.bgSurface,
                           border: Border(
                             right: BorderSide(
                               color: AppColors.bgDivider,
                             ),
                           ),
                         ),
-                        child: _buildVideoSelectorPane(),
+                        child: Material(
+                          color: AppColors.bgSurface,
+                          child: _buildVideoSelectorPane(),
+                        ),
                       ),
 
                       // Right Pane: Comments Stream
@@ -350,7 +354,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
                 style: GoogleFonts.roboto(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? Colors.white : AppColors.textPrimary,
+                  color: isSelected ? Colors.black : AppColors.textPrimary,
                 ),
               ),
             ],

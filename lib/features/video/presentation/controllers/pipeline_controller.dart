@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/video/data/models/content_verification.dart';
 import 'package:truthworld/features/video/data/models/pipeline_config.dart';
 import 'package:truthworld/features/video/data/models/pipeline_status.dart';
@@ -7,7 +8,7 @@ import 'package:truthworld/features/video/data/services/pipeline_service.dart';
 
 /// Pipeline Controller - Manages pipeline orchestration state
 /// Handles configuration, job submission, status tracking
-class PipelineController extends GetxController {
+class PipelineController extends BaseController {
   final PipelineService _pipelineService = Get.find<PipelineService>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -32,11 +33,11 @@ class PipelineController extends GetxController {
 
   // Loading states
   RxBool isSubmitting = false.obs;
-  RxBool isLoading = false.obs;
+  RxBool rxIsLoading = false.obs;
   RxBool isVerifying = false.obs;
 
   // Error messages
-  RxString errorMessage = ''.obs;
+  RxString rxErrorMessage = ''.obs;
   RxString warningMessage = ''.obs;
 
   // Available languages
@@ -80,20 +81,20 @@ class PipelineController extends GetxController {
       await _loadUserTier();
       await _loadUserJobs();
     } catch (e) {
-      errorMessage.value = 'Failed to initialize user data';
+      rxErrorMessage.value = 'Failed to initialize user data';
     }
   }
 
   /// Load user tier information
   Future<void> _loadUserTier() async {
     try {
-      isLoading.value = true;
+      rxIsLoading.value = true;
       userTier.value = await _pipelineService.getUserTier();
       remainingBudget.value = await _pipelineService.getRemainingBudget();
-      isLoading.value = false;
+      rxIsLoading.value = false;
     } catch (e) {
-      errorMessage.value = e.toString();
-      isLoading.value = false;
+      rxErrorMessage.value = e.toString();
+      rxIsLoading.value = false;
     }
   }
 
@@ -103,7 +104,7 @@ class PipelineController extends GetxController {
       final jobs = await _pipelineService.getUserJobs();
       userJobs.value = jobs;
     } catch (e) {
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
     }
   }
 
@@ -234,7 +235,7 @@ class PipelineController extends GetxController {
     required String channelId,
   }) async {
     try {
-      errorMessage.value = '';
+      rxErrorMessage.value = '';
       isSubmitting.value = true;
 
       // Build configuration
@@ -249,7 +250,7 @@ class PipelineController extends GetxController {
       // Validate configuration
       final validation = _pipelineService.validateConfig(config);
       if (validation['isValid'] != true) {
-        errorMessage.value = (validation['errors'] as List).join('\n');
+        rxErrorMessage.value = (validation['errors'] as List).join('\n');
         isSubmitting.value = false;
         return null;
       }
@@ -261,7 +262,7 @@ class PipelineController extends GetxController {
 
       // Check budget
       if (config.estimatedCost > remainingBudget.value) {
-        errorMessage.value =
+        rxErrorMessage.value =
             'Insufficient budget. Remaining: \$${remainingBudget.value.toStringAsFixed(2)}';
         isSubmitting.value = false;
         return null;
@@ -281,7 +282,7 @@ class PipelineController extends GetxController {
       isSubmitting.value = false;
       return jobId;
     } catch (e) {
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
       isSubmitting.value = false;
       return null;
     }
@@ -303,7 +304,7 @@ class PipelineController extends GetxController {
             }
           },
           onError: (e) {
-            errorMessage.value = 'Error tracking job: $e';
+            rxErrorMessage.value = 'Error tracking job: $e';
           },
         );
   }
@@ -348,9 +349,9 @@ class PipelineController extends GetxController {
     try {
       await _pipelineService.cancelJob(jobId);
       currentJobStatus.value = null;
-      errorMessage.value = '';
+      rxErrorMessage.value = '';
     } catch (e) {
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
     }
   }
 
@@ -361,7 +362,7 @@ class PipelineController extends GetxController {
       _startJobTracking(newJobId);
       return newJobId;
     } catch (e) {
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
       return null;
     }
   }
@@ -382,7 +383,7 @@ class PipelineController extends GetxController {
     enableVisualContext.value = false;
     enableAudioEnhancement.value = false;
     enableChapters.value = false;
-    errorMessage.value = '';
+    rxErrorMessage.value = '';
     warningMessage.value = '';
   }
 

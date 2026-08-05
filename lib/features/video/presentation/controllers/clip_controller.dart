@@ -3,13 +3,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
-class ClipController extends GetxController {
+class ClipController extends BaseController {
   ClipController({required this.video});
   final Video video;
 

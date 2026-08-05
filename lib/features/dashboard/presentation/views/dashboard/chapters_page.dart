@@ -26,7 +26,9 @@ class _ChaptersPageState extends State<ChaptersPage> {
   @override
   void initState() {
     super.initState();
-    controller = Get.find<ChaptersController>();
+    controller = Get.isRegistered<ChaptersController>()
+        ? Get.find<ChaptersController>()
+        : Get.put(ChaptersController());
     controller.setChannelContext(widget.channelId);
   }
 
@@ -52,10 +54,10 @@ class _ChaptersPageState extends State<ChaptersPage> {
         : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
-        : AppColors.textPrimary;
+        : Colors.black;
     final textSecondaryColor = widget.isDarkMode
         ? AppColors.textSecondary
-        : AppColors.textSecondary;
+        : Colors.black;
     final borderColor = widget.isDarkMode
         ? AppColors.bgDivider
         : AppColors.bgDivider;
@@ -1266,10 +1268,10 @@ class _ChaptersPageState extends State<ChaptersPage> {
         : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
-        : AppColors.textPrimary;
+        : Colors.black;
     final textSecondaryColor = widget.isDarkMode
         ? AppColors.textSecondary
-        : AppColors.textSecondary;
+        : Colors.black;
 
     Get.dialog(
       AlertDialog(
@@ -1390,10 +1392,10 @@ class _ChaptersPageState extends State<ChaptersPage> {
         : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
-        : AppColors.textPrimary;
+        : Colors.black;
     final textSecondaryColor = widget.isDarkMode
         ? AppColors.textSecondary
-        : AppColors.textSecondary;
+        : Colors.black;
 
     Get.dialog(
       AlertDialog(

@@ -5,19 +5,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class MyVideosController extends GetxController {
+class MyVideosController extends BaseController {
   RxString searchQuery = ''.obs;
   RxBool isSearching = false.obs;
   RxBool isSearchExpanded = false.obs;
   RxString sortBy = 'recent'.obs;
   RxBool isAscending = false.obs;
   RxList<Video> videos = <Video>[].obs;
-  RxBool isLoading = true.obs;
-  RxString errorMessage = ''.obs;
+  RxBool rxIsLoading = true.obs;
+  RxString rxErrorMessage = ''.obs;
   RxString selectedCategory = 'All'.obs;
 
   StreamSubscription<QuerySnapshot>? _subscription;
@@ -28,20 +29,14 @@ class MyVideosController extends GetxController {
     _listenToVideos();
   }
 
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
-  }
-
   void _listenToVideos() {
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      errorMessage.value = 'User not authenticated';
-      isLoading.value = false;
+      rxErrorMessage.value = 'User not authenticated';
+      rxIsLoading.value = false;
       return;
     }
 
@@ -62,17 +57,19 @@ class MyVideosController extends GetxController {
     }
 
     _subscription?.cancel();
-    _subscription = query.snapshots().listen(
+    final sub = query.snapshots().listen(
       (snapshot) {
         videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
-        isLoading.value = false;
+        rxIsLoading.value = false;
       },
       onError: (error) {
-        errorMessage.value = error.toString();
-        isLoading.value = false;
+        rxErrorMessage.value = error.toString();
+        rxIsLoading.value = false;
         debugPrint('MyVideos Firestore Error: $error');
       },
     );
+    _subscription = sub;
+    trackSubscription(sub);
   }
 
   void setSearchQuery(String query) {

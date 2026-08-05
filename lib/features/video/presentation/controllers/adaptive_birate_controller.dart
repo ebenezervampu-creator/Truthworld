@@ -9,6 +9,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
@@ -127,7 +128,7 @@ class AbrDecision {
 ///   - Buffer occupancy: prevents unnecessary downgrades
 ///   - Hysteresis: prevents thrashing (rapid up/down switches)
 ///   - Safety margin: 80% of measured bandwidth to handle fluctuations
-class AdaptiveBitrateController extends GetxController {
+class AdaptiveBitrateController extends BaseController {
   // ── State ─────────────────────────────────────────────────
   final Rx<PlaybackState> playbackState = PlaybackState.idle.obs;
   final RxInt currentTierIndex = 3.obs; // Start at 480p (tier 3) for better UX
@@ -262,6 +263,7 @@ class AdaptiveBitrateController extends GetxController {
     _abrTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (isAutoMode.value) _runAbrDecision();
     });
+    trackTimer(_abrTimer!);
   }
 
   void _runAbrDecision({bool forceHighest = false}) {
@@ -363,6 +365,7 @@ class AdaptiveBitrateController extends GetxController {
     _bandwidthProbeTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _measureBandwidth();
     });
+    trackTimer(_bandwidthProbeTimer!);
   }
 
   void _measureBandwidth() {
@@ -441,6 +444,7 @@ class AdaptiveBitrateController extends GetxController {
     _stallDetectionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _checkForStall();
     });
+    trackTimer(_stallDetectionTimer!);
   }
 
   void _checkForStall() {
@@ -535,9 +539,6 @@ class AdaptiveBitrateController extends GetxController {
 
   @override
   void onClose() {
-    _abrTimer?.cancel();
-    _bandwidthProbeTimer?.cancel();
-    _stallDetectionTimer?.cancel();
     _vpc?.removeListener(_onVideoPlayerUpdate);
     super.onClose();
   }

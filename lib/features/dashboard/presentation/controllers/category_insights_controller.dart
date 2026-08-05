@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 
 class CategoryStats {
@@ -42,11 +43,11 @@ enum CategoryInsightsFilter {
   fastestGrowing,
 }
 
-class CategoryInsightsController extends GetxController {
+class CategoryInsightsController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  final RxBool isLoading = true.obs;
-  final RxString errorMessage = ''.obs;
+  final RxBool rxIsLoading = true.obs;
+  final RxString rxErrorMessage = ''.obs;
   final RxString searchQuery = ''.obs;
   final Rx<CategoryInsightsFilter> activeFilter =
       CategoryInsightsFilter.all.obs;
@@ -98,8 +99,8 @@ class CategoryInsightsController extends GetxController {
 
   Future<void> fetchCategoryInsights() async {
     try {
-      isLoading.value = true;
-      errorMessage.value = '';
+      rxIsLoading.value = true;
+      rxErrorMessage.value = '';
 
       // 1. Query real video documents and channel documents from Firestore
       final videosSnap = await _firestore
@@ -288,10 +289,10 @@ class CategoryInsightsController extends GetxController {
           : 'None yet';
     } catch (e, stack) {
       debugPrint('Error fetching category insights: $e\n$stack');
-      errorMessage.value =
+      rxErrorMessage.value =
           'Failed to load category insights data. Please try again.';
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

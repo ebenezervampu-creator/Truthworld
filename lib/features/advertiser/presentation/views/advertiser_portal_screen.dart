@@ -1,10 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/storage_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
@@ -21,7 +24,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<AdvertiserPortalController>();
+    final controller = Get.isRegistered<AdvertiserPortalController>()
+        ? Get.find<AdvertiserPortalController>()
+        : Get.put(AdvertiserPortalController());
 
     return Obx(() {
       final isLoggedIn = AuthService.to.isAuthenticated.value;
@@ -93,18 +98,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
     BuildContext context,
     AdvertiserPortalController controller,
   ) {
-    return Container(
-      width: 250,
-      height: double.infinity,
+    return Material(
       color: const Color(0xFF161616),
-      child: Column(
-        children: [
-          _buildSidebarHeader(context),
-          const Divider(color: AppColors.bgDivider),
-          Expanded(
-            child: _buildSidebarItems(context, controller, isDrawer: false),
-          ),
-        ],
+      child: SizedBox(
+        width: 250,
+        height: double.infinity,
+        child: Column(
+          children: [
+            _buildSidebarHeader(context),
+            const Divider(color: AppColors.bgDivider),
+            Expanded(
+              child: _buildSidebarItems(context, controller, isDrawer: false),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -170,34 +177,37 @@ class AdvertiserPortalScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       children: [
         for (int i = 0; i < controller.tabTitles.length; i++)
-          ListTile(
-            selected: controller.selectedIndex.value == i,
-            selectedTileColor: AppColors.warning.withValues(alpha: 0.1),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            leading: Icon(
-              icons[i],
-              color: controller.selectedIndex.value == i
-                  ? AppColors.warning
-                  : AppColors.textSecondary,
-              size: 20,
-            ),
-            title: Text(
-              controller.tabTitles[i],
-              style: AppTextStyles.labelLarge.copyWith(
-                fontWeight: FontWeight.bold,
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
+              selected: controller.selectedIndex.value == i,
+              selectedTileColor: AppColors.warning.withValues(alpha: 0.1),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              leading: Icon(
+                icons[i],
                 color: controller.selectedIndex.value == i
                     ? AppColors.warning
                     : AppColors.textSecondary,
+                size: 20,
               ),
+              title: Text(
+                controller.tabTitles[i],
+                style: AppTextStyles.labelLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: controller.selectedIndex.value == i
+                      ? AppColors.warning
+                      : AppColors.textSecondary,
+                ),
+              ),
+              onTap: () {
+                controller.selectedIndex.value = i;
+                if (isDrawer) {
+                  Get.back();
+                }
+              },
             ),
-            onTap: () {
-              controller.selectedIndex.value = i;
-              if (isDrawer) {
-                Get.back();
-              }
-            },
           ),
       ],
     );
@@ -2747,6 +2757,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
     final selectedVideoTitle = ''.obs;
     final selectedVideoId = ''.obs;
+    final pickedBumperFileName = ''.obs;
+    final pickedMidrollFileName = ''.obs;
+    final pickedBannerFileName = ''.obs;
 
     final gradientOptions = <List<Color>>[
       [const Color(0xFF8B5CF6), const Color(0xFFEC4899)],
@@ -2756,178 +2769,380 @@ class AdvertiserPortalScreen extends StatelessWidget {
       [const Color(0xFFEC4899), const Color(0xFFF43F5E)],
     ];
 
-    Get.bottomSheet(
-      Semantics(
-        label: 'Create Campaign Wizard Bottom Sheet',
-        container: true,
-        namesRoute: true,
-        child: Container(
-          height: MediaQuery.of(context).size.height * 0.9,
-          decoration: const BoxDecoration(
-            color: Color(0xFF161616),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
+    final currentStep = 1.obs;
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Semantics(
+          label: 'Campaign Creation Studio Dialog',
+          container: true,
+          namesRoute: true,
+          child: Container(
+            width: 860,
+            height: MediaQuery.of(context).size.height * 0.86,
+            decoration: BoxDecoration(
+              color: const Color(0xFF141414),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF2A2A2A)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+              ],
             ),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.textDisabled,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Launch Ad Campaign',
-                      style: AppTextStyles.pageTitle.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
+            child: Column(
+              children: [
+                // Studio Top Header & Stepper
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
                     ),
-                    IconButton(
-                      onPressed: Get.back,
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColors.textSecondary,
-                      ),
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFF2A2A2A)),
                     ),
-                  ],
-                ),
-              ),
-              const Divider(color: AppColors.bgDivider),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Select Placement Format',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Obx(() {
-                        return Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _buildFormatOption(
-                              'Skippable Video',
-                              'skippable',
-                              adFormat.value == 'skippable',
-                              () => adFormat.value = 'skippable',
-                              Icons.play_circle_filled_rounded,
-                            ),
-                            _buildFormatOption(
-                              'Homepage Banner',
-                              'homepage',
-                              adFormat.value == 'homepage',
-                              () => adFormat.value = 'homepage',
-                              Icons.aspect_ratio_rounded,
-                            ),
-                            _buildFormatOption(
-                              'Scroll Feed Banner',
-                              'scroll',
-                              adFormat.value == 'scroll',
-                              () => adFormat.value = 'scroll',
-                              Icons.dynamic_feed_rounded,
-                            ),
-                            _buildFormatOption(
-                              'Search Result Banner',
-                              'search',
-                              adFormat.value == 'search',
-                              () => adFormat.value = 'search',
-                              Icons.search_rounded,
-                            ),
-                            _buildFormatOption(
-                              'Comment Box Banner',
-                              'comment',
-                              adFormat.value == 'comment',
-                              () => adFormat.value = 'comment',
-                              Icons.comment_rounded,
-                            ),
-                            _buildFormatOption(
-                              'Video Sponsor Ads',
-                              'video_sponsor',
-                              adFormat.value == 'video_sponsor',
-                              () => adFormat.value = 'video_sponsor',
-                              Icons.stars_rounded,
-                            ),
-                          ],
-                        );
-                      }),
-                      const SizedBox(height: 24),
-                      _buildInputField(
-                        'Brand / Advertiser Name',
-                        advertiserController,
-                        'e.g. Acme Corp',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInputField(
-                        'Campaign Headline Title',
-                        titleController,
-                        'e.g. Master App Development in 30 Days',
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInputField(
-                        'Description Subtext',
-                        descriptionController,
-                        'e.g. Learn flutter, dart, firebase, and responsive UI from industry experts.',
-                      ),
-                      const SizedBox(height: 16),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: _buildInputField(
-                              'CTA Button Text',
-                              ctaTextController,
-                              'e.g. Learn More',
-                            ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(
+                                  Icons.campaign_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Ad Campaign Creation Studio',
+                                    style: AppTextStyles.pageTitle.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Industry Standard Campaign Manager & Delivery Setup',
+                                    style: AppTextStyles.labelMedium.copyWith(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildInputField(
-                              'Destination Link Target',
-                              ctaUrlController,
-                              'e.g. https://mywebsite.com',
+                          IconButton(
+                            onPressed: Get.back,
+                            icon: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 20,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Creative Assets (Optional for Banner Formats)',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
+                      // Step Stepper Indicator Chips
                       Obx(() {
-                        final isSkippable = adFormat.value == 'skippable';
-                        final isSponsor = adFormat.value == 'video_sponsor';
+                        return Row(
+                          children: [
+                            _buildStepTab(
+                              stepIndex: 1,
+                              title: '1. Format & Objective',
+                              icon: Icons.grid_view_rounded,
+                              currentStep: currentStep.value,
+                              onTap: () => currentStep.value = 1,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStepTab(
+                              stepIndex: 2,
+                              title: '2. Creatives & Media',
+                              icon: Icons.video_file_rounded,
+                              currentStep: currentStep.value,
+                              onTap: () {
+                                currentStep.value = 2;
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStepTab(
+                              stepIndex: 3,
+                              title: '3. Budget & Launch',
+                              icon: Icons.rocket_launch_rounded,
+                              currentStep: currentStep.value,
+                              onTap: () {
+                                currentStep.value = 3;
+                              },
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+                // Studio Scrollable Body
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Obx(() {
+                      final isSkippable = adFormat.value == 'skippable';
+                      final isSponsor = adFormat.value == 'video_sponsor';
+
+                      // STEP 1: Format & Objective
+                      if (currentStep.value == 1) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Video input
+                            Text(
+                              'Select Campaign Placement & Format',
+                              style: AppTextStyles.sectionHeader.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Choose where your campaign creatives will be served across Truthworld platforms.',
+                              style: AppTextStyles.labelMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                _buildFormatOption(
+                                  'Video Sponsor Ads',
+                                  'video_sponsor',
+                                  adFormat.value == 'video_sponsor',
+                                  () => adFormat.value = 'video_sponsor',
+                                  Icons.stars_rounded,
+                                  isPopular: true,
+                                ),
+                                _buildFormatOption(
+                                  'Skippable Video',
+                                  'skippable',
+                                  adFormat.value == 'skippable',
+                                  () => adFormat.value = 'skippable',
+                                  Icons.play_circle_filled_rounded,
+                                ),
+                                _buildFormatOption(
+                                  'Homepage Banner',
+                                  'homepage',
+                                  adFormat.value == 'homepage',
+                                  () => adFormat.value = 'homepage',
+                                  Icons.aspect_ratio_rounded,
+                                ),
+                                _buildFormatOption(
+                                  'Scroll Feed Banner',
+                                  'scroll',
+                                  adFormat.value == 'scroll',
+                                  () => adFormat.value = 'scroll',
+                                  Icons.dynamic_feed_rounded,
+                                ),
+                                _buildFormatOption(
+                                  'Search Result Banner',
+                                  'search',
+                                  adFormat.value == 'search',
+                                  () => adFormat.value = 'search',
+                                  Icons.search_rounded,
+                                ),
+                                _buildFormatOption(
+                                  'Comment Box Banner',
+                                  'comment',
+                                  adFormat.value == 'comment',
+                                  () => adFormat.value = 'comment',
+                                  Icons.comment_rounded,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            if (isSponsor) ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2D1B69).withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFF7C3AED).withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.stars_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Combined 4-in-1 Video Sponsor Suite (POPULAR)',
+                                          style: AppTextStyles.labelLarge.copyWith(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '1. 5-Sec Pre-Roll Sponsor Bumper (Plays BEFORE main video starts: "This video is brought to you by [Brand]")\n'
+                                      '2. 7-Minute Skippable Mid-roll Video Ad\n'
+                                      '3. Recommended Videos Promoted Feed Banner\n'
+                                      '4. Interactive Sponsored Pinned Comment below video',
+                                      style: AppTextStyles.labelMedium.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 13,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      }
+
+                      // STEP 2: Creatives & Media
+                      if (currentStep.value == 2) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Campaign Details & Media Creatives',
+                              style: AppTextStyles.sectionHeader.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInputField(
+                              'Brand / Advertiser Name',
+                              advertiserController,
+                              'e.g. Acme Brand Corp',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInputField(
+                              'Campaign Headline Title',
+                              titleController,
+                              'e.g. Master App Development in 30 Days',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInputField(
+                              'Description Subtext',
+                              descriptionController,
+                              'e.g. Learn flutter, dart, firebase, and responsive UI from industry experts.',
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildInputField(
+                                    'CTA Button Text',
+                                    ctaTextController,
+                                    'e.g. Learn More',
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildInputField(
+                                    'Destination Link Target',
+                                    ctaUrlController,
+                                    'e.g. https://mywebsite.com',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Media Creative Attachments',
+                                  style: AppTextStyles.labelLarge.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                if (isSponsor)
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      if (advertiserController.text.trim().isEmpty) {
+                                        advertiserController.text = 'Acme Brand Corp';
+                                      }
+                                      if (titleController.text.trim().isEmpty) {
+                                        titleController.text = 'Special Summer Tech Festival Deal';
+                                      }
+                                      if (descriptionController.text.trim().isEmpty) {
+                                        descriptionController.text = 'Get up to 50% off on flagship products and course passes!';
+                                      }
+                                      videoUrlController.text =
+                                          'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
+                                      midrollVideoUrlController.text =
+                                          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4';
+                                      imageUrlController.text =
+                                          'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=500';
+                                      pinnedCommentController.text =
+                                          'Welcome viewers! We are Acme Brand Corp. Feel free to reply here to ask us anything or check out our exclusive offer!';
+                                      pickedBumperFileName.value = 'Demo Bumper (Butterfly HD)';
+                                      pickedMidrollFileName.value = 'Demo Midroll (Bee HD)';
+                                      pickedBannerFileName.value = 'Demo Banner (Tech)';
+                                      AppSnackbar.show(
+                                        '4-in-1 Sponsor Requirements',
+                                        'Loaded all 4 creative requirements for demo setup.',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.flash_on_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Auto-Fill Requirements (Demo)'),
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: AppColors.warning,
+                                      foregroundColor: AppColors.bgPage,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Video input (Input 1)
                             Text(
                               isSponsor
-                                  ? 'Sponsor Intro Video (Presented by Sponsor) [Required]'
+                                  ? '1. 5-Sec Pre-Roll Sponsor Bumper (Pick Video or Audio from Device) [Required]'
                                   : isSkippable
-                                  ? 'Video Creative Link (Required)'
-                                  : 'Video Creative Link (Optional)',
+                                  ? 'Video Creative (Pick from Device) [Required]'
+                                  : 'Video Creative (Pick from Device) [Optional]',
                               style: AppTextStyles.labelMedium.copyWith(
                                 color: AppColors.textSecondary,
                               ),
@@ -2939,10 +3154,32 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   child: _buildInputField(
                                     '',
                                     videoUrlController,
-                                    'e.g. https://storage.googleapis.com/.../myvideo.mp4',
+                                    'Selected video/audio file path',
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: () => _pickDeviceMediaFile(
+                                    context: context,
+                                    fileType: FileType.any,
+                                    targetController: videoUrlController,
+                                    pickedFileNameNotifier: pickedBumperFileName,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.file_upload_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  label: const Text('Pick File (Device)'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.warning,
+                                    foregroundColor: AppColors.bgPage,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
                                 ElevatedButton.icon(
                                   onPressed: () {
                                     _showChannelVideosPicker(
@@ -2951,34 +3188,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                       onSelected: (video) {
                                         videoUrlController.text =
                                             video['videoUrl'] ?? '';
+                                        pickedBumperFileName.value =
+                                            video['title'] ?? '';
                                         selectedVideoTitle.value =
                                             video['title'] ?? '';
                                         selectedVideoId.value =
                                             video['id'] ?? '';
-                                        if (advertiserController.text
-                                            .trim()
-                                            .isEmpty) {
-                                          advertiserController.text =
-                                              AuthService
-                                                  .to
-                                                  .userChannel
-                                                  ?.name ??
-                                              'My Channel';
-                                        }
-                                        if (titleController.text
-                                            .trim()
-                                            .isEmpty) {
-                                          titleController.text =
-                                              video['title'] ?? '';
-                                        }
                                       },
                                     );
                                   },
                                   icon: const Icon(
                                     Icons.video_library_rounded,
+                                    color: Colors.white,
                                     size: 16,
                                   ),
-                                  label: const Text('From Channel'),
+                                  label: const Text('Presets'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.bgDivider,
                                     foregroundColor: AppColors.textPrimary,
@@ -2990,16 +3214,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               ],
                             ),
                             Obx(() {
-                              if (selectedVideoTitle.value.isNotEmpty) {
+                              if (pickedBumperFileName.value.isNotEmpty) {
                                 return Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 8,
-                                    bottom: 8,
-                                  ),
+                                  padding: const EdgeInsets.only(top: 6),
                                   child: Text(
-                                    'Linked video: ${selectedVideoTitle.value}',
-                                    style: AppTextStyles.badge.copyWith(
-                                      color: AppColors.warning,
+                                    '📁 Selected media: ${pickedBumperFileName.value}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF10B981),
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -3010,46 +3231,188 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             }),
                             const SizedBox(height: 16),
 
-                            // Sponsor Midroll Video
+                            // Sponsor Midroll Video (Input 2)
                             if (isSponsor) ...[
                               Text(
-                                'Detailed Midroll Video (Plays at 7 min mark) [Required]',
+                                '2. 7-Minute Skippable Mid-roll Video (Pick Video from Device) [Required]',
                                 style: AppTextStyles.labelMedium.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              _buildInputField(
-                                '',
-                                midrollVideoUrlController,
-                                'e.g. https://storage.googleapis.com/.../midroll.mp4',
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildInputField(
+                                      '',
+                                      midrollVideoUrlController,
+                                      'Selected midroll video file path',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _pickDeviceMediaFile(
+                                      context: context,
+                                      fileType: FileType.video,
+                                      targetController: midrollVideoUrlController,
+                                      pickedFileNameNotifier: pickedMidrollFileName,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.video_collection_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Pick Video (Device)'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.warning,
+                                      foregroundColor: AppColors.bgPage,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      _showChannelVideosPicker(
+                                        context,
+                                        controller,
+                                        onSelected: (video) {
+                                          midrollVideoUrlController.text =
+                                              video['videoUrl'] ?? '';
+                                          pickedMidrollFileName.value =
+                                              video['title'] ?? '';
+                                        },
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.video_library_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Presets'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.bgDivider,
+                                      foregroundColor: AppColors.textPrimary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              Obx(() {
+                                if (pickedMidrollFileName.value.isNotEmpty) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      '📁 Selected media: ${pickedMidrollFileName.value}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF10B981),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              }),
                               const SizedBox(height: 16),
                             ],
 
-                            // Image creative link
+                            // Image creative link (Input 3)
                             if (!isSkippable || isSponsor) ...[
                               Text(
                                 isSponsor
-                                    ? 'Sponsor Brand Image (Shown in Recommended list) [Required]'
-                                    : 'Image Banner Link (Optional)',
+                                    ? '3. Sponsor Brand Banner Image (Pick Image from Device) [Required]'
+                                    : 'Image Banner (Pick Image from Device) [Optional]',
                                 style: AppTextStyles.labelMedium.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              _buildInputField(
-                                '',
-                                imageUrlController,
-                                'e.g. https://mywebsite.com/ad-banner.png',
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildInputField(
+                                      '',
+                                      imageUrlController,
+                                      'Selected banner image file path',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _pickDeviceMediaFile(
+                                      context: context,
+                                      fileType: FileType.image,
+                                      targetController: imageUrlController,
+                                      pickedFileNameNotifier: pickedBannerFileName,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.image_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Pick Image (Device)'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.warning,
+                                      foregroundColor: AppColors.bgPage,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      _showImagePicker(
+                                        context,
+                                        onSelectedUrl: (url) {
+                                          imageUrlController.text = url;
+                                          pickedBannerFileName.value =
+                                              'Preset Banner Sample';
+                                        },
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.photo_library_rounded,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Presets'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.bgDivider,
+                                      foregroundColor: AppColors.textPrimary,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              Obx(() {
+                                if (pickedBannerFileName.value.isNotEmpty) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      '📁 Selected media: ${pickedBannerFileName.value}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF10B981),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              }),
                               const SizedBox(height: 16),
                             ],
 
                             // Sponsor Interactive Pinned Comment
                             if (isSponsor) ...[
                               Text(
-                                'Sponsor Interactive Pinned Comment Text [Required]',
+                                '4. Sponsor Interactive Pinned Comment Text (Viewers interact below video) [Required]',
                                 style: AppTextStyles.labelMedium.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -3058,202 +3421,359 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               _buildInputField(
                                 '',
                                 pinnedCommentController,
-                                'e.g. Sir can you suggest best laptops under 50k?',
+                                'e.g. Welcome viewers! Ask us anything or check out our exclusive discount here.',
                               ),
                               const SizedBox(height: 16),
                             ],
+                          ],
+                        );
+                      }
 
-                            // Gradient theme fallback picker
-                            if (!isSkippable && !isSponsor) ...[
-                              Text(
-                                'Select Fallback / Banner Theme',
-                                style: AppTextStyles.labelMedium.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
+                      // STEP 3: Budget & Launch
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Campaign Budget & Delivery Plan',
+                            style: AppTextStyles.sectionHeader.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Column(
+                            children: [
+                              _buildBudgetOption(
+                                'Bootstrap Package',
+                                '₹500',
+                                'Estimated 2,500 impressions',
+                                'startup',
+                                selectedBudget.value == 'startup',
+                                () => selectedBudget.value = 'startup',
                               ),
                               const SizedBox(height: 8),
-                              SizedBox(
-                                height: 45,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: gradientOptions.length,
-                                  itemBuilder: (context, idx) {
-                                    final colors = gradientOptions[idx];
-                                    return GestureDetector(
-                                      onTap: () => selectedGradient.value = idx,
-                                      child: Container(
-                                        width: 45,
-                                        margin: const EdgeInsets.only(
-                                          right: 12,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: colors,
-                                          ),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: selectedGradient.value == idx
-                                                ? AppColors.warning
-                                                : Colors.transparent,
-                                            width: 3,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
+                              _buildBudgetOption(
+                                'Starter Pack',
+                                '₹2,000',
+                                'Estimated 10,000 impressions',
+                                'starter',
+                                selectedBudget.value == 'starter',
+                                () => selectedBudget.value = 'starter',
+                              ),
+                              const SizedBox(height: 8),
+                              _buildBudgetOption(
+                                'Growth Booster',
+                                '₹5,000',
+                                'Estimated 35,000 impressions',
+                                'growth',
+                                selectedBudget.value == 'growth',
+                                () => selectedBudget.value = 'growth',
+                              ),
+                              const SizedBox(height: 8),
+                              _buildBudgetOption(
+                                'Enterprise Scale',
+                                '₹15,000',
+                                'Estimated 120,000 impressions',
+                                'enterprise',
+                                selectedBudget.value == 'enterprise',
+                                () => selectedBudget.value = 'enterprise',
                               ),
                             ],
-                          ],
-                        );
-                      }),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Select Campaign Budget Plan',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Obx(() {
-                        return Column(
-                          children: [
-                            _buildBudgetOption(
-                              'Bootstrap Package',
-                              '₹499',
-                              'Estimated 2,500 impressions',
-                              'startup',
-                              selectedBudget.value == 'startup',
-                              () => selectedBudget.value = 'startup',
+                          ),
+                          if (!isSkippable && !isSponsor) ...[
+                            const SizedBox(height: 24),
+                            Text(
+                              'Select Fallback / Banner Theme',
+                              style: AppTextStyles.labelMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                             const SizedBox(height: 8),
-                            _buildBudgetOption(
-                              'Starter Pack',
-                              '₹2,000',
-                              'Estimated 10,000 impressions',
-                              'starter',
-                              selectedBudget.value == 'starter',
-                              () => selectedBudget.value = 'starter',
-                            ),
-                            const SizedBox(height: 8),
-                            _buildBudgetOption(
-                              'Growth Booster',
-                              '₹5,000',
-                              'Estimated 35,000 impressions',
-                              'growth',
-                              selectedBudget.value == 'growth',
-                              () => selectedBudget.value = 'growth',
-                            ),
-                            const SizedBox(height: 8),
-                            _buildBudgetOption(
-                              'Enterprise Scale',
-                              '₹15,000',
-                              'Estimated 120,000 impressions',
-                              'enterprise',
-                              selectedBudget.value == 'enterprise',
-                              () => selectedBudget.value = 'enterprise',
+                            SizedBox(
+                              height: 45,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: gradientOptions.length,
+                                itemBuilder: (context, idx) {
+                                  final colors = gradientOptions[idx];
+                                  return GestureDetector(
+                                    onTap: () => selectedGradient.value = idx,
+                                    child: Container(
+                                      width: 45,
+                                      margin: const EdgeInsets.only(
+                                        right: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: colors,
+                                        ),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: selectedGradient.value == idx
+                                              ? AppColors.warning
+                                              : Colors.transparent,
+                                          width: 3,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           ],
-                        );
-                      }),
-                      const SizedBox(height: 32),
-                      ElevatedButton(
-                        onPressed: () {
-                          if (advertiserController.text.trim().isEmpty ||
-                              titleController.text.trim().isEmpty ||
-                              descriptionController.text.trim().isEmpty) {
-                            AppSnackbar.show(
-                              'Required Fields',
-                              'Please fill brand name, title, and description.',
-                              backgroundColor: AppColors.error,
-                              colorText: AppColors.textPrimary,
-                            );
-                            return;
-                          }
-
-                          var targetVideoUrl = videoUrlController.text.trim();
-                          if (adFormat.value == 'skippable' &&
-                              targetVideoUrl.isEmpty) {
-                            targetVideoUrl =
-                                'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
-                          }
-
-                          if (adFormat.value == 'video_sponsor') {
-                            if (targetVideoUrl.isEmpty) {
-                              targetVideoUrl =
-                                  'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
-                            }
-                            if (midrollVideoUrlController.text.trim().isEmpty) {
-                              midrollVideoUrlController.text =
-                                  'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4';
-                            }
-                            if (imageUrlController.text.trim().isEmpty) {
-                              imageUrlController.text =
-                                  'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=500';
-                            }
-                            if (pinnedCommentController.text.trim().isEmpty) {
-                              pinnedCommentController.text =
-                                  'Hey there! We are Amazon. Feel free to ask us any questions here!';
-                            }
-                          }
-
-                          _showStripeCheckout(
-                            context,
-                            controller,
-                            brand: advertiserController.text.trim(),
-                            title: titleController.text.trim(),
-                            description: descriptionController.text.trim(),
-                            ctaText: ctaTextController.text.trim(),
-                            ctaTarget: ctaUrlController.text.trim().isEmpty
-                                ? 'https://google.com'
-                                : ctaUrlController.text.trim(),
-                            isSkippable:
-                                adFormat.value == 'skippable' ||
-                                adFormat.value == 'video_sponsor',
-                            videoUrl: targetVideoUrl.isNotEmpty
-                                ? targetVideoUrl
-                                : null,
-                            imageUrl: imageUrlController.text.trim().isNotEmpty
-                                ? imageUrlController.text.trim()
-                                : null,
-                            gradient:
-                                (adFormat.value != 'skippable' &&
-                                    adFormat.value != 'video_sponsor')
-                                ? gradientOptions[selectedGradient.value]
-                                : null,
-                            budgetTier: selectedBudget.value,
-                            adType: adFormat.value,
-                            videoId: selectedVideoId.value.isEmpty
-                                ? null
-                                : selectedVideoId.value,
-                            midrollVideoUrl: adFormat.value == 'video_sponsor'
-                                ? midrollVideoUrlController.text.trim()
-                                : null,
-                            pinnedCommentText: adFormat.value == 'video_sponsor'
-                                ? pinnedCommentController.text.trim()
-                                : null,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.warning,
-                          foregroundColor: AppColors.bgPage,
-                          minimumSize: const Size(double.infinity, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Proceed to Checkout',
-                          style: AppTextStyles.sectionHeader.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                        ],
+                      );
+                    }),
                   ),
+                ),
+
+                // Studio Footer Actions Bar
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1A1A1A),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                    border: Border(
+                      top: BorderSide(color: Color(0xFF2A2A2A)),
+                    ),
+                  ),
+                  child: Obx(() {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            if (currentStep.value > 1) {
+                              currentStep.value--;
+                            } else {
+                              Get.back();
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          label: Text(currentStep.value > 1 ? 'Back' : 'Cancel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.bgDivider,
+                            foregroundColor: AppColors.textPrimary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        if (currentStep.value < 3)
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              if (currentStep.value == 2) {
+                                if (advertiserController.text.trim().isEmpty ||
+                                    titleController.text.trim().isEmpty ||
+                                    descriptionController.text.trim().isEmpty) {
+                                  AppSnackbar.show(
+                                    'Required Fields',
+                                    'Please fill brand name, headline, and description.',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                  return;
+                                }
+                              }
+                              currentStep.value++;
+                            },
+                            icon: const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            label: const Text('Next Step'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.warning,
+                              foregroundColor: AppColors.bgPage,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              if (advertiserController.text.trim().isEmpty ||
+                                  titleController.text.trim().isEmpty ||
+                                  descriptionController.text.trim().isEmpty) {
+                                AppSnackbar.show(
+                                  'Required Fields',
+                                  'Please fill brand name, title, and description.',
+                                  backgroundColor: AppColors.error,
+                                  colorText: AppColors.textPrimary,
+                                );
+                                return;
+                              }
+
+                              var targetVideoUrl = videoUrlController.text.trim();
+                              if (adFormat.value == 'skippable' &&
+                                  targetVideoUrl.isEmpty) {
+                                targetVideoUrl =
+                                    'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
+                              }
+
+                              if (adFormat.value == 'video_sponsor') {
+                                if (targetVideoUrl.isEmpty) {
+                                  targetVideoUrl =
+                                      'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
+                                }
+                                if (midrollVideoUrlController.text.trim().isEmpty) {
+                                  midrollVideoUrlController.text =
+                                      'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4';
+                                }
+                                if (imageUrlController.text.trim().isEmpty) {
+                                  imageUrlController.text =
+                                      'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=500';
+                                }
+                                if (pinnedCommentController.text.trim().isEmpty) {
+                                  pinnedCommentController.text =
+                                      'Hey there! We are Amazon. Feel free to ask us any questions here!';
+                                }
+                              }
+
+                              Get.back();
+                              _showStripeCheckout(
+                                context,
+                                controller,
+                                brand: advertiserController.text.trim(),
+                                title: titleController.text.trim(),
+                                description: descriptionController.text.trim(),
+                                ctaText: ctaTextController.text.trim(),
+                                ctaTarget: ctaUrlController.text.trim().isEmpty
+                                    ? 'https://google.com'
+                                    : ctaUrlController.text.trim(),
+                                isSkippable:
+                                    adFormat.value == 'skippable' ||
+                                    adFormat.value == 'video_sponsor',
+                                videoUrl: targetVideoUrl.isNotEmpty
+                                    ? targetVideoUrl
+                                    : null,
+                                imageUrl: imageUrlController.text.trim().isNotEmpty
+                                    ? imageUrlController.text.trim()
+                                    : null,
+                                gradient:
+                                    (adFormat.value != 'skippable' &&
+                                        adFormat.value != 'video_sponsor')
+                                    ? gradientOptions[selectedGradient.value]
+                                    : null,
+                                budgetTier: selectedBudget.value,
+                                adType: adFormat.value,
+                                videoId: selectedVideoId.value.isEmpty
+                                    ? null
+                                    : selectedVideoId.value,
+                                midrollVideoUrl: adFormat.value == 'video_sponsor'
+                                    ? midrollVideoUrlController.text.trim()
+                                    : null,
+                                pinnedCommentText: adFormat.value == 'video_sponsor'
+                                    ? pinnedCommentController.text.trim()
+                                    : null,
+                              );
+                            },
+                            icon: const Icon(
+                              Icons.rocket_launch_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            label: const Text('Proceed to Checkout'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.warning,
+                              foregroundColor: AppColors.bgPage,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepTab({
+    required int stepIndex,
+    required String title,
+    required IconData icon,
+    required int currentStep,
+    required VoidCallback onTap,
+  }) {
+    final isActive = currentStep == stepIndex;
+    final isDone = currentStep > stepIndex;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.warning.withValues(alpha: 0.15)
+                : isDone
+                ? const Color(0xFF222222)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isActive
+                  ? AppColors.warning
+                  : isDone
+                  ? AppColors.textSecondary.withValues(alpha: 0.3)
+                  : const Color(0xFF333333),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isDone ? Icons.check_circle_rounded : icon,
+                color: isActive
+                    ? AppColors.warning
+                    : isDone
+                    ? Colors.white
+                    : AppColors.textDisabled,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: isActive
+                        ? AppColors.warning
+                        : isDone
+                        ? AppColors.textPrimary
+                        : AppColors.textDisabled,
+                    fontSize: 12,
+                    fontWeight: isActive || isDone
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -3268,16 +3788,33 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AdvertiserPortalController controller, {
     required Function(Map<String, dynamic>) onSelected,
   }) {
+    final presetVideos = [
+      {
+        'id': 'preset_bumper',
+        'title': '5-Sec Pre-Roll Bumper Sample (Butterfly HD)',
+        'description': 'Short 5-second video sample for sponsor intro bumper',
+        'videoUrl': 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4',
+        'thumbnailUrl': 'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=500',
+      },
+      {
+        'id': 'preset_midroll',
+        'title': '7-Min Mid-roll Video Sample (Bee HD)',
+        'description': 'Detailed product video for 7-minute skippable mid-roll ad',
+        'videoUrl': 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+        'thumbnailUrl': 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=500',
+      },
+    ];
+
     Get.dialog(
       Dialog(
         backgroundColor: Colors.transparent,
         child: Semantics(
-          label: 'Channel Videos Picker Dialog',
+          label: 'Select Video Dialog',
           container: true,
           namesRoute: true,
           child: Container(
             width: 500,
-            height: 450,
+            height: 480,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: const Color(0xFF161616),
@@ -3291,7 +3828,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Promote Channel Video',
+                      'Select Video Creative',
                       style: AppTextStyles.sectionHeader.copyWith(
                         fontSize: 18,
                         color: AppColors.textPrimary,
@@ -3302,7 +3839,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       onPressed: Get.back,
                       icon: const Icon(
                         Icons.close,
-                        color: AppColors.textSecondary,
+                        color: Colors.white,
                         size: 20,
                       ),
                     ),
@@ -3311,7 +3848,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 const Divider(color: AppColors.bgDivider),
                 const SizedBox(height: 8),
                 Text(
-                  'Select one of your channel videos to promote. This will automatically pre-fill your ad fields and link to this video.',
+                  'Pick from your channel videos or select a high-quality video preset.',
                   style: AppTextStyles.labelLarge.copyWith(
                     color: AppColors.textSecondary,
                     fontSize: 13,
@@ -3320,56 +3857,77 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Expanded(
                   child: Obx(() {
-                    if (controller.channelVideos.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No videos found in your channel.',
-                          style: TextStyle(
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      );
-                    }
+                    final allVideos = [
+                      ...presetVideos,
+                      ...controller.channelVideos,
+                    ];
 
                     return ListView.builder(
-                      itemCount: controller.channelVideos.length,
+                      itemCount: allVideos.length,
                       itemBuilder: (context, index) {
-                        final video = controller.channelVideos[index];
+                        final video = allVideos[index];
+                        final isPreset = video['id'].toString().startsWith('preset');
                         return Card(
                           color: const Color(0xFF1E1E1E),
                           margin: const EdgeInsets.only(bottom: 10),
                           child: ListTile(
                             leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(6),
                               child: Container(
                                 width: 60,
                                 height: 36,
                                 color: AppColors.bgPage,
-                                child: video['thumbnailUrl'].isNotEmpty
+                                child: (video['thumbnailUrl']?.toString().isNotEmpty ?? false)
                                     ? Image.network(
                                         video['thumbnailUrl'],
                                         fit: BoxFit.cover,
                                         errorBuilder: (c, o, s) => const Icon(
                                           Icons.video_library_rounded,
-                                          color: AppColors.textDisabled,
+                                          color: Colors.white,
                                           size: 18,
                                         ),
                                       )
                                     : const Icon(
                                         Icons.video_library_rounded,
-                                        color: AppColors.textDisabled,
+                                        color: Colors.white,
                                         size: 18,
                                       ),
                               ),
                             ),
-                            title: Text(
-                              video['title'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.labelLarge.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    video['title'],
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.labelLarge.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                                if (isPreset)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'Preset',
+                                      style: TextStyle(
+                                        color: AppColors.bgPage,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             subtitle: Text(
                               video['description'] ?? '',
@@ -3380,9 +3938,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               ),
                             ),
                             trailing: const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: AppColors.textTertiary,
-                              size: 14,
+                              Icons.check_circle_outline_rounded,
+                              color: Colors.white,
+                              size: 18,
                             ),
                             onTap: () {
                               onSelected(video);
@@ -3402,13 +3960,188 @@ class AdvertiserPortalScreen extends StatelessWidget {
     );
   }
 
+  void _showImagePicker(
+    BuildContext context, {
+    required Function(String) onSelectedUrl,
+  }) {
+    final sampleImages = [
+      {
+        'name': 'Tech & Gadgets Banner',
+        'url': 'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=500',
+      },
+      {
+        'name': 'Mobile & App Showcase Banner',
+        'url': 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=500',
+      },
+      {
+        'name': 'Brand Promotion Banner',
+        'url': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=500',
+      },
+    ];
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 480,
+          height: 400,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161616),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.bgDivider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Pick Sponsor Banner Image',
+                    style: AppTextStyles.sectionHeader.copyWith(
+                      fontSize: 18,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: Get.back,
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(color: AppColors.bgDivider),
+              const SizedBox(height: 8),
+              Text(
+                'Select a brand image from sample presets for the recommended videos list.',
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: sampleImages.length,
+                  itemBuilder: (context, idx) {
+                    final item = sampleImages[idx];
+                    return Card(
+                      color: const Color(0xFF1E1E1E),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.network(
+                            item['url']!,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        title: Text(
+                          item['name']!,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.check_circle_outline_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        onTap: () {
+                          onSelectedUrl(item['url']!);
+                          Get.back();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDeviceMediaFile({
+    required BuildContext context,
+    required FileType fileType,
+    required TextEditingController targetController,
+    required RxString pickedFileNameNotifier,
+    List<String>? allowedExtensions,
+  }) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: fileType,
+        allowedExtensions: allowedExtensions,
+        withData: kIsWeb,
+      );
+
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.first;
+        pickedFileNameNotifier.value = pickedFile.name;
+
+        String? finalPath;
+        if (pickedFile.bytes != null) {
+          try {
+            final storageService = Get.isRegistered<StorageService>()
+                ? Get.find<StorageService>()
+                : Get.put(StorageService());
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final storagePath =
+                'ad_campaigns_media/${timestamp}_${pickedFile.name}';
+            finalPath = await storageService.uploadFileFromBytes(
+              path: storagePath,
+              bytes: pickedFile.bytes!,
+            );
+          } catch (uploadErr) {
+            debugPrint(
+              '[AdvertiserPortal] Remote storage upload skipped: $uploadErr. Using local file path.',
+            );
+            finalPath = (pickedFile.path != null && pickedFile.path!.isNotEmpty)
+                ? pickedFile.path
+                : pickedFile.name;
+          }
+        } else if (pickedFile.path != null && pickedFile.path!.isNotEmpty) {
+          finalPath = pickedFile.path;
+        } else {
+          finalPath = pickedFile.name;
+        }
+
+        targetController.text = finalPath ?? pickedFile.name;
+
+        AppSnackbar.show(
+          'Media File Selected',
+          'Selected ${pickedFile.name} from device.',
+        );
+      }
+    } catch (e) {
+      debugPrint('File picker error: $e');
+      AppSnackbar.show(
+        'File Selection Error',
+        'Could not pick file from device: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+    }
+  }
+
   Widget _buildFormatOption(
     String label,
     String value,
     bool isSelected,
     VoidCallback onTap,
-    IconData icon,
-  ) {
+    IconData icon, {
+    bool isPopular = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -3428,7 +4161,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.indigoAccent : AppColors.textSecondary,
+              color: Colors.white,
               size: 16,
             ),
             const SizedBox(width: 6),
@@ -3442,6 +4175,26 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (isPopular) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'POPULAR (4-in-1)',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -3582,7 +4335,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final checkoutSuccess = false.obs;
 
     double cost = 2000;
-    if (budgetTier == 'startup') cost = 499;
+    if (budgetTier == 'startup') cost = 500;
     if (budgetTier == 'growth') cost = 5000;
     if (budgetTier == 'enterprise') cost = 15000;
 

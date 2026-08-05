@@ -181,13 +181,13 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
         ],
       ),
       body: Obx(() {
-        if (controller.isLoading.value) {
+        if (controller.isLoading) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           );
         }
 
-        if (controller.errorMessage.value.isNotEmpty) {
+        if (controller.errorMessage.isNotEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -199,7 +199,7 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  controller.errorMessage.value,
+                  controller.errorMessage,
                   style: GoogleFonts.roboto(
                     color: AppColors.textSecondary,
                     fontSize: 14,

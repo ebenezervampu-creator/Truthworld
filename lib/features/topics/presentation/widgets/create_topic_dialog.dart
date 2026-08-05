@@ -27,7 +27,9 @@ class CreateTopicDialog extends StatelessWidget {
     required Future<void> Function(CreateTopicController controller)
     onCreateTopicSubmitted,
   }) async {
-    final controller = Get.find<CreateTopicController>();
+    final controller = Get.isRegistered<CreateTopicController>()
+        ? Get.find<CreateTopicController>()
+        : Get.put(CreateTopicController());
     controller.resetForm();
 
     await showDialog<void>(
@@ -46,7 +48,6 @@ class CreateTopicDialog extends StatelessWidget {
     'Music',
     'News',
     'Sports',
-    'Gaming',
     'Technology',
     'Science',
     'Travel',
@@ -58,12 +59,14 @@ class CreateTopicDialog extends StatelessWidget {
     'Vlogs',
     'DIY & How-to',
     'Health & Fitness',
-    'Fashion & Beauty',
+    'Fashion',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<CreateTopicController>();
+    final controller = Get.isRegistered<CreateTopicController>()
+        ? Get.find<CreateTopicController>()
+        : Get.put(CreateTopicController());
     final mediaQuery = MediaQuery.of(context);
     final dialogBg = isDarkMode ? AppColors.bgSurface : Colors.white;
     final textColor = isDarkMode
@@ -111,7 +114,7 @@ class CreateTopicDialog extends StatelessWidget {
                     ),
                     child: const Icon(
                       Icons.topic_rounded,
-                      color: Color(0xFF6366F1),
+                      color: Colors.white,
                       size: 22,
                     ),
                   ),
@@ -319,6 +322,50 @@ class CreateTopicDialog extends StatelessWidget {
                             ),
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Topic Tags Input (Max 5)
+                      TextFormField(
+                        controller: controller.tagsController,
+                        style: TextStyle(color: textColor, fontSize: 14),
+                        decoration: InputDecoration(
+                          labelText: 'Topic Tags (Max 5)',
+                          labelStyle: TextStyle(
+                            color: subtextColor,
+                            fontSize: 13,
+                          ),
+                          hintText: 'e.g. ai, tech, future (comma separated, max 5)',
+                          filled: true,
+                          fillColor: inputBgColor,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: borderSideColor),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: borderSideColor),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF6366F1),
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                        validator: (val) {
+                          if (val != null && val.trim().isNotEmpty) {
+                            final count = val
+                                .split(',')
+                                .where((e) => e.trim().isNotEmpty)
+                                .length;
+                            if (count > 5) {
+                              return 'Maximum 5 tags allowed';
+                            }
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 16),
 

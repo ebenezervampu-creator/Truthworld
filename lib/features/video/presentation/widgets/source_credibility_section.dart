@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,7 +15,7 @@ import 'package:url_launcher/url_launcher.dart';
 ///
 /// This transforms evidence from "hidden metadata" into
 /// "first-class platform infrastructure."
-class SourceCredibilityController extends GetxController {
+class SourceCredibilityController extends BaseController {
   final RxBool isExpanded = false.obs;
 
   void toggleExpanded() {

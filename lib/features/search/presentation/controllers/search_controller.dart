@@ -6,6 +6,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart' hide SearchController;
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -83,7 +84,7 @@ class TrendingItem {
   final String? duration;
 }
 
-class SearchController extends GetxController {
+class SearchController extends BaseController {
   final SearchService _searchService = SearchService();
 
   // ══════════════════════════════════════════════════════════════
@@ -97,10 +98,14 @@ class SearchController extends GetxController {
   final RxList<SearchResult> searchResults = <SearchResult>[].obs;
 
   /// Loading state
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
+  @override
+  bool get isLoading => rxIsLoading.value || super.isLoading;
 
   /// Error message (if any)
-  final RxString errorMessage = ''.obs;
+  final RxString rxErrorMessage = ''.obs;
+  @override
+  String get errorMessage => rxErrorMessage.value.isNotEmpty ? rxErrorMessage.value : super.errorMessage;
 
   /// Recent searches history
   final RxList<String> recentSearches = <String>[].obs;
@@ -202,15 +207,11 @@ class SearchController extends GetxController {
     unawaited(fetchTrendingSuggestions());
     unawaited(_fetchWatchedVideoIds());
     _initRealtimeTrendingSubscription();
+    if (_trendingSubscription != null) trackSubscription(_trendingSubscription!);
     unawaited(_fetchRecommended());
   }
 
-  @override
-  void onClose() {
-    _trendingSubscription?.cancel();
-    _debounceTimer?.cancel();
-    super.onClose();
-  }
+
 
   Future<void> _fetchRecommended() async {
     try {
@@ -658,7 +659,7 @@ class SearchController extends GetxController {
     // Validate input
     final (isValid, sanitized, errorMsg) = _validateQuery(query);
     if (!isValid && query.isNotEmpty) {
-      errorMessage.value = errorMsg;
+      rxErrorMessage.value = errorMsg;
       debugPrint('⚠️ [Search] Validation error: $errorMsg');
       return;
     }
@@ -930,7 +931,7 @@ class SearchController extends GetxController {
 
     // Check rate limit (Problem 2)
     if (_isRateLimitExceeded()) {
-      errorMessage.value =
+      rxErrorMessage.value =
           'Too many searches. Please slow down and try again in a moment.';
       Get.snackbar(
         'Rate Limited',
@@ -944,10 +945,10 @@ class SearchController extends GetxController {
 
     // Show loading state only if not cached
     if (!_searchService.isCached(normalized)) {
-      isLoading.value = true;
+      rxIsLoading.value = true;
     }
 
-    errorMessage.value = '';
+    rxErrorMessage.value = '';
     currentPage.value = 0;
     _allResults = [];
 
@@ -994,7 +995,7 @@ class SearchController extends GetxController {
       _savePersistentCache(); // Save results to persistent disk cache
       _loadPage(0); // Load first page
 
-      isLoading.value = false;
+      rxIsLoading.value = false;
 
       // Add to recent searches (Problem 3: Persistent)
       _addToRecentSearches(normalized);
@@ -1021,7 +1022,7 @@ class SearchController extends GetxController {
 
       if (results.isEmpty) {
         debugPrint('⚠️ [Search] No results found for: "$normalized"');
-        errorMessage.value = 'No results found for "$normalized"';
+        rxErrorMessage.value = 'No results found for "$normalized"';
       } else {
         debugPrint(
           '✅ [Search] Found ${results.length} results ${isShowingFallback.value ? "(fallback)" : ""}',
@@ -1032,8 +1033,8 @@ class SearchController extends GetxController {
 
       stopwatch.stop();
 
-      isLoading.value = false;
-      errorMessage.value = 'Search failed. Please try again.';
+      rxIsLoading.value = false;
+      rxErrorMessage.value = 'Search failed. Please try again.';
 
       // Track error to analytics
       _trackSearchAnalytics(
@@ -1071,8 +1072,8 @@ class SearchController extends GetxController {
   void _clearResults() {
     searchResults.clear();
     _allResults.clear();
-    errorMessage.value = '';
-    isLoading.value = false;
+    rxErrorMessage.value = '';
+    rxIsLoading.value = false;
     searchQuery.value = '';
     currentPage.value = 0;
     hasMoreResults.value = false;

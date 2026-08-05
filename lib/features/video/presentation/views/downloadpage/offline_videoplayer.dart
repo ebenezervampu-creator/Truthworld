@@ -44,7 +44,7 @@ class OfflineVideoPlayerPage extends StatelessWidget {
         ],
       ),
       body: Obx(() {
-        if (controller.isLoading.value) {
+        if (controller.rxIsLoading.value) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.error),
           );

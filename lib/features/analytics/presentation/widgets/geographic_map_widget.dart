@@ -2,10 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class GeographicMapController extends GetxController {
+class GeographicMapController extends BaseController {
   final selectedMarker = Rx<MapMarker?>(null);
 
   void toggleMarker(MapMarker marker) {

@@ -68,7 +68,7 @@ class AlertsConfigTab extends StatelessWidget {
                     ),
                     subtitle: Text(
                       'Threshold exceeded by ${(index + 1) * 15}%',
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: const TextStyle(color: AppColors.textPrimary),
                       overflow: TextOverflow.ellipsis,
                     ),
                     trailing: FittedBox(
@@ -149,7 +149,7 @@ class AlertsConfigTab extends StatelessWidget {
                 children: [
                   const Text(
                     'Threshold: ',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                   SizedBox(
                     width: 120,
@@ -177,11 +177,14 @@ class AlertsConfigTab extends StatelessWidget {
               ),
             ],
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               Wrap(
                 spacing: 8,
+                runSpacing: 4,
                 children: [
                   FilterChip(
                     label: const Text(
@@ -213,7 +216,6 @@ class AlertsConfigTab extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
               Switch(
                 value: enabled,
                 onChanged: (val) {},
@@ -283,7 +285,7 @@ class AlertsConfigTab extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             description,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: const TextStyle(color: AppColors.textPrimary),
           ),
         ],
       ),

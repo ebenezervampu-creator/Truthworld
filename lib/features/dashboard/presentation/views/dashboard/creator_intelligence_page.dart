@@ -41,7 +41,7 @@ class CreatorIntelligencePage extends StatelessWidget {
 
           // ── Main Content List ──
           Obx(() {
-            if (controller.isLoading.value) {
+            if (controller.isLoading) {
               return const SliverFillRemaining(
                 child: Center(
                   child: CircularProgressIndicator(
@@ -257,7 +257,7 @@ class CreatorIntelligencePage extends StatelessWidget {
       },
       {
         'id': 'verification',
-        'label': 'Truth Verification',
+        'label': 'Fact Verification',
         'icon': Icons.verified_user_rounded,
       },
       {
@@ -731,7 +731,7 @@ class CreatorIntelligencePage extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Truth Verification Audit Report',
+                          'Fact Verification Audit Report',
                           style: AppTextStyles.headlineSmall.copyWith(
                             fontSize: 20,
                             color: AppColors.textPrimary,

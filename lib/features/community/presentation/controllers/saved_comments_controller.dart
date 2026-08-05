@@ -5,14 +5,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SavedCommentsController extends GetxController {
+class SavedCommentsController extends BaseController {
   final RxList<SavedCommentModel> comments = <SavedCommentModel>[].obs;
-  final RxBool isLoading = true.obs;
-  final RxString errorMessage = ''.obs;
+  final RxBool rxIsLoading = true.obs;
+  final RxString rxErrorMessage = ''.obs;
   final RxString searchQuery = ''.obs;
   final RxBool isSearching = false.obs;
 
@@ -33,13 +34,13 @@ class SavedCommentsController extends GetxController {
   void listenToSavedComments() {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      errorMessage.value = 'User not authenticated';
-      isLoading.value = false;
+      rxErrorMessage.value = 'User not authenticated';
+      rxIsLoading.value = false;
       return;
     }
 
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
 
     _subscription?.cancel();
     _subscription = FirebaseFirestore.instance
@@ -55,11 +56,11 @@ class SavedCommentsController extends GetxController {
               list.add(SavedCommentModel.fromMap(doc.data(), doc.id));
             }
             comments.value = list;
-            isLoading.value = false;
+            rxIsLoading.value = false;
           },
           onError: (Object error) {
-            errorMessage.value = error.toString();
-            isLoading.value = false;
+            rxErrorMessage.value = error.toString();
+            rxIsLoading.value = false;
             debugPrint('Error listening to saved comments: $error');
           },
         );

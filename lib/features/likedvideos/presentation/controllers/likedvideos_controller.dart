@@ -5,19 +5,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class LikedVideosController extends GetxController {
+class LikedVideosController extends BaseController {
   RxString searchQuery = ''.obs;
   RxBool isSearching = false.obs;
   RxBool isSearchExpanded = false.obs;
   RxString sortBy = 'recent'.obs;
   RxBool isAscending = false.obs;
   RxList<Video> videos = <Video>[].obs;
-  RxBool isLoading = true.obs;
-  RxString errorMessage = ''.obs;
+  RxBool rxIsLoading = true.obs;
+  RxString rxErrorMessage = ''.obs;
   RxString selectedCategory = 'All'.obs;
   RxBool isListView = true.obs;
 
@@ -29,25 +30,19 @@ class LikedVideosController extends GetxController {
     _listenToVideos();
   }
 
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
-  }
-
   void _listenToVideos() {
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      errorMessage.value = 'User not authenticated';
-      isLoading.value = false;
+      rxErrorMessage.value = 'User not authenticated';
+      rxIsLoading.value = false;
       return;
     }
 
     _subscription?.cancel();
-    _subscription = FirebaseFirestore.instance
+    final sub = FirebaseFirestore.instance
         .collection(FirestoreCollections.users)
         .doc(currentUser.uid)
         .collection('likedVideos')
@@ -57,7 +52,7 @@ class LikedVideosController extends GetxController {
           (snapshot) async {
             if (snapshot.docs.isEmpty) {
               videos.value = [];
-              isLoading.value = false;
+              rxIsLoading.value = false;
               return;
             }
 
@@ -73,14 +68,16 @@ class LikedVideosController extends GetxController {
                 .toList();
 
             videos.value = orderedVideos;
-            isLoading.value = false;
+            rxIsLoading.value = false;
           },
           onError: (error) {
-            errorMessage.value = error.toString();
-            isLoading.value = false;
+            rxErrorMessage.value = error.toString();
+            rxIsLoading.value = false;
             debugPrint('LikedVideos Firestore Error: $error');
           },
         );
+    _subscription = sub;
+    trackSubscription(sub);
   }
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {

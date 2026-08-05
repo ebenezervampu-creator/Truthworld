@@ -10,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -18,6 +19,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
+import 'package:truthworld/features/dashboard/presentation/bindings/dashboard_binding.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
@@ -51,7 +53,7 @@ class AnalyticsData {
 // MODERNIZED DASHBOARD SCREEN - NOW WITH LIVE ANALYTICS AND SYNCFUSION CHARTS
 // ==========================================================================
 
-class DashboardController extends GetxController {
+class DashboardController extends BaseController {
   DashboardController({required this.channelId});
   final String channelId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -61,8 +63,8 @@ class DashboardController extends GetxController {
 
   RxInt selectedIndex = 1.obs;
   RxBool isDrawerExpanded = true.obs;
-  RxBool isLoading = true.obs;
-  RxString errorMessage = ''.obs;
+  RxBool rxIsLoading = true.obs;
+  RxString rxErrorMessage = ''.obs;
 
   RxMap<String, dynamic> channelStats = <String, dynamic>{}.obs;
   RxList<Video> recentVideos = <Video>[].obs;
@@ -118,8 +120,8 @@ class DashboardController extends GetxController {
     if (channelId.isNotEmpty) {
       _initializeData();
     } else {
-      isLoading.value = false;
-      errorMessage.value = 'No channel provided.';
+      rxIsLoading.value = false;
+      rxErrorMessage.value = 'No channel provided.';
     }
   }
 
@@ -134,7 +136,7 @@ class DashboardController extends GetxController {
   }
 
   void _initializeData() {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     _loadChannelStats();
     _loadRecentVideos();
     _loadAnalyticsData();
@@ -142,8 +144,8 @@ class DashboardController extends GetxController {
     // Use Future.delayed to set loading to false after a short period,
     // allowing streams to populate data.
     Future.delayed(const Duration(seconds: 2), () {
-      if (isLoading.value) {
-        isLoading.value = false;
+      if (rxIsLoading.value) {
+        rxIsLoading.value = false;
       }
     });
   }
@@ -153,46 +155,50 @@ class DashboardController extends GetxController {
     final channelRef = _firestore
         .collection(FirestoreCollections.channels)
         .doc(channelId);
-    _channelSubscription = channelRef.snapshots().listen((snapshot) {
-      if (snapshot.exists) {
-        final data = snapshot.data();
-        if (data != null) {
-          if (data.containsKey('totalWatchTimeSeconds')) {
-            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num)
-                .toInt();
-          } else if (data.containsKey('totalWatchTimeMinutes')) {
-            totalWatchTimeSeconds.value =
-                (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60)
-                    .toInt();
+    trackSubscription(
+      _channelSubscription = channelRef.snapshots().listen(
+        (snapshot) {
+          if (snapshot.exists) {
+            final data = snapshot.data();
+            if (data != null) {
+              if (data.containsKey('totalWatchTimeSeconds')) {
+                totalWatchTimeSeconds.value =
+                    (data['totalWatchTimeSeconds'] as num).toInt();
+              } else if (data.containsKey('totalWatchTimeMinutes')) {
+                totalWatchTimeSeconds.value =
+                    (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60)
+                        .toInt();
+              }
+            }
+
+            final channel = Channel.fromDocumentSnapshot(snapshot);
+            currentChannel.value = channel;
+
+            if (channel.status == ChannelStatus.active) {
+              final storage = GetStorage();
+              final key = 'approval_shown_${channel.id}';
+              final shown = storage.read<bool>(key) ?? false;
+              if (!shown) {
+                showApprovalBanner.value = true;
+                storage.write(key, true);
+              }
+            }
+
+            channelStats.value = {
+              ...channelStats,
+              'views': _formatNumber(channel.viewCount),
+              'subscribers': _formatNumber(channel.subscriberCount),
+              'watchTime': formattedWatchTime,
+              'revenue': channelStats['revenue'] ?? r'$0.00',
+              'viewsChange': channelStats['viewsChange'] ?? '+0%',
+              'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
+              'subscribersChange': channelStats['subscribersChange'] ?? '+0',
+              'revenueChange': channelStats['revenueChange'] ?? r'+$0.00',
+            };
           }
-        }
-
-        final channel = Channel.fromDocumentSnapshot(snapshot);
-        currentChannel.value = channel;
-
-        if (channel.status == ChannelStatus.active) {
-          final storage = GetStorage();
-          final key = 'approval_shown_${channel.id}';
-          final shown = storage.read<bool>(key) ?? false;
-          if (!shown) {
-            showApprovalBanner.value = true;
-            storage.write(key, true);
-          }
-        }
-
-        channelStats.value = {
-          ...channelStats,
-          'views': _formatNumber(channel.viewCount),
-          'subscribers': _formatNumber(channel.subscriberCount),
-          'watchTime': formattedWatchTime,
-          'revenue': channelStats['revenue'] ?? r'$0.00',
-          'viewsChange': channelStats['viewsChange'] ?? '+0%',
-          'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
-          'subscribersChange': channelStats['subscribersChange'] ?? '+0',
-          'revenueChange': channelStats['revenueChange'] ?? r'+$0.00',
-        };
-      }
-    });
+        },
+      ),
+    );
 
     // 2. Listen to the summary document for detailed analytics (watch time, trends)
     final summaryRef = _firestore
@@ -200,7 +206,7 @@ class DashboardController extends GetxController {
         .doc(channelId)
         .collection('stats')
         .doc('summary');
-    _statsSubscription = summaryRef.snapshots().listen(
+    trackSubscription(_statsSubscription = summaryRef.snapshots().listen(
       (snapshot) {
         if (snapshot.exists) {
           final data = snapshot.data()!;
@@ -222,9 +228,9 @@ class DashboardController extends GetxController {
         }
       },
       onError: (error) {
-        errorMessage.value = 'Failed to load channel stats.';
+        rxErrorMessage.value = 'Failed to load channel stats.';
       },
-    );
+    ));
   }
 
   void _loadRecentVideos() {
@@ -233,7 +239,7 @@ class DashboardController extends GetxController {
         .where('channelId', isEqualTo: channelId)
         .orderBy('uploadedAt', descending: true)
         .limit(10); // Fetch more for better fallback
-    _videosSubscription = videosRef.snapshots().listen(
+    trackSubscription(_videosSubscription = videosRef.snapshots().listen(
       (snapshot) {
         recentVideos.value = snapshot.docs
             .map(Video.fromDocumentSnapshot)
@@ -255,9 +261,9 @@ class DashboardController extends GetxController {
         }
       },
       onError: (error) {
-        errorMessage.value = 'Failed to load recent videos.';
+        rxErrorMessage.value = 'Failed to load recent videos.';
       },
-    );
+    ));
   }
 
   void _loadAnalyticsData() {
@@ -275,7 +281,7 @@ class DashboardController extends GetxController {
         )
         .orderBy(FieldPath.documentId);
 
-    _analyticsSubscription = statsRef.snapshots().listen(
+    trackSubscription(_analyticsSubscription = statsRef.snapshots().listen(
       (snapshot) {
         if (snapshot.docs.isNotEmpty) {
           final data = <AnalyticsData>[];
@@ -298,9 +304,9 @@ class DashboardController extends GetxController {
         }
       },
       onError: (error) {
-        errorMessage.value = 'Failed to load analytics data.';
+        rxErrorMessage.value = 'Failed to load analytics data.';
       },
-    );
+    ));
   }
 
   void _loadCopyrightStatus() {
@@ -338,7 +344,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
-  late final DashboardController controller;
+  late DashboardController controller;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
 
@@ -445,6 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       // 4. Initialize DashboardController with resolved channelId
+      DashboardBinding().dependencies();
       final channelId = _getChannelId(resolvedChannel);
       if (!Get.isRegistered<DashboardController>()) {
         controller = Get.put(DashboardController(channelId: channelId));
@@ -467,7 +474,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       if (!Get.isRegistered<VideoManagementController>()) {
-        Get.find<VideoManagementController>();
+        Get.put(VideoManagementController());
       }
     } on Object catch (e) {
       debugPrint('Error in _resolveChannelAndInit: $e');
@@ -477,7 +484,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         controller = Get.find<DashboardController>();
       }
       if (!Get.isRegistered<VideoManagementController>()) {
-        Get.find<VideoManagementController>();
+        Get.put(VideoManagementController());
       }
     } finally {
       isSelectingDefault.value = false;
@@ -662,7 +669,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 Icons.menu_rounded,
                 color: isDarkMode
                     ? AppColors.textPrimary
-                    : AppColors.textPrimary,
+                    : Colors.black,
               ),
               onPressed: () => scaffoldKey.currentState?.openDrawer(),
               tooltip: 'Menu',
@@ -675,7 +682,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               size: 20,
               color: isDarkMode
                   ? AppColors.textSecondary
-                  : AppColors.textSecondary,
+                  : Colors.black,
             ),
             onPressed: () => Get.offAllNamed('/home'),
             tooltip: 'Back to Home',
@@ -717,7 +724,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 fontWeight: FontWeight.w700,
                 color: isDarkMode
                     ? AppColors.textPrimary
-                    : AppColors.textPrimary,
+                    : Colors.black,
                 letterSpacing: -0.5,
               ),
             ),
@@ -788,7 +795,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: TextField(
         controller: _searchController,
         style: TextStyle(
-          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+          color: isDarkMode ? AppColors.textPrimary : Colors.black,
           fontSize: 14,
         ),
         onChanged: (value) {
@@ -799,13 +806,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           hintStyle: TextStyle(
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
             size: 20,
           ),
           suffixIcon: Obx(
@@ -815,7 +822,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       Icons.clear_rounded,
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                       size: 18,
                     ),
                     onPressed: () {
@@ -849,7 +856,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         : (isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9));
     final textColor = isPrimary
         ? AppColors.textPrimary
-        : (isDarkMode ? AppColors.textPrimary : AppColors.textPrimary);
+        : (isDarkMode ? AppColors.textPrimary : Colors.black);
 
     // Icon-only button
     if (label.isEmpty) {
@@ -970,93 +977,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
     }
 
-    // If user is signed in, show profile menu with only Switch Account and Sign Out
-    return PopupMenuButton<String>(
-      tooltip: 'Account',
-      offset: const Offset(0, 50),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
-      onSelected: (value) {
-        HapticFeedback.lightImpact();
-        switch (value) {
-          case 'signout':
-            _handleSignOut();
-        }
-      },
-      itemBuilder: (context) => [
-        // User Info Header (Non-clickable)
-        PopupMenuItem(
-          enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundImage: AuthService.to.activePhotoUrl.isNotEmpty
-                        ? NetworkImage(AuthService.to.activePhotoUrl)
-                        : null,
-                    backgroundColor: const Color(0xFF6366F1),
-                    child: AuthService.to.activePhotoUrl.isEmpty
-                        ? Text(
-                            (AuthService.to.activeDisplayName.isNotEmpty
-                                    ? AuthService.to.activeDisplayName
-                                    : (user.email ?? 'U'))[0]
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AuthService.to.activeDisplayName.isNotEmpty
-                              ? AuthService.to.activeDisplayName
-                              : 'User',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isDarkMode
-                                ? AppColors.textPrimary
-                                : AppColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user.email ?? '',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isDarkMode
-                                ? AppColors.textSecondary
-                                : AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Divider(
-                color: isDarkMode
-                    ? const Color(0xFF374151)
-                    : AppColors.bgDivider,
-                height: 1,
-              ),
-            ],
-          ),
-        ),
-      ],
+    // If user is signed in, show profile avatar display in Appbar
+    return Tooltip(
+      message: AuthService.to.activeDisplayName.isNotEmpty
+          ? '${AuthService.to.activeDisplayName} (${user.email ?? ''})'
+          : (user.email ?? 'Account'),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -1095,6 +1020,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _handleGoogleSignIn() async {
     try {
       await AuthService.to.signInWithGoogle();
+      if (!mounted) return;
+      await AuthService.to.checkAndPromptOnboarding(context);
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -1201,7 +1128,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       Icons.chevron_left_rounded,
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                     ),
                     onPressed: () {
                       controller.toggleDrawer();
@@ -1216,7 +1143,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Icons.chevron_right_rounded,
                     color: isDarkMode
                         ? AppColors.textSecondary
-                        : AppColors.textSecondary,
+                        : Colors.black,
                   ),
                   onPressed: () {
                     controller.toggleDrawer();
@@ -1344,7 +1271,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       },
       {
         'icon': Icons.verified_user_rounded,
-        'label': 'Truth Verification',
+        'label': 'Fact Verification',
         'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 15,
@@ -1353,7 +1280,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: menuItems.length + 2, // +2 for divider and settings
+      itemCount: menuItems.length + 3, // +3 for divider, settings, and sign out
       itemBuilder: (context, index) {
         // Divider before settings
         if (index == menuItems.length) {
@@ -1377,6 +1304,21 @@ class _DashboardScreenState extends State<DashboardScreen>
             color: const Color(0xFF6B7280),
             isSelected: controller.selectedIndex.value == 8,
             onTap: () => controller.setSelectedIndex(8),
+            isDarkMode: isDarkMode,
+          );
+        }
+
+        // Sign Out at the bottom
+        if (index == menuItems.length + 2) {
+          return _buildSidebarItem(
+            icon: Icons.logout_rounded,
+            label: 'Sign Out',
+            color: const Color(0xFFEF4444),
+            isSelected: false,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _handleSignOut();
+            },
             isDarkMode: isDarkMode,
           );
         }
@@ -1464,11 +1406,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       children: [
                         Icon(
                           icon,
-                          color: isSelected
-                              ? color
-                              : (isDarkMode
-                                    ? AppColors.textSecondary
-                                    : AppColors.textSecondary),
+                          color: AppColors.textPrimary,
                           size: 20,
                         ),
                         const SizedBox(width: 12),
@@ -1480,7 +1418,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   ? color
                                   : (isDarkMode
                                         ? AppColors.textPrimary
-                                        : AppColors.textPrimary),
+                                        : Colors.black),
                               fontWeight: isSelected
                                   ? FontWeight.w500
                                   : FontWeight.w500,
@@ -1493,11 +1431,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   : Center(
                       child: Icon(
                         icon,
-                        color: isSelected
-                            ? color
-                            : (isDarkMode
-                                  ? AppColors.textSecondary
-                                  : AppColors.textSecondary),
+                        color: AppColors.textPrimary,
                         size: 20,
                       ),
                     ),
@@ -1775,7 +1709,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           isDarkMode: isDarkMode,
           title: 'Avatar Verification Pending',
           subtitle:
-              'Google Vision AI is currently validating your channel avatar image. This will complete in a few moments.',
+              'Google Vision AI is currently validating your channel avatar image. Creation is complete and your channel is fully accessible.',
           color: const Color(0xFF3B82F6),
           icon: Icons.sync_rounded,
           isPending: true,
@@ -1825,10 +1759,30 @@ class _DashboardScreenState extends State<DashboardScreen>
           isDarkMode: isDarkMode,
           title: 'Avatar Image Rejected',
           subtitle:
-              'Your uploaded avatar image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
+              'Your uploaded avatar image did not pass automated content verification guidelines. Change image or request a manual admin review if you believe it complies with guidelines.',
           color: const Color(0xFFEF4444),
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
+          onRequestManualReviewPressed: () async {
+            try {
+              await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .doc(channel.id)
+                  .update({
+                    'avatarStatus': 'MANUAL_REVIEW',
+                    'avatarStatusReason': 'User requested manual review.',
+                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                  });
+              Get.snackbar(
+                'Submitted',
+                'Avatar queued for manual admin review.',
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
+              );
+            } catch (e) {
+              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+            }
+          },
         ),
       );
     } else if (channel.avatarStatus == 'FLAGGED') {
@@ -1837,10 +1791,41 @@ class _DashboardScreenState extends State<DashboardScreen>
           isDarkMode: isDarkMode,
           title: 'Avatar Review Needed',
           subtitle:
-              'Your avatar image was flagged for potential guidelines violations. It is currently queued for manual review.',
+              'Your avatar image was flagged for potential guidelines review. You may upload a new image or request manual admin review.',
           color: const Color(0xFFF59E0B),
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
+          onRequestManualReviewPressed: () async {
+            try {
+              await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .doc(channel.id)
+                  .update({
+                    'avatarStatus': 'MANUAL_REVIEW',
+                    'avatarStatusReason': 'User requested manual review.',
+                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                  });
+              Get.snackbar(
+                'Submitted',
+                'Avatar queued for manual admin review.',
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
+              );
+            } catch (e) {
+              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+            }
+          },
+        ),
+      );
+    } else if (channel.avatarStatus == 'MANUAL_REVIEW') {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: 'Avatar Under Manual Review',
+          subtitle:
+              'Your avatar appeal has been received. Our moderation team is reviewing your image.',
+          color: const Color(0xFF8B5CF6),
+          icon: Icons.rate_review_rounded,
         ),
       );
     }
@@ -1852,7 +1837,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           isDarkMode: isDarkMode,
           title: 'Banner Verification Pending',
           subtitle:
-              'Google Vision AI is currently validating your channel banner image. This will complete in a few moments.',
+              'Google Vision AI is currently validating your channel banner image. Creation is complete and your channel is fully accessible.',
           color: const Color(0xFF3B82F6),
           icon: Icons.sync_rounded,
           isPending: true,
@@ -1902,10 +1887,30 @@ class _DashboardScreenState extends State<DashboardScreen>
           isDarkMode: isDarkMode,
           title: 'Banner Image Rejected',
           subtitle:
-              'Your uploaded banner image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
+              'Your uploaded banner image did not pass automated content verification guidelines. Change image or request a manual admin review if you believe it complies with guidelines.',
           color: const Color(0xFFEF4444),
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
+          onRequestManualReviewPressed: () async {
+            try {
+              await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .doc(channel.id)
+                  .update({
+                    'bannerStatus': 'MANUAL_REVIEW',
+                    'bannerStatusReason': 'User requested manual review.',
+                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                  });
+              Get.snackbar(
+                'Submitted',
+                'Banner queued for manual admin review.',
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
+              );
+            } catch (e) {
+              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+            }
+          },
         ),
       );
     } else if (channel.bannerStatus == 'FLAGGED') {
@@ -1914,10 +1919,41 @@ class _DashboardScreenState extends State<DashboardScreen>
           isDarkMode: isDarkMode,
           title: 'Banner Review Needed',
           subtitle:
-              'Your banner image was flagged for potential guidelines violations. It is currently queued for manual review.',
+              'Your banner image was flagged for potential guidelines review. You may upload a new image or request manual admin review.',
           color: const Color(0xFFF59E0B),
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
+          onRequestManualReviewPressed: () async {
+            try {
+              await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .doc(channel.id)
+                  .update({
+                    'bannerStatus': 'MANUAL_REVIEW',
+                    'bannerStatusReason': 'User requested manual review.',
+                    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+                  });
+              Get.snackbar(
+                'Submitted',
+                'Banner queued for manual admin review.',
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
+              );
+            } catch (e) {
+              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+            }
+          },
+        ),
+      );
+    } else if (channel.bannerStatus == 'MANUAL_REVIEW') {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: 'Banner Under Manual Review',
+          subtitle:
+              'Your banner appeal has been received. Our moderation team is reviewing your image.',
+          color: const Color(0xFF8B5CF6),
+          icon: Icons.rate_review_rounded,
         ),
       );
     }
@@ -1940,6 +1976,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     bool isPending = false,
     bool showCustomizationButton = false,
     VoidCallback? onBypassPressed,
+    VoidCallback? onRequestManualReviewPressed,
   }) {
     return Container(
       width: double.infinity,
@@ -1987,32 +2024,69 @@ class _DashboardScreenState extends State<DashboardScreen>
                   style: TextStyle(
                     color: isDarkMode
                         ? AppColors.textSecondary
-                        : AppColors.textSecondary,
+                        : Colors.black,
                     fontSize: 14,
                     height: 1.4,
                   ),
                 ),
-                if (showCustomizationButton) ...[
+                if (showCustomizationButton || onRequestManualReviewPressed != null) ...[
                   const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      controller.selectedIndex.value =
-                          6; // Channel Customization tab
-                    },
-                    icon: const Icon(Icons.color_lens_outlined, size: 16),
-                    label: const Text('Go to Customization'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color,
-                      foregroundColor: AppColors.textPrimary,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (showCustomizationButton)
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            controller.selectedIndex.value =
+                                6; // Channel Customization tab
+                          },
+                          icon: const Icon(
+                            Icons.color_lens_outlined,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          label: const Text('Change Image'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: color,
+                            foregroundColor: AppColors.textPrimary,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      if (onRequestManualReviewPressed != null)
+                        OutlinedButton.icon(
+                          onPressed: onRequestManualReviewPressed,
+                          icon: const Icon(
+                            Icons.rate_review_rounded,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          label: const Text('Request Manual Review'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: isDarkMode
+                                ? AppColors.textPrimary
+                                : const Color(0xFF2D3748),
+                            side: BorderSide(
+                              color: color,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
                 if (isPending && onBypassPressed != null) ...[
@@ -2022,6 +2096,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     icon: const Icon(
                       Icons.check_circle_outline_rounded,
                       size: 16,
+                      color: Colors.white,
                     ),
                     label: const Text('Bypass Verification (Local Dev/Test)'),
                     style: ElevatedButton.styleFrom(
@@ -2082,7 +2157,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   fontWeight: FontWeight.bold,
                   color: isDarkMode
                       ? AppColors.textPrimary
-                      : AppColors.textPrimary,
+                      : Colors.black,
                 ),
               ),
             ],
@@ -2093,7 +2168,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black,
             ),
           ),
           const SizedBox(height: 4),
@@ -2103,7 +2178,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               fontSize: 14,
               color: isDarkMode
                   ? AppColors.textSecondary
-                  : AppColors.textSecondary,
+                  : Colors.black,
             ),
           ),
           const SizedBox(height: 16),
@@ -2144,7 +2219,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       fontWeight: FontWeight.bold,
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.textPrimary,
+                          : Colors.black,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -2154,7 +2229,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       fontSize: 14,
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                     ),
                   ),
                 ],
@@ -2276,7 +2351,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   style: TextStyle(
                     color: isDarkMode
                         ? AppColors.textSecondary
-                        : AppColors.textSecondary,
+                        : Colors.black,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -2359,7 +2434,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   style: TextStyle(
                     color: isDarkMode
                         ? AppColors.textSecondary
-                        : AppColors.textSecondary,
+                        : Colors.black,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -2372,7 +2447,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               controller.showApprovalBanner.value = false;
             },
             icon: const Icon(Icons.close_rounded),
-            color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
+            color: isDarkMode ? AppColors.textSecondary : Colors.black,
             iconSize: 20,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -2395,7 +2470,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: TextField(
         controller: _searchController,
         style: TextStyle(
-          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+          color: isDarkMode ? AppColors.textPrimary : Colors.black,
           fontSize: 14,
         ),
         onChanged: (value) {
@@ -2406,13 +2481,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           hintStyle: TextStyle(
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
             size: 20,
           ),
           suffixIcon: Obx(
@@ -2422,7 +2497,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       Icons.clear_rounded,
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                       size: 18,
                     ),
                     onPressed: () {
@@ -2451,7 +2526,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Opacity(
             opacity: _statsAnimation.value,
             child: Obx(() {
-              if (controller.isLoading.value &&
+              if (controller.rxIsLoading.value &&
                   controller.channelStats.isEmpty) {
                 return _buildStatsLoadingGrid(isDarkMode);
               }
@@ -2801,7 +2876,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             style: TextStyle(
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.textSecondary,
+                                  : Colors.black,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
@@ -2824,7 +2899,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           fontWeight: FontWeight.bold,
                           color: isDarkMode
                               ? AppColors.textPrimary
-                              : AppColors.textPrimary,
+                              : Colors.black,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2905,7 +2980,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
                             ? AppColors.textPrimary
-                            : AppColors.textPrimary,
+                            : Colors.black,
                       ),
                     ),
                     Container(
@@ -2986,7 +3061,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Text(
             'No analytics data yet.',
             style: TextStyle(
-              color: isDarkMode ? AppColors.textSecondary : Colors.black45,
+              color: isDarkMode ? AppColors.textSecondary : Colors.black,
             ),
           ),
         );
@@ -2999,7 +3074,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           labelStyle: TextStyle(
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
           axisLine: AxisLine(
             color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
@@ -3009,7 +3084,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           labelStyle: TextStyle(
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
           axisLine: const AxisLine(width: 0),
           majorTickLines: const MajorTickLines(width: 0),
@@ -3061,7 +3136,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             style: TextStyle(
               fontSize: isMobile ? 20 : 24,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black,
             ),
           ),
           const SizedBox(height: 20),
@@ -3299,7 +3374,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     fontWeight: FontWeight.bold,
                     color: isDarkMode
                         ? AppColors.textPrimary
-                        : AppColors.textPrimary,
+                        : Colors.black,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -3309,7 +3384,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                       fontSize: 14,
                       height: 1.4,
                     ),
@@ -3366,7 +3441,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 fontWeight: FontWeight.bold,
                 color: isDarkMode
                     ? AppColors.textPrimary
-                    : AppColors.textPrimary,
+                    : Colors.black,
               ),
             ),
             TextButton.icon(
@@ -3410,7 +3485,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                         fontSize: 16,
                       ),
                     ),
@@ -3498,7 +3573,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               Icons.play_circle_outline_rounded,
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.textSecondary,
+                                  : Colors.black,
                               size: 32,
                             ),
                           ),
@@ -3510,7 +3585,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               Icons.play_circle_outline_rounded,
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.textSecondary,
+                                  : Colors.black,
                               size: 32,
                             ),
                           ),
@@ -3553,7 +3628,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           fontWeight: FontWeight.w500,
                           color: isDarkMode
                               ? AppColors.textPrimary
-                              : AppColors.textPrimary,
+                              : Colors.black,
                           height: 1.3,
                         ),
                         maxLines: 2,
@@ -3567,7 +3642,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             size: 14,
                             color: isDarkMode
                                 ? AppColors.textSecondary
-                                : AppColors.textSecondary,
+                                : Colors.black,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -3575,7 +3650,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             style: TextStyle(
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.textSecondary,
+                                  : Colors.black,
                               fontSize: 12,
                             ),
                           ),
@@ -3585,7 +3660,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             size: 14,
                             color: isDarkMode
                                 ? AppColors.textSecondary
-                                : AppColors.textSecondary,
+                                : Colors.black,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -3595,7 +3670,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             style: TextStyle(
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.textSecondary,
+                                  : Colors.black,
                               fontSize: 12,
                             ),
                           ),
@@ -3608,7 +3683,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Icons.more_vert_rounded,
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                   size: 20,
                 ),
               ],
@@ -3620,10 +3695,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _openCreateTopicDialogFromQuickActions(bool isDarkMode) {
-    if (!Get.isRegistered<TopicManagementController>()) {
-      Get.find<TopicManagementController>();
-    }
-    final topicCtrl = Get.find<TopicManagementController>();
+    final topicCtrl = Get.isRegistered<TopicManagementController>()
+        ? Get.find<TopicManagementController>()
+        : Get.put(TopicManagementController());
     final channelId = _getChannelId(channel);
     CreateTopicDialog.show(
       context: context,
@@ -3692,7 +3766,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           style: TextStyle(
             fontSize: isMobile ? 20 : 24,
             fontWeight: FontWeight.bold,
-            color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         const SizedBox(height: 20),
@@ -3780,7 +3854,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       fontWeight: FontWeight.w500,
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.textPrimary,
+                          : Colors.black,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,

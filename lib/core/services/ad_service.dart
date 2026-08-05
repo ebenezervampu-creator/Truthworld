@@ -112,6 +112,9 @@ class AdItem {
   final String? midrollVideoUrl;
   final String? pinnedCommentText;
 
+  String get sponsorBumperText =>
+      'This video is brought to you by ${advertiser.isNotEmpty ? advertiser : "our sponsor"}';
+
   AdItem copyWith({
     String? id,
     String? userId,
@@ -202,7 +205,12 @@ class AdItem {
 }
 
 class AdService extends GetxService {
-  static AdService get to => Get.find<AdService>();
+  static AdService get to {
+    if (!Get.isRegistered<AdService>()) {
+      Get.put(AdService(), permanent: true);
+    }
+    return Get.find<AdService>();
+  }
 
   final RxList<AdItem> customCampaigns = <AdItem>[].obs;
   final _storage = GetStorage();
@@ -218,10 +226,12 @@ class AdService extends GetxService {
     super.onInit();
     _loadFromLocalCache();
     _listenToAdCampaigns();
-    _authWorker = ever(AuthService.to.currentUser, (_) {
+    if (Get.isRegistered<AuthService>()) {
+      _authWorker = ever(AuthService.to.currentUser, (_) {
+        listenToUserInteractions();
+      });
       listenToUserInteractions();
-    });
-    listenToUserInteractions();
+    }
   }
 
   @override
@@ -867,21 +877,31 @@ class AdService extends GetxService {
         .collection('ad_likes')
         .where('userId', isEqualTo: uid)
         .snapshots()
-        .listen((snapshot) {
-          likedAdIds.assignAll(
-            snapshot.docs.map((doc) => doc.data()['adId'] as String),
-          );
-        });
+        .listen(
+          (snapshot) {
+            likedAdIds.assignAll(
+              snapshot.docs.map((doc) => doc.data()['adId'] as String),
+            );
+          },
+          onError: (err) {
+            debugPrint('[AdService] ad_likes stream error: $err');
+          },
+        );
 
     _savesSubscription = FirebaseFirestore.instance
         .collection('ad_saves')
         .where('userId', isEqualTo: uid)
         .snapshots()
-        .listen((snapshot) {
-          savedAdIds.assignAll(
-            snapshot.docs.map((doc) => doc.data()['adId'] as String),
-          );
-        });
+        .listen(
+          (snapshot) {
+            savedAdIds.assignAll(
+              snapshot.docs.map((doc) => doc.data()['adId'] as String),
+            );
+          },
+          onError: (err) {
+            debugPrint('[AdService] ad_saves stream error: $err');
+          },
+        );
   }
 
   Future<void> toggleLikeAd(String adId) async {

@@ -2,12 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ChannelPlanSelectionController extends GetxController
+class ChannelPlanSelectionController extends BaseController
     with GetSingleTickerProviderStateMixin {
   final selectedPlan = Rx<ChannelPlanType?>(null);
   final hoveredPlan = Rx<ChannelPlanType?>(null);
@@ -395,17 +396,15 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 // Revenue Highlights
                 _buildHighlight(
                   isStandard
-                      ? '75% Creator Ad Revenue'
-                      : '100% Creator Ad Revenue',
-                  isStandard ? '25% Platform Fee' : '0% Platform Fee',
+                      ? '70% Creator Ad & Premium Revenue'
+                      : '100% Creator Ad & Premium Revenue',
+                  isStandard ? '30% Platform Fee' : '0% Platform Fee',
                   primaryColor,
                 ),
                 const SizedBox(height: 20),
                 _buildHighlight(
-                  isStandard
-                      ? '100% Subscriptions Revenue'
-                      : '75% Subscriptions Revenue',
-                  isStandard ? '0% Platform Fee' : '25% Platform Fee',
+                  '100% Memberships & Superchats Revenue',
+                  '0% Platform Fee (Direct to Creator)',
                   primaryColor,
                 ),
                 const SizedBox(height: 32),
@@ -420,50 +419,62 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 // Features List & How It Works
                 if (isStandard) ...[
                   _buildFeatureRow(
-                    r'Fully managed platform infrastructure ($0 hosting fees)',
+                    '70% Revenue Share from ads revenue and premium subscribers',
                     isDark,
                   ),
                   _buildFeatureRow(
-                    'Up to 5 Videos upload limit (Max 10 mins total cumulative duration)',
+                    '10 minutes total video upload duration limit per day (dynamic split e.g. 2 x 5 min or 7 min + 3 min)',
                     isDark,
                   ),
-                  _buildFeatureRow('55% Net Revenue Share from Day 1', isDark),
                   _buildFeatureRow(
-                    '10 Hours watch-time cash-out threshold per video',
+                    'Resolution support up to 1080p Full HD',
+                    isDark,
+                  ),
+                  _buildFeatureRow(
+                    r'100% Free platform hosting & video transcoding ($0 upfront fees)',
+                    isDark,
+                  ),
+                  _buildFeatureRow(
+                    '100% Direct Fan Revenue: 0% commission on Memberships & Superchats!',
                     isDark,
                   ),
                   const SizedBox(height: 16),
                   _buildHowItWorksBox(
                     'How Standard Channel Works:',
                     'Standard channels require zero upfront costs or technical management. '
-                        'Truthworld hosts your video and handles infrastructure. Ad & viewer revenue accumulates immediately from Day 1, '
-                        'and cash out unlocks per video once that video crosses 10 hours of watch time.',
+                        'Truthworld covers 100% of video hosting and transcoding. You earn a 70% revenue share on ads and premium views, '
+                        'and keep 100% of direct fan support (Memberships, Superchats, etc.) with 0% platform commission.',
                     primaryColor,
                     isDark,
                   ),
                 ] else ...[
                   _buildFeatureRow(
-                    '100% Gross Revenue Share (minus raw infrastructure usage)',
+                    r'🎁 $10 Free Infrastructure Grant included for every new Custom Channel!',
                     isDark,
                   ),
                   _buildFeatureRow(
-                    'Unlimited video uploads & up to 24-hour video length',
+                    '100% Creator revenue retention on ads, premium views, and content',
                     isDark,
                   ),
                   _buildFeatureRow(
-                    'Instant cash withdrawals on all accumulated revenue',
+                    'Unlimited video upload duration & max resolution up to 4K Ultra HD',
                     isDark,
                   ),
                   _buildFeatureRow(
-                    'Full control over media storage and streaming economics',
+                    r'Flexible Infrastructure Tiers ($15, $30, $45/mo, etc.) with allocated storage & bandwidth',
+                    isDark,
+                  ),
+                  _buildFeatureRow(
+                    '100% Direct Fan Revenue: 0% commission on Memberships & Superchats!',
                     isDark,
                   ),
                   const SizedBox(height: 16),
                   _buildHowItWorksBox(
                     'How Custom Channel Works:',
-                    'Custom channels operate on a direct infrastructure cost model. '
-                        'You retain 100% of all ad, tip, and subscription revenue, paying only for the actual bandwidth & storage consumed. '
-                        'Earnings are available for instant cash-out without watch-time restrictions.',
+                    'Custom channels provide maximum earning power with 100% ad & content revenue retention. '
+                        r'Every new custom channel receives a $10 free infrastructure grant automatically credited to your balance. '
+                        r'Choose an infrastructure plan ($15, $30, $45/mo) tailored to your storage & bandwidth needs, '
+                        'and stream in up to 4K Ultra HD with 0% commission on direct fan contributions.',
                     primaryColor,
                     isDark,
                   ),

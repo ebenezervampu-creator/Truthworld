@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 
-class CategoryController extends GetxController {
+class CategoryController extends BaseController {
   RxString selectedGenre = 'All'.obs;
   RxString selectedSort = 'Popularity'.obs;
   RxString selectedView = 'Grid'.obs;

@@ -5,6 +5,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
@@ -49,7 +51,7 @@ enum DateRangeFilter {
   thisYear,
 }
 
-class SubscriptionController extends GetxController {
+class SubscriptionController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
@@ -64,9 +66,9 @@ class SubscriptionController extends GetxController {
   final RxString selectedDurationFilter = DurationFilter.all.name.obs;
   final RxString selectedDateRangeFilter = DateRangeFilter.all.name.obs;
 
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
   final RxBool hasError = false.obs;
-  final RxString errorMessage = ''.obs;
+  final RxString rxErrorMessage = ''.obs;
 
   String? get currentUserId =>
       AuthService.to.uid.isNotEmpty ? AuthService.to.uid : null;
@@ -117,15 +119,15 @@ class SubscriptionController extends GetxController {
   @override
   Future<void> refresh() async {
     if (currentUserId == null) {
-      errorMessage.value = 'Please sign in to view subscriptions';
+      rxErrorMessage.value = 'Please sign in to view subscriptions';
       hasError.value = true;
-      isLoading.value = false;
+      rxIsLoading.value = false;
       return;
     }
 
-    isLoading.value = true;
+    rxIsLoading.value = true;
     hasError.value = false;
-    errorMessage.value = '';
+    rxErrorMessage.value = '';
 
     try {
       await loadSubscriptions();
@@ -134,12 +136,12 @@ class SubscriptionController extends GetxController {
       applyFilters();
     } on Object catch (e) {
       hasError.value = true;
-      errorMessage.value = e.toString().contains('permission')
+      rxErrorMessage.value = e.toString().contains('permission')
           ? 'Permission denied. Please check your login status.'
           : 'Something went wrong. Pull to retry.';
       debugPrint('Error in refresh: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -329,7 +331,7 @@ class SubscriptionController extends GetxController {
     } on Object catch (e) {
       debugPrint('Error loading content: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

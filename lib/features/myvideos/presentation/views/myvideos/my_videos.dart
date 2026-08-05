@@ -269,7 +269,7 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
         ),
         SliverToBoxAdapter(child: _buildCategoryChips()),
         Obx(() {
-          if (controller.isLoading.value) {
+          if (controller.rxIsLoading.value) {
             return const SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
@@ -285,7 +285,7 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
                 child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Error: ${controller.errorMessage.value}',
+                    'Error: ${controller.errorMessage}',
                     style: const TextStyle(color: AppColors.textPrimary),
                     textAlign: TextAlign.center,
                   ),

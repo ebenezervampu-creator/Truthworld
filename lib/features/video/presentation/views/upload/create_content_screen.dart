@@ -1368,14 +1368,19 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ? 'Thumbnail approved'
               : (_uploadController.finalstatus.value == 'REJECTED'
                     ? 'Thumbnail rejected'
-                    : (_uploadController.finalstatus.value == 'PENDING'
-                          ? 'Verifying thumbnail...'
-                          : 'Thumbnail added')),
+                    : (_uploadController.finalstatus.value == 'FLAGGED'
+                          ? 'Thumbnail pending admin review...'
+                          : (_uploadController.finalstatus.value == 'PENDING'
+                                ? 'Verifying thumbnail...'
+                                : 'Thumbnail added'))),
           _uploadController.finalstatus.value == 'APPROVED',
           _uploadController.finalstatus.value == 'REJECTED'
               ? Icons.error_outline_rounded
-              : Icons.image_rounded,
-          _uploadController.finalstatus.value == 'PENDING',
+              : (_uploadController.finalstatus.value == 'FLAGGED'
+                    ? Icons.hourglass_top_rounded
+                    : Icons.image_rounded),
+          _uploadController.finalstatus.value == 'PENDING' ||
+              _uploadController.finalstatus.value == 'FLAGGED',
         ),
         (
           'Title (min. 5 chars)',
@@ -1581,6 +1586,83 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         ),
       );
     });
+  }
+
+  Widget _buildSaveDraftButton(bool isDark) {
+    return Obx(() {
+      final isUploading = _uploadController.isUploading.value;
+      final hasVideo = _uploadController.videoUrl.value.isNotEmpty;
+      final hasTitle = _titleController.text.trim().isNotEmpty;
+      final canSaveDraft = hasVideo && hasTitle && !isUploading;
+
+      return Container(
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: isDark ? const Color(0xFF1F2937) : AppColors.textPrimary,
+          border: Border.all(
+            color: canSaveDraft
+                ? (isDark ? const Color(0xFF4B5563) : const Color(0xFFD1D5DB))
+                : (isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
+            width: 1.5,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: canSaveDraft ? () => _handleVideoUpload(isDraft: true) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.bookmark_outline_rounded,
+                    size: 20,
+                    color: canSaveDraft
+                        ? (isDark
+                            ? AppColors.textPrimary
+                            : const Color(0xFF374151))
+                        : (isDark
+                            ? AppColors.textPrimary.withValues(alpha: 0.3)
+                            : const Color(0xFF9CA3AF)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Save Draft',
+                    style: context.themeTypography.button.copyWith(
+                      color: canSaveDraft
+                          ? (isDark
+                              ? AppColors.textPrimary
+                              : const Color(0xFF374151))
+                          : (isDark
+                              ? AppColors.textPrimary.withValues(alpha: 0.3)
+                              : const Color(0xFF9CA3AF)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildPublishActionRow(bool isDark) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSaveDraftButton(isDark),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: _buildPublishButton(isDark),
+        ),
+      ],
+    );
   }
 
   Widget _buildProcessingButton(bool isDark, String message) {
@@ -2389,7 +2471,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   void _goToNextStep() {
     if (_uploadController.uploadStage.value < _totalSteps - 1) {
       final nextStage = _uploadController.uploadStage.value + 1;
-      if (nextStage == 3) {
+      if (nextStage == 2) {
+        _playlistController.refreshPlaylistsTick();
+        _playlistController.refreshPublicPlaylists();
+        _uploadController.fetchAvailableTopics();
+      } else if (nextStage == 3) {
         _uploadController.refreshTitleDescriptionValidation(
           _titleController.text,
           _descriptionController.text,
@@ -2494,117 +2580,99 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   // ========== VIDEO/MEDIA PICKER METHODS ==========
 
-  Future<void> _handleVideoUpload() async {
-    debugPrint('--- Step 4: Publish Review ---');
+  Future<void> _handleVideoUpload({bool isDraft = false}) async {
+    debugPrint('--- Step 4: Publish Review (isDraft: $isDraft) ---');
     debugPrint('Initiating video upload process...');
 
-    // 1️⃣ Validation: Required fields
-    final selectedChannel = _uploadController.selectedChannel.value;
-    if (selectedChannel != null &&
-        selectedChannel.status != ChannelStatus.active) {
-      var message = 'Your channel is not active.';
-      if (selectedChannel.status == ChannelStatus.underReview) {
-        message =
-            'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
-      } else if (selectedChannel.status == ChannelStatus.verificationRejected) {
-        message =
-            selectedChannel.moderationReason != null &&
-                selectedChannel.moderationReason!.isNotEmpty
-            ? 'Branding Rejected: ${selectedChannel.moderationReason!}'
-            : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
-      } else if (selectedChannel.status == ChannelStatus.verificationPending) {
-        message =
-            'Your channel is currently verification pending. You can publish videos once your branding is verified.';
-      } else if (selectedChannel.status == ChannelStatus.suspended) {
-        message = 'Your channel is suspended. Publishing is disabled.';
-      }
-      Get.snackbar(
-        'Verification Required',
-        message,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        duration: const Duration(seconds: 5),
-      );
-      return;
-    }
-
-    final canPublish = _canPublishVideo();
-    if (!canPublish) {
-      var errorMessage = 'Cannot publish. Validation checks:\n';
-      if (_uploadController.videoUrl.value.isEmpty) {
-        errorMessage += '- Video not uploaded yet.\n';
-      }
-      if (_uploadController.thumbnailUrl.value.isEmpty) {
-        errorMessage += '- Thumbnail not uploaded yet.\n';
-      }
-      if (_titleController.text.trim().isEmpty) {
-        errorMessage += '- Title is required.\n';
-      }
-      if (_titleController.text.length < 5) {
-        errorMessage += '- Title must be at least 5 characters long.\n';
+    if (!isDraft) {
+      // 1️⃣ Validation: Required fields
+      final selectedChannel = _uploadController.selectedChannel.value;
+      if (selectedChannel != null &&
+          selectedChannel.status != ChannelStatus.active) {
+        var message = 'Your channel is not active.';
+        if (selectedChannel.status == ChannelStatus.underReview) {
+          message =
+              'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+        } else if (selectedChannel.status == ChannelStatus.verificationRejected) {
+          message =
+              selectedChannel.moderationReason != null &&
+                  selectedChannel.moderationReason!.isNotEmpty
+              ? 'Branding Rejected: ${selectedChannel.moderationReason!}'
+              : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
+        } else if (selectedChannel.status == ChannelStatus.verificationPending) {
+          message =
+              'Your channel is currently verification pending. You can publish videos once your branding is verified.';
+        } else if (selectedChannel.status == ChannelStatus.suspended) {
+          message = 'Your channel is suspended. Publishing is disabled.';
+        }
+        Get.snackbar(
+          'Verification Required',
+          message,
+          backgroundColor: const Color(0xFFEF4444),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 5),
+        );
+        return;
       }
 
-      if (_uploadController.selectedCategory.value.isEmpty) {
-        errorMessage += '- Category is required.\n';
-      }
-      if (_uploadController.selectedChannel.value == null) {
-        errorMessage += '- Channel not selected.\n';
-      }
-      if (_uploadController.isUploading.value) {
-        errorMessage += '- An upload is already in progress.\n';
+      final canPublish = _canPublishVideo();
+      if (!canPublish) {
+        var errorMessage = 'Cannot publish. Validation checks:\n';
+        if (_uploadController.videoUrl.value.isEmpty) {
+          errorMessage += '- Video not uploaded yet.\n';
+        }
+        if (_uploadController.thumbnailUrl.value.isEmpty) {
+          errorMessage += '- Thumbnail not uploaded yet.\n';
+        }
+        if (_titleController.text.trim().isEmpty) {
+          errorMessage += '- Title is required.\n';
+        }
+        if (_titleController.text.length < 5) {
+          errorMessage += '- Title must be at least 5 characters long.\n';
+        }
+
+        if (_uploadController.selectedCategory.value.isEmpty) {
+          errorMessage += '- Category is required.\n';
+        }
+        if (_uploadController.selectedChannel.value == null) {
+          errorMessage += '- Channel not selected.\n';
+        }
+        if (_uploadController.isUploading.value) {
+          errorMessage += '- An upload is already in progress.\n';
+        }
+
+        Get.snackbar(
+          'Cannot Publish',
+          errorMessage.trim(),
+          backgroundColor: const Color(0xFFEF4444),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 5),
+        );
+        return;
       }
 
-      Get.snackbar(
-        'Cannot Publish',
-        errorMessage.trim(),
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        duration: const Duration(seconds: 5),
-      );
-      return;
-    }
-
-    // 2️⃣ Thumbnail moderation check
-    final status = _uploadController.finalstatus.value;
-    if (status == 'REJECTED') {
-      Get.snackbar(
-        'Thumbnail Rejected',
-        'You cannot publish because the thumbnail was rejected: ${_uploadController.finalstatusReason.value}',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-        duration: const Duration(seconds: 4),
-      );
-      return;
-    }
-    if (status != 'APPROVED') {
-      Get.snackbar(
-        'Verification Pending',
-        'Your thumbnail is still being verified. Please wait a moment.',
-        backgroundColor: const Color(0xFF3B82F6),
-        colorText: AppColors.textPrimary,
-        duration: const Duration(seconds: 4),
-      );
-      return;
-    }
-
-    // 3️⃣ Manual form validation
-    if (_titleController.text.trim().length < 5) {
-      Get.snackbar(
-        'Form Error',
-        'Title must be at least 5 characters long',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-      );
-      return;
-    }
-    if (_descriptionController.text.trim().length < 10) {
-      Get.snackbar(
-        'Form Error',
-        'Description must be at least 10 characters long',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-      );
-      return;
+      // 2️⃣ Thumbnail moderation check
+      final status = _uploadController.finalstatus.value;
+      if (status == 'REJECTED') {
+        Get.snackbar(
+          'Thumbnail Rejected',
+          'You cannot publish because the thumbnail was rejected: ${_uploadController.finalstatusReason.value}',
+          backgroundColor: const Color(0xFFEF4444),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 4),
+        );
+        return;
+      }
+      if (status != 'APPROVED') {
+        Get.snackbar(
+          'Verification Pending',
+          'Your thumbnail is still being verified. Please wait a moment.',
+          backgroundColor: const Color(0xFF3B82F6),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 4),
+        );
+        return;
+      }
     }
 
     // 4️⃣ Ensure channel is selected
@@ -2620,7 +2688,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
     try {
       _uploadController.isProcessing.value = true;
-      _uploadController.processingMessage.value = 'Publishing video...';
+      _uploadController.processingMessage.value =
+          isDraft ? 'Saving draft...' : 'Publishing video...';
 
       final channel = _uploadController.selectedChannel.value;
       if (channel == null) {
@@ -2644,15 +2713,19 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         channel.avatarUrl,
         tags,
         selectedLanguages,
+        isDraft: isDraft,
       );
 
       HapticFeedback.mediumImpact();
       Get.snackbar(
-        'Upload Started',
-        'Your video is being processed and will be available soon',
+        isDraft ? 'Draft Saved' : 'Upload Started',
+        isDraft
+            ? 'Your video was saved as a draft successfully.'
+            : 'Your video is being processed and will be available soon',
         backgroundColor: const Color(0xFF10B981),
         colorText: AppColors.textPrimary,
       );
+      Get.offAllNamed('/studio');
     } catch (e) {
       var errorMessage = 'Failed to upload video. Please try again.';
       if (e is FirebaseException) {
@@ -2748,6 +2821,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         backgroundColor: const Color(0xFF10B981),
         colorText: AppColors.textPrimary,
       );
+      Get.offAllNamed('/studio');
     } catch (e) {
       // Enhanced error handling
       var errorMessage = 'Failed to publish community post. Please try again.';
@@ -3287,13 +3361,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   // Step 3: Advanced Settings
   Widget _buildStep3AdvancedSettings(bool isDark) {
-    // Ensure public playlists and topics are loaded when reaching this step
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _playlistController.refreshPlaylistsTick();
-      await _playlistController.refreshPublicPlaylists();
-      await _uploadController.fetchAvailableTopics();
-    });
-
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.all(responsivePadding),
@@ -3354,15 +3421,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   // Step 4: Review & Publish
   Widget _buildStep4PublishReview(bool isDark) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_uploadController.uploadStage.value == 3) {
-        _uploadController.refreshTitleDescriptionValidation(
-          _titleController.text,
-          _descriptionController.text,
-        );
-      }
-    });
-
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.all(responsivePadding),
@@ -3386,7 +3444,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           _buildStepNavigation(
             isDark: isDark,
             showBack: true,
-            customAction: _buildPublishButton(isDark),
+            customAction: _buildPublishActionRow(isDark),
           ),
         ],
       ),

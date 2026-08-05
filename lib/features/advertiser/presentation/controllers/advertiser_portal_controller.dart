@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdvertiserPortalController extends GetxController {
-  Worker? _authWorker;
+class AdvertiserPortalController extends BaseController {
   Timer? _subtitleSimTimer;
   Timer? _audioSimTimer;
   final RxInt selectedIndex = 0.obs;
@@ -59,9 +59,9 @@ class AdvertiserPortalController extends GetxController {
     super.onInit();
     fetchChannelVideos();
     // Fetch videos when user gets authenticated
-    _authWorker = ever(AuthService.to.isAuthenticated, (_) {
+    addWorker(ever(AuthService.to.isAuthenticated, (_) {
       fetchChannelVideos();
-    });
+    }));
   }
 
   String getLanguageName(String code) {
@@ -311,6 +311,7 @@ class AdvertiserPortalController extends GetxController {
         }
       }
     });
+    trackTimer(_subtitleSimTimer!);
   }
 
   void startAudioDubbingSimulation(String targetLang) {
@@ -355,13 +356,6 @@ class AdvertiserPortalController extends GetxController {
         }
       }
     });
-  }
-
-  @override
-  void onClose() {
-    _authWorker?.dispose();
-    _subtitleSimTimer?.cancel();
-    _audioSimTimer?.cancel();
-    super.onClose();
+    trackTimer(_audioSimTimer!);
   }
 }

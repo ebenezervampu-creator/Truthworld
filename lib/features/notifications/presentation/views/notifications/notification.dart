@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/notification_service.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
@@ -123,8 +124,8 @@ class _VideoFeedNotificationScreenState
               SliverToBoxAdapter(child: _buildPillTabs()),
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
               Obx(() {
-                if (controller.isLoading.value ||
-                    userNotificationController.isLoading.value) {
+                if (controller.rxIsLoading.value ||
+                    userNotificationController.rxIsLoading.value) {
                   return SliverFillRemaining(child: _buildLoadingState());
                 }
 
@@ -1007,7 +1008,7 @@ class _UnifiedNotification {
   final bool isSeen;
 }
 
-class _DynamicAvatarController extends GetxController {
+class _DynamicAvatarController extends BaseController {
   _DynamicAvatarController({
     required this.item,
     required this.initialAvatarUrl,
@@ -1016,7 +1017,7 @@ class _DynamicAvatarController extends GetxController {
   final String initialAvatarUrl;
 
   final RxString avatarUrl = ''.obs;
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
 
   // Persistent local cache to eliminate repeat Firestore lookups
   static final _storage = GetStorage('AvatarCache');
@@ -1073,7 +1074,7 @@ class _DynamicAvatarController extends GetxController {
     }
 
     // 3. Fallback: Firestore async resolve (non-blocking)
-    isLoading.value = true;
+    rxIsLoading.value = true;
 
     try {
       Future<String> fetchFuture;
@@ -1093,7 +1094,7 @@ class _DynamicAvatarController extends GetxController {
       }
 
       avatarUrl.value = url;
-      isLoading.value = false;
+      rxIsLoading.value = false;
 
       // Update Firestore document metadata so we never hit this fallback again
       final currentMetaAvatar =
@@ -1116,7 +1117,7 @@ class _DynamicAvatarController extends GetxController {
       }
     } catch (e) {
       debugPrint('Error fetching avatar in _DynamicAvatarController: $e');
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -1190,7 +1191,7 @@ class _DynamicAvatarController extends GetxController {
   @override
   void onClose() {
     avatarUrl.value = '';
-    isLoading.value = false;
+    rxIsLoading.value = false;
     super.onClose();
   }
 }
@@ -1238,7 +1239,7 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isLoading.value) {
+      if (controller.rxIsLoading.value) {
         return Container(
           width: 40,
           height: 40,

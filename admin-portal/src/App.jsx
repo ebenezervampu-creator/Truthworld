@@ -57,8 +57,10 @@ function App() {
   const [systemStats, setSystemStats] = useState({
     pendingVideos: 0,
     pendingImages: 0,
+    pendingReports: 0,
     totalVideos: 0,
     totalImages: 0,
+    totalReports: 0,
   });
 
   // Selection / Modal States
@@ -122,13 +124,14 @@ function App() {
         id: doc.id,
         ...doc.data()
       }));
-      setVideos(videoList);
-
       // Compute stats
-      const pendingCount = videoList.filter(
-        v => v.moderation?.status === "processing" || v.moderation?.status === "error" || 
-             (v.moderation?.status === "approved" && v.moderation?.violationCategories?.includes("timeout_passthrough"))
-      ).length;
+      const isVideoPending = (v) => {
+        const modStatus = (v.moderation?.status || v.status || '').toLowerCase();
+        if (v.moderation?.violationCategories?.includes("timeout_passthrough")) return true;
+        if (!modStatus) return v.isApproved === false;
+        return ["pending", "processing", "error", "under_review", "underreview", "in_review", "pending_review", "flagged", "uploading", "unverified"].includes(modStatus);
+      };
+      const pendingCount = videoList.filter(isVideoPending).length;
       
       setSystemStats(prev => ({
         ...prev,
@@ -179,10 +182,49 @@ function App() {
       console.error("Logs subscription failed:", err);
     });
 
+    // 4. Listen to Reports
+    const reportsQuery = query(
+      collection(db, "reports"),
+      limit(100)
+    );
+    const unsubReports = onSnapshot(reportsQuery, (snapshot) => {
+      const reportList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      reportList.sort((a, b) => {
+        const timeA = a.createdAt || a.timestamp || a.reportedAt;
+        const timeB = b.createdAt || b.timestamp || b.reportedAt;
+        if (!timeA && !timeB) return 0;
+        if (!timeA) return 1;
+        if (!timeB) return -1;
+        const dtA = timeA?.toDate ? timeA.toDate() : new Date(timeA);
+        const dtB = timeB?.toDate ? timeB.toDate() : new Date(timeB);
+        return dtB - dtA;
+      });
+
+      setReports(reportList);
+
+      const pendingCount = reportList.filter(r => {
+        const s = (r.status || 'pending').toLowerCase();
+        return s === 'pending' || s === 'under_review' || (r.isResolved !== true && r.resolved !== true && s !== 'resolved' && s !== 'dismissed' && s !== 'resolved_rejected' && s !== 'resolved_dismissed');
+      }).length;
+
+      setSystemStats(prev => ({
+        ...prev,
+        pendingReports: pendingCount,
+        totalReports: reportList.length
+      }));
+    }, (err) => {
+      console.error("Reports subscription failed:", err);
+    });
+
     return () => {
       unsubVideos();
       unsubImages();
       unsubLogs();
+      unsubReports();
     };
   }, [user, isAdmin]);
 
@@ -413,6 +455,14 @@ function App() {
             </li>
             <li>
               <button 
+                className={`nav-item ${currentTab === "reports" ? "active" : ""}`}
+                onClick={() => { setCurrentTab("reports"); setSelectedItem(null); }}
+              >
+                Video Reports ({systemStats.pendingReports || 0})
+              </button>
+            </li>
+            <li>
+              <button 
                 className={`nav-item ${currentTab === "logs" ? "active" : ""}`}
                 onClick={() => { setCurrentTab("logs"); setSelectedItem(null); }}
               >
@@ -440,12 +490,14 @@ function App() {
               {currentTab === "dashboard" && "Dashboard Overview"}
               {currentTab === "videos" && "Video Verification Queue"}
               {currentTab === "images" && "Image Moderation Grid"}
+              {currentTab === "reports" && "Video & Content Reports"}
               {currentTab === "logs" && "Audit Logs & Actions Log"}
             </h1>
             <p>
               {currentTab === "dashboard" && "Real-time moderation metrics and statistics."}
               {currentTab === "videos" && "Review videos flagged or timed-out during automatic scanning."}
               {currentTab === "images" && "Inspect flagged thumbnails, avatars, and posts."}
+              {currentTab === "reports" && "User-submitted reports for videos, comments, and channels."}
               {currentTab === "logs" && "History of manual actions and quarantined resources."}
             </p>
           </div>
@@ -532,18 +584,12 @@ function App() {
             <div className={`queue-layout ${selectedItem ? "split" : ""}`}>
               {/* List */}
               <div className="list-pane">
-                {videos.filter(v => v.moderation?.status === "processing" || v.moderation?.status === "error" || 
-                  (v.moderation?.status === "approved" && v.moderation?.violationCategories?.includes("timeout_passthrough")) || 
-                  v.moderation?.status === "rejected" || v.moderation?.status === "pending"
-                ).length === 0 ? (
+                {videos.length === 0 ? (
                   <div className="empty-state glass">
-                    <p>No videos in the moderation queue.</p>
+                    <p>No videos found.</p>
                   </div>
                 ) : (
-                  videos.filter(v => v.moderation?.status === "processing" || v.moderation?.status === "error" || 
-                    (v.moderation?.status === "approved" && v.moderation?.violationCategories?.includes("timeout_passthrough")) || 
-                    v.moderation?.status === "rejected" || v.moderation?.status === "pending"
-                  ).map(v => (
+                  videos.map(v => (
                     <div 
                       key={v.id} 
                       className={`item-card glass ${selectedItem?.id === v.id ? "selected" : ""}`}
@@ -560,8 +606,8 @@ function App() {
                           <span>{formatDate(v.createdAt)}</span>
                         </div>
                         <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
-                          <span className={`badge ${v.moderation?.status || "pending"}`}>
-                            {v.moderation?.status || "PENDING"}
+                          <span className={`badge ${v.moderation?.status || v.status || "pending"}`}>
+                            {(v.moderation?.status || v.status || "PENDING").toUpperCase()}
                           </span>
                           {v.moderation?.violationCategories?.includes("timeout_passthrough") && (
                             <span className="badge priority-high">TIMEOUT</span>
@@ -760,7 +806,89 @@ function App() {
             </div>
           )}
 
-          {/* TAB 4: AUDIT LOGS */}
+          {/* TAB 4: REPORTS QUEUE */}
+          {currentTab === "reports" && (
+            <div className={`queue-layout ${selectedItem ? "split" : ""}`}>
+              <div className="list-pane">
+                {reports.length === 0 ? (
+                  <div className="empty-state glass">
+                    <p>No reports in the database.</p>
+                  </div>
+                ) : (
+                  reports.map(r => (
+                    <div 
+                      key={r.id} 
+                      className={`item-card glass ${selectedItem?.id === r.id ? "selected" : ""}`}
+                      onClick={() => setSelectedItem(r)}
+                    >
+                      <div className="item-info">
+                        <div className="item-title">
+                          Report: {typeof r.reason === 'object' ? (r.reason?.label || 'General') : (r.reason || 'General')}
+                        </div>
+                        <div className="item-meta">
+                          <span>Video ID: {r.videoId || "N/A"}</span>
+                          <span>•</span>
+                          <span>{formatDate(r.createdAt)}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                          <span className={`badge ${(r.status || "pending").toLowerCase()}`}>
+                            {(r.status || "PENDING").toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {selectedItem && (
+                <div className="detail-pane glass">
+                  <h3 style={{ fontFamily: "var(--font-display)" }}>Inspect Content Report</h3>
+                  <div>
+                    <h4 style={{ color: "var(--text-secondary)", marginBottom: "8px" }}>Report Details</h4>
+                    <table className="metadata-table">
+                      <tbody>
+                        <tr>
+                          <td className="label">Report ID</td>
+                          <td className="value">{selectedItem.id}</td>
+                        </tr>
+                        <tr>
+                          <td className="label">Video ID</td>
+                          <td className="value">{selectedItem.videoId || "N/A"}</td>
+                        </tr>
+                        <tr>
+                          <td className="label">Channel ID</td>
+                          <td className="value">{selectedItem.channelId || "N/A"}</td>
+                        </tr>
+                        <tr>
+                          <td className="label">Reported By User</td>
+                          <td className="value">{selectedItem.userEmail || selectedItem.userId || "Anonymous"}</td>
+                        </tr>
+                        <tr>
+                          <td className="label">Reason Label</td>
+                          <td className="value">{typeof selectedItem.reason === 'object' ? selectedItem.reason?.label : selectedItem.reason}</td>
+                        </tr>
+                        <tr>
+                          <td className="label">Reason ID</td>
+                          <td className="value">{typeof selectedItem.reason === 'object' ? selectedItem.reason?.id : selectedItem.reason}</td>
+                        </tr>
+                        <tr>
+                          <td className="label">Status</td>
+                          <td className="value">
+                            <span className={`badge ${(selectedItem.status || "pending").toLowerCase()}`}>
+                              {(selectedItem.status || "PENDING").toUpperCase()}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 5: AUDIT LOGS */}
           {currentTab === "logs" && (
             <div className="glass" style={{ padding: "24px", borderRadius: "16px" }}>
               <h3 style={{ marginBottom: "16px", fontFamily: "var(--font-display)" }}>Quarantined Resources History</h3>

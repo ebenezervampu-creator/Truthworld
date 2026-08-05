@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
@@ -12,7 +13,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Controller for creator analytics dashboard.
 /// Reads from pre-aggregated daily stats for cost efficiency.
-class CreatorAnalyticsController extends GetxController {
+class CreatorAnalyticsController extends BaseController {
   static const String _tag = 'CreatorAnalyticsController';
 
   final VideoAnalyticsService _videoAnalyticsService = Get.find();
@@ -111,11 +112,7 @@ class CreatorAnalyticsController extends GetxController {
     });
   }
 
-  @override
-  void onClose() {
-    _liveViewerTimer?.cancel();
-    super.onClose();
-  }
+
 
   // ---------------------------------------------------------------------------
   // Date Range
@@ -225,6 +222,7 @@ class CreatorAnalyticsController extends GetxController {
         liveViewerCount.value = count;
       },
     );
+    if (_liveViewerTimer != null) trackTimer(_liveViewerTimer!);
   }
 
   void _startChannelLiveViewerPolling(String channelId) {
@@ -240,6 +238,7 @@ class CreatorAnalyticsController extends GetxController {
         }
       },
     );
+    if (_liveViewerTimer != null) trackTimer(_liveViewerTimer!);
   }
 
   // ---------------------------------------------------------------------------

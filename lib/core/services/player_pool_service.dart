@@ -10,7 +10,12 @@ class PlayerPoolService extends GetxService {
   PlayerPoolService({int? maxActivePlayers})
     : maxActivePlayers =
           maxActivePlayers ?? (AppConfig.instance.defaultPlayerPoolSize);
-  static PlayerPoolService get to => Get.find<PlayerPoolService>();
+  static PlayerPoolService get to {
+    if (!Get.isRegistered<PlayerPoolService>()) {
+      Get.put(PlayerPoolService(), permanent: true);
+    }
+    return Get.find<PlayerPoolService>();
+  }
 
   final int maxActivePlayers;
   final Map<String, VideoPlayerController> _pool = {};
@@ -45,7 +50,9 @@ class PlayerPoolService extends GetxService {
 
     if (oldestController != null) {
       try {
-        oldestController.pause();
+        if (oldestController.value.isInitialized) {
+          oldestController.pause();
+        }
         oldestController.dispose();
         debugPrint(
           '🗑️ [PlayerPool Evicted] Disposed player decoder for $oldestId',
@@ -68,7 +75,9 @@ class PlayerPoolService extends GetxService {
     final controller = _pool.remove(id);
     if (controller != null) {
       try {
-        controller.pause();
+        if (controller.value.isInitialized) {
+          controller.pause();
+        }
         controller.dispose();
         debugPrint('⚫ [PlayerPool Disposed] Manually disposed player: $id');
       } catch (e) {

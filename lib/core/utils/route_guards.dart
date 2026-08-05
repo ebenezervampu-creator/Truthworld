@@ -33,6 +33,7 @@ class AuthGuard extends GetMiddleware {
       final host = Uri.base.host.toLowerCase();
       final isStudio =
           host.startsWith('studio') ||
+          host.contains('studio') ||
           Uri.base.queryParameters.containsKey('studio');
 
       if (isStudio) {

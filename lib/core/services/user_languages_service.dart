@@ -7,7 +7,12 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 
 class UserLanguagesService extends GetxService {
-  static UserLanguagesService get to => Get.find<UserLanguagesService>();
+  static UserLanguagesService get to {
+    if (!Get.isRegistered<UserLanguagesService>()) {
+      Get.put(UserLanguagesService(), permanent: true);
+    }
+    return Get.find<UserLanguagesService>();
+  }
 
   final _box = GetStorage();
 

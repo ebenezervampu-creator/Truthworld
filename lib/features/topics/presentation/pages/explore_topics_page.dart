@@ -173,7 +173,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
 
                   // Topics feed matching FollowingTopicsPage structure
                   Obx(() {
-                    if (controller.isLoading.value &&
+                    if (controller.isLoading &&
                         controller.topics.isEmpty) {
                       return SliverToBoxAdapter(
                         child: _buildLoadingState(),
@@ -1447,7 +1447,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              controller.errorMessage.value,
+              controller.errorMessage,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: AppColors.textSecondary,

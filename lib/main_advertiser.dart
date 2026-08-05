@@ -15,6 +15,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
+import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/main.dart';
@@ -29,6 +30,7 @@ void main() {
         logger.init(
           minLogLevel: kDebugMode ? 2 : 4,
         );
+        setupGlobalErrorHandlers();
 
         try {
           try {
@@ -36,7 +38,7 @@ void main() {
               options: DefaultFirebaseOptions.currentPlatform,
             );
             FirebaseFirestore.instance.settings = const Settings(
-              persistenceEnabled: true,
+              persistenceEnabled: !kIsWeb,
               cacheSizeBytes: 100 * 1024 * 1024,
             );
             try {

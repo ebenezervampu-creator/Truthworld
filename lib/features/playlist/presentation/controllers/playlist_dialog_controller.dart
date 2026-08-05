@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 
-class PlaylistDialogController extends GetxController {
+
+class PlaylistDialogController extends BaseController {
   RxBool isCreatingPlaylist = false.obs;
   RxBool isAddingToPlaylist = false.obs;
   RxString selectedPlaylistId = ''.obs;

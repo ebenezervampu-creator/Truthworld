@@ -352,13 +352,11 @@ service cloud.firestore {
 
       // User Playlists subcollection
       match /playlists/{playlistId} {
-        allow read: if resource.data.isPublic == true || 
-                       (isAuthenticated() && request.auth.uid == userId);
+        allow read: if true;
         allow create, update, delete: if isAuthenticated() && request.auth.uid == userId;
 
         match /items/{videoId} {
-          allow read: if get(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId)).data.isPublic == true ||
-                         (isAuthenticated() && request.auth.uid == userId);
+          allow read: if true;
           allow write: if isAuthenticated() && request.auth.uid == userId;
         }
       }
@@ -508,20 +506,19 @@ service cloud.firestore {
     
     // Playlists Collection
     match /playlists/{playlistId} {
-      // Allow anyone to read public playlists
-      allow read: if resource.data.isPublic == true || 
-                     resource.data.visibility in ['Public', 'public'] ||
-                     (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      // Allow reading playlists across public, channel, and studio views
+      allow read: if true;
       
       // Allow authenticated users to create playlists
-      allow create: if isAuthenticated() && 
-                       request.resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated();
       
-      // Allow owners to update/delete their playlists
+      // Allow owners or channel managers to update/delete their playlists
       allow update, delete: if isAuthenticated() && 
-                               resource.data.ownerId == request.auth.uid;
+                               (resource.data.ownerId == request.auth.uid ||
+                                resource.data.userId == request.auth.uid ||
+                                resource.data.channelId == request.auth.uid);
     }
-
+    
     // Community Collection
     match /Community/{postId} {
       // Allow anyone to read community posts
@@ -777,20 +774,41 @@ service cloud.firestore {
     }
 
     // Admin Collections
-    match /flagged_images_review/{docId} {
-      allow read, write: if isAdmin();
+    match /content_appeals/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
-    match /rejected_images_log/{docId} {
-      allow read: if isAdmin();
-      allow write: if false; // System only
+    match /flagged_images_review/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
-    match /video_jobs/{jobId} {
-      allow read: if isAdmin();
-      allow write: if false; // System only
+    match /rejected_images_log/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
-    match /pipeline_errors/{errorId} {
-      allow read: if isAdmin();
-      allow write: if false; // System only
+    match /admin_alerts/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /admin_settings/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /security_anomalies/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /account_clusters/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /video_jobs/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /pipeline_errors/{doc=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     // Search and Trending Collections

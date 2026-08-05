@@ -3,16 +3,18 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/channel.dart';
 
-class DiscoverChannelsController extends GetxController {
+class DiscoverChannelsController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final RxString selectedCategory = 'All'.obs;
   final RxString selectedFilter = 'Top Channels'.obs;
   final RxList<Channel> channels = <Channel>[].obs;
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
 
   final RxString searchQuery = ''.obs;
   final TextEditingController searchController = TextEditingController();
@@ -32,7 +34,6 @@ class DiscoverChannelsController extends GetxController {
     {'name': 'Music', 'icon': 'music_note'},
     {'name': 'News', 'icon': 'newspaper'},
     {'name': 'Sports', 'icon': 'sports_soccer'},
-    {'name': 'Gaming', 'icon': 'videogame_asset'},
     {'name': 'Technology', 'icon': 'computer'},
     {'name': 'Science', 'icon': 'science'},
     {'name': 'Travel', 'icon': 'travel_explore'},
@@ -44,7 +45,7 @@ class DiscoverChannelsController extends GetxController {
     {'name': 'Vlogs', 'icon': 'videocam'},
     {'name': 'DIY & How-to', 'icon': 'build'},
     {'name': 'Health & Fitness', 'icon': 'fitness_center'},
-    {'name': 'Fashion & Beauty', 'icon': 'brush'},
+    {'name': 'Fashion', 'icon': 'brush'},
     {'name': 'Food & Cooking', 'icon': 'restaurant'},
     {'name': 'Business & Finance', 'icon': 'business'},
   ];
@@ -78,7 +79,7 @@ class DiscoverChannelsController extends GetxController {
   }
 
   Future<void> loadChannels() async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     try {
       Query query = _firestore
           .collection(FirestoreCollections.channels)
@@ -136,7 +137,7 @@ class DiscoverChannelsController extends GetxController {
     } catch (e) {
       Get.log('Error loading channels: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

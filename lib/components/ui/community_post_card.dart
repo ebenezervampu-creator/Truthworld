@@ -931,14 +931,12 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       return;
     }
     try {
-      if (Get.isRegistered<ChannelController>()) {
-        await Get.find<ChannelController>().unsubscribeFromChannel(
-          widget.post.channelId,
-        );
-      } else {
-        final channelCtrl = Get.put(ChannelController());
-        await channelCtrl.unsubscribeFromChannel(widget.post.channelId);
-      }
+      final channelCtrl = Get.isRegistered<ChannelController>()
+          ? Get.find<ChannelController>()
+          : Get.put(ChannelController());
+      await channelCtrl.unsubscribeFromChannel(
+        widget.post.channelId,
+      );
     } catch (_) {}
 
     try {

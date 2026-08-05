@@ -104,7 +104,7 @@ class DiscoverChannelsPage extends StatelessWidget {
 
                   // Channels List
                   Obx(() {
-                    if (controller.isLoading.value) {
+                    if (controller.isLoading) {
                       return const SliverFillRemaining(
                         child: Center(
                           child: CircularProgressIndicator(

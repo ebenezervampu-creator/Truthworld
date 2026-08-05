@@ -16,6 +16,7 @@ enum VideoStatus {
   scheduled,
   rejected, // Failed moderation — content violates guidelines
   pending_review, // Awaiting manual admin review (ambiguous moderation)
+  draft, // Draft video
 }
 
 class VideoResolutionV2 {

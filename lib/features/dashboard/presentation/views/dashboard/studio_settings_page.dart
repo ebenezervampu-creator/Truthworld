@@ -8,7 +8,9 @@ class StudioSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<StudioSettingsController>();
+    final controller = Get.isRegistered<StudioSettingsController>()
+        ? Get.find<StudioSettingsController>()
+        : Get.put(StudioSettingsController());
 
     return Scaffold(
       appBar: AppBar(

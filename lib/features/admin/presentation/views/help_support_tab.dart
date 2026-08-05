@@ -62,7 +62,7 @@ class HelpSupportTab extends StatelessWidget {
                           Text(
                             'Everything you need to manage the Truthworld moderation portal effectively.',
                             style: TextStyle(
-                              color: AppColors.textSecondary,
+                              color: AppColors.textPrimary,
                               fontSize: 13,
                               height: 1.4,
                             ),
@@ -340,7 +340,7 @@ class HelpSupportTab extends StatelessWidget {
                       Text(
                         'For technical issues, emergency escalations, or platform incidents, contact the engineering team directly.',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: AppColors.textPrimary,
                           fontSize: 13,
                           height: 1.4,
                         ),
@@ -397,7 +397,7 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               description,
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -486,7 +486,7 @@ class HelpSupportTab extends StatelessWidget {
                 Text(
                   desc,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -544,7 +544,7 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               description,
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
                 fontSize: 12,
               ),
             ),
@@ -600,7 +600,7 @@ class HelpSupportTab extends StatelessWidget {
                 Text(
                   desc,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                   ),
                 ),

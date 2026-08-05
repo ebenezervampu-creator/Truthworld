@@ -31,12 +31,12 @@ class AnalyticsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: bgPage,
       body: Obx(() {
-        if (controller.isLoading.value) {
+        if (controller.rxIsLoading.value) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           );
         }
-        if (controller.errorMessage.value.isNotEmpty) {
+        if (controller.rxErrorMessage.value.isNotEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -48,7 +48,7 @@ class AnalyticsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  controller.errorMessage.value,
+                  controller.errorMessage,
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.error,
                     fontSize: 14,
@@ -271,75 +271,77 @@ class AnalyticsScreen extends StatelessWidget {
               ),
             )
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: topVideos.length,
-              separatorBuilder: (context, index) => const Divider(
-                color: AppColors.bgDivider,
-                height: 20,
-              ),
-              itemBuilder: (context, index) {
-                final video = topVideos[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: video.thumbnailUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: video.thumbnailUrl,
-                              fit: BoxFit.cover,
-                              errorWidget: (context, url, err) =>
-                                  const ColoredBox(
-                                    color: AppColors.bgInput,
-                                    child: Icon(
-                                      Icons.play_circle_outline,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                            )
-                          : const ColoredBox(color: AppColors.bgInput),
+            Column(
+              children: [
+                for (var index = 0; index < topVideos.length; index++) ...[
+                  if (index > 0)
+                    const Divider(
+                      color: AppColors.bgDivider,
+                      height: 20,
                     ),
-                  ),
-                  title: Text(
-                    video.title,
-                    style: AppTextStyles.titleMedium.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: textPrimary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '${NumberFormat.compact().format(video.views)} views',
-                      style: AppTextStyles.caption.copyWith(
-                        color: textSecondary,
-                        fontSize: 12,
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: topVideos[index].thumbnailUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: topVideos[index].thumbnailUrl,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (context, url, err) =>
+                                      const ColoredBox(
+                                        color: AppColors.bgInput,
+                                        child: Icon(
+                                          Icons.play_circle_outline,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                )
+                              : const ColoredBox(color: AppColors.bgInput),
+                        ),
                       ),
+                      title: Text(
+                        topVideos[index].title,
+                        style: AppTextStyles.titleMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: textPrimary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${NumberFormat.compact().format(topVideos[index].views)} views',
+                          style: AppTextStyles.caption.copyWith(
+                            color: textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      onTap: () {
+                        Get.to<dynamic>(
+                          () => const CreatorAnalyticsDashboard(),
+                          arguments: {
+                            'channelId': channelId,
+                            'videoId': topVideos[index].id,
+                            'videoTitle': topVideos[index].title,
+                          },
+                        );
+                      },
                     ),
                   ),
-                  trailing: const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 14,
-                    color: Colors.white,
-                  ),
-                  onTap: () {
-                    Get.to<dynamic>(
-                      () => const CreatorAnalyticsDashboard(),
-                      arguments: {
-                        'channelId': channelId,
-                        'videoId': video.id,
-                        'videoTitle': video.title,
-                      },
-                    );
-                  },
-                );
-              },
+                ],
+              ],
             ),
         ],
       ),

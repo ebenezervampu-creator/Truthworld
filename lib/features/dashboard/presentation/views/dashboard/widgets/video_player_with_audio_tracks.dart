@@ -487,7 +487,7 @@ class _AudioTrackSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1E1E1E) : AppColors.textPrimary;
-    final textColor = isDark ? AppColors.textPrimary : AppColors.bgPage;
+    final textColor = isDark ? AppColors.textPrimary : Colors.black;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -543,7 +543,7 @@ class _AudioTrackSheet extends StatelessWidget {
                         fontSize: 12,
                         color: isDark
                             ? AppColors.textSecondary
-                            : Colors.black45,
+                            : Colors.black,
                       ),
                     ),
                   ],
@@ -613,7 +613,7 @@ class _AudioTrackSheet extends StatelessWidget {
                                     ? AppColors.textPrimary
                                     : (isDark
                                           ? AppColors.textSecondary
-                                          : AppColors.bgPage54),
+                                          : Colors.black),
                               ),
                             ),
                           ),
@@ -704,7 +704,7 @@ class _SpeedSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF1E1E1E) : AppColors.textPrimary;
-    final textColor = isDark ? AppColors.textPrimary : AppColors.bgPage;
+    final textColor = isDark ? AppColors.textPrimary : Colors.black;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -777,7 +777,7 @@ class _SpeedSheet extends StatelessWidget {
                               ? AppColors.textPrimary
                               : (isDark
                                     ? AppColors.textSecondary
-                                    : AppColors.bgPage54),
+                                    : Colors.black),
                         ),
                       ),
                     ),

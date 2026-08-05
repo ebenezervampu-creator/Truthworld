@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
-class CreatorIntelligenceController extends GetxController {
+class CreatorIntelligenceController extends BaseController {
   CreatorIntelligenceController({
     required this.channelId,
     required this.creatorId,
@@ -17,7 +18,7 @@ class CreatorIntelligenceController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final RxList<UserNotification> notifications = <UserNotification>[].obs;
-  final RxBool isLoading = true.obs;
+  final RxBool rxIsLoading = true.obs;
   final RxString selectedCategory = 'all'.obs;
   final RxString searchQuery = ''.obs;
   final RxInt unreadCount = 0.obs;
@@ -38,11 +39,11 @@ class CreatorIntelligenceController extends GetxController {
 
   void listenToNotifications() {
     if (creatorId.isEmpty) {
-      isLoading.value = false;
+      rxIsLoading.value = false;
       return;
     }
 
-    isLoading.value = true;
+    rxIsLoading.value = true;
 
     // Listen to users/{creatorId}/notifications_active collection
     _notificationsSub = _firestore
@@ -64,7 +65,7 @@ class CreatorIntelligenceController extends GetxController {
               // Fallback to legacy user_notifications if active subcollection is empty
               _listenToLegacyNotifications();
             }
-            isLoading.value = false;
+            rxIsLoading.value = false;
           },
           onError: (err) {
             debugPrint('[CreatorIntelligence] Firestore Stream Error: $err');
@@ -86,11 +87,11 @@ class CreatorIntelligenceController extends GetxController {
               .toList();
           notifications.value = list;
           unreadCount.value = list.where((n) => !n.read).length;
-          isLoading.value = false;
+          rxIsLoading.value = false;
         })
         .catchError((err) {
           debugPrint('[CreatorIntelligence] Legacy Fetch Error: $err');
-          isLoading.value = false;
+          rxIsLoading.value = false;
         });
   }
 

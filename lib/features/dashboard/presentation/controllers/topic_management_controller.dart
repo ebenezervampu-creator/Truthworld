@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
@@ -14,14 +15,14 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
-class TopicManagementController extends GetxController {
+class TopicManagementController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // Reactive State
   final RxString searchQuery = ''.obs;
   final RxList<Topic> topicsList = <Topic>[].obs;
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
 
   /// Computed Filtered Topics based on search query
   List<Topic> get filteredTopics {
@@ -101,10 +102,14 @@ class TopicManagementController extends GetxController {
     return _firestore
         .collection(FirestoreCollections.topics)
         .where('channelId', isEqualTo: channelId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs.map(Topic.fromDocumentSnapshot).toList(),
+          (snapshot) {
+            final topics =
+                snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+            topics.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return topics;
+          },
         );
   }
 
@@ -166,49 +171,9 @@ class TopicManagementController extends GetxController {
     String? thumbnailUrl,
   }) async {
     try {
-      // 1. Verify channel has at least one uploaded video
-      final channelDoc = await _firestore
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .get();
-      var videoCount = 0;
-      if (channelDoc.exists) {
-        videoCount = (channelDoc.data()?['videoCount'] as num?)?.toInt() ?? 0;
-      }
-
-      if (videoCount < 1) {
-        // Double-check fallback: scan videos collection directly in case of sync delay
-        final rootVideosSnap = await _firestore
-            .collection(FirestoreCollections.videos)
-            .where('channelId', isEqualTo: channelId)
-            .limit(1)
-            .get();
-
-        final channelVideosSubSnap = await _firestore
-            .collection(FirestoreCollections.channels)
-            .doc(channelId)
-            .collection(FirestoreCollections.videos)
-            .limit(1)
-            .get();
-
-        if (rootVideosSnap.docs.isEmpty && channelVideosSubSnap.docs.isEmpty) {
-          AppSnackbar.show(
-            'Action Restricted',
-            'To create a topic, you must have at least one uploaded video on your channel.',
-            backgroundColor: AppColors.error,
-            colorText: AppColors.textPrimary,
-            duration: const Duration(seconds: 4),
-          );
-          return;
-        }
-      }
-
-      // 2. Validate and clean handle format
+      // 1. Validate and clean handle format
       var cleanHandle = handle.trim();
-      if (cleanHandle.startsWith('T/')) {
-        cleanHandle = cleanHandle.substring(2);
-      }
-      if (cleanHandle.startsWith('t/')) {
+      if (cleanHandle.startsWith('T/') || cleanHandle.startsWith('t/')) {
         cleanHandle = cleanHandle.substring(2);
       }
       cleanHandle = cleanHandle
@@ -221,7 +186,7 @@ class TopicManagementController extends GetxController {
           backgroundColor: AppColors.error,
           colorText: AppColors.textPrimary,
         );
-        return;
+        throw Exception('Topic handle is required');
       }
       final finalHandle = 'T/$cleanHandle';
       final finalHandleLowercase = finalHandle.toLowerCase();
@@ -240,13 +205,17 @@ class TopicManagementController extends GetxController {
           backgroundColor: AppColors.error,
           colorText: AppColors.textPrimary,
         );
-        return;
+        throw Exception('Topic handle is already taken');
       }
 
-      final slug = title
+      var slug = title
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
           .replaceAll(RegExp(r'\s+'), '-');
+
+      if (slug.trim().isEmpty) {
+        slug = 'topic-${const Uuid().v4().substring(0, 8)}';
+      }
 
       final existingSlug = await _firestore
           .collection(FirestoreCollections.topics)
@@ -294,7 +263,7 @@ class TopicManagementController extends GetxController {
               .doc(videoId);
           batch.update(videoRef, {
             'topicId': finalSlug,
-            'topics': [finalSlug],
+            'topics': FieldValue.arrayUnion([finalSlug]),
           });
         }
         await batch.commit();
@@ -307,12 +276,15 @@ class TopicManagementController extends GetxController {
         colorText: AppColors.textPrimary,
       );
     } catch (e) {
-      AppSnackbar.show(
-        'Error',
-        'Failed to create topic: $e',
-        backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary,
-      );
+      if (e is! Exception || !e.toString().contains('Topic handle')) {
+        AppSnackbar.show(
+          'Error',
+          'Failed to create topic: $e',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+      }
+      rethrow;
     }
   }
 

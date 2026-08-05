@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -13,7 +15,7 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class PlaylistController extends GetxController {
+class PlaylistController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   StreamSubscription<QuerySnapshot>? _channelsSubscription;
   StreamSubscription<QuerySnapshot>? _playlistsSubscription;
@@ -25,7 +27,7 @@ class PlaylistController extends GetxController {
   RxList<PlaylistModel> publicPlaylists =
       <PlaylistModel>[].obs; // For upload screen
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
-  RxBool isLoading = false.obs;
+  RxBool rxIsLoading = false.obs;
   final RxBool isPlaylistsLoaded = false.obs;
   final RxBool isPublicPlaylistsLoaded = false.obs;
 
@@ -160,7 +162,7 @@ class PlaylistController extends GetxController {
       return;
     }
     try {
-      isLoading.value = true;
+      rxIsLoading.value = true;
       final ref = _firestore
           .collection(FirestoreCollections.users)
           .doc(user)
@@ -181,7 +183,7 @@ class PlaylistController extends GetxController {
       logger.debug('❌ Error toggling Watch Later: $e');
       Get.snackbar('Error', 'Failed to update Watch Later');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 

@@ -1,15 +1,37 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdminLoginScreen extends StatelessWidget {
+class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
 
   @override
+  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
+}
+
+class _AdminLoginScreenState extends State<AdminLoginScreen> {
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Inject the AdminController if not registered
-    final controller = Get.find<AdminController>();
+    final controller = AdminController.to;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -176,11 +198,56 @@ class AdminLoginScreen extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
+
+          if (FirebaseAuth.instance.currentUser != null) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: AppColors.brand.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Active Session: ${FirebaseAuth.instance.currentUser?.email ?? 'Authenticated Admin'}',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () => Get.offAllNamed('/admin/dashboard'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      minimumSize: const Size.fromHeight(42),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Open Admin Dashboard',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // Email Input
           TextField(
-            controller: controller.emailController,
+            controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             style: const TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
@@ -207,7 +274,7 @@ class AdminLoginScreen extends StatelessWidget {
 
           // Password Input
           TextField(
-            controller: controller.passwordController,
+            controller: _passwordController,
             obscureText: true,
             style: const TextStyle(color: AppColors.textPrimary),
             decoration: InputDecoration(
@@ -234,9 +301,12 @@ class AdminLoginScreen extends StatelessWidget {
 
           // Sign In Button
           ElevatedButton(
-            onPressed: controller.isLoading.value
+            onPressed: controller.isLoading
                 ? null
-                : () => controller.signInWithEmailAndPassword(),
+                : () => controller.signInWithEmailAndPassword(
+                      emailInput: _emailController.text,
+                      passwordInput: _passwordController.text,
+                    ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
@@ -245,7 +315,7 @@ class AdminLoginScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: controller.isLoading.value
+            child: controller.isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -286,19 +356,19 @@ class AdminLoginScreen extends StatelessWidget {
 
           // Google Sign-In Button
           ElevatedButton(
-            onPressed: controller.isLoading.value
+            onPressed: controller.isLoading
                 ? null
                 : () => controller.signInWithGoogle(),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.textPrimary,
               foregroundColor: AppColors.bgPage,
-              elevation: controller.isLoading.value ? 0 : 2,
+              elevation: controller.isLoading ? 0 : 2,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
-            child: controller.isLoading.value
+            child: controller.isLoading
                 ? const SizedBox(
                     width: 20,
                     height: 20,

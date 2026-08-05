@@ -1,21 +1,22 @@
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
-import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
+/// 100% Responsive, Industry-Standard Creator Studio Multi-Language Audio Tracks & Dubs Page
 class AudioTracksPage extends StatefulWidget {
   const AudioTracksPage({
     required this.channelId,
     required this.isDarkMode,
     super.key,
   });
+
   final String channelId;
   final bool isDarkMode;
 
@@ -25,17 +26,15 @@ class AudioTracksPage extends StatefulWidget {
 
 class _AudioTracksPageState extends State<AudioTracksPage> {
   late final AudioTracksController controller;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    if (Get.isRegistered<AudioTracksController>()) {
-      controller = Get.find<AudioTracksController>();
-      controller.setChannelContext(widget.channelId);
-    } else {
-      controller = Get.find<AudioTracksController>();
-      controller.channelId.value = widget.channelId;
-    }
+    controller = Get.isRegistered<AudioTracksController>()
+        ? Get.find<AudioTracksController>()
+        : Get.put(AudioTracksController());
+    controller.setChannelContext(widget.channelId);
   }
 
   @override
@@ -47,1120 +46,1344 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isDesktopOrTablet = MediaQuery.of(context).size.width >= 800;
+    final mediaQuery = MediaQuery.of(context);
+    final width = mediaQuery.size.width;
+    final isDesktop = width >= 1024;
+    final isTablet = width >= 600 && width < 1024;
+
     final surfaceColor = widget.isDarkMode
         ? const Color(0xFF141414)
         : AppColors.textPrimary;
     const bgColor = AppColors.bgPage;
-    const textColor = AppColors.textPrimary;
-    const textSecondaryColor = AppColors.textSecondary;
+    final textColor = widget.isDarkMode
+        ? AppColors.textPrimary
+        : Colors.black;
+    final textSecondaryColor = widget.isDarkMode
+        ? AppColors.textSecondary
+        : const Color(0xFF4B5563);
     final borderColor = widget.isDarkMode
         ? const Color(0xFF262626)
         : AppColors.bgDivider;
 
-    return ColoredBox(
-      color: bgColor,
-      child: Obx(() {
-        if (controller.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AppColors.brand,
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Obx(() {
+          if (controller.isLoading) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
               ),
-            ),
+            );
+          }
+
+          if (controller.isEmpty) {
+            return _buildEmptyChannelState(textColor, textSecondaryColor);
+          }
+
+          if (isDesktop) {
+            return _buildDesktopLayout(
+              surfaceColor: surfaceColor,
+              textColor: textColor,
+              textSecondaryColor: textSecondaryColor,
+              borderColor: borderColor,
+            );
+          }
+
+          if (isTablet) {
+            return _buildTabletLayout(
+              surfaceColor: surfaceColor,
+              textColor: textColor,
+              textSecondaryColor: textSecondaryColor,
+              borderColor: borderColor,
+            );
+          }
+
+          return _buildMobileLayout(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
           );
-        }
-
-        if (controller.isEmpty) {
-          return _buildEmptyChannelState(textColor, textSecondaryColor);
-        }
-
-        return isDesktopOrTablet
-            ? _buildDesktopSplitLayout(
-                surfaceColor,
-                textColor,
-                textSecondaryColor,
-                borderColor,
-              )
-            : _buildMobileStackedLayout(
-                surfaceColor,
-                textColor,
-                textSecondaryColor,
-                borderColor,
-              );
-      }),
-    );
-  }
-
-  Widget _buildEmptyChannelState(Color textColor, Color textSecondaryColor) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.library_music_rounded,
-              size: 64,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'No Audio Tracks Scope Available',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Upload base video files to assign local dub streams and alternate voiceovers.',
-            style: TextStyle(fontSize: 15, color: textSecondaryColor),
-          ),
-        ],
+        }),
       ),
     );
   }
 
-  Widget _buildDesktopSplitLayout(
-    Color surfaceColor,
-    Color textColor,
-    Color textSecondaryColor,
-    Color borderColor,
-  ) {
+  // ---------------------------------------------------------------------------
+  // EMPTY STATE
+  // ---------------------------------------------------------------------------
+  Widget _buildEmptyChannelState(Color textColor, Color textSecondaryColor) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: AppColors.brand.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.library_music_rounded,
+                size: 64,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No Audio Workspace Scope Available',
+              style: GoogleFonts.roboto(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Upload video content to configure multi-language audio dubbing, voiceovers, and commentary tracks.',
+              style: TextStyle(fontSize: 14, color: textSecondaryColor),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // DESKTOP LAYOUT (>= 1024px)
+  // ---------------------------------------------------------------------------
+  Widget _buildDesktopLayout({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Selection Layer: Videos Feed Column
-        Container(
+        // Left Column: Video Selector Sidebar
+        SizedBox(
           width: 320,
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(right: BorderSide(color: borderColor)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Column Title Block
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.video_library_rounded,
-                      color: AppColors.textPrimary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Select Video',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Embedded Live Text Filter Box
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  style: TextStyle(fontSize: 14, color: textColor),
-                  decoration: InputDecoration(
-                    hintText: 'Search videos...',
-                    hintStyle: TextStyle(
-                      color: textSecondaryColor,
-                      fontSize: 14,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      size: 18,
-                      color: textSecondaryColor,
-                    ),
-                    filled: true,
-                    fillColor: widget.isDarkMode
-                        ? const Color(0xFF1E1E1E)
-                        : const Color(0xFFF1F5F9),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  onChanged: (value) => controller.setSearchQuery(value),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Divider(height: 1, color: borderColor),
-
-              // Live Scrollable Listing
-              Expanded(
-                child: Obx(() {
-                  final list = controller.filteredVideos;
-                  if (list.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'No matching videos found.',
-                        style: TextStyle(
-                          color: textSecondaryColor,
-                          fontSize: 13,
-                        ),
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: list.length,
-                    itemBuilder: (context, index) {
-                      final video = list[index];
-                      final isSelected =
-                          controller.selectedVideo.value?.id == video.id;
-                      final audioMap = video.audioTracks;
-                      final trackCount = audioMap.isEmpty
-                          ? 1
-                          : entireListUniqueTrackCounter(audioMap);
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () => controller.selectVideo(video),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.brand.withValues(
-                                      alpha: 0.1,
-                                    )
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.brand.withValues(
-                                        alpha: 0.4,
-                                      )
-                                    : borderColor.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Stack(
-                                    children: [
-                                      CachedNetworkImage(
-                                        imageUrl: video.thumbnailUrl,
-                                        width: 80,
-                                        height: 48,
-                                        fit: BoxFit.cover,
-                                        placeholder: (context, url) =>
-                                            Container(color: borderColor),
-                                        errorWidget: (context, url, error) =>
-                                            ColoredBox(
-                                              color: borderColor,
-                                              child: const Icon(
-                                                Icons.broken_image,
-                                                size: 16,
-                                              ),
-                                            ),
-                                      ),
-                                      Positioned(
-                                        right: 4,
-                                        bottom: 4,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 1,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.bgPage.withValues(
-                                              alpha: 0.75,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            video.duration,
-                                            style: GoogleFonts.robotoMono(
-                                              fontSize: 9,
-                                              color: AppColors.textPrimary,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        video.title,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: isSelected
-                                              ? AppColors.brand
-                                              : textColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            (video.uploadedAt.runtimeType
-                                                        .toString() ==
-                                                    'Timestamp')
-                                                ? DateFormat.yMMMd().format(
-                                                    (video.uploadedAt
-                                                                as dynamic)
-                                                            .toDate()
-                                                        as DateTime,
-                                                  )
-                                                : '',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: textSecondaryColor,
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 5,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.brand.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.audiotrack_rounded,
-                                                  size: 9,
-                                                  color: AppColors.brand,
-                                                ),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  '$trackCount',
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: AppColors.brand,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                }),
-              ),
-            ],
+          child: _buildVideoSelectionSidebar(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
           ),
         ),
-
-        // Right Target Layer: Live Active Workspace Editor
+        VerticalDivider(width: 1, color: borderColor),
+        // Right Main Panel: Workspace Editor
         Expanded(
-          child: Obx(() {
-            if (controller.selectedVideo.value == null) {
-              return _buildEmptySelectionState(textColor, textSecondaryColor);
-            }
-            return _buildEditorWorkspace(
-              surfaceColor,
-              textColor,
-              textSecondaryColor,
-              borderColor,
-              isMobile: false,
-            );
-          }),
+          child: _buildMainWorkspaceEditor(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            isMobile: false,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMobileStackedLayout(
-    Color surfaceColor,
-    Color textColor,
-    Color textSecondaryColor,
-    Color borderColor,
-  ) {
-    return Obx(() {
-      if (controller.selectedVideo.value != null) {
-        return Column(
-          children: [
-            // Quick switch back banner bar
-            Container(
-              color: surfaceColor,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, size: 20),
-                    onPressed: () => controller.selectVideo(null),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Back to Video Scope',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
+  // ---------------------------------------------------------------------------
+  // TABLET LAYOUT (600px - 1023px)
+  // ---------------------------------------------------------------------------
+  Widget _buildTabletLayout({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 260,
+          child: _buildVideoSelectionSidebar(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            compact: true,
+          ),
+        ),
+        VerticalDivider(width: 1, color: borderColor),
+        Expanded(
+          child: _buildMainWorkspaceEditor(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            isMobile: false,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // MOBILE LAYOUT (< 600px)
+  // ---------------------------------------------------------------------------
+  Widget _buildMobileLayout({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
+    final selectedVideo = controller.selectedVideo.value;
+
+    return Column(
+      children: [
+        // Mobile Top Selector Bar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            border: Border(bottom: BorderSide(color: borderColor)),
+          ),
+          child: Row(
+            children: [
+              if (selectedVideo != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: CachedNetworkImage(
+                    imageUrl: selectedVideo.thumbnailUrl,
+                    width: 44,
+                    height: 32,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, _, _) => Container(
+                      color: Colors.grey[800],
+                      child: const Icon(Icons.video_library_rounded, size: 16, color: Colors.white),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        selectedVideo.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.roboto(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      Text(
+                        'Audio & Voiceover Workspace',
+                        style: TextStyle(fontSize: 11, color: textSecondaryColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else
+                Expanded(
+                  child: Text(
+                    'Select a Video',
+                    style: GoogleFonts.roboto(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+              TextButton.icon(
+                onPressed: () => _showMobileVideoPickerSheet(context, surfaceColor, textColor, textSecondaryColor, borderColor),
+                icon: const Icon(Icons.swap_horiz_rounded, size: 18, color: AppColors.brand),
+                label: const Text(
+                  'Change',
+                  style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            Divider(height: 1, color: borderColor),
-            Expanded(
-              child: _buildEditorWorkspace(
-                surfaceColor,
-                textColor,
-                textSecondaryColor,
-                borderColor,
-                isMobile: true,
-              ),
-            ),
-          ],
-        );
-      }
+            ],
+          ),
+        ),
 
-      // Otherwise show scrollable catalog
-      return Column(
+        // Mobile Workspace Editor Body
+        Expanded(
+          child: _buildMainWorkspaceEditor(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            isMobile: true,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // LEFT SIDEBAR: VIDEO SELECTION LIST
+  // ---------------------------------------------------------------------------
+  Widget _buildVideoSelectionSidebar({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+    bool compact = false,
+  }) {
+    return ColoredBox(
+      color: surfaceColor,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Sidebar Title Block
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              'Select Channel Content',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: textColor,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.video_library_rounded,
+                  color: AppColors.textPrimary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Select Video',
+                  style: GoogleFonts.roboto(
+                    fontSize: compact ? 16 : 18,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const Spacer(),
+                Obx(() => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${controller.filteredVideos.length}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                )),
+              ],
+            ),
+          ),
+
+          // Search Field
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: _searchController,
+              style: TextStyle(fontSize: 13, color: textColor),
+              onChanged: (value) => controller.setSearchQuery(value),
+              decoration: InputDecoration(
+                hintText: 'Filter videos...',
+                hintStyle: TextStyle(color: textSecondaryColor, fontSize: 13),
+                prefixIcon: Icon(Icons.search_rounded, size: 18, color: textSecondaryColor),
+                filled: true,
+                fillColor: widget.isDarkMode
+                    ? const Color(0xFF1E1E1E)
+                    : const Color(0xFFF1F5F9),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
+          const SizedBox(height: 12),
+
+          // Video Feed Items List
           Expanded(
             child: Obx(() {
-              final list = controller.filteredVideos;
-              if (list.isEmpty) {
+              final videos = controller.filteredVideos;
+              if (videos.isEmpty) {
                 return Center(
-                  child: Text(
-                    'No videos found.',
-                    style: TextStyle(color: textSecondaryColor, fontSize: 13),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'No videos match your query',
+                      style: TextStyle(fontSize: 13, color: textSecondaryColor),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 );
               }
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                itemCount: list.length,
-                itemBuilder: (context, index) {
-                  final video = list[index];
-                  final audioMap = video.audioTracks;
-                  final trackCount = audioMap.isEmpty
-                      ? 1
-                      : entireListUniqueTrackCounter(audioMap);
 
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CachedNetworkImage(
-                        imageUrl: video.thumbnailUrl,
-                        width: 64,
-                        height: 42,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, err) => ColoredBox(
-                          color: borderColor,
-                          child: const Icon(Icons.broken_image, size: 16),
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                itemCount: videos.length,
+                itemBuilder: (context, index) {
+                  final video = videos[index];
+                  final isSelected = controller.selectedVideo.value?.id == video.id;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => controller.selectVideo(video),
+                        borderRadius: BorderRadius.circular(10),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.brand.withValues(alpha: 0.12)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.brand.withValues(alpha: 0.4)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              // Video Thumbnail
+                              Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: CachedNetworkImage(
+                                      imageUrl: video.thumbnailUrl,
+                                      width: compact ? 56 : 72,
+                                      height: compact ? 40 : 48,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (_, _, _) => Container(
+                                        color: Colors.grey[800],
+                                        child: const Icon(Icons.movie_rounded, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 3,
+                                    right: 3,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.8),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        video.duration,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 10),
+
+                              // Video Info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      video.title,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                        color: textColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          DateFormat('MMM d, yyyy').format(video.createdAt.toDate()),
+                                          style: TextStyle(fontSize: 11, color: textSecondaryColor),
+                                        ),
+                                        const Spacer(),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? AppColors.brand.withValues(alpha: 0.2)
+                                                : Colors.grey.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.music_note_rounded, size: 10, color: AppColors.textPrimary),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                '${video.audioTracks.length}',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                    title: Text(
-                      video.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${video.duration} • $trackCount audio ${trackCount == 1 ? 'track' : 'tracks'}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: textSecondaryColor,
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: AppColors.brand,
-                    ),
-                    onTap: () => controller.selectVideo(video),
                   );
                 },
               );
             }),
           ),
         ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // MAIN WORKSPACE EDITOR (RIGHT PANEL / MOBILE CONTAINER)
+  // ---------------------------------------------------------------------------
+  Widget _buildMainWorkspaceEditor({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+    required bool isMobile,
+  }) {
+    return Obx(() {
+      final video = controller.selectedVideo.value;
+      if (video == null) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.touch_app_rounded, size: 48, color: AppColors.textPrimary),
+              const SizedBox(height: 16),
+              Text(
+                'Select a Video to Manage Audio Tracks',
+                style: GoogleFonts.roboto(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Choose a video from the list to add dubbing, voiceovers, or commentary.',
+                style: TextStyle(fontSize: 13, color: textSecondaryColor),
+              ),
+            ],
+          ),
+        );
+      }
+
+      final activeTab = controller.activeTab.value;
+      final showRequests = controller.showRequestsPanel.value;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Bar & Actions
+          if (!isMobile)
+            _buildWorkspaceHeaderBar(
+              video: video,
+              surfaceColor: surfaceColor,
+              textColor: textColor,
+              textSecondaryColor: textSecondaryColor,
+              borderColor: borderColor,
+            ),
+
+          // Mobile Header Actions Row
+          if (isMobile)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => _showUploadTrackDialog(context),
+                    icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.black),
+                    label: const Text('Upload Track'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                  ),
+                  Obx(() {
+                    final reqCount = controller.languageRequests.where((r) => r.type == 'audio').length;
+                    return OutlinedButton.icon(
+                      onPressed: () => controller.toggleRequestsPanel(),
+                      icon: Icon(
+                        showRequests ? Icons.close_rounded : Icons.mark_chat_unread_rounded,
+                        size: 16,
+                        color: showRequests ? AppColors.error : AppColors.brand,
+                      ),
+                      label: Text(
+                        showRequests ? 'Close Requests' : 'Requests ($reqCount)',
+                        style: TextStyle(
+                          color: showRequests ? AppColors.error : AppColors.brand,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: showRequests ? AppColors.error : AppColors.brand.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    );
+                  }),
+                  ElevatedButton.icon(
+                    onPressed: controller.isSaving.value ? null : () => controller.saveCurrentAudioTracks(),
+                    icon: controller.isSaving.value
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                          )
+                        : const Icon(Icons.save_rounded, size: 16, color: Colors.black),
+                    label: Text(controller.isSaving.value ? 'Saving' : 'Save'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Workspace Tab & Language Selector Row
+          _buildWorkspaceTabBar(
+            surfaceColor: surfaceColor,
+            textColor: textColor,
+            textSecondaryColor: textSecondaryColor,
+            borderColor: borderColor,
+            isMobile: isMobile,
+          ),
+
+          // Main Workspace Body Content
+          Expanded(
+            child: showRequests
+                ? _buildRequestsGridSection(textColor, textSecondaryColor, surfaceColor, borderColor)
+                : (activeTab == 'languages'
+                    ? _buildLanguagesAndLayersManager(textColor, textSecondaryColor, surfaceColor, borderColor)
+                    : _buildTracksAndDubsList(video, textColor, textSecondaryColor, surfaceColor, borderColor)),
+          ),
+        ],
       );
     });
   }
 
-  Widget _buildEmptySelectionState(Color textColor, Color textSecondaryColor) {
-    return Center(
+  // ---------------------------------------------------------------------------
+  // WORKSPACE HEADER BAR (DESKTOP / TABLET)
+  // ---------------------------------------------------------------------------
+  Widget _buildWorkspaceHeaderBar({
+    required Video video,
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Row(
+        children: [
+          // Video Thumbnail & Details
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CachedNetworkImage(
+              imageUrl: video.thumbnailUrl,
+              width: 72,
+              height: 48,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => Container(
+                color: Colors.grey[800],
+                child: const Icon(Icons.video_library_rounded, color: Colors.white, size: 24),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        video.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.roboto(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Obx(() {
+                      final count = controller.availableLanguages.length;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$count Dub Languages',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Multi-Language Dubbed Voiceover & Track Workspace',
+                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                ),
+              ],
+            ),
+          ),
+
+          // Action Buttons
+          ElevatedButton.icon(
+            onPressed: () => _showUploadTrackDialog(context),
+            icon: const Icon(Icons.cloud_upload_rounded, size: 16, color: Colors.black),
+            label: const Text('Upload Track'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          Obx(() {
+            final hasReqs = controller.languageRequests.where((r) => r.type == 'audio').isNotEmpty;
+            final showRequests = controller.showRequestsPanel.value;
+            final reqCount = controller.languageRequests.where((r) => r.type == 'audio').length;
+
+            return Badge(
+              isLabelVisible: hasReqs && !showRequests,
+              label: Text('$reqCount'),
+              backgroundColor: AppColors.brand,
+              child: OutlinedButton.icon(
+                onPressed: () => controller.toggleRequestsPanel(),
+                icon: Icon(
+                  showRequests ? Icons.close_rounded : Icons.mark_chat_unread_rounded,
+                  size: 16,
+                  color: showRequests ? AppColors.error : AppColors.brand,
+                ),
+                label: Text(
+                  showRequests ? 'Close Requests' : 'Viewer Requests',
+                  style: TextStyle(
+                    color: showRequests ? AppColors.error : AppColors.brand,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  side: BorderSide(
+                    color: showRequests
+                        ? AppColors.error.withValues(alpha: 0.5)
+                        : AppColors.brand.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(width: 8),
+
+          Obx(() {
+            return ElevatedButton.icon(
+              onPressed: controller.isSaving.value ? null : () => controller.saveCurrentAudioTracks(),
+              icon: controller.isSaving.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      ),
+                    )
+                  : const Icon(Icons.save_rounded, size: 18, color: Colors.black),
+              label: Text(controller.isSaving.value ? 'Saving...' : 'Save Changes'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // TAB BAR & LANGUAGE SELECTION BAR
+  // ---------------------------------------------------------------------------
+  Widget _buildWorkspaceTabBar({
+    required Color surfaceColor,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color borderColor,
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Obx(() {
+                final activeTab = controller.activeTab.value;
+                return Row(
+                  children: [
+                    _buildTabPill(
+                      id: 'tracks',
+                      label: 'Audio & Video Tracks',
+                      icon: Icons.graphic_eq_rounded,
+                      isActive: activeTab == 'tracks',
+                      textColor: textColor,
+                      textSecondaryColor: textSecondaryColor,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildTabPill(
+                      id: 'languages',
+                      label: 'Languages & Layers (${controller.availableLanguages.length})',
+                      icon: Icons.language_rounded,
+                      isActive: activeTab == 'languages',
+                      textColor: textColor,
+                      textSecondaryColor: textSecondaryColor,
+                    ),
+                  ],
+                );
+              }),
+            ],
+          ),
+
+          // Scrollable Quick Language Filter Bar (for tracks tab)
+          Obx(() {
+            if (controller.activeTab.value != 'tracks') return const SizedBox.shrink();
+            final activeCode = controller.selectedLanguage.value;
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Text(
+                      'Language:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: textSecondaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ...controller.availableLanguages.map((langCode) {
+                      final isChosen = langCode == activeCode;
+                      final name = controller.getLanguageName(langCode);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text(name),
+                          selected: isChosen,
+                          onSelected: (_) => controller.switchLanguageTrack(langCode),
+                          selectedColor: AppColors.brand,
+                          backgroundColor: widget.isDarkMode
+                              ? const Color(0xFF262626)
+                              : const Color(0xFFF1F5F9),
+                          labelStyle: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isChosen ? Colors.black : textColor,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          showCheckmark: false,
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabPill({
+    required String id,
+    required String label,
+    required IconData icon,
+    required bool isActive,
+    required Color textColor,
+    required Color textSecondaryColor,
+  }) {
+    return InkWell(
+      onTap: () => controller.setActiveTab(id),
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.brand.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isActive ? AppColors.brand : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.textPrimary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isActive ? textColor : textSecondaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // TRACKS & DUBS LIST WORKSPACE
+  // ---------------------------------------------------------------------------
+  Widget _buildTracksAndDubsList(
+    Video video,
+    Color textColor,
+    Color textSecondaryColor,
+    Color surfaceColor,
+    Color borderColor,
+  ) {
+    return Obx(() {
+      if (controller.isLoadingTracks.value) {
+        return const Center(child: CircularProgressIndicator(color: AppColors.brand));
+      }
+
+      final audioList = controller.currentTracks;
+      final commentaryList = controller.commentaryTracks;
+
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Audio Dubbing Section
+          Row(
+            children: [
+              const Icon(Icons.record_voice_over_rounded, color: AppColors.textPrimary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Audio Dubbing & Voiceover Tracks (${audioList.length})',
+                style: GoogleFonts.roboto(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (audioList.isEmpty)
+            _buildEmptyTrackCard('No audio dub tracks available for selected language.', textColor, textSecondaryColor, surfaceColor, borderColor)
+          else
+            ...audioList.asMap().entries.map((entry) {
+              final index = entry.key;
+              final track = entry.value;
+              return _buildAudioTrackCard(
+                index: index,
+                track: track,
+                textColor: textColor,
+                textSecondaryColor: textSecondaryColor,
+                surfaceColor: surfaceColor,
+                borderColor: borderColor,
+              );
+            }),
+
+          const SizedBox(height: 24),
+
+          // Commentary & Multi-Video Section
+          Row(
+            children: [
+              const Icon(Icons.subtitles_rounded, color: AppColors.textPrimary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Commentary & Alternate Video Tracks (${commentaryList.length})',
+                style: GoogleFonts.roboto(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (commentaryList.isEmpty)
+            _buildEmptyTrackCard('No commentary or alternate angle tracks attached.', textColor, textSecondaryColor, surfaceColor, borderColor)
+          else
+            ...commentaryList.map((track) {
+              return _buildCommentaryTrackCard(
+                track: track,
+                textColor: textColor,
+                textSecondaryColor: textSecondaryColor,
+                surfaceColor: surfaceColor,
+                borderColor: borderColor,
+              );
+            }),
+        ],
+      );
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUDIO TRACK CARD COMPONENT
+  // ---------------------------------------------------------------------------
+  Widget _buildAudioTrackCard({
+    required int index,
+    required AudioTrackItem track,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color surfaceColor,
+    required Color borderColor,
+  }) {
+    final isBase = track.isBaseTrack;
+    final trackUrlController = TextEditingController(text: track.audioUrl);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isBase ? AppColors.success.withValues(alpha: 0.5) : borderColor,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Track Top Header Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isBase
+                        ? AppColors.success.withValues(alpha: 0.15)
+                        : AppColors.brand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isBase ? Icons.volume_up_rounded : Icons.translate_rounded,
+                    color: isBase ? AppColors.success : AppColors.brand,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            track.languageName,
+                            style: GoogleFonts.roboto(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isBase
+                                  ? AppColors.success.withValues(alpha: 0.2)
+                                  : AppColors.info.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              isBase ? 'Primary Base Audio' : 'Dubbed Track',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isBase ? AppColors.success : AppColors.info,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isBase
+                            ? 'Static file mapping reference link'
+                            : 'Multi-Language Audio Voiceover Track Stream',
+                        style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Actions: Copy Link & Delete
+                IconButton(
+                  tooltip: 'Copy Reference Link',
+                  icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.textPrimary),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: track.audioUrl));
+                    Get.snackbar(
+                      'Link Copied',
+                      'Track URL copied to clipboard',
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: AppColors.success,
+                      colorText: Colors.black,
+                    );
+                  },
+                ),
+                if (!isBase)
+                  IconButton(
+                    tooltip: 'Delete Track',
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                    onPressed: () => controller.removeDubForLanguage(track.languageCode),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Stream URL Input Box
+            Text(
+              'Storage Stream URL Reference:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textSecondaryColor),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: trackUrlController,
+              style: TextStyle(fontSize: 13, color: textColor, fontFamily: 'monospace'),
+              onChanged: (val) => controller.updateTrackUrl(index, val),
+              decoration: InputDecoration(
+                hintText: 'Provide direct HTTPS audio target file URI e.g. https://...',
+                hintStyle: TextStyle(fontSize: 12, color: textSecondaryColor),
+                filled: true,
+                fillColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF9FAFB),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // COMMENTARY TRACK CARD
+  // ---------------------------------------------------------------------------
+  Widget _buildCommentaryTrackCard({
+    required CommentaryTrackItem track,
+    required Color textColor,
+    required Color textSecondaryColor,
+    required Color surfaceColor,
+    required Color borderColor,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.05),
-              shape: BoxShape.circle,
+              color: AppColors.info.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              Icons.arrow_back,
-              size: 48,
-              color: textSecondaryColor,
+            child: const Icon(Icons.video_collection_rounded, color: AppColors.info, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  style: GoogleFonts.roboto(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Role: ${track.role} • Lang: ${track.langCode.toUpperCase()}',
+                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Select a Video to Load Multi-Language Audio Scope',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: textColor,
-            ),
+          IconButton(
+            icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.textPrimary),
+            onPressed: () => controller.exportTrackLinkToClipboard(track.videoUrl),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose an uploaded file from the left sidebar to assign localized base and dub voiceovers.',
-            style: TextStyle(fontSize: 14, color: textSecondaryColor),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+            onPressed: () => controller.deleteCommentaryTrack(track.id),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEditorWorkspace(
-    Color surfaceColor,
+  Widget _buildEmptyTrackCard(
+    String message,
     Color textColor,
     Color textSecondaryColor,
-    Color borderColor, {
-    required bool isMobile,
-  }) {
-    final video = controller.selectedVideo.value!;
+    Color surfaceColor,
+    Color borderColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Center(
+        child: Text(
+          message,
+          style: TextStyle(fontSize: 13, color: textSecondaryColor),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
 
-    return Column(
+  // ---------------------------------------------------------------------------
+  // LANGUAGES & LAYERS MANAGER TAB
+  // ---------------------------------------------------------------------------
+  Widget _buildLanguagesAndLayersManager(
+    Color textColor,
+    Color textSecondaryColor,
+    Color surfaceColor,
+    Color borderColor,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        // Workspace Top Bar: Context & Actions
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: isMobile
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: CachedNetworkImage(
-                            imageUrl: video.thumbnailUrl,
-                            width: 50,
-                            height: 32,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                video.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                              Text(
-                                'Audio Dubbing Workspace',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: textSecondaryColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showUploadTrackDialog(context),
-                            icon: const Icon(
-                              Icons.cloud_upload_rounded,
-                              size: 14,
-                            ),
-                            label: const Text('Upload'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: AppColors.textPrimary,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              textStyle: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Obx(() {
-                          final showRequests =
-                              controller.showRequestsPanel.value;
-                          final audioReqCount = controller.languageRequests
-                              .where((r) => r.type == 'audio')
-                              .length;
-                          return OutlinedButton.icon(
-                            onPressed: () => controller.toggleRequestsPanel(),
-                            icon: Icon(
-                              showRequests
-                                  ? Icons.close_rounded
-                                  : Icons.mark_chat_unread_rounded,
-                              size: 14,
-                              color: showRequests
-                                  ? AppColors.error
-                                  : AppColors.brand,
-                            ),
-                            label: Text(
-                              showRequests
-                                  ? 'Tracks'
-                                  : 'Requests ($audioReqCount)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: showRequests
-                                    ? AppColors.error
-                                    : AppColors.brand,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 8,
-                              ),
-                              side: BorderSide(
-                                color: showRequests
-                                    ? AppColors.error.withValues(alpha: 0.5)
-                                    : AppColors.brand.withValues(alpha: 0.5),
-                              ),
-                            ),
-                          );
-                        }),
-                        const SizedBox(width: 6),
-                        Obx(() {
-                          return ElevatedButton.icon(
-                            onPressed: controller.isSaving.value
-                                ? null
-                                : () => controller.saveCurrentAudioTracks(),
-                            icon: controller.isSaving.value
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  )
-                                : const Icon(Icons.save_rounded, size: 14),
-                            label: Text(
-                              controller.isSaving.value ? 'Saving' : 'Save',
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: AppColors.textPrimary,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              textStyle: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CachedNetworkImage(
-                        imageUrl: video.thumbnailUrl,
-                        width: 50,
-                        height: 30,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  video.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: textColor,
-                                  ),
-                                ),
-                              ),
-                              Obx(() {
-                                if (!controller.hasUnsavedChanges.value) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.warning.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: AppColors.warning.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Unsaved',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.warning,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                          Text(
-                            'Multi-Language Dubbed Voiceover Track Workspace',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: textSecondaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Upload Track Button
-                    ElevatedButton.icon(
-                      onPressed: () => _showUploadTrackDialog(context),
-                      icon: const Icon(Icons.cloud_upload_rounded, size: 16),
-                      label: const Text('Upload Track'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Requests Toggle Button
-                    Obx(() {
-                      final hasReqs = controller.languageRequests
-                          .where((r) => r.type == 'audio')
-                          .isNotEmpty;
-                      final showRequests = controller.showRequestsPanel.value;
-                      return Badge(
-                        isLabelVisible: hasReqs && !showRequests,
-                        label: Text(
-                          '${controller.languageRequests.where((r) => r.type == 'audio').length}',
-                        ),
-                        backgroundColor: AppColors.brand,
-                        child: OutlinedButton.icon(
-                          onPressed: () => controller.toggleRequestsPanel(),
-                          icon: Icon(
-                            showRequests
-                                ? Icons.close_rounded
-                                : Icons.mark_chat_unread_rounded,
-                            size: 16,
-                            color: showRequests
-                                ? AppColors.error
-                                : AppColors.brand,
-                          ),
-                          label: Text(
-                            showRequests ? 'Close Requests' : 'Viewer Requests',
-                            style: TextStyle(
-                              color: showRequests
-                                  ? AppColors.error
-                                  : AppColors.brand,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: showRequests
-                                ? AppColors.error
-                                : AppColors.brand,
-                            side: BorderSide(
-                              color: showRequests
-                                  ? AppColors.error.withValues(alpha: 0.5)
-                                  : AppColors.brand.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                    const SizedBox(width: 8),
-
-                    // Save Changes Button
-                    Obx(() {
-                      return ElevatedButton.icon(
-                        onPressed: controller.isSaving.value
-                            ? null
-                            : () => controller.saveCurrentAudioTracks(),
-                        icon: controller.isSaving.value
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    AppColors.textPrimary,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.save_rounded, size: 18),
-                        label: Text(
-                          controller.isSaving.value
-                              ? 'Saving...'
-                              : 'Save Changes',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brand,
-                          foregroundColor: AppColors.textPrimary,
-                        ),
-                      );
-                    }),
-                  ],
-                ),
+        Text(
+          'Configured Language Dub Layers',
+          style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
         ),
-
-        // Studio Section Tab Bar: Audio & Video Tracks vs Languages & Target Layers
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            border: Border(bottom: BorderSide(color: borderColor)),
-          ),
-          child: Obx(() {
-            final activeTab = controller.activeTab.value;
-            return Row(
-              children: [
-                InkWell(
-                  onTap: () => controller.setActiveTab('tracks'),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: activeTab == 'tracks'
-                          ? AppColors.brand.withValues(alpha: 0.2)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: activeTab == 'tracks'
-                            ? AppColors.brand
-                            : Colors.transparent,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.graphic_eq_rounded,
-                          size: 16,
-                          color: AppColors.textPrimary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Audio & Video Tracks',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: activeTab == 'tracks'
-                                ? AppColors.textPrimary
-                                : textSecondaryColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                InkWell(
-                  onTap: () => controller.setActiveTab('languages'),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: activeTab == 'languages'
-                          ? AppColors.brand.withValues(alpha: 0.2)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: activeTab == 'languages'
-                            ? AppColors.brand
-                            : Colors.transparent,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.language_rounded,
-                          size: 16,
-                          color: AppColors.textPrimary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Languages & Layers (${controller.availableLanguages.length})',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: activeTab == 'languages'
-                                ? AppColors.textPrimary
-                                : textSecondaryColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Spacer(),
-
-                // Quick Language Selector when on Tracks tab
-                if (activeTab == 'tracks')
-                  Obx(() {
-                    final activeCode = controller.selectedLanguage.value;
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: controller.availableLanguages.map((langCode) {
-                          final isChosen = langCode == activeCode;
-                          final name = controller.getLanguageName(langCode);
-
-                          return Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: ChoiceChip(
-                              label: Text(name),
-                              selected: isChosen,
-                              onSelected: (_) =>
-                                  controller.switchLanguageTrack(langCode),
-                              selectedColor: AppColors.brand,
-                              labelStyle: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isChosen ? Colors.black : textColor,
-                              ),
-                              backgroundColor: widget.isDarkMode
-                                  ? const Color(0xFF262626)
-                                  : const Color(0xFFF1F5F9),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    );
-                  }),
-              ],
-            );
-          }),
+        const SizedBox(height: 8),
+        Text(
+          'Manage available language streams for viewer audio track switching.',
+          style: TextStyle(fontSize: 13, color: textSecondaryColor),
         ),
-
-        // Tab View Body
-        Expanded(
-          child: Obx(() {
-            final activeTab = controller.activeTab.value;
-            final showRequests = controller.showRequestsPanel.value;
-
-            if (activeTab == 'languages') {
-              return _buildLanguagesTab(
-                surfaceColor,
-                textColor,
-                textSecondaryColor,
-                borderColor,
+        const SizedBox(height: 16),
+        Obx(() {
+          final langs = controller.availableLanguages;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: langs.map((code) {
+              final name = controller.getLanguageName(code);
+              return Chip(
+                avatar: const Icon(Icons.language_rounded, size: 16, color: AppColors.textPrimary),
+                label: Text(name, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+                backgroundColor: surfaceColor,
+                side: BorderSide(color: borderColor),
               );
-            }
-
-            // 'tracks' tab view
-            if (isMobile) {
-              if (showRequests) {
-                return _buildRequestsPanel(
-                  surfaceColor,
-                  textColor,
-                  textSecondaryColor,
-                  borderColor,
-                  isMobile: true,
-                );
-              } else {
-                return _buildTracksList(
-                  surfaceColor,
-                  textColor,
-                  textSecondaryColor,
-                  borderColor,
-                );
-              }
-            }
-
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _buildTracksList(
-                    surfaceColor,
-                    textColor,
-                    textSecondaryColor,
-                    borderColor,
-                  ),
-                ),
-                if (showRequests)
-                  _buildRequestsPanel(
-                    surfaceColor,
-                    textColor,
-                    textSecondaryColor,
-                    borderColor,
-                    isMobile: false,
-                  ),
-              ],
-            );
-          }),
-        ),
+            }).toList(),
+          );
+        }),
       ],
     );
   }
 
-  Widget _buildTracksList(
-    Color surfaceColor,
+  // ---------------------------------------------------------------------------
+  // VIEWER REQUESTS GRID SECTION
+  // ---------------------------------------------------------------------------
+  Widget _buildRequestsGridSection(
     Color textColor,
     Color textSecondaryColor,
+    Color surfaceColor,
     Color borderColor,
   ) {
     return Obx(() {
-      if (controller.isLoadingTracks.value) {
-        return const Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        );
-      }
-
-      final audioList = controller.currentTracks;
-      final commentaryList = controller.commentaryTracks;
-
-      if (audioList.isEmpty && commentaryList.isEmpty) {
+      final reqs = controller.languageRequests.where((r) => r.type == 'audio').toList();
+      if (reqs.isEmpty) {
         return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.video_collection_rounded,
-                size: 48,
-                color: AppColors.textPrimary,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No Audio Tracks or Multi-Video Commentary Configured',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Upload Director's commentary videos, Actors' reaction videos, or localized audio dubs.",
-                style: TextStyle(
-                  color: textSecondaryColor,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+          child: Text(
+            'No pending dubbing requests from viewers.',
+            style: TextStyle(fontSize: 14, color: textSecondaryColor),
           ),
         );
       }
@@ -1168,983 +1391,232 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Section 1: Multi-Video Commentary & Perspective Tracks (Director, Actors, BTS)
-          if (commentaryList.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+          Text(
+            'Viewer Audio Dubbing Requests (${reqs.length})',
+            style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+          ),
+          const SizedBox(height: 12),
+          ...reqs.map((req) {
+            final langName = controller.getLanguageName(req.language);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
+              ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.video_camera_back_rounded,
-                      size: 16,
-                      color: AppColors.textPrimary,
+                  const Icon(Icons.mark_chat_unread_rounded, color: AppColors.brand, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Language: $langName',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor),
+                        ),
+                        Text(
+                          'Requested by ${req.count} viewers',
+                          style: TextStyle(fontSize: 12, color: textSecondaryColor),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Multi-Video Commentary & Perspectives (${commentaryList.length})',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
+                  ElevatedButton.icon(
+                    onPressed: () => _showUploadTrackDialog(context),
+                    icon: const Icon(Icons.add_rounded, size: 14, color: Colors.black),
+                    label: const Text('Add Dub'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     ),
                   ),
                 ],
               ),
-            ),
-            ...commentaryList.map((track) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.brand.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.video_collection_rounded,
-                            size: 18,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    track.title,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.brand.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      track.role,
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.textPrimary.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      track.langCode.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: textSecondaryColor,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                track.fileSizeMB > 0
-                                    ? 'Attached video track • ${track.fileSizeMB.toStringAsFixed(1)} MB'
-                                    : 'Attached video track reference',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: textSecondaryColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Action Buttons: Play Preview, Copy, Delete
-                        if (track.videoUrl.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(
-                              Icons.play_circle_fill_rounded,
-                              size: 22,
-                            ),
-                            color: AppColors.textPrimary,
-                            tooltip: 'Preview Commentary Video',
-                            onPressed: () => _showVideoPreviewDialog(
-                              context,
-                              '${track.role}: ${track.title}',
-                              track.videoUrl,
-                            ),
-                          ),
-                        IconButton(
-                          icon: const Icon(Icons.copy_rounded, size: 16),
-                          color: AppColors.textPrimary,
-                          tooltip: 'Copy Stream Link',
-                          onPressed: () =>
-                              controller.exportTrackLinkToClipboard(
-                                track.videoUrl.isNotEmpty
-                                    ? track.videoUrl
-                                    : track.audioUrl,
-                              ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            size: 18,
-                          ),
-                          color: AppColors.error,
-                          tooltip: 'Remove Track',
-                          onPressed: () =>
-                              controller.deleteCommentaryTrack(track.id),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-          ],
-
-          // Section 2: Audio Dubbing & Voiceover Tracks
-          if (audioList.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.spatial_audio_rounded,
-                      size: 16,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Audio Dubbing & Voiceover Tracks (${audioList.length})',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ...audioList.asMap().entries.map((entry) {
-              final index = entry.key;
-              final track = entry.value;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header tag metadata
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: track.isBaseTrack
-                                ? AppColors.success.withValues(alpha: 0.15)
-                                : AppColors.brand.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            track.isBaseTrack
-                                ? Icons.volume_up_rounded
-                                : Icons.spatial_audio_rounded,
-                            size: 18,
-                            color: track.isBaseTrack
-                                ? AppColors.success
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    track.languageName,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: track.isBaseTrack
-                                          ? AppColors.success.withValues(
-                                              alpha: 0.15,
-                                            )
-                                          : AppColors.brand.withValues(
-                                              alpha: 0.15,
-                                            ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      track.isBaseTrack
-                                          ? 'Primary Audio'
-                                          : 'Secondary Dub',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: track.isBaseTrack
-                                            ? AppColors.success
-                                            : AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                track.isResolved
-                                    ? 'Public storage link successfully auto-resolved'
-                                    : 'Static file mapping reference link',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: textSecondaryColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.copy_rounded, size: 16),
-                          color: AppColors.textPrimary,
-                          tooltip: 'Copy Audio URI to clipboard',
-                          onPressed: () => controller
-                              .exportTrackLinkToClipboard(track.audioUrl),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Divider(height: 1, color: borderColor),
-                    const SizedBox(height: 12),
-
-                    Text(
-                      'Storage Stream URL Reference:',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: textSecondaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      key: ValueKey(
-                        '${controller.selectedLanguage.value}_${track.id}',
-                      ),
-                      initialValue: track.audioUrl,
-                      style: GoogleFonts.robotoMono(
-                        fontSize: 12,
-                        color: textColor,
-                      ),
-                      decoration: InputDecoration(
-                        hintText:
-                            'Provide direct HTTPS audio target file URI e.g. gs://...',
-                        hintStyle: TextStyle(
-                          color: textSecondaryColor,
-                          fontSize: 12,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.bgSurface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                      ),
-                      onChanged: (val) => controller.updateTrackUrl(index, val),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
+            );
+          }),
         ],
       );
     });
   }
 
-  Widget _buildRequestsPanel(
-    Color surfaceColor,
-    Color textColor,
-    Color textSecondaryColor,
-    Color borderColor, {
-    required bool isMobile,
-  }) {
-    return Container(
-      width: isMobile ? double.infinity : 320,
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(
-          left: isMobile ? BorderSide.none : BorderSide(color: borderColor),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.mark_chat_unread_rounded,
-                  color: AppColors.textPrimary,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Viewer Language Requests',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const Spacer(),
-                Obx(() {
-                  final reqs = controller.languageRequests
-                      .where((r) => r.type == 'audio')
-                      .toList();
-                  if (reqs.isEmpty) return const SizedBox.shrink();
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${reqs.length}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.brand,
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: borderColor),
-          Expanded(
-            child: Obx(() {
-              final reqs = controller.languageRequests
-                  .where((r) => r.type == 'audio')
-                  .toList();
-              if (controller.isLoadingRequests.value) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.brand),
-                );
-              }
-              if (reqs.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.audiotrack_rounded,
-                        size: 48,
-                        color: textSecondaryColor.withValues(alpha: 0.4),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No viewer language requests yet',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: textSecondaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: reqs.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final r = reqs[index];
-                  final matchingLanguage = controller.supportedLanguages
-                      .firstWhereOrNull(
-                        (l) => l.name.toLowerCase() == r.language.toLowerCase(),
-                      );
-                  final langCode = matchingLanguage?.code ?? r.language;
-                  final isAlreadyAdded = controller.availableLanguages.contains(
-                    langCode,
-                  );
-
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSurface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    matchingLanguage?.name ?? r.language,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  if (matchingLanguage != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      matchingLanguage.name,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: textSecondaryColor,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.brand.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.people_alt_rounded,
-                                    size: 12,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '${r.count}',
-                                    style: GoogleFonts.robotoMono(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.brand,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: isAlreadyAdded
-                              ? OutlinedButton.icon(
-                                  onPressed: null,
-                                  icon: const Icon(
-                                    Icons.check_circle_rounded,
-                                    size: 14,
-                                    color: AppColors.success,
-                                  ),
-                                  label: const Text('Provisioned'),
-                                  style: OutlinedButton.styleFrom(
-                                    disabledForegroundColor: AppColors.success,
-                                    side: const BorderSide(
-                                      color: AppColors.success,
-                                    ),
-                                  ),
-                                )
-                              : ElevatedButton.icon(
-                                  onPressed: () {
-                                    controller.addLanguageLayer(langCode);
-                                  },
-                                  icon: const Icon(
-                                    Icons.add_rounded,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
-                                  label: const Text('Add Layer'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.brand,
-                                    foregroundColor: AppColors.textPrimary,
-                                    elevation: 0,
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLanguagesTab(
+  // ---------------------------------------------------------------------------
+  // MOBILE VIDEO PICKER BOTTOM SHEET
+  // ---------------------------------------------------------------------------
+  void _showMobileVideoPickerSheet(
+    BuildContext context,
     Color surfaceColor,
     Color textColor,
     Color textSecondaryColor,
     Color borderColor,
   ) {
-    final video = controller.selectedVideo.value;
-    final cachedLoc = video != null
-        ? VideoMediaService.localizationCache[video.id]
-        : null;
-    final audioMap = Map<String, String>.from(
-      cachedLoc?.audioTracks ?? video?.audioTracks ?? {},
-    );
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Header Banner & Actions
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.language_rounded,
-                      size: 20,
-                      color: AppColors.textPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Languages & Localized Audio Dubs (${controller.supportedLanguages.length})',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                  ],
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Select Video for Audio Workspace',
+                  style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Manage audio dubbing tracks for all supported global languages. Upload audio dub files or edit direct URLs.',
-                  style: TextStyle(fontSize: 12, color: textSecondaryColor),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // Languages List
-        ...controller.supportedLanguages.map((lang) {
-          final langCode = lang.code;
-          final langName = lang.name;
-          final existingDubUrl = audioMap[langCode] ?? '';
-          final isBaseAudio =
-              langCode == 'en' || existingDubUrl == video?.videoUrl;
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: existingDubUrl.isNotEmpty
-                    ? AppColors.brand.withValues(alpha: 0.5)
-                    : borderColor,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+              Expanded(
+                child: _buildVideoSelectionSidebar(
+                  surfaceColor: surfaceColor,
+                  textColor: textColor,
+                  textSecondaryColor: textSecondaryColor,
+                  borderColor: borderColor,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: existingDubUrl.isNotEmpty
-                            ? AppColors.brand.withValues(alpha: 0.15)
-                            : AppColors.textPrimary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        isBaseAudio
-                            ? Icons.volume_up_rounded
-                            : Icons.spatial_audio_rounded,
-                        size: 20,
-                        color: isBaseAudio
-                            ? AppColors.success
-                            : AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                langName,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.textPrimary.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  langCode.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: textSecondaryColor,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: existingDubUrl.isNotEmpty
-                                      ? (isBaseAudio
-                                            ? AppColors.success.withValues(
-                                                alpha: 0.15,
-                                              )
-                                            : AppColors.brand.withValues(
-                                                alpha: 0.15,
-                                              ))
-                                      : AppColors.textSecondary.withValues(
-                                          alpha: 0.1,
-                                        ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  isBaseAudio
-                                      ? 'Primary Base Audio'
-                                      : (existingDubUrl.isNotEmpty
-                                            ? 'Dubbed Audio Active'
-                                            : 'No Dubbed Audio File'),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: isBaseAudio
-                                        ? AppColors.success
-                                        : (existingDubUrl.isNotEmpty
-                                              ? AppColors.textPrimary
-                                              : textSecondaryColor),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            existingDubUrl.isNotEmpty
-                                ? 'Target localized audio dubbing stream configured'
-                                : 'Select file or input direct audio HTTPS stream URI below',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: textSecondaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-                    // Manual Upload Dub File Button
-                    ElevatedButton.icon(
-                      onPressed: () async {
+  // ---------------------------------------------------------------------------
+  // UPLOAD TRACK DIALOG MODAL
+  // ---------------------------------------------------------------------------
+  void _showUploadTrackDialog(BuildContext context) {
+    var selectedLangCode = 'es';
+    var selectedRole = 'Dubbed Audio';
+    PlatformFile? selectedFile;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(
+                'Upload Audio Dub Track',
+                style: GoogleFonts.roboto(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: widget.isDarkMode ? Colors.white : Colors.black,
+                ),
+              ),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Language Dropdown
+                    Text(
+                      'Language',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: selectedLangCode,
+                      dropdownColor: widget.isDarkMode ? const Color(0xFF262626) : Colors.white,
+                      style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                      items: const [
+                        DropdownMenuItem(value: 'es', child: Text('Spanish (Español)')),
+                        DropdownMenuItem(value: 'fr', child: Text('French (Français)')),
+                        DropdownMenuItem(value: 'de', child: Text('German (Deutsch)')),
+                        DropdownMenuItem(value: 'te', child: Text('Telugu (తెలుగు)')),
+                        DropdownMenuItem(value: 'hi', child: Text('Hindi (हिन्दी)')),
+                        DropdownMenuItem(value: 'ja', child: Text('Japanese (日本語)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedLangCode = val);
+                      },
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Track Type Dropdown
+                    Text(
+                      'Track Type / Role',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: selectedRole,
+                      dropdownColor: widget.isDarkMode ? const Color(0xFF262626) : Colors.white,
+                      style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                      items: const [
+                        DropdownMenuItem(value: 'Dubbed Audio', child: Text('Dubbed Audio Track')),
+                        DropdownMenuItem(value: 'AI Voiceover', child: Text('AI Voiceover Stream')),
+                        DropdownMenuItem(value: 'Director Commentary', child: Text('Director Commentary')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedRole = val);
+                      },
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // File Picker Dropzone
+                    InkWell(
+                      onTap: () async {
                         final result = await FilePicker.pickFiles(
+                          type: FileType.custom,
                           allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
                         );
                         if (result != null && result.files.isNotEmpty) {
-                          unawaited(
-                            controller.uploadSingleAudioDubForLanguage(
-                              langCode: langCode,
-                              file: result.files.first,
-                            ),
-                          );
+                          setDialogState(() => selectedFile = result.files.first);
                         }
                       },
-                      icon: const Icon(
-                        Icons.cloud_upload_rounded,
-                        size: 14,
-                        color: AppColors.textPrimary,
-                      ),
-                      label: const Text(
-                        'Upload Dub File',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Action buttons: Copy & Remove
-                    if (existingDubUrl.isNotEmpty) ...[
-                      IconButton(
-                        icon: const Icon(Icons.copy_rounded, size: 16),
-                        color: AppColors.textPrimary,
-                        tooltip: 'Copy Audio URI',
-                        onPressed: () => controller.exportTrackLinkToClipboard(
-                          existingDubUrl,
-                        ),
-                      ),
-                      if (!isBaseAudio)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            size: 18,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selectedFile != null ? AppColors.success : AppColors.brand.withValues(alpha: 0.5),
+                            width: 1.5,
                           ),
-                          color: AppColors.error,
-                          tooltip: 'Remove Dub Track',
-                          onPressed: () =>
-                              controller.removeDubForLanguage(langCode),
                         ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Audio Stream URL TextFormField
-                TextFormField(
-                  key: ValueKey(
-                    'dub_url_${langCode}_${existingDubUrl.hashCode}',
-                  ),
-                  initialValue: existingDubUrl,
-                  style: GoogleFonts.robotoMono(fontSize: 12, color: textColor),
-                  decoration: InputDecoration(
-                    labelText: 'Direct Audio Stream URL ($langName)',
-                    labelStyle: TextStyle(
-                      fontSize: 11,
-                      color: textSecondaryColor,
-                    ),
-                    hintText:
-                        'Enter direct audio HTTPS target URI e.g. https://storage... or gs://...',
-                    hintStyle: TextStyle(
-                      fontSize: 11,
-                      color: textSecondaryColor,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.bgInput,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: borderColor),
-                    ),
-                  ),
-                  onChanged: (val) =>
-                      controller.updateDubUrlForLanguage(langCode, val),
-                ),
-              ],
-            ),
-          );
-        }),
-
-        const SizedBox(height: 24),
-        Divider(color: borderColor),
-        const SizedBox(height: 16),
-
-        // Viewer Language Requests Section
-        _buildRequestsPanel(
-          surfaceColor,
-          textColor,
-          textSecondaryColor,
-          borderColor,
-          isMobile: false,
-        ),
-      ],
-    );
-  }
-
-  int entireListUniqueTrackCounter(Map<String, String> map) {
-    final keys = map.keys.toList();
-    if (!keys.contains('en')) return keys.length + 1;
-    return keys.length;
-  }
-
-  void _showVideoPreviewDialog(
-    BuildContext context,
-    String title,
-    String videoUrl,
-  ) {
-    unawaited(
-      showDialog<void>(
-        context: context,
-        builder: (context) {
-          return Dialog(
-            backgroundColor: Colors.black,
-            insetPadding: const EdgeInsets.all(24),
-            child: Container(
-              width: 720,
-              height: 480,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: AppColors.textPrimary,
-                        ),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Container(
-                      color: const Color(0xFF141414),
-                      padding: const EdgeInsets.all(16),
-                      child: Center(
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.play_circle_fill_rounded,
-                              size: 64,
-                              color: AppColors.textPrimary,
+                            Icon(
+                              selectedFile != null ? Icons.check_circle_rounded : Icons.cloud_upload_rounded,
+                              size: 32,
+                              color: selectedFile != null ? AppColors.success : AppColors.brand,
                             ),
-                            const SizedBox(height: 16),
-                            SelectableText(
-                              videoUrl,
-                              style: GoogleFonts.robotoMono(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
+                            const SizedBox(height: 8),
+                            Text(
+                              selectedFile != null ? selectedFile!.name : 'Click to Pick Audio File (.mp3, .wav, .m4a)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: widget.isDarkMode ? Colors.white : Colors.black,
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -2152,573 +1624,42 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showUploadTrackDialog(BuildContext context) {
-    final batchItems = <BatchTrackUploadConfig>[].obs;
-
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return Dialog(
-            backgroundColor: Colors.transparent,
-            child: Container(
-              width: 640,
-              constraints: const BoxConstraints(maxHeight: 700),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.bgDivider),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
                   ),
-                ],
-              ),
-              child: Obx(() {
-                final isUploading = controller.isUploading.value;
-                final progress = controller.uploadProgress.value;
-                final status = controller.uploadStatus.value;
-
-                return IgnorePointer(
-                  ignoring: isUploading,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.brand.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.video_collection_rounded,
-                                  color: AppColors.textPrimary,
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Multi-Video & Track Upload',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Upload Director's Commentary, Actors' video, BTS & Audio Dubs",
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          if (!isUploading)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color: AppColors.textPrimary,
-                              ),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      const Divider(height: 1, color: AppColors.bgDivider),
-                      const SizedBox(height: 16),
-
-                      if (batchItems.isEmpty) ...[
-                        Center(
-                          child: InkWell(
-                            onTap: () async {
-                              final result = await FilePicker.pickFiles(
-                                allowedExtensions: [
-                                  'mp4',
-                                  'mov',
-                                  'avi',
-                                  'mkv',
-                                  'mp3',
-                                  'wav',
-                                  'm4a',
-                                  'aac',
-                                ],
-                              );
-                              if (result != null && result.files.isNotEmpty) {
-                                for (final f in result.files) {
-                                  final ext = f.extension?.toLowerCase() ?? '';
-                                  final isAudio = [
-                                    'mp3',
-                                    'wav',
-                                    'm4a',
-                                    'aac',
-                                  ].contains(ext);
-                                  final baseName = f.name.contains('.')
-                                      ? f.name.substring(
-                                          0,
-                                          f.name.lastIndexOf('.'),
-                                        )
-                                      : f.name;
-
-                                  batchItems.add(
-                                    BatchTrackUploadConfig(
-                                      file: f,
-                                      title: baseName,
-                                      role: isAudio
-                                          ? 'Voiceover Track'
-                                          : 'Director Commentary',
-                                      type: isAudio ? 'Audio' : 'Video',
-                                      langCode: 'en',
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 36,
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.bgInput,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.brand.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              child: const Column(
-                                children: [
-                                  Icon(
-                                    Icons.cloud_upload_rounded,
-                                    size: 44,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  SizedBox(height: 12),
-                                  Text(
-                                    'Select Videos & Audio Files',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'Choose multiple files (Director Commentary video, Actors video, BTS, Audio dubs)',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ] else ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Selected Tracks (${batchItems.length})',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: () async {
-                                final result = await FilePicker.pickFiles(
-                                  allowedExtensions: [
-                                    'mp4',
-                                    'mov',
-                                    'avi',
-                                    'mkv',
-                                    'mp3',
-                                    'wav',
-                                    'm4a',
-                                    'aac',
-                                  ],
-                                );
-                                if (result != null && result.files.isNotEmpty) {
-                                  for (final f in result.files) {
-                                    final ext =
-                                        f.extension?.toLowerCase() ?? '';
-                                    final isAudio = [
-                                      'mp3',
-                                      'wav',
-                                      'm4a',
-                                      'aac',
-                                    ].contains(ext);
-                                    final baseName = f.name.contains('.')
-                                        ? f.name.substring(
-                                            0,
-                                            f.name.lastIndexOf('.'),
-                                          )
-                                        : f.name;
-
-                                    batchItems.add(
-                                      BatchTrackUploadConfig(
-                                        file: f,
-                                        title: baseName,
-                                        role: isAudio
-                                            ? 'Voiceover Track'
-                                            : 'Director Commentary',
-                                        type: isAudio ? 'Audio' : 'Video',
-                                        langCode: 'en',
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.add_rounded,
-                                size: 16,
-                                color: AppColors.textPrimary,
-                              ),
-                              label: const Text(
-                                'Add More Files',
-                                style: TextStyle(color: AppColors.textPrimary),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Flexible(
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: batchItems.length,
-                            separatorBuilder: (context, idx) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (context, idx) {
-                              final item = batchItems[idx];
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.bgInput,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppColors.bgDivider,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          item.type == 'Audio'
-                                              ? Icons.audiotrack_rounded
-                                              : Icons.video_camera_back_rounded,
-                                          size: 18,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            item.file.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          '${(item.file.size / (1024 * 1024)).toStringAsFixed(2)} MB',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.delete_outline_rounded,
-                                            size: 18,
-                                            color: AppColors.error,
-                                          ),
-                                          onPressed: () =>
-                                              batchItems.removeAt(idx),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          flex: 2,
-                                          child: TextFormField(
-                                            initialValue: item.title,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                            decoration: InputDecoration(
-                                              labelText: 'Track Title',
-                                              labelStyle: const TextStyle(
-                                                fontSize: 11,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                              isDense: true,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 8,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                            ),
-                                            onChanged: (v) => item.title = v,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          flex: 2,
-                                          child: DropdownButtonFormField<String>(
-                                            value: item.role,
-                                            dropdownColor: AppColors.bgSurface,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                            decoration: InputDecoration(
-                                              labelText: 'Track Role / Type',
-                                              labelStyle: const TextStyle(
-                                                fontSize: 11,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 8,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                            ),
-                                            items: const [
-                                              DropdownMenuItem(
-                                                value: 'Director Commentary',
-                                                child: Text(
-                                                  "Director's Commentary",
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'Actors Commentary',
-                                                child: Text(
-                                                  "Actors' Commentary",
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'Behind the Scenes',
-                                                child: Text(
-                                                  'Behind the Scenes',
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'Alternate Angle',
-                                                child: Text(
-                                                  'Alternate Angle / POV',
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'Dubbed Video',
-                                                child: Text('Dubbed Video'),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'Voiceover Track',
-                                                child: Text('Voiceover Audio'),
-                                              ),
-                                            ],
-                                            onChanged: (v) {
-                                              if (v != null) {
-                                                item.role = v;
-                                                batchItems.refresh();
-                                              }
-                                            },
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: DropdownButtonFormField<String>(
-                                            value: item.langCode,
-                                            dropdownColor: AppColors.bgSurface,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                            decoration: InputDecoration(
-                                              labelText: 'Lang',
-                                              labelStyle: const TextStyle(
-                                                fontSize: 11,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 8,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                            ),
-                                            items: controller.supportedLanguages
-                                                .map((l) {
-                                                  return DropdownMenuItem(
-                                                    value: l.code,
-                                                    child: Text(
-                                                      l.code.toUpperCase(),
-                                                    ),
-                                                  );
-                                                })
-                                                .toList(),
-                                            onChanged: (v) {
-                                              if (v != null) item.langCode = v;
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: 16),
-
-                      if (isUploading) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                status,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${(progress * 100).toStringAsFixed(0)}%',
-                              style: GoogleFonts.robotoMono(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: AppColors.bgDivider,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.brand,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      if (!isUploading)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed: batchItems.isEmpty
-                                  ? null
-                                  : () async {
-                                      final success = await controller
-                                          .uploadMultipleTrackFiles(
-                                            items: batchItems,
-                                          );
-                                      if (success && context.mounted) {
-                                        Navigator.of(context).pop();
-                                      }
-                                    },
-                              icon: const Icon(
-                                Icons.cloud_upload_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                              label: Text(
-                                'Upload (${batchItems.length}) Tracks',
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.brand,
-                                foregroundColor: AppColors.textPrimary,
-                                disabledBackgroundColor: AppColors.brand
-                                    .withValues(alpha: 0.4),
-                                disabledForegroundColor:
-                                    AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
+                ),
+                ElevatedButton(
+                  onPressed: selectedFile == null
+                      ? null
+                      : () {
+                          Navigator.of(context).pop();
+                          final config = BatchTrackUploadConfig(
+                            file: selectedFile!,
+                            title: 'Dub Track - $selectedLangCode',
+                            role: selectedRole,
+                            type: 'Audio',
+                            langCode: selectedLangCode,
+                          );
+                          controller.uploadMultipleTrackFiles(items: [config]);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.black,
                   ),
-                );
-              }),
-            ),
-          );
-        },
-      ),
+                  child: const Text('Upload & Attach'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/seo_helper.dart';
 import 'package:truthworld/core/widgets/deep_link_loader_widget.dart';
@@ -10,13 +11,13 @@ import 'package:truthworld/theme/app_theme.dart';
 ///
 /// Flow:
 /// 1. Extract playlistId from route parameters
-/// 2. Fetch playlist from Firestore (public first, then private Ã¢â‚¬â€ max 2 reads)
+/// 2. Fetch playlist from Firestore (public first, then private — max 2 reads)
 /// 3. Update SEO meta tags (web only)
 /// 4. Navigate to playlist detail screen
 /// 5. Show branded error state on failure with retry option
-class PlaylistLoaderController extends GetxController {
+class PlaylistLoaderController extends BaseController {
   final RxBool hasError = false.obs;
-  final RxString errorMessage = ''.obs;
+  final RxString rxErrorMessage = ''.obs;
 
   @override
   void onInit() {
@@ -67,13 +68,13 @@ class PlaylistLoaderController extends GetxController {
 
   void retry() {
     hasError.value = false;
-    errorMessage.value = '';
+    rxErrorMessage.value = '';
     _loadPlaylist();
   }
 
   void _setError(String message) {
     hasError.value = true;
-    errorMessage.value = message;
+    rxErrorMessage.value = message;
   }
 }
 
@@ -91,7 +92,7 @@ class PlaylistLoaderScreen extends StatelessWidget {
         icon: Icons.playlist_play_rounded,
         accentColor: AppTheme.colors.textSecondary,
         hasError: controller.hasError.value,
-        errorMessage: controller.errorMessage.value,
+        errorMessage: controller.rxErrorMessage.value,
         onRetry: controller.retry,
         onGoHome: () => Get.offAllNamed('/'),
       ),

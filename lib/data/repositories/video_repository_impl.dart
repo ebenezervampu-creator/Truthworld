@@ -75,10 +75,11 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
         _lastHomeDoc = snapshot.docs.last;
       }
 
-      return snapshot.docs.map((doc) {
-        final video = Video.fromDocumentSnapshot(doc);
-        return _mapToEntity(video);
-      }).toList();
+      return snapshot.docs
+          .map(Video.fromDocumentSnapshot)
+          .where((v) => v.status != VideoStatus.rejected)
+          .map(_mapToEntity)
+          .toList();
     });
   }
 
@@ -92,6 +93,9 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
       if (!doc.exists) throw Exception('Video not found');
 
       final video = Video.fromDocumentSnapshot(doc);
+      if (video.status == VideoStatus.rejected) {
+        throw Exception('This video has been removed for violating community guidelines.');
+      }
       return _mapToEntity(video);
     });
   }
@@ -123,7 +127,9 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
       }
 
       return snapshot.docs
-          .map((doc) => _mapToEntity(Video.fromDocumentSnapshot(doc)))
+          .map(Video.fromDocumentSnapshot)
+          .where((v) => v.status != VideoStatus.rejected)
+          .map(_mapToEntity)
           .toList();
     });
   }
@@ -153,7 +159,9 @@ class VideoRepositoryImpl extends BaseRepository implements VideoRepository {
       }
 
       return snapshot.docs
-          .map((doc) => _mapToEntity(Video.fromDocumentSnapshot(doc)))
+          .map(Video.fromDocumentSnapshot)
+          .where((v) => v.status != VideoStatus.rejected)
+          .map(_mapToEntity)
           .toList();
     });
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_content_details_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
@@ -42,7 +43,7 @@ class _ContentScreenState extends State<ContentScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 4,
       child: Scaffold(
         backgroundColor: AppColors.bgPage,
         appBar: AppBar(
@@ -69,6 +70,8 @@ class _ContentScreenState extends State<ContentScreen> {
                 tabs: const [
                   Tab(text: 'Videos'),
                   Tab(text: 'Posts'),
+                  Tab(text: 'Drafts'),
+                  Tab(text: 'Scheduled'),
                 ],
               ),
             ),
@@ -78,6 +81,8 @@ class _ContentScreenState extends State<ContentScreen> {
           children: [
             _buildVideosTab(context),
             _buildPostsTab(context),
+            _buildDraftsTab(context),
+            _buildScheduledTab(context),
           ],
         ),
       ),
@@ -131,7 +136,17 @@ class _ContentScreenState extends State<ContentScreen> {
         );
       }
 
-      var videos = controller.channelVideos.toList();
+      var videos = controller.channelVideos
+          .where(
+            (v) =>
+                v.status != VideoStatus.draft &&
+                v.status != VideoStatus.scheduled &&
+                v.visibility != 'draft' &&
+                v.visibility != 'scheduled' &&
+                v.status.name != 'draft' &&
+                v.status.name != 'scheduled',
+          )
+          .toList();
 
       // Filter videos based on search query
       if (widget.searchQuery.isNotEmpty) {
@@ -280,6 +295,470 @@ class _ContentScreenState extends State<ContentScreen> {
     );
   }
 
+  Widget _buildDraftsTab(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoadingChannelVideos.value ||
+          controller.isLoadingPosts.value) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.brand,
+          ),
+        );
+      }
+
+      final draftVideos = controller.channelVideos
+          .where(
+            (v) =>
+                v.status == VideoStatus.draft ||
+                v.visibility == 'draft' ||
+                v.status.name == 'draft',
+          )
+          .toList();
+
+      final draftPosts = controller.communityPosts
+          .where(
+            (p) =>
+                p.visibility.toLowerCase() == 'draft' ||
+                p.selectedCategory.toLowerCase() == 'draft',
+          )
+          .toList();
+
+      if (draftVideos.isEmpty && draftPosts.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.drafts_outlined,
+                size: 72,
+                color: AppColors.textTertiary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No Drafts Available',
+                style: AppTextStyles.pageTitle.copyWith(
+                  fontSize: 20,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Drafts you save while creating videos or posts will appear here.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      var items = <dynamic>[...draftVideos, ...draftPosts];
+
+      if (widget.searchQuery.isNotEmpty) {
+        final query = widget.searchQuery.toLowerCase();
+        items = items.where((item) {
+          if (item is Video) {
+            return item.title.toLowerCase().contains(query) ||
+                item.description.toLowerCase().contains(query);
+          } else if (item is CommunityPostModel) {
+            return item.title.toLowerCase().contains(query) ||
+                item.description.toLowerCase().contains(query);
+          }
+          return false;
+        }).toList();
+      }
+
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          if (item is Video) {
+            return _buildDraftVideoCard(context, item, controller);
+          } else {
+            return CommunityPostCard(
+              key: ValueKey((item as CommunityPostModel).id),
+              post: item,
+            );
+          }
+        },
+      );
+    });
+  }
+
+  Widget _buildScheduledTab(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoadingChannelVideos.value ||
+          controller.isLoadingPosts.value) {
+        return const Center(
+          child: CircularProgressIndicator(
+            color: AppColors.brand,
+          ),
+        );
+      }
+
+      final scheduledVideos = controller.channelVideos
+          .where(
+            (v) =>
+                v.status == VideoStatus.scheduled ||
+                v.status.name == 'scheduled' ||
+                v.visibility == 'scheduled' ||
+                v.scheduledPublishAt != null,
+          )
+          .toList();
+
+      final scheduledPosts = controller.communityPosts
+          .where((p) => p.scheduledTime != null)
+          .toList();
+
+      if (scheduledVideos.isEmpty && scheduledPosts.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                size: 72,
+                color: AppColors.textTertiary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No Scheduled Content',
+                style: AppTextStyles.pageTitle.copyWith(
+                  fontSize: 20,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Videos and posts scheduled for future release will appear here.',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      var items = <dynamic>[...scheduledVideos, ...scheduledPosts];
+
+      if (widget.searchQuery.isNotEmpty) {
+        final query = widget.searchQuery.toLowerCase();
+        items = items.where((item) {
+          if (item is Video) {
+            return item.title.toLowerCase().contains(query) ||
+                item.description.toLowerCase().contains(query);
+          } else if (item is CommunityPostModel) {
+            return item.title.toLowerCase().contains(query) ||
+                item.description.toLowerCase().contains(query);
+          }
+          return false;
+        }).toList();
+      }
+
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          if (item is Video) {
+            return _buildScheduledVideoCard(context, item, controller);
+          } else {
+            return CommunityPostCard(
+              key: ValueKey((item as CommunityPostModel).id),
+              post: item,
+            );
+          }
+        },
+      );
+    });
+  }
+
+  Widget _buildDraftVideoCard(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller,
+  ) {
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 14),
+      color: AppColors.bgSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.bgDivider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 96,
+              height: 54,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: AppColors.bgInput,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: video.thumbnailUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: video.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.drafts_outlined,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.drafts_outlined,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFFF59E0B)
+                                .withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          'DRAFT',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: const Color(0xFFF59E0B),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    video.title.isNotEmpty ? video.title : 'Untitled Draft',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.videoTitleMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onSelected: (value) {
+                if (value == 'edit') {
+                  Get.toNamed('/upload');
+                } else if (value == 'delete') {
+                  controller.deleteVideo(video);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_rounded, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('Resume / Edit Upload'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 8),
+                      Text('Delete Draft'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScheduledVideoCard(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller,
+  ) {
+    final scheduledText = DateFormat('MMM dd, yyyy · hh:mm a')
+        .format(video.uploadedAt.toDate());
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 14),
+      color: AppColors.bgSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.bgDivider),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 96,
+              height: 54,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: AppColors.bgInput,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: video.thumbnailUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: video.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.schedule_rounded,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.schedule_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFF6366F1)
+                                .withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.schedule_rounded,
+                              size: 12,
+                              color: Color(0xFF818CF8),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'SCHEDULED: $scheduledText',
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: const Color(0xFF818CF8),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    video.title.isNotEmpty ? video.title : 'Scheduled Video',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.videoTitleMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onSelected: (value) {
+                if (value == 'publish') {
+                  controller.updateVideo(video.id, {
+                    'status': 'published',
+                    'visibility': 'public',
+                  });
+                } else if (value == 'delete') {
+                  controller.deleteVideo(video);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'publish',
+                  child: Row(
+                    children: [
+                      Icon(Icons.publish_rounded, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text('Publish Now'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 8),
+                      Text('Delete Scheduled Video'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVideoContentCard(
     BuildContext context,
     Video video,
@@ -302,26 +781,47 @@ class _ContentScreenState extends State<ContentScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Thumbnail container with 16:9 ratio (Compact 96x54)
+              // Thumbnail container with 16:9 ratio (Compact 96x54)
               InkWell(
                 onTap: () => _showVideoActionOptionsModal(context, video),
-                child: Container(
-                  width: 96,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: AppColors.bgInput,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
-                      imageUrl: video.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (context, url, error) => const Icon(
-                        Icons.movie_outlined,
-                        color: AppColors.textTertiary,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 96,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: AppColors.bgInput,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: CachedNetworkImage(
+                          imageUrl: video.thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.movie_outlined,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    if (video.status == VideoStatus.rejected || video.visibility == 'rejected')
+                      Container(
+                        width: 96,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.block_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
@@ -339,6 +839,32 @@ class _ContentScreenState extends State<ContentScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (video.status == VideoStatus.rejected || video.visibility == 'rejected') ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.block_rounded, color: Colors.white, size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'REJECTED by Moderation',
+                              style: TextStyle(
+                                color: AppColors.error,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     // Metadata wrap row with flexible text - resolves right overflow
                     Wrap(

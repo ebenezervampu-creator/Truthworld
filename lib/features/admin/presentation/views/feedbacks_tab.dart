@@ -321,7 +321,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                           Text(
                             fb['feedbackText'] ?? '',
                             style: const TextStyle(
-                              color: AppColors.textSecondary,
+                              color: AppColors.textPrimary,
                               fontSize: 12,
                             ),
                             maxLines: 1,
@@ -410,7 +410,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 ),
                 label: const Text(
                   'Back to list',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: AppColors.textPrimary),
                 ),
               ),
             ),
@@ -532,7 +532,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 const Text(
                   'Feedback Message',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
@@ -568,7 +568,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                   Text(
                     'Attachments (${attachments.length})',
                     style: const TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
@@ -628,7 +628,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                   const Text(
                     'Device Information',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,
@@ -647,11 +647,14 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                               fontSize: 13,
                             ),
                           ),
-                          Text(
-                            '${e.value}',
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 13,
+                          Expanded(
+                            child: Text(
+                              '${e.value}',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],

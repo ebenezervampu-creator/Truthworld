@@ -9,12 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SendFeedbackController extends GetxController {
+class SendFeedbackController extends BaseController {
   final formKey = GlobalKey<FormState>();
   final feedbackController = TextEditingController();
   final RxString feedbackType = 'General'.obs;
@@ -34,13 +35,8 @@ class SendFeedbackController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    trackTextController(feedbackController);
     _getDeviceInfo();
-  }
-
-  @override
-  void onClose() {
-    feedbackController.dispose();
-    super.onClose();
   }
 
   Future<void> _getDeviceInfo() async {
@@ -597,9 +593,9 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.add_photo_alternate_outlined,
-                          color: context.colors.brand,
+                          color: AppColors.textPrimary,
                           size: 28,
                         ),
                         const SizedBox(height: 4),

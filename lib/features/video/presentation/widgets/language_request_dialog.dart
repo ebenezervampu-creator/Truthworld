@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class LanguageRequestController extends GetxController {
+class LanguageRequestController extends BaseController {
   final TextEditingController searchController = TextEditingController();
   final RxString searchQuery = ''.obs;
   final RxnString selectedLanguage = RxnString();
@@ -12,15 +13,10 @@ class LanguageRequestController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    trackTextController(searchController);
     searchController.addListener(() {
       searchQuery.value = searchController.text;
     });
-  }
-
-  @override
-  void onClose() {
-    searchController.dispose();
-    super.onClose();
   }
 }
 

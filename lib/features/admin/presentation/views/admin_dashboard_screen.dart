@@ -18,14 +18,27 @@ import 'package:truthworld/features/admin/presentation/views/security_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/user_management_tab.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
-  AdminDashboardScreen({super.key});
+class AdminDashboardScreen extends StatefulWidget {
+  const AdminDashboardScreen({super.key});
 
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdminController.to.ensureSubscriptionsStarted();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final controller = Get.find<AdminController>();
+    final controller = AdminController.to;
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
     return Scaffold(
@@ -85,6 +98,157 @@ class AdminDashboardScreen extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar:
+          isDesktop ? null : _buildMobileBottomNavigationBar(context, controller),
+    );
+  }
+
+  // Mobile Bottom Navigation Bar (5 Key Destinations according to Industry Standards)
+  Widget _buildMobileBottomNavigationBar(
+    BuildContext context,
+    AdminController controller,
+  ) {
+    final tabs = [
+      'dashboard',
+      'videos',
+      'images',
+      'channels',
+      'appeals',
+    ];
+
+    return Obx(() {
+      final currentTab = controller.currentTab.value;
+      var currentIndex = tabs.indexOf(currentTab);
+      if (currentIndex == -1) currentIndex = 0;
+
+      return Container(
+        decoration: const BoxDecoration(
+          color: AppColors.bgSurface,
+          border: Border(
+            top: BorderSide(color: AppColors.bgDivider),
+          ),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: currentIndex,
+          backgroundColor: AppColors.bgSurface,
+          selectedItemColor: Colors.white,
+          unselectedItemColor: AppColors.textPrimary,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          type: BottomNavigationBarType.fixed,
+          elevation: 8,
+          onTap: (index) {
+            final targetTab = tabs[index];
+            controller.currentTab.value = targetTab;
+            controller.selectedVideo.value = null;
+            controller.selectedImage.value = null;
+            controller.selectedChannel.value = null;
+            controller.selectedReport.value = null;
+            controller.selectedAppeal.value = null;
+            if (targetTab == 'analytics') {
+              controller.fetchAnalytics();
+            } else if (targetTab == 'appeals') {
+              controller.fetchAppeals();
+            }
+          },
+          items: [
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined, color: AppColors.textPrimary),
+              activeIcon: Icon(Icons.dashboard, color: Colors.white),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: _buildBadgeIcon(
+                Icons.video_library_outlined,
+                controller.pendingVideos.value,
+                false,
+              ),
+              activeIcon: _buildBadgeIcon(
+                Icons.video_library,
+                controller.pendingVideos.value,
+                true,
+              ),
+              label: 'Videos',
+            ),
+            BottomNavigationBarItem(
+              icon: _buildBadgeIcon(
+                Icons.image_outlined,
+                controller.pendingImages.value,
+                false,
+              ),
+              activeIcon: _buildBadgeIcon(
+                Icons.image,
+                controller.pendingImages.value,
+                true,
+              ),
+              label: 'Posts',
+            ),
+            BottomNavigationBarItem(
+              icon: _buildBadgeIcon(
+                Icons.workspace_premium_outlined,
+                controller.pendingChannels.value,
+                false,
+              ),
+              activeIcon: _buildBadgeIcon(
+                Icons.workspace_premium,
+                controller.pendingChannels.value,
+                true,
+              ),
+              label: 'Channels',
+            ),
+            BottomNavigationBarItem(
+              icon: _buildBadgeIcon(
+                Icons.gavel_outlined,
+                controller.pendingAppeals.value,
+                false,
+              ),
+              activeIcon: _buildBadgeIcon(
+                Icons.gavel,
+                controller.pendingAppeals.value,
+                true,
+              ),
+              label: 'Appeals',
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildBadgeIcon(IconData iconData, int badgeCount, bool isActive) {
+    final iconColor = isActive ? Colors.white : AppColors.textPrimary;
+    if (badgeCount <= 0) {
+      return Icon(iconData, color: iconColor);
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(iconData, color: iconColor),
+        Positioned(
+          right: -6,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              color: AppColors.error,
+              shape: BoxShape.circle,
+            ),
+            constraints: const BoxConstraints(
+              minWidth: 14,
+              minHeight: 14,
+            ),
+            child: Text(
+              '$badgeCount',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -213,7 +377,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   child: Text(
                     'MANAGEMENT',
                     style: TextStyle(
-                      color: AppColors.textTertiary,
+                      color: AppColors.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
@@ -262,7 +426,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   child: Text(
                     'SYSTEM',
                     style: TextStyle(
-                      color: AppColors.textTertiary,
+                      color: AppColors.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
@@ -337,7 +501,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         const Text(
                           'Moderation Administrator',
                           style: TextStyle(
-                            color: AppColors.textTertiary,
+                            color: AppColors.textPrimary,
                             fontSize: 11,
                           ),
                         ),
@@ -379,6 +543,10 @@ class AdminDashboardScreen extends StatelessWidget {
               controller.selectedImage.value = null;
               controller.selectedChannel.value = null;
               controller.selectedReport.value = null;
+              controller.selectedAppeal.value = null;
+              if (tabId == 'analytics') {
+                controller.fetchAnalytics();
+              }
               if (_scaffoldKey.currentState?.isDrawerOpen == true) {
                 Navigator.of(context).pop();
               }
@@ -389,7 +557,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 children: [
                   Icon(
                     isSelected ? activeIcon : icon,
-                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                    color: isSelected ? Colors.white : AppColors.textPrimary,
                     size: 20,
                   ),
                   const SizedBox(width: 14),
@@ -399,7 +567,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       style: TextStyle(
                         color: isSelected
                             ? AppColors.textPrimary
-                            : AppColors.textSecondary,
+                            : AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: isSelected
                             ? FontWeight.w600
@@ -496,9 +664,19 @@ class AdminDashboardScreen extends StatelessWidget {
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
+          overflow: TextOverflow.ellipsis,
         );
       }),
       actions: [
+        IconButton(
+          onPressed: () => controller.refreshAllData(),
+          tooltip: 'Refresh & Sync All Queues',
+          icon: const Icon(
+            Icons.sync_rounded,
+            size: 20,
+            color: AppColors.textPrimary,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: TextButton.icon(
@@ -506,7 +684,7 @@ class AdminDashboardScreen extends StatelessWidget {
             icon: const Icon(
               Icons.logout_rounded,
               size: 16,
-              color: AppColors.error,
+              color: AppColors.textPrimary,
             ),
             label: const Text(
               'Sign Out',
@@ -644,10 +822,16 @@ class AdminDashboardScreen extends StatelessWidget {
                     if (timeB == null) return -1;
                     final dtA = timeA is Timestamp
                         ? timeA.toDate()
-                        : DateTime.parse(timeA.toString());
+                        : (timeA is num
+                            ? DateTime.fromMillisecondsSinceEpoch(timeA.toInt())
+                            : (DateTime.tryParse(timeA.toString()) ??
+                                DateTime.fromMillisecondsSinceEpoch(0)));
                     final dtB = timeB is Timestamp
                         ? timeB.toDate()
-                        : DateTime.parse(timeB.toString());
+                        : (timeB is num
+                            ? DateTime.fromMillisecondsSinceEpoch(timeB.toInt())
+                            : (DateTime.tryParse(timeB.toString()) ??
+                                DateTime.fromMillisecondsSinceEpoch(0)));
                     return dtB.compareTo(dtA);
                   });
 
@@ -657,7 +841,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       child: Center(
                         child: Text(
                           'No recent activity records available.',
-                          style: TextStyle(color: AppColors.textTertiary),
+                          style: TextStyle(color: AppColors.textPrimary),
                         ),
                       ),
                     );
@@ -757,7 +941,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   Text(
                                     _formatTimestamp(timestamp),
                                     style: const TextStyle(
-                                      color: AppColors.textTertiary,
+                                      color: AppColors.textPrimary,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -803,7 +987,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 child: Text(
                   title,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -831,7 +1015,7 @@ class AdminDashboardScreen extends StatelessWidget {
           Text(
             subtitle,
             style: const TextStyle(
-              color: AppColors.textTertiary,
+              color: AppColors.textPrimary,
               fontSize: 11,
             ),
             maxLines: 1,
@@ -842,167 +1026,223 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
-  // TAB 2: VIDEOS QUEUE TAB
+  // TAB 2: VIDEOS QUEUE TAB (With Filter Tabs, Gemini Verification Gateway Results, and Override Reject)
   Widget _buildVideoQueueTab(BuildContext context, AdminController controller) {
     final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
-      final list = controller.videos.where((v) {
-        final topStatus = v['status'] as String?;
-        if (topStatus == 'rejected') return true;
+      final currentFilter = controller.videoFilterTab.value;
+      final allVideos = controller.videos;
 
-        final mod = v['moderation'] as Map<String, dynamic>?;
-        if (mod == null) return false;
-        final status = mod['status'] as String?;
-        final violations = mod['violationCategories'] as List<dynamic>?;
-        return status == 'processing' ||
-            status == 'error' ||
-            (status == 'approved' &&
-                violations != null &&
-                violations.contains('timeout_passthrough')) ||
-            status == 'rejected' ||
-            status == 'pending';
+      final filteredList = allVideos.where((v) {
+        if (currentFilter == 'approved') {
+          return controller.isVideoApproved(v);
+        } else if (currentFilter == 'pending') {
+          return controller.isVideoPending(v);
+        } else if (currentFilter == 'rejected') {
+          return controller.isVideoRejected(v);
+        }
+        return true; // 'all'
       }).toList();
 
-      if (list.isEmpty) {
-        return const Center(
-          child: Text(
-            'No videos in the moderation queue.',
-            style: TextStyle(color: AppColors.textTertiary),
+      final filterBar = Container(
+        padding: const EdgeInsets.all(12),
+        color: AppColors.bgSurface,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip(
+                controller,
+                'pending',
+                'Pending (${allVideos.where(controller.isVideoPending).length})',
+                controller.videoFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'all',
+                'All Videos (${allVideos.length})',
+                controller.videoFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'approved',
+                'Approved (${allVideos.where(controller.isVideoApproved).length})',
+                controller.videoFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'rejected',
+                'Rejected (${allVideos.where(controller.isVideoRejected).length})',
+                controller.videoFilterTab,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      Widget listWidget;
+      if (filteredList.isEmpty) {
+        listWidget = Column(
+          children: [
+            filterBar,
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'No videos found in this view.',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+              ),
+            ),
+          ],
+        );
+      } else {
+        listWidget = Container(
+          decoration: const BoxDecoration(
+            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          ),
+          child: Column(
+            children: [
+              filterBar,
+              Expanded(
+                child: ListView.separated(
+                  itemCount: filteredList.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(color: AppColors.bgDivider, height: 1),
+                  itemBuilder: (context, index) {
+                    final video = filteredList[index];
+                    final isSelected = controller.selectedVideo.value?['id'] == video['id'];
+                    final title = video['title'] ?? 'Untitled Video';
+                    final mod = video['moderation'] as Map<String, dynamic>?;
+                    final status = mod?['status'] ?? video['status'] ?? 'pending';
+                    final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
+
+                    return Material(
+                      color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          controller.selectedVideo.value = video;
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 80,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: AppColors.bgElevated,
+                                  borderRadius: BorderRadius.circular(6),
+                                  image: video['thumbnailUrl'] != null &&
+                                          video['thumbnailUrl'].toString().isNotEmpty
+                                      ? DecorationImage(
+                                          image: NetworkImage(video['thumbnailUrl']),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: video['thumbnailUrl'] == null ||
+                                        video['thumbnailUrl'].toString().isEmpty
+                                    ? const Icon(
+                                        Icons.videocam_rounded,
+                                        color: AppColors.textPrimary,
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'User: ${video['userId'] ?? video['ownerId'] ?? 'Unknown'}',
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        _buildStatusBadge(status.toString()),
+                                        if (isTimeout) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.error.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'TIMEOUT',
+                                              style: TextStyle(
+                                                color: AppColors.error,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         );
       }
-
-      final listWidget = Container(
-        decoration: const BoxDecoration(
-          border: Border(right: BorderSide(color: AppColors.bgDivider)),
-        ),
-        child: ListView.separated(
-          itemCount: list.length,
-          separatorBuilder: (context, index) =>
-              const Divider(color: AppColors.bgDivider, height: 1),
-          itemBuilder: (context, index) {
-            final video = list[index];
-            final isSelected =
-                controller.selectedVideo.value?['id'] == video['id'];
-            final title = video['title'] ?? 'Untitled Video';
-            final mod = video['moderation'] as Map<String, dynamic>?;
-            final status = mod?['status'] ?? video['status'] ?? 'pending';
-            final isTimeout =
-                mod?['violationCategories']?.contains('timeout_passthrough') ==
-                true;
-
-            return Material(
-              color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  controller.selectedVideo.value = video;
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: AppColors.bgElevated,
-                          borderRadius: BorderRadius.circular(6),
-                          image: video['thumbnailUrl'] != null
-                              ? DecorationImage(
-                                  image: NetworkImage(video['thumbnailUrl']),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child: video['thumbnailUrl'] == null
-                            ? const Icon(
-                                Icons.videocam_rounded,
-                                color: AppColors.textSecondary,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'User: ${video['userId'] ?? video['ownerId'] ?? 'Unknown'}',
-                              style: const TextStyle(
-                                color: AppColors.textTertiary,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                _buildStatusBadge(status),
-                                if (isTimeout) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.error.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      'TIMEOUT',
-                                      style: TextStyle(
-                                        color: AppColors.error,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      );
 
       final inspectorWidget = Obx(() {
         final selected = controller.selectedVideo.value;
         if (selected == null) {
           return const Center(
             child: Text(
-              'Select a video to inspect details',
-              style: TextStyle(color: AppColors.textTertiary),
+              'Select a video to inspect details and moderation controls',
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           );
         }
 
-        final videoUrl = selected['videoUrl'];
+        final videoUrl = (selected['originalUrl'] ??
+                selected['videoUrl'] ??
+                selected['mediaUrl'] ??
+                selected['hlsUrl'] ??
+                selected['url'])
+            ?.toString();
         final mod = selected['moderation'] as Map<String, dynamic>?;
-        final status = mod?['status'] ?? selected['status'] ?? 'pending';
+        final status = (mod?['status'] ?? selected['status'] ?? 'pending').toString();
+        final gatewayDecision = selected['gatewayDecision'] as Map<String, dynamic>?;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1020,7 +1260,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       size: 18,
                     ),
                     label: const Text(
-                      'Back to Video Queue',
+                      'Back to Videos',
                       style: TextStyle(color: AppColors.textPrimary),
                     ),
                   ),
@@ -1035,82 +1275,95 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              // Status Box
+              // Gemini Verification Gateway Status Box
               Container(
                 margin: const EdgeInsets.only(bottom: 20),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color:
-                      (status == 'approved'
-                              ? AppColors.success
-                              : (status == 'rejected'
-                                    ? AppColors.error
-                                    : AppColors.warning))
-                          .withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color:
-                        (status == 'approved'
-                                ? AppColors.success
-                                : (status == 'rejected'
-                                      ? AppColors.error
-                                      : AppColors.warning))
-                            .withValues(alpha: 0.25),
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      status == 'approved'
-                          ? Icons.check_circle_outline
-                          : (status == 'rejected'
-                                ? Icons.block_flipped
-                                : Icons.sync_rounded),
-                      color: status == 'approved'
+                  color: (status == 'approved'
                           ? AppColors.success
                           : (status == 'rejected'
                                 ? AppColors.error
-                                : AppColors.warning),
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Current Status: ${status.toUpperCase()}',
-                            style: TextStyle(
-                              color: status == 'approved'
-                                  ? AppColors.success
-                                  : (status == 'rejected'
-                                        ? AppColors.error
-                                        : AppColors.warning),
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (mod?['reason'] != null &&
-                              mod!['reason'].toString().isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              mod['reason'].toString(),
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 12,
+                                : AppColors.warning))
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (status == 'approved'
+                            ? AppColors.success
+                            : (status == 'rejected'
+                                  ? AppColors.error
+                                  : AppColors.warning))
+                        .withValues(alpha: 0.25),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          status == 'approved'
+                              ? Icons.verified_user_rounded
+                              : (status == 'rejected'
+                                    ? Icons.block_flipped
+                                    : Icons.gavel_rounded),
+                          color: status == 'approved'
+                              ? AppColors.success
+                              : (status == 'rejected'
+                                    ? AppColors.error
+                                    : AppColors.warning),
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Gemini Gateway Decision: ${status.toUpperCase()}',
+                                style: TextStyle(
+                                  color: status == 'approved'
+                                      ? AppColors.success
+                                      : (status == 'rejected'
+                                            ? AppColors.error
+                                            : AppColors.warning),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                          ],
-                        ],
-                      ),
+                              if (mod?['overriddenByAdmin'] == true) ...[
+                                const SizedBox(height: 2),
+                                const Text(
+                                  '⚡ Overridden by Admin',
+                                  style: TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
+                    if (mod?['reason'] != null || mod?['moderationReason'] != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Reason: ${mod?['reason'] ?? mod?['moderationReason']}',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
 
               // Video Player Frame
-              if (videoUrl != null)
+              if ((videoUrl != null && videoUrl.isNotEmpty) || selected.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: ColoredBox(
@@ -1118,8 +1371,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
                       child: AdminVideoPlayer(
-                        key: ValueKey(selected['id']),
-                        url: videoUrl,
+                        key: ValueKey(selected['id'] ?? videoUrl),
+                        url: videoUrl ?? '',
+                        videoData: selected,
                       ),
                     ),
                   ),
@@ -1134,16 +1388,16 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                   child: const Text(
                     'No video URL metadata present.',
-                    style: TextStyle(color: AppColors.textTertiary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
               const SizedBox(height: 24),
 
-              // Metadata Details Table
+              // Technical Metadata
               const Text(
-                'Technical Metadata',
+                'Gemini Verification & Technical Metadata',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1154,18 +1408,12 @@ class AdminDashboardScreen extends StatelessWidget {
                 _MetadataRow('Description', selected['description'] ?? 'None'),
                 _MetadataRow('Pipeline Status', status),
                 _MetadataRow(
-                  'Flagged Reason',
-                  mod?['reason'] ??
-                      selected['rejectionReason'] ??
-                      'System automatic moderation trigger.',
+                  'Gemini Gateway Decision',
+                  gatewayDecision?['status'] ?? mod?['status'] ?? 'N/A',
                 ),
                 _MetadataRow(
                   'Confidence Score',
-                  (mod?['confidenceScore'] ?? 'N/A').toString(),
-                ),
-                _MetadataRow(
-                  'GCS Storage Path',
-                  selected['storage']?['videoPath'] ?? 'N/A',
+                  (mod?['confidenceScore'] ?? gatewayDecision?['confidence'] ?? 'N/A').toString(),
                 ),
                 _MetadataRow(
                   'Uploaded At',
@@ -1174,7 +1422,7 @@ class AdminDashboardScreen extends StatelessWidget {
               ]),
               const SizedBox(height: 32),
 
-              // Action buttons
+              // Action buttons (Enables rejection of ANY video at any time, including approved videos!)
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -1194,7 +1442,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       size: 18,
                       color: Colors.white,
                     ),
-                    label: const Text('Approve Video'),
+                    label: Text(status == 'approved' ? 'Approved (Re-confirm)' : 'Approve Video'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
@@ -1222,7 +1470,11 @@ class AdminDashboardScreen extends StatelessWidget {
                       size: 18,
                       color: AppColors.error,
                     ),
-                    label: const Text('Reject Video & Quarantine'),
+                    label: Text(
+                      status == 'approved'
+                          ? 'Override & Reject Video'
+                          : 'Reject Video & Quarantine',
+                    ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
                       foregroundColor: AppColors.error,
@@ -1257,122 +1509,214 @@ class AdminDashboardScreen extends StatelessWidget {
     });
   }
 
-  // TAB: CHANNELS QUEUE TAB
+  Widget _buildFilterChip(
+    AdminController controller,
+    String value,
+    String label,
+    RxString targetProperty,
+  ) {
+    return Obx(() {
+      final isSelected = targetProperty.value == value;
+      return ChoiceChip(
+        selected: isSelected,
+        label: Text(label),
+        selectedColor: Colors.white,
+        backgroundColor: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.85),
+        labelStyle: TextStyle(
+          color: Colors.black,
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+        ),
+        onSelected: (selected) {
+          if (selected) {
+            targetProperty.value = value;
+          }
+        },
+      );
+    });
+  }
+
   Widget _buildChannelQueueTab(
     BuildContext context,
     AdminController controller,
   ) {
     final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
-      final list = controller.channels;
+      final currentFilter = controller.channelFilterTab.value;
+      final allChannels = controller.channels;
 
-      if (list.isEmpty) {
-        return const Center(
-          child: Text(
-            'No channels in the database.',
-            style: TextStyle(color: AppColors.textTertiary),
+      final filteredList = allChannels.where((c) {
+        if (currentFilter == 'pending') {
+          return controller.isChannelPending(c);
+        } else if (currentFilter == 'active') {
+          return controller.isChannelActive(c);
+        } else if (currentFilter == 'rejected') {
+          return controller.isChannelRejected(c);
+        }
+        return true; // 'all'
+      }).toList();
+
+      final filterBar = Container(
+        padding: const EdgeInsets.all(12),
+        color: AppColors.bgSurface,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip(
+                controller,
+                'pending',
+                'Pending (${allChannels.where(controller.isChannelPending).length})',
+                controller.channelFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'all',
+                'All Channels (${allChannels.length})',
+                controller.channelFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'active',
+                'Active (${allChannels.where(controller.isChannelActive).length})',
+                controller.channelFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'rejected',
+                'Rejected (${allChannels.where(controller.isChannelRejected).length})',
+                controller.channelFilterTab,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      Widget listWidget;
+      if (filteredList.isEmpty) {
+        listWidget = Column(
+          children: [
+            filterBar,
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'No channels found in this view.',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+              ),
+            ),
+          ],
+        );
+      } else {
+        listWidget = Container(
+          decoration: const BoxDecoration(
+            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          ),
+          child: Column(
+            children: [
+              filterBar,
+              Expanded(
+                child: ListView.separated(
+                  itemCount: filteredList.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(color: AppColors.bgDivider, height: 1),
+                  itemBuilder: (context, index) {
+                    final channel = filteredList[index];
+                    final isSelected =
+                        controller.selectedChannel.value?['id'] == channel['id'];
+                    final title =
+                        channel['channelName'] ?? channel['name'] ?? 'Unnamed Channel';
+                    final status = channel['status'] ?? 'underReview';
+
+                    return Material(
+                      color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          controller.selectedChannel.value = channel;
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: AppColors.bgElevated,
+                                  shape: BoxShape.circle,
+                                  image:
+                                      channel['avatarUrl'] != null &&
+                                          channel['avatarUrl'].toString().isNotEmpty
+                                      ? DecorationImage(
+                                          image: NetworkImage(channel['avatarUrl']),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child:
+                                    channel['avatarUrl'] == null ||
+                                        channel['avatarUrl'].toString().isEmpty
+                                    ? const Icon(
+                                        Icons.face_rounded,
+                                        color: AppColors.textPrimary,
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Handle: @${channel['handle'] ?? channel['customUrl'] ?? 'none'}',
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _buildStatusBadge(status.toString()),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         );
       }
-
-      final listWidget = Container(
-        decoration: const BoxDecoration(
-          border: Border(right: BorderSide(color: AppColors.bgDivider)),
-        ),
-        child: ListView.separated(
-          itemCount: list.length,
-          separatorBuilder: (context, index) =>
-              const Divider(color: AppColors.bgDivider, height: 1),
-          itemBuilder: (context, index) {
-            final channel = list[index];
-            final isSelected =
-                controller.selectedChannel.value?['id'] == channel['id'];
-            final title =
-                channel['channelName'] ?? channel['name'] ?? 'Unnamed Channel';
-            final status = channel['status'] ?? 'underReview';
-
-            return Material(
-              color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  controller.selectedChannel.value = channel;
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: AppColors.bgElevated,
-                          shape: BoxShape.circle,
-                          image:
-                              channel['avatarUrl'] != null &&
-                                  channel['avatarUrl'].toString().isNotEmpty
-                              ? DecorationImage(
-                                  image: NetworkImage(channel['avatarUrl']),
-                                  fit: BoxFit.cover,
-                                )
-                              : null,
-                        ),
-                        child:
-                            channel['avatarUrl'] == null ||
-                                channel['avatarUrl'].toString().isEmpty
-                            ? const Icon(
-                                Icons.face_rounded,
-                                color: AppColors.textSecondary,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Handle: @${channel['handle'] ?? channel['customUrl'] ?? 'none'}',
-                              style: const TextStyle(
-                                color: AppColors.textTertiary,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            _buildStatusBadge(status),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      );
 
       final inspectorWidget = Obx(() {
         final selected = controller.selectedChannel.value;
         if (selected == null) {
           return const Center(
             child: Text(
-              'Select a channel to inspect details',
-              style: TextStyle(color: AppColors.textTertiary),
+              'Select a channel to inspect avatars, banners, and Gemini verification results',
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           );
         }
@@ -1381,7 +1725,7 @@ class AdminDashboardScreen extends StatelessWidget {
         final bannerUrl = selected['bannerImageUrl'] ?? selected['bannerUrl'];
         final status = selected['status'] ?? 'underReview';
         final geminiResponse =
-            selected['moderationReason'] ?? 'No automated response logged.';
+            selected['moderationReason'] ?? 'Gemini Channel Verification Gateway verified.';
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1404,8 +1748,17 @@ class AdminDashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              // Banner Image if present
+              // Channel Banner Image
               if (bannerUrl != null && bannerUrl.toString().isNotEmpty) ...[
+                const Text(
+                  'Channel Banner Preview',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
@@ -1421,7 +1774,6 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
-
               Row(
                 children: [
                   CircleAvatar(
@@ -1456,10 +1808,10 @@ class AdminDashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '@${selected['handle'] ?? selected['customUrl'] ?? 'none'}',
+                          '@${selected['handle'] ?? selected['customUrl'] ?? 'none'} • Owner: ${selected['ownerId'] ?? selected['userId'] ?? 'Unknown'}',
                           style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            fontSize: 12,
                           ),
                         ),
                       ],
@@ -1468,8 +1820,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-
-              // Status Box
+              // Gemini Channel Verification Gateway Status Box
               Container(
                 margin: const EdgeInsets.only(bottom: 20),
                 padding: const EdgeInsets.all(16),
@@ -1514,7 +1865,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Current Status: ${status == 'active' ? 'APPROVED/ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
+                            'Gemini Channel Gateway: ${status == 'active' ? 'APPROVED / ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
                             style: TextStyle(
                               color: status == 'active'
                                   ? AppColors.success
@@ -1525,70 +1876,20 @@ class AdminDashboardScreen extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Verification Log: $geminiResponse',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-
-              // Gemini response block
-              const Text(
-                'Gemini AI Moderation Analysis',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSurfaceHover,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.bgDivider),
-                ),
-                child: Text(
-                  geminiResponse,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Metadata details
-              const Text(
-                'Channel Metadata',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildMetadataTable([
-                _MetadataRow('Channel ID', selected['id']),
-                _MetadataRow('Owner ID', selected['ownerId'] ?? 'N/A'),
-                _MetadataRow('Description', selected['description'] ?? 'None'),
-                _MetadataRow('Category', selected['category'] ?? 'None'),
-                _MetadataRow('Language', selected['language'] ?? 'en'),
-                _MetadataRow(
-                  'Tags',
-                  (selected['tags'] as List?)?.join(', ') ?? 'None',
-                ),
-                _MetadataRow('Status', status),
-                _MetadataRow(
-                  'Updated At',
-                  _formatTimestamp(selected['updatedAt']),
-                ),
-              ]),
-              const SizedBox(height: 32),
-
               // Action buttons
               Wrap(
                 spacing: 12,
@@ -1603,14 +1904,13 @@ class AdminDashboardScreen extends StatelessWidget {
                             selected['id'],
                             'approve',
                             false,
-                            isChannel: true,
                           ),
                     icon: const Icon(
                       Icons.check_circle_outline,
                       size: 18,
                       color: Colors.white,
                     ),
-                    label: const Text('Approve Channel'),
+                    label: const Text('Approve Channel Verification'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
@@ -1632,14 +1932,13 @@ class AdminDashboardScreen extends StatelessWidget {
                             selected['id'],
                             'reject',
                             false,
-                            isChannel: true,
                           ),
                     icon: const Icon(
                       Icons.block_flipped,
                       size: 18,
                       color: AppColors.error,
                     ),
-                    label: const Text('Reject Channel'),
+                    label: const Text('Reject Verification'),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
                       foregroundColor: AppColors.error,
@@ -1674,43 +1973,107 @@ class AdminDashboardScreen extends StatelessWidget {
     });
   }
 
-  // TAB: REPORTS QUEUE TAB
   Widget _buildReportsQueueTab(
     BuildContext context,
     AdminController controller,
   ) {
     final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
-      final list = controller.reports;
+      final currentFilter = controller.reportFilterTab.value;
+      final allReports = controller.reports;
 
-      if (list.isEmpty) {
-        return const Center(
-          child: Text(
-            'No reports in the database.',
-            style: TextStyle(color: AppColors.textTertiary),
+      final filteredList = allReports.where((r) {
+        if (currentFilter == 'pending') {
+          return controller.isReportPending(r);
+        } else if (currentFilter == 'resolved') {
+          return controller.isReportResolved(r);
+        }
+        return true; // 'all'
+      }).toList();
+
+      final filterBar = Container(
+        padding: const EdgeInsets.all(12),
+        color: AppColors.bgSurface,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip(
+                controller,
+                'pending',
+                'Pending (${allReports.where(controller.isReportPending).length})',
+                controller.reportFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'all',
+                'All Reports (${allReports.length})',
+                controller.reportFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'resolved',
+                'Resolved (${allReports.where(controller.isReportResolved).length})',
+                controller.reportFilterTab,
+              ),
+            ],
           ),
-        );
-      }
-
-      final listWidget = Container(
-        decoration: const BoxDecoration(
-          border: Border(right: BorderSide(color: AppColors.bgDivider)),
         ),
-        child: ListView.separated(
-          itemCount: list.length,
-          separatorBuilder: (context, index) =>
-              const Divider(color: AppColors.bgDivider, height: 1),
-          itemBuilder: (context, index) {
-            final report = list[index];
+      );
+
+      Widget listWidget;
+      if (filteredList.isEmpty) {
+        listWidget = Column(
+          children: [
+            filterBar,
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'No video reports found in this view.',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+              ),
+            ),
+          ],
+        );
+      } else {
+        listWidget = Container(
+          decoration: const BoxDecoration(
+            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          ),
+          child: Column(
+            children: [
+              filterBar,
+              Expanded(
+                child: ListView.separated(
+                  itemCount: filteredList.length,
+                  separatorBuilder: (context, index) =>
+                      const Divider(color: AppColors.bgDivider, height: 1),
+                  itemBuilder: (context, index) {
+                    final report = filteredList[index];
             final isSelected =
                 controller.selectedReport.value?['id'] == report['id'];
 
-            final reasonMap = report['reason'];
+            final reasonMap = report['reason'] ??
+                report['reportReason'] ??
+                report['category'] ??
+                report['issue'];
             final reason = reasonMap is Map
-                ? (reasonMap['label'] ?? 'Unknown Reason')
-                : (reasonMap?.toString() ?? 'Unknown Reason');
+                ? (reasonMap['label'] ??
+                    reasonMap['name'] ??
+                    reasonMap['title'] ??
+                    'User Reported Content')
+                : (reasonMap?.toString().isNotEmpty == true
+                    ? reasonMap.toString()
+                    : 'User Reported Content');
             final status = report['status'] ?? 'pending';
-            final reporter = report['userEmail'] ?? 'anonymous';
+            final reporter = report['userEmail'] ??
+                report['reporterEmail'] ??
+                report['reporterId'] ??
+                report['userId'] ??
+                'Anonymous User';
 
             return Material(
               color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
@@ -1757,7 +2120,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             Text(
                               'Reporter: $reporter',
                               style: const TextStyle(
-                                color: AppColors.textTertiary,
+                                color: AppColors.textPrimary,
                                 fontSize: 11,
                               ),
                               maxLines: 1,
@@ -1775,7 +2138,11 @@ class AdminDashboardScreen extends StatelessWidget {
             );
           },
         ),
-      );
+      ),
+    ],
+  ),
+);
+      }
 
       final inspectorWidget = Obx(() {
         final selected = controller.selectedReport.value;
@@ -1783,7 +2150,7 @@ class AdminDashboardScreen extends StatelessWidget {
           return const Center(
             child: Text(
               'Select a report to inspect details',
-              style: TextStyle(color: AppColors.textTertiary),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           );
         }
@@ -1794,14 +2161,29 @@ class AdminDashboardScreen extends StatelessWidget {
         );
         final status = selected['status'] ?? 'pending';
 
-        final reasonMap = selected['reason'];
+        final reasonMap = selected['reason'] ??
+            selected['reportReason'] ??
+            selected['category'] ??
+            selected['issue'];
         final reason = reasonMap is Map
-            ? (reasonMap['label'] ?? 'Unknown Reason')
-            : (reasonMap?.toString() ?? 'Unknown Reason');
-        final comment =
-            selected['comment'] ?? 'No detailed description provided.';
-        final reporterEmail = selected['userEmail'] ?? 'anonymous';
-        final createdAtStr = _formatTimestamp(selected['createdAt']);
+            ? (reasonMap['label'] ??
+                reasonMap['name'] ??
+                reasonMap['title'] ??
+                'User Reported Content')
+            : (reasonMap?.toString().isNotEmpty == true
+                ? reasonMap.toString()
+                : 'User Reported Content');
+        final comment = selected['comment'] ??
+            selected['reportComment'] ??
+            selected['details'] ??
+            selected['description'] ??
+            'No detailed description provided.';
+        final reporterEmail = selected['userEmail'] ??
+            selected['reporterEmail'] ??
+            selected['reporterId'] ??
+            selected['userId'] ??
+            'Anonymous User';
+        final createdAtStr = _formatTimestamp(selected['createdAt'] ?? selected['reportedAt'] ?? selected['timestamp']);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1908,7 +2290,7 @@ class AdminDashboardScreen extends StatelessWidget {
               const Text(
                 'Reported Video Details',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1938,7 +2320,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 Container(
                                   width: 120,
                                   height: 68,
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.textPrimary,
                                   child: const Icon(
                                     Icons.broken_image,
                                     color: Colors.white,
@@ -1978,7 +2360,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             Text(
                               'Channel: ${video['channelName'] ?? 'Unknown'}',
                               style: const TextStyle(
-                                color: AppColors.textSecondary,
+                                color: AppColors.textPrimary,
                                 fontSize: 12,
                               ),
                             ),
@@ -1986,7 +2368,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             Text(
                               'Status: ${video['moderation']?['status'] ?? 'unknown'}',
                               style: const TextStyle(
-                                color: AppColors.textTertiary,
+                                color: AppColors.textPrimary,
                                 fontSize: 11,
                               ),
                             ),
@@ -2008,7 +2390,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   child: Text(
                     'Video ID: $videoId (Video details not cached or video deleted)',
                     style: const TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
                   ),
@@ -2020,7 +2402,7 @@ class AdminDashboardScreen extends StatelessWidget {
               const Text(
                 'Report Submission Info',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2038,7 +2420,7 @@ class AdminDashboardScreen extends StatelessWidget {
               const Text(
                 'Reporter Comment',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2153,38 +2535,101 @@ class AdminDashboardScreen extends StatelessWidget {
   Widget _buildImageQueueTab(BuildContext context, AdminController controller) {
     final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
-      final list = controller.images;
+      final currentFilter = controller.imageFilterTab.value;
+      final allImages = controller.images;
 
-      if (list.isEmpty) {
-        return const Center(
-          child: Text(
-            'No images in the moderation queue.',
-            style: TextStyle(color: AppColors.textTertiary),
+      final filteredList = allImages.where((img) {
+        if (currentFilter == 'approved') {
+          return controller.isImagePostApproved(img);
+        } else if (currentFilter == 'pending') {
+          return controller.isImagePostPending(img);
+        } else if (currentFilter == 'rejected') {
+          return controller.isImagePostRejected(img);
+        }
+        return true; // 'all'
+      }).toList();
+
+      final filterBar = Container(
+        padding: const EdgeInsets.all(12),
+        color: AppColors.bgSurface,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip(
+                controller,
+                'pending',
+                'Pending (${allImages.where(controller.isImagePostPending).length})',
+                controller.imageFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'all',
+                'All Posts (${allImages.length})',
+                controller.imageFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'approved',
+                'Approved (${allImages.where(controller.isImagePostApproved).length})',
+                controller.imageFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'rejected',
+                'Rejected (${allImages.where(controller.isImagePostRejected).length})',
+                controller.imageFilterTab,
+              ),
+            ],
           ),
-        );
-      }
-
-      final listWidget = Container(
-        decoration: const BoxDecoration(
-          border: Border(right: BorderSide(color: AppColors.bgDivider)),
         ),
-        child: GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.9,
+      );
+
+      Widget listWidget;
+      if (filteredList.isEmpty) {
+        listWidget = Column(
+          children: [
+            filterBar,
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'No community posts or media found in this view.',
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+              ),
+            ),
+          ],
+        );
+      } else {
+        listWidget = Container(
+          decoration: const BoxDecoration(
+            border: Border(right: BorderSide(color: AppColors.bgDivider)),
           ),
-          itemCount: list.length,
-          itemBuilder: (context, index) {
-            final img = list[index];
-            final isSelected =
-                controller.selectedImage.value?['id'] == img['id'];
-            final rawUrl = (img['gcsUri'] ?? img['filePath'] ?? '').toString();
-            final displayUrl = rawUrl.isNotEmpty
-                ? StorageUtils.getFastDownloadUrl(rawUrl)
-                : '';
+          child: Column(
+            children: [
+              filterBar,
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.9,
+                  ),
+                  itemCount: filteredList.length,
+                  itemBuilder: (context, index) {
+                    final img = filteredList[index];
+                    final isSelected =
+                        controller.selectedImage.value?['id'] == img['id'];
+                    final rawUrl = _extractImageUrl(img);
+                    final displayUrl = rawUrl.isNotEmpty
+                        ? StorageUtils.getFastDownloadUrl(rawUrl)
+                        : '';
+                    final statusDisplay = _getImagePostStatusDisplay(controller, img);
 
             return GestureDetector(
               onTap: () {
@@ -2208,17 +2653,21 @@ class AdminDashboardScreen extends StatelessWidget {
                           ? Image.network(
                               displayUrl,
                               fit: BoxFit.cover,
+                              cacheWidth: 350,
+                              cacheHeight: 350,
                               errorBuilder: (context, error, stackTrace) =>
                                   const Center(
                                     child: Icon(
                                       Icons.broken_image,
-                                      color: AppColors.textTertiary,
+                                      color: Colors.white,
                                     ),
                                   ),
                             )
-                          : const Icon(
-                              Icons.image,
-                              color: AppColors.textTertiary,
+                          : const Center(
+                              child: Icon(
+                                Icons.image,
+                                color: Colors.white,
+                              ),
                             ),
                     ),
                     Padding(
@@ -2227,7 +2676,7 @@ class AdminDashboardScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            img['fileName'] ?? 'Image File',
+                            img['title'] ?? img['fileName'] ?? 'Image File',
                             style: const TextStyle(
                               color: AppColors.textPrimary,
                               fontSize: 11,
@@ -2252,12 +2701,12 @@ class AdminDashboardScreen extends StatelessWidget {
                                 child: Text(
                                   img['category'] ?? 'Post',
                                   style: const TextStyle(
-                                    color: AppColors.textSecondary,
+                                    color: AppColors.textPrimary,
                                     fontSize: 8,
                                   ),
                                 ),
                               ),
-                              _buildStatusBadge(img['status'] ?? 'PENDING'),
+                              _buildStatusBadge(statusDisplay),
                             ],
                           ),
                         ],
@@ -2269,7 +2718,11 @@ class AdminDashboardScreen extends StatelessWidget {
             );
           },
         ),
-      );
+      ),
+    ],
+  ),
+);
+      }
 
       final inspectorWidget = Obx(() {
         final selected = controller.selectedImage.value;
@@ -2277,13 +2730,12 @@ class AdminDashboardScreen extends StatelessWidget {
           return const Center(
             child: Text(
               'Select an image to inspect details',
-              style: TextStyle(color: AppColors.textTertiary),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           );
         }
 
-        final rawUrl = (selected['gcsUri'] ?? selected['filePath'] ?? '')
-            .toString();
+        final rawUrl = _extractImageUrl(selected);
         final displayUrl = rawUrl.isNotEmpty
             ? StorageUtils.getFastDownloadUrl(rawUrl)
             : '';
@@ -2312,7 +2764,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                 ),
               Text(
-                selected['fileName'] ?? 'Inspect Image',
+                selected['title'] ?? selected['fileName'] ?? 'Inspect Image',
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
@@ -2332,19 +2784,23 @@ class AdminDashboardScreen extends StatelessWidget {
                       ? Image.network(
                           displayUrl,
                           fit: BoxFit.contain,
+                          cacheWidth: 600,
+                          cacheHeight: 600,
                           errorBuilder: (context, error, stackTrace) =>
                               const Center(
                                 child: Icon(
                                   Icons.broken_image,
                                   size: 48,
-                                  color: AppColors.textTertiary,
+                                  color: Colors.white,
                                 ),
                               ),
                         )
-                      : const Icon(
-                          Icons.image,
-                          size: 48,
-                          color: AppColors.textTertiary,
+                      : const Center(
+                          child: Icon(
+                            Icons.image,
+                            size: 48,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
               ),
@@ -2354,7 +2810,7 @@ class AdminDashboardScreen extends StatelessWidget {
               const Text(
                 'AI SafeSearch Violations',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2377,28 +2833,28 @@ class AdminDashboardScreen extends StatelessWidget {
               const Text(
                 'Verification Metadata',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 12),
               _buildMetadataTable([
-                _MetadataRow('Document ID', selected['id']),
-                _MetadataRow('Uploader ID', selected['userId'] ?? 'Anonymous'),
+                _MetadataRow('Document ID', (selected['id'] ?? selected['docId'] ?? 'N/A').toString()),
+                _MetadataRow('Uploader ID', (selected['userId'] ?? selected['ownerId'] ?? selected['uploaderId'] ?? 'Anonymous').toString()),
                 _MetadataRow(
                   'Trigger Category',
-                  selected['category'] ?? 'image',
+                  (selected['category'] ?? 'Community Post').toString(),
                 ),
                 _MetadataRow(
                   'AI Reason Log',
-                  selected['reason'] ?? 'Flagged by SafeSearch filters.',
+                  (selected['reason'] ?? selected['moderationReason'] ?? selected['aiReasonLog'] ?? (controller.isImagePostApproved(selected) ? 'Approved by SafeSearch AI filters.' : 'Flagged by SafeSearch filters.')).toString(),
                 ),
-                _MetadataRow('Severity Score', '${selected['score'] ?? 0} / 5'),
-                _MetadataRow('GCS Path', selected['filePath'] ?? 'N/A'),
+                _MetadataRow('Severity Score', '${selected['score'] ?? selected['severityScore'] ?? 0} / 5'),
+                _MetadataRow('GCS Path / URL', rawUrl.isNotEmpty ? rawUrl : 'N/A'),
                 _MetadataRow(
-                  'Flagged At',
-                  _formatTimestamp(selected['flaggedAt']),
+                  'Flagged / Created At',
+                  _formatTimestamp(selected['flaggedAt'] ?? selected['createdAt'] ?? selected['timestamp']),
                 ),
               ]),
               const SizedBox(height: 32),
@@ -2496,7 +2952,7 @@ class AdminDashboardScreen extends StatelessWidget {
         return const Center(
           child: Text(
             'No manual rejection logs recorded.',
-            style: TextStyle(color: AppColors.textTertiary),
+            style: TextStyle(color: AppColors.textPrimary),
           ),
         );
       }
@@ -2518,31 +2974,31 @@ class AdminDashboardScreen extends StatelessWidget {
                 DataColumn(
                   label: Text(
                     'Original Location',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Quarantine GCS Path',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Reason Code',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Owner ID',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Rejection Date',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
               ],
@@ -2572,7 +3028,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       Text(
                         log['reason'] ?? 'N/A',
                         style: const TextStyle(
-                          color: AppColors.textSecondary,
+                          color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
                       ),
@@ -2581,7 +3037,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       Text(
                         log['userId'] ?? 'N/A',
                         style: const TextStyle(
-                          color: AppColors.textTertiary,
+                          color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
                       ),
@@ -2590,7 +3046,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       Text(
                         _formatTimestamp(log['rejectedAt']),
                         style: const TextStyle(
-                          color: AppColors.textTertiary,
+                          color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
                       ),
@@ -2636,7 +3092,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 'Are you sure you want to manually $action this resource? '
                 '${action == 'reject' ? 'This action logs an audit/moderation record.' : ''}',
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 13,
                 ),
               ),
@@ -2647,7 +3103,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Enter review reason (optional)...',
-                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  hintStyle: const TextStyle(color: AppColors.textPrimary),
                   fillColor: AppColors.bgInput,
                   filled: true,
                   border: OutlineInputBorder(
@@ -2663,7 +3119,7 @@ class AdminDashboardScreen extends StatelessWidget {
               onPressed: Get.back,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: AppColors.textPrimary),
               ),
             ),
             ElevatedButton(
@@ -2703,9 +3159,9 @@ class AdminDashboardScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: scoreColor.withValues(alpha: 0.15),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
+        border: Border.all(color: scoreColor, width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2713,8 +3169,9 @@ class AdminDashboardScreen extends StatelessWidget {
           Text(
             '$label: ',
             style: const TextStyle(
-              color: AppColors.textSecondary,
+              color: Colors.black,
               fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
           Text(
@@ -2730,12 +3187,67 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
+  String _extractImageUrl(Map<String, dynamic> img) {
+    if (img['images'] is List && (img['images'] as List).isNotEmpty) {
+      final first = (img['images'] as List).first;
+      if (first != null && first.toString().trim().isNotEmpty) {
+        return first.toString().trim();
+      }
+    }
+    for (final key in [
+      'imageUrl',
+      'mediaUrl',
+      'url',
+      'image',
+      'photoUrl',
+      'thumbnailUrl',
+      'attachmentUrl',
+      'gcsUri',
+      'filePath',
+      'gcsPath',
+    ]) {
+      final val = img[key];
+      if (val != null && val.toString().trim().isNotEmpty) {
+        return val.toString().trim();
+      }
+    }
+    return '';
+  }
+
+  String _getImagePostStatusDisplay(
+    AdminController controller,
+    Map<String, dynamic> img,
+  ) {
+    if (controller.isImagePostRejected(img)) {
+      return 'REJECTED';
+    }
+    if (controller.isImagePostPending(img)) {
+      return (img['status'] ?? 'PENDING').toString().toUpperCase();
+    }
+    if (controller.isImagePostApproved(img)) {
+      final s = (img['status'] ?? img['moderation']?['status'] ?? '')
+          .toString()
+          .toUpperCase();
+      if (s.isEmpty ||
+          s == 'PENDING' ||
+          s == 'PENDING_REVIEW' ||
+          s == 'UNVERIFIED') {
+        return 'APPROVED';
+      }
+      return s;
+    }
+    return (img['status'] ?? 'PENDING').toString().toUpperCase();
+  }
+
   // Status Badge Builder
   Widget _buildStatusBadge(String status) {
-    var color = AppColors.textTertiary;
+    var color = AppColors.textPrimary;
     final txt = status.toUpperCase();
 
     if (txt == 'APPROVED' ||
+        txt == 'PUBLISHED' ||
+        txt == 'ACTIVE' ||
+        txt == 'PASSED' ||
         txt == 'SUCCESS' ||
         txt == 'RESOLVED_DISMISSED' ||
         txt == 'RESOLVED') {
@@ -2784,8 +3296,9 @@ class AdminDashboardScreen extends StatelessWidget {
               child: Text(
                 row.label,
                 style: const TextStyle(
-                  color: AppColors.textTertiary,
+                  color: AppColors.textPrimary,
                   fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -2813,41 +3326,91 @@ class _MetadataRow {
 }
 
 // GetX Video Player wrapper
-class AdminVideoPlayer extends StatelessWidget {
-  const AdminVideoPlayer({required this.url, super.key});
+class AdminVideoPlayer extends StatefulWidget {
+  const AdminVideoPlayer({
+    required this.url,
+    super.key,
+    this.videoData,
+  });
   final String url;
+  final Map<String, dynamic>? videoData;
+
+  @override
+  State<AdminVideoPlayer> createState() => _AdminVideoPlayerState();
+}
+
+class _AdminVideoPlayerState extends State<AdminVideoPlayer> {
+  late String _tag;
+  late AdminVideoPlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final videoId = widget.videoData?['id'] ?? widget.url;
+    _tag = 'admin_player_${videoId}_${DateTime.now().millisecondsSinceEpoch}';
+    _controller = Get.put(
+      AdminVideoPlayerController(widget.url, videoData: widget.videoData),
+      tag: _tag,
+    );
+  }
+
+  @override
+  void dispose() {
+    Get.delete<AdminVideoPlayerController>(tag: _tag);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Unique tag per url to support multiple video player instances
-    final controller = Get.put(AdminVideoPlayerController(url), tag: url);
-
     return Obx(() {
-      if (controller.error.value != null) {
+      if (_controller.error.value != null) {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              controller.error.value!,
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
-              textAlign: TextAlign.center,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: AppColors.error,
+                  size: 36,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _controller.error.value!,
+                  style: const TextStyle(color: AppColors.error, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () => _controller.retry(),
+                  icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
+                  label: const Text(
+                    'Retry',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.bgSurfaceHover,
+                  ),
+                ),
+              ],
             ),
           ),
         );
       }
-      if (!controller.isPlayerInitialized.value) {
+      if (!_controller.isPlayerInitialized.value || _controller.chewieCtrl == null) {
         return const Center(
           child: SizedBox(
             width: 32,
             height: 32,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
         );
       }
-      return Chewie(controller: controller.chewieCtrl!);
+      return Chewie(controller: _controller.chewieCtrl!);
     });
   }
 }

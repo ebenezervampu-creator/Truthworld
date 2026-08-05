@@ -46,6 +46,7 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 import 'package:truthworld/features/video/presentation/controllers/video_analytics_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playlist_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart'
     hide LanguageRequest;
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
@@ -76,13 +77,15 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       engagementController.isLoadingLanguageRequests;
   StreamSubscription<QuerySnapshot>? _languageRequestsSubscription;
 
-  // Playlist Support
-  final Rx<PlaylistModel?> currentPlaylist = Rx<PlaylistModel?>(null);
-  final RxList<Video> playlistVideos = <Video>[].obs;
-  final RxInt currentPlaylistIndex = 0.obs;
-  final RxBool isPlaylistLooping = false.obs;
-  final RxBool isPlaylistShuffled = false.obs;
-  final RxBool showPlaylistDrawer = true.obs;
+  late VideoPlaylistController videoPlaylistController;
+
+  // Playlist Support (Delegated)
+  Rx<PlaylistModel?> get currentPlaylist => videoPlaylistController.currentPlaylist;
+  RxList<Video> get playlistVideos => videoPlaylistController.playlistVideos;
+  RxInt get currentPlaylistIndex => videoPlaylistController.currentPlaylistIndex;
+  RxBool get isPlaylistLooping => videoPlaylistController.isPlaylistLooping;
+  RxBool get isPlaylistShuffled => videoPlaylistController.isPlaylistShuffled;
+  RxBool get showPlaylistDrawer => videoPlaylistController.showPlaylistDrawer;
 
   // Computed: Check if previous/next video is available
   // First check playlist, then check recommendations
@@ -332,6 +335,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   @override
   void onInit() {
     super.onInit();
+    videoPlaylistController = Get.isRegistered<VideoPlaylistController>()
+        ? Get.find<VideoPlaylistController>()
+        : Get.put(VideoPlaylistController());
+
     rxIsOffline.value = (Get.arguments?['isOffline'] as bool?) ?? false;
     _setupConnectivityListener();
 
@@ -459,10 +466,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
     }
 
-    _initializeAllMetadata();
-
-    // Strict Enforcement: Start playback
+    // 1. Kick off playback immediately for YouTube-style low-latency startup
     _startPlaybackFlow();
+
+    // 2. Initialize heavy UI metadata asynchronously in background without blocking playback stream
+    Future.microtask(_initializeAllMetadata);
   }
 
   void _setupConnectivityListener() {
@@ -1316,22 +1324,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   void playPrevious() {
     // If in a playlist, use playlist navigation
     if (playlistVideos.isNotEmpty && currentPlaylistIndex.value > 0) {
-      final prevIndex = currentPlaylistIndex.value - 1;
-      currentPlaylistIndex.value = prevIndex;
-      final prevVideo = playlistVideos[prevIndex];
-      _video.value = prevVideo;
-
-      // Re-initialize comments controller
-      Get.delete<CommentsController>(tag: 'video_${prevVideo.id}', force: true);
-      commentsController = Get.put(
-        CommentsController(video: prevVideo),
-        tag: 'video_${prevVideo.id}',
-      );
-
-      initializeVideoPlayer(overrideUrl: prevVideo.videoUrl);
-      fetchRecommendations();
-      checkUserInteractions();
-      channelController.listenSubscription(prevVideo.channelId);
+      videoPlaylistController.playPreviousPlaylistVideo();
       return;
     }
 
@@ -1928,75 +1921,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   }
 
   Future<void> fetchPlaylistVideos() async {
-    if (currentPlaylist.value == null ||
-        currentPlaylist.value!.videoIds.isEmpty) {
-      return;
-    }
-
-    try {
-      final ids = currentPlaylist.value!.videoIds;
-      final fetchedVideos = <Video>[];
-
-      // Firestore 'whereIn' supports max 10 items. Chunking:
-      for (var i = 0; i < ids.length; i += 10) {
-        final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
-        final snapshot = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        fetchedVideos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
-      }
-
-      // Restore original playlist order
-      fetchedVideos.sort(
-        (a, b) => ids.indexOf(a.id).compareTo(ids.indexOf(b.id)),
-      );
-
-      playlistVideos.value = fetchedVideos;
-
-      final activeIndex = fetchedVideos.indexWhere((v) => v.id == video.id);
-      currentPlaylistIndex.value = activeIndex != -1 ? activeIndex : 0;
-    } catch (e) {
-      debugPrint('Error fetching full playlist videos: $e');
-    }
+    await videoPlaylistController.fetchPlaylistVideos();
   }
 
   void playNextVideo() {
-    if (playlistVideos.isEmpty) return;
-
-    int nextIndex;
-    if (isPlaylistShuffled.value && playlistVideos.length > 1) {
-      // Pick a random index that is not the current one
-      final random = DateTime.now().millisecondsSinceEpoch;
-      final seed = random % 1000000;
-      final rng = (seed * 1103515245 + 12345) & 0x7fffffff;
-      nextIndex = rng % playlistVideos.length;
-
-      // Ensure we don't pick the same one twice in a row if possible
-      if (nextIndex == currentPlaylistIndex.value) {
-        nextIndex = (nextIndex + 1) % playlistVideos.length;
-      }
-    } else {
-      nextIndex = currentPlaylistIndex.value + 1;
-      if (nextIndex >= playlistVideos.length) {
-        if (isPlaylistLooping.value) {
-          nextIndex = 0;
-        } else {
-          return; // Reached the end
-        }
-      }
-    }
-    playPlaylistVideoAtIndex(nextIndex);
+    videoPlaylistController.playNextPlaylistVideo();
   }
 
   void playPlaylistVideoAtIndex(int index) {
-    if (index < 0 || index >= playlistVideos.length) return;
+    videoPlaylistController.playPlaylistVideoAtIndex(index);
+  }
 
-    currentPlaylistIndex.value = index;
-    final nextVideo = playlistVideos[index];
-
-    _video.value = nextVideo;
-
+  void handleVideoTransition(Video nextVideo) {
     // Re-initialize comments controller for new video
     Get.delete<CommentsController>(tag: 'video_${nextVideo.id}', force: true);
     commentsController = Get.put(
@@ -2025,6 +1961,16 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
     videoError.value = false;
     showThumbnail.value = true;
+
+    if (video.status == VideoStatus.rejected ||
+        video.visibility == 'rejected' ||
+        video.channelStatus == 'rejected') {
+      videoError.value = true;
+      rxErrorMessage.value =
+          'This video has been removed for violating community guidelines.';
+      rxIsLoading.value = false;
+      return;
+    }
 
     try {
       // Validate video URL
@@ -2125,6 +2071,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             ? VideoPlayerController.networkUrl(Uri.parse(targetUrl))
             : VideoPlayerController.networkUrl(
                 Uri.parse(targetUrl),
+                httpHeaders: const {
+                  'Connection': 'keep-alive',
+                  'Accept': '*/*',
+                },
                 videoPlayerOptions: VideoPlayerOptions(),
               );
       }
@@ -2135,13 +2085,20 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
       HoverPreviewCoordinator.globalMute.value = true;
 
-      if (!wasHandoff) {
+      if (!newVpc.value.isInitialized) {
         await newVpc.initialize().timeout(
           const Duration(seconds: 30),
           onTimeout: () {
             throw Exception('Video initialization timeout');
           },
         );
+      }
+
+      // Immediately start playback to begin decoding and frame rendering
+      try {
+        await newVpc.play();
+      } catch (e) {
+        debugPrint('[VideoController] Note: Immediate play trigger exception: $e');
       }
 
       // --- CLIP MODE & RESUME LOGIC ---

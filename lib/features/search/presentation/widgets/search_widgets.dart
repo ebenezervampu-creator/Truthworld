@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/flip_coin_widget.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
@@ -10,7 +11,7 @@ import 'package:truthworld/features/search/presentation/widgets/voice_search_dia
 import 'package:truthworld/theme/app_theme.dart';
 
 /// GetX Controller to manage state for SubscribeButton
-class SubscribeButtonController extends GetxController {
+class SubscribeButtonController extends BaseController {
   final RxBool isSubscribed = false.obs;
 
   void toggle() {
@@ -69,7 +70,7 @@ class SubscribeButton extends StatelessWidget {
 }
 
 /// GetX Controller to manage state for FollowButton
-class FollowButtonController extends GetxController {
+class FollowButtonController extends BaseController {
   final RxBool isFollowing = false.obs;
 
   void toggle() {

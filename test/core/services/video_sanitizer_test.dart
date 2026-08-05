@@ -1,7 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/core/services/video_sanitizer.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   test('VideoSanitizer returns a modifiable list that supports sorting', () {

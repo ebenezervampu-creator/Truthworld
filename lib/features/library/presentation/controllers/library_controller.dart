@@ -4,12 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 
-class LibraryController extends GetxController
+class LibraryController extends BaseController
     with GetTickerProviderStateMixin {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -66,6 +67,7 @@ class LibraryController extends GetxController
         _clearUserData();
       }
     });
+    if (_userSub != null) trackSubscription(_userSub!);
 
     if (_auth.currentUser != null) {
       _subscribeToUserData(_auth.currentUser!.uid);
@@ -118,7 +120,6 @@ class LibraryController extends GetxController
 
   @override
   void onClose() {
-    _cancelAllSubscriptions();
     fadeAnimationController.dispose();
     slideAnimationController.dispose();
     scaleAnimationController.dispose();
@@ -169,6 +170,7 @@ class LibraryController extends GetxController
             isLoadingHistory.value = false;
           },
         );
+    if (_historySub != null) trackSubscription(_historySub!);
 
     isLoadingPlaylists.value = true;
     _playlistsSub = _firestore
@@ -188,6 +190,7 @@ class LibraryController extends GetxController
             isLoadingPlaylists.value = false;
           },
         );
+    if (_playlistsSub != null) trackSubscription(_playlistsSub!);
 
     isLoadingLiked.value = true;
     _likedSub = _firestore
@@ -218,6 +221,7 @@ class LibraryController extends GetxController
             isLoadingLiked.value = false;
           },
         );
+    if (_likedSub != null) trackSubscription(_likedSub!);
 
     isLoadingClips.value = true;
     _clipsSub = _firestore
@@ -238,6 +242,7 @@ class LibraryController extends GetxController
             isLoadingClips.value = false;
           },
         );
+    if (_clipsSub != null) trackSubscription(_clipsSub!);
 
     isLoadingYourVideos.value = true;
     _yourVideosSub = _firestore
@@ -257,6 +262,7 @@ class LibraryController extends GetxController
             isLoadingYourVideos.value = false;
           },
         );
+    if (_yourVideosSub != null) trackSubscription(_yourVideosSub!);
   }
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {

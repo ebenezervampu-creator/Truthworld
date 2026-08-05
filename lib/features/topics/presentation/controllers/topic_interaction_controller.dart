@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -10,7 +12,7 @@ import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class TopicInteractionController extends GetxController {
+class TopicInteractionController extends BaseController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final RxInt likeCount = 0.obs;

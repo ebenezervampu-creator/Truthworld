@@ -2,20 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class DownloadsController extends GetxController {
+class DownloadsController extends BaseController {
   RxString searchQuery = ''.obs;
   RxBool isSearching = false.obs;
   RxBool isSearchExpanded = false.obs;
   RxString sortBy = 'recent'.obs;
   RxBool isAscending = false.obs;
   RxList<OfflineVideo> videos = <OfflineVideo>[].obs;
-  RxBool isLoading = true.obs;
-  RxString errorMessage = ''.obs;
+  RxBool rxIsLoading = true.obs;
+  RxString rxErrorMessage = ''.obs;
   RxString selectedCategory = 'All'.obs;
   RxBool isListView = true.obs;
 
@@ -26,8 +27,8 @@ class DownloadsController extends GetxController {
   }
 
   Future<void> loadVideos() async {
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
     try {
       final data = await getAllVideosData();
       videos.value = data
@@ -37,9 +38,9 @@ class DownloadsController extends GetxController {
       // Sort locally based on downloadedAt
       videos.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
     } catch (e) {
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
     }
-    isLoading.value = false;
+    rxIsLoading.value = false;
   }
 
   Future<void> deleteVideoItem(String id) async {

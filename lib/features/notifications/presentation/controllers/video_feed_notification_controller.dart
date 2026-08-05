@@ -4,17 +4,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/notifications/data/services/video_feed_notification_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class VideoFeedNotificationController extends GetxController {
+class VideoFeedNotificationController extends BaseController {
   final VideoFeedNotificationService _service = VideoFeedNotificationService();
 
   RxList<Video> notifications = <Video>[].obs;
-  RxBool isLoading = true.obs;
-  RxString errorMessage = ''.obs;
+  RxBool rxIsLoading = true.obs;
+  RxString rxErrorMessage = ''.obs;
   RxString selectedTimeFilter = 'all'.obs;
   RxString selectedSeenFilter = 'all'.obs;
   RxString selectedCategory = 'all'.obs;
@@ -37,19 +39,19 @@ class VideoFeedNotificationController extends GetxController {
   }
 
   void _listenToNotifications() {
-    isLoading.value = true;
-    errorMessage.value = '';
+    rxIsLoading.value = true;
+    rxErrorMessage.value = '';
 
     _subscription = _service
         .getVideoNotificationsStream(userId, limit: 100)
         .listen(
           (notificationList) {
             notifications.value = notificationList;
-            isLoading.value = false;
+            rxIsLoading.value = false;
           },
           onError: (error) {
-            errorMessage.value = error.toString();
-            isLoading.value = false;
+            rxErrorMessage.value = error.toString();
+            rxIsLoading.value = false;
           },
         );
   }
@@ -119,7 +121,7 @@ class VideoFeedNotificationController extends GetxController {
       final fresh = await _service.getVideoNotificationsOnce(userId);
       notifications.value = fresh;
     } catch (e) {
-      errorMessage.value = e.toString();
+      rxErrorMessage.value = e.toString();
     }
   }
 

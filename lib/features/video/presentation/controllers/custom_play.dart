@@ -36,6 +36,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -52,7 +53,7 @@ import 'package:video_player/video_player.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER CONTROLLER  (Industry-standard state machine)
 // ─────────────────────────────────────────────────────────────────────────────
-class TowerPlayerController extends GetxController {
+class TowerPlayerController extends BaseController {
   static final RxString globalSubtitleFontSizeOption = 'Normal'.obs;
   static final Rx<Color> globalSubtitleTextColor = Colors.white.obs;
   static final Rx<Color> globalSubtitleBgColor = Colors.black.obs;

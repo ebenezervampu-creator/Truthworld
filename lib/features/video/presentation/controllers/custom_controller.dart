@@ -7,13 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/presentation/widgets/full_screen_helper.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
-class CustomController extends GetxController {
+class CustomController extends BaseController {
   VideoPlayerController? videoPlayerController;
   RxBool isPlaying = false.obs;
   RxBool isMuted = false.obs;
@@ -21,7 +22,7 @@ class CustomController extends GetxController {
   RxBool isFullScreen = false.obs;
   RxBool isInitialized = false.obs;
   RxBool isBuffering = false.obs;
-  RxString errorMessage = ''.obs;
+  RxString rxErrorMessage = ''.obs;
   Rx<Duration> duration = Duration.zero.obs;
   Rx<Duration> position = Duration.zero.obs;
   RxDouble volume = 1.0.obs;
@@ -50,13 +51,13 @@ class CustomController extends GetxController {
           .doc(videoId)
           .get();
       if (!doc.exists) {
-        errorMessage.value = 'Video not found in Firestore';
+        rxErrorMessage.value = 'Video not found in Firestore';
         return;
       }
 
       final resolutions = doc.data()?['resolutions'] as List<dynamic>?;
       if (resolutions == null || resolutions.isEmpty) {
-        errorMessage.value = 'No resolutions found';
+        rxErrorMessage.value = 'No resolutions found';
         return;
       }
 
@@ -103,7 +104,7 @@ class CustomController extends GetxController {
       debugPrint('✅ Loaded qualities: $availableQualities');
     } catch (e) {
       debugPrint('Error loading video resolutions: $e');
-      errorMessage.value = 'Failed to load video qualities';
+      rxErrorMessage.value = 'Failed to load video qualities';
     }
   }
 
@@ -184,7 +185,7 @@ class CustomController extends GetxController {
     isMuted.value = controller.value.volume == 0.0;
     isLooping.value = controller.value.isLooping;
     isBuffering.value = controller.value.isBuffering;
-    errorMessage.value = controller.value.errorDescription ?? '';
+    rxErrorMessage.value = controller.value.errorDescription ?? '';
 
     if (kIsWeb) {
       // Disable native video controls to prevent browser defaults in fullscreen
@@ -209,7 +210,7 @@ class CustomController extends GetxController {
     isMuted.value = value.volume == 0.0;
     isLooping.value = value.isLooping;
     isBuffering.value = value.isBuffering;
-    errorMessage.value = value.errorDescription ?? '';
+    rxErrorMessage.value = value.errorDescription ?? '';
   }
 
   void handleFullScreenChange() {
@@ -404,7 +405,7 @@ class CustomController extends GetxController {
       showControlsTemporarily();
     } catch (e) {
       debugPrint('Error switching quality to $quality: $e');
-      errorMessage.value = 'Failed to switch quality';
+      rxErrorMessage.value = 'Failed to switch quality';
     }
   }
 
@@ -1033,10 +1034,10 @@ class _MyCustomControlsState extends State<MyCustomControls> {
             child: CircularProgressIndicator(color: AppColors.error),
           );
         }
-        if (controller.errorMessage.value.isNotEmpty) {
+        if (controller.errorMessage.isNotEmpty) {
           return Center(
             child: Text(
-              'Error: ${controller.errorMessage.value}',
+              'Error: ${controller.errorMessage}',
               style: const TextStyle(color: AppColors.error),
             ),
           );

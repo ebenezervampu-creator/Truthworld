@@ -3,17 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class TrashRestoreController extends GetxController {
+class TrashRestoreController extends BaseController {
   TrashRestoreController({required this.channelId});
   final String channelId;
 
   final RxString selectedFilter =
       'All'.obs; // 'All', 'Channel', 'Video', 'Topic', 'Playlist'
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
   final RxList<Map<String, dynamic>> trashItems = <Map<String, dynamic>>[].obs;
 
   @override
@@ -23,7 +24,7 @@ class TrashRestoreController extends GetxController {
   }
 
   Future<void> loadTrashItems() async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
 
     try {
       final loadedItems = <Map<String, dynamic>>[];
@@ -132,7 +133,7 @@ class TrashRestoreController extends GetxController {
     } catch (e) {
       debugPrint('Error loading trash items: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -231,7 +232,7 @@ class TrashRestoreScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.textPrimary,
+                          : Colors.black,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -241,7 +242,7 @@ class TrashRestoreScreen extends StatelessWidget {
                       fontSize: 14,
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                     ),
                   ),
                 ],
@@ -265,7 +266,7 @@ class TrashRestoreScreen extends StatelessWidget {
           // Content Area
           Expanded(
             child: Obx(() {
-              if (controller.isLoading.value) {
+              if (controller.rxIsLoading.value) {
                 return const Center(
                   child: CircularProgressIndicator(color: Color(0xFF6366F1)),
                 );
@@ -476,7 +477,7 @@ class TrashRestoreScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
                             ? AppColors.textPrimary
-                            : AppColors.textPrimary,
+                            : Colors.black,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

@@ -28,7 +28,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
   @override
   void initState() {
     super.initState();
-    controller = Get.find<SubtitlesController>();
+    controller = Get.isRegistered<SubtitlesController>()
+        ? Get.find<SubtitlesController>()
+        : Get.put(SubtitlesController());
     controller.setChannelContext(widget.channelId);
   }
 
@@ -54,10 +56,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
         : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
-        : AppColors.bgPage;
+        : Colors.black;
     final textSecondaryColor = widget.isDarkMode
         ? AppColors.textSecondary
-        : AppColors.textSecondary;
+        : Colors.black;
     final borderColor = widget.isDarkMode
         ? AppColors.bgDivider
         : AppColors.bgDivider;
@@ -1643,7 +1645,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                     ? AppColors.brand
                                     : (widget.isDarkMode
                                           ? AppColors.textSecondary
-                                          : AppColors.bgPage),
+                                          : Colors.black),
                               ),
                             ),
                           ),
@@ -1675,7 +1677,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                     ? AppColors.brand
                                     : (widget.isDarkMode
                                           ? AppColors.textSecondary
-                                          : AppColors.bgPage),
+                                          : Colors.black),
                               ),
                             ),
                           ),
@@ -1841,7 +1843,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               color: dialogPickedFile.value != null
                                   ? (widget.isDarkMode
                                         ? AppColors.textPrimary
-                                        : AppColors.bgPage)
+                                        : Colors.black)
                                   : AppColors.textSecondary,
                               fontSize: 13,
                             ),

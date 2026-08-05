@@ -35,14 +35,32 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
 
   Stream<List<PlaylistModel>> _playlistsStream() {
     if (activeChannelId.isEmpty) return const Stream.empty();
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return _firestore
         .collection(FirestoreCollections.playlists)
         .where('channelId', isEqualTo: activeChannelId)
         .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map(PlaylistModel.fromDocumentSnapshot).toList(),
-        );
+        .asyncMap((channelSnap) async {
+          final itemsMap = <String, PlaylistModel>{};
+          for (final doc in channelSnap.docs) {
+            itemsMap[doc.id] = PlaylistModel.fromDocumentSnapshot(doc);
+          }
+
+          if (currentUid.isNotEmpty && currentUid != activeChannelId) {
+            final ownerSnap = await _firestore
+                .collection(FirestoreCollections.playlists)
+                .where('ownerId', isEqualTo: currentUid)
+                .get();
+            for (final doc in ownerSnap.docs) {
+              itemsMap[doc.id] = PlaylistModel.fromDocumentSnapshot(doc);
+            }
+          }
+
+          final list = itemsMap.values.toList();
+          list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          return list;
+        });
   }
 
   @override
@@ -62,7 +80,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
           'Playlists Management',
           style: AppTextStyles.pageTitle.copyWith(
             fontSize: 20,
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         backgroundColor: isDarkMode
@@ -70,7 +88,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
             : AppColors.textPrimary,
         elevation: 0,
         iconTheme: IconThemeData(
-          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+          color: isDarkMode ? AppColors.textPrimary : Colors.black,
         ),
         actions: [
           Padding(
@@ -108,18 +126,18 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
               controller: _searchController,
               onChanged: (val) => _searchQuery.value = val.trim().toLowerCase(),
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: InputDecoration(
                 hintText: 'Search playlists by name or description...',
                 hintStyle: TextStyle(
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
                 ),
                 suffixIcon: Obx(
                   () => _searchQuery.value.isNotEmpty
@@ -128,7 +146,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                             Icons.clear,
                             color: isDarkMode
                                 ? AppColors.textPrimary
-                                : AppColors.bgPage,
+                                : Colors.black,
                           ),
                           onPressed: () {
                             _searchController.clear();
@@ -266,7 +284,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                       fontWeight: FontWeight.bold,
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -280,7 +298,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                       fontSize: 13,
                       color: isDarkMode
                           ? AppColors.textSecondary
-                          : AppColors.textSecondary,
+                          : Colors.black,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -329,7 +347,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
             PopupMenuButton<String>(
               icon: Icon(
                 Icons.more_vert_rounded,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
               onSelected: (action) {
@@ -405,7 +423,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
             size: 64,
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
           const SizedBox(height: 16),
           Text(
@@ -415,7 +433,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black,
             ),
           ),
           const SizedBox(height: 8),
@@ -427,7 +445,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
               fontSize: 14,
               color: isDarkMode
                   ? AppColors.textSecondary
-                  : AppColors.textSecondary,
+                  : Colors.black,
             ),
             textAlign: TextAlign.center,
           ),
@@ -476,7 +494,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
               title: Text(
                 'Create New Playlist',
                 style: TextStyle(
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -488,14 +506,14 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Playlist Name *',
                       labelStyle: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                       filled: true,
                       fillColor: isDarkMode
@@ -513,14 +531,14 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Description (optional)',
                       labelStyle: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                       filled: true,
                       fillColor: isDarkMode
@@ -540,14 +558,14 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Visibility',
                       labelStyle: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                       filled: true,
                       fillColor: isDarkMode
@@ -651,7 +669,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
               title: Text(
                 'Edit Playlist',
                 style: TextStyle(
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -663,14 +681,14 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Playlist Name',
                       labelStyle: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                       filled: true,
                       fillColor: isDarkMode
@@ -688,14 +706,14 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Description',
                       labelStyle: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                       filled: true,
                       fillColor: isDarkMode
@@ -715,14 +733,14 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     style: TextStyle(
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Visibility',
                       labelStyle: TextStyle(
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                       filled: true,
                       fillColor: isDarkMode
@@ -827,7 +845,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                           fontWeight: FontWeight.bold,
                           color: isDarkMode
                               ? AppColors.textPrimary
-                              : AppColors.bgPage,
+                              : Colors.black,
                         ),
                       ),
                       IconButton(
@@ -835,7 +853,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                           Icons.close,
                           color: isDarkMode
                               ? AppColors.textPrimary
-                              : AppColors.bgPage,
+                              : Colors.black,
                         ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
@@ -882,7 +900,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                                 Icons.drag_handle_rounded,
                                 color: isDarkMode
                                     ? AppColors.textPrimary
-                                    : AppColors.bgPage,
+                                    : Colors.black,
                               ),
                               title: Text(
                                 'Video ID: $vId',
@@ -891,7 +909,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                                   fontWeight: FontWeight.w500,
                                   color: isDarkMode
                                       ? AppColors.textPrimary
-                                      : AppColors.bgPage,
+                                      : Colors.black,
                                 ),
                               ),
                               trailing: IconButton(
@@ -958,7 +976,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
         title: Text(
           'Delete Playlist?',
           style: TextStyle(
-            color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: widget.isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         content: Text(
@@ -966,7 +984,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
           style: TextStyle(
             color: widget.isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
         ),
         actions: [

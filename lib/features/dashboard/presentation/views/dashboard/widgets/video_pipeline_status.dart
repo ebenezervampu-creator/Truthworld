@@ -1020,7 +1020,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
   }
 
   Widget _buildGenerateAIButton(BuildContext context) {
-    final controller = Get.find<VideoManagementController>();
+    final controller = Get.isRegistered<VideoManagementController>()
+        ? Get.find<VideoManagementController>()
+        : Get.put(VideoManagementController());
 
     return SizedBox(
       width: double.infinity,
@@ -1303,7 +1305,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                           label: Text(
                             'Generate AI Features',
                             style: AppTextStyles.buttonText.copyWith(
-                              color: Colors.white,
+                              color: Colors.black,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

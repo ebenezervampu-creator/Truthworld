@@ -6,11 +6,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-class CustomizationController extends GetxController {
+class CustomizationController extends BaseController {
   CustomizationController({required this.channelId, required this.ownerId});
   final String channelId;
   final String ownerId;
@@ -31,7 +32,7 @@ class CustomizationController extends GetxController {
   final RxString bannerFileId = ''.obs;
 
   // Loading States
-  final RxBool isLoading = false.obs;
+  final RxBool rxIsLoading = false.obs;
   final RxBool isSaving = false.obs;
 
   // Controllers
@@ -126,7 +127,7 @@ class CustomizationController extends GetxController {
   }
 
   Future<void> loadChannelData() async {
-    isLoading.value = true;
+    rxIsLoading.value = true;
     try {
       final doc = await _firestore
           .collection(FirestoreCollections.channels)
@@ -191,7 +192,7 @@ class CustomizationController extends GetxController {
         colorText: AppColors.textPrimary,
       );
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -230,6 +231,61 @@ class CustomizationController extends GetxController {
     } catch (e) {
       Get.snackbar(
         'Bypass Failed',
+        e.toString(),
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+    }
+  }
+
+  Future<void> requestManualReview({
+    required bool isBanner,
+    String? appealReason,
+  }) async {
+    try {
+      final fileId = isBanner ? bannerFileId.value : avatarFileId.value;
+      final statusField = isBanner ? 'bannerStatus' : 'avatarStatus';
+      final reasonField = isBanner
+          ? 'bannerStatusReason'
+          : 'avatarStatusReason';
+
+      final userReason = appealReason ?? 'Creator requested manual review.';
+
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .update({
+            statusField: 'MANUAL_REVIEW',
+            reasonField: userReason,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          });
+
+      if (fileId.isNotEmpty) {
+        await _firestore.collection('image_verification').doc(fileId).set({
+          'status': 'MANUAL_REVIEW',
+          'appealReason': userReason,
+          'category': isBanner ? 'banner' : 'avatar',
+          'appealedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      if (isBanner) {
+        bannerStatus.value = 'MANUAL_REVIEW';
+        bannerStatusReason.value = userReason;
+      } else {
+        avatarStatus.value = 'MANUAL_REVIEW';
+        avatarStatusReason.value = userReason;
+      }
+
+      Get.snackbar(
+        'Manual Review Requested',
+        'Your image has been queued for manual moderation review.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Request Failed',
         e.toString(),
         backgroundColor: AppColors.error,
         colorText: AppColors.textPrimary,
@@ -311,6 +367,7 @@ class CustomizationController extends GetxController {
           .split(',')
           .map((e) => e.trim())
           .where((e) => e.isNotEmpty)
+          .take(5)
           .toList();
 
       final socialLinks = {

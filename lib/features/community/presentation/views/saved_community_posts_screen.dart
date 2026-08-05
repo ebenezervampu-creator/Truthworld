@@ -105,13 +105,13 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
         ],
       ),
       body: Obx(() {
-        if (controller.isLoading.value) {
+        if (controller.isLoading) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           );
         }
 
-        if (controller.errorMessage.value.isNotEmpty) {
+        if (controller.errorMessage.isNotEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -123,7 +123,7 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  controller.errorMessage.value,
+                  controller.errorMessage,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,

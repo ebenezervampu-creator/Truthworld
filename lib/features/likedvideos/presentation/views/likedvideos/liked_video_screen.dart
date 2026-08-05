@@ -208,7 +208,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen>
         ),
         SliverToBoxAdapter(child: _buildCategoryChips()),
         Obx(() {
-          if (controller.isLoading.value) {
+          if (controller.rxIsLoading.value) {
             return const SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
@@ -224,7 +224,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen>
                 child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Error: ${controller.errorMessage.value}',
+                    'Error: ${controller.errorMessage}',
                     style: const TextStyle(color: AppColors.textPrimary),
                     textAlign: TextAlign.center,
                   ),

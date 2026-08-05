@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -414,6 +415,7 @@ class SettingsScreen extends StatelessWidget {
             title: 'General & Account',
             settings: [
               _buildUserInfoTile(context),
+              _buildAgeAndGenderTile(context),
               _buildSubscriptionTile(context),
               _buildAccountStatusTile(context),
               _buildLogoutTile(context),
@@ -617,6 +619,53 @@ class SettingsScreen extends StatelessWidget {
     });
   }
 
+  Widget _buildAgeAndGenderTile(BuildContext context) {
+    final authService = AuthService.to;
+    return Obx(() {
+      final ageGroup = authService.userAgeGroup.value;
+      final gender = authService.userGender.value;
+
+      final infoParts = <String>[];
+      if (ageGroup != null && ageGroup.isNotEmpty) {
+        infoParts.add('Age: $ageGroup');
+      }
+      if (gender != null && gender.isNotEmpty) {
+        infoParts.add('Gender: $gender');
+      }
+
+      final subtitleText = infoParts.isNotEmpty
+          ? infoParts.join(' • ')
+          : 'Not set — Tap to add age group and gender for recommendations';
+
+      return ListTile(
+        leading: const Icon(
+          Icons.face_outlined,
+          color: AppColors.textPrimary,
+        ),
+        title: const Text(
+          'Age Group & Gender',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          subtitleText,
+          style: TextStyle(
+            fontSize: 13,
+            color: context.colors.textSecondary,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: AppColors.textPrimary,
+        ),
+        onTap: () => GoogleOnboardingSheet.show(context),
+      );
+    });
+  }
+
   void _showEditProfileDialog(BuildContext context) {
     final auth = AuthService.to;
     final nameCtrl = TextEditingController(text: auth.activeDisplayName);
@@ -715,8 +764,22 @@ class SettingsScreen extends StatelessWidget {
                   TextField(
                     controller: locationCtrl,
                     style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Location (City, Country)',
+                      helperText: 'Leave blank or tap clear to remove location',
+                      helperStyle:
+                          const TextStyle(color: AppColors.textTertiary),
+                      suffixIcon: locationCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.clear,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              onPressed: () =>
+                                  setState(locationCtrl.clear),
+                            )
+                          : null,
                     ),
                   ),
                 ],
@@ -744,17 +807,31 @@ class SettingsScreen extends StatelessWidget {
                       final parsedAge = int.tryParse(ageCtrl.text.trim());
                       final newLocation = locationCtrl.text.trim();
 
+                      final userUpdates = <String, dynamic>{
+                        'displayName': newName,
+                        'handle': newHandle,
+                        'bio': newBio,
+                        'gender': selectedGender,
+                        'age': parsedAge,
+                      };
+
+                      if (newLocation.isNotEmpty) {
+                        userUpdates['location'] = newLocation;
+                      } else {
+                        userUpdates['location'] = FieldValue.delete();
+                        userUpdates['city'] = FieldValue.delete();
+                        userUpdates['state'] = FieldValue.delete();
+                        userUpdates['country'] = FieldValue.delete();
+                        auth.userLocation.value = null;
+                        auth.userCity.value = null;
+                        auth.userState.value = null;
+                        auth.userCountry.value = null;
+                      }
+
                       await FirebaseFirestore.instance
                           .collection(FirestoreCollections.users)
                           .doc(uid)
-                          .set({
-                            'displayName': newName,
-                            'handle': newHandle,
-                            'bio': newBio,
-                            'gender': selectedGender,
-                            'age': parsedAge,
-                            'location': newLocation,
-                          }, SetOptions(merge: true));
+                          .set(userUpdates, SetOptions(merge: true));
 
                       if (auth.hasChannel.value && auth.userChannel != null) {
                         await FirebaseFirestore.instance

@@ -25,6 +25,7 @@ class _SearchPageState extends State<SearchPage> {
 
     // Setup infinite scroll pagination
     _scrollController.addListener(() {
+      if (!_scrollController.hasClients || _scrollController.positions.length != 1) return;
       final position = _scrollController.position;
       if (position.pixels > position.maxScrollExtent * 0.8) {
         _searchCtrl.loadNextPage();
@@ -63,7 +64,7 @@ class _SearchPageState extends State<SearchPage> {
         title: Obx(
           () => SearchBar(
             controller: _searchController,
-            isLoading: _searchCtrl.isLoading.value,
+            isLoading: _searchCtrl.isLoading,
             onChanged: _searchCtrl.onSearchChanged,
             onClear: _searchCtrl.clearSearch,
             onSearchSubmitted: () {
@@ -147,9 +148,9 @@ class _SearchPageState extends State<SearchPage> {
                   child: Obx(() {
                     final query = _searchCtrl.searchQuery.value;
                     final results = _searchCtrl.searchResults;
-                    final isLoading = _searchCtrl.isLoading.value;
+                    final isLoading = _searchCtrl.isLoading;
                     final isLoadingMore = _searchCtrl.isLoadingMore.value;
-                    final errorMsg = _searchCtrl.errorMessage.value;
+                    final errorMsg = _searchCtrl.errorMessage;
 
                     // CASE 1: Empty search state
                     if (query.isEmpty) {
@@ -292,7 +293,7 @@ class _SearchPageState extends State<SearchPage> {
           ),
 
           // 3. Suggested Video Results List
-          if (_searchCtrl.isLoading.value)
+          if (_searchCtrl.isLoading)
             const SearchResultSkeleton(count: 4)
           else if (recommendedList.isEmpty)
             Container(

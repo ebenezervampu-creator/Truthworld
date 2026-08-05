@@ -64,6 +64,9 @@ class VideoAnalyticsService extends GetxService {
     DateTime? customStart,
     DateTime? customEnd,
   }) async {
+    if (videoId.isEmpty) {
+      return _createEmptyVideoAnalytics('', videoTitle ?? 'Unknown');
+    }
     try {
       final cacheKey = '${videoId}_${dateRange.name}';
 
@@ -417,6 +420,9 @@ class VideoAnalyticsService extends GetxService {
     DateTime? customStart,
     DateTime? customEnd,
   }) async {
+    if (channelId.isEmpty) {
+      return _createEmptyChannelAnalytics('', channelName ?? 'Unknown');
+    }
     try {
       logger.info(
         'Loading channel analytics: $channelId (${dateRange.label})',

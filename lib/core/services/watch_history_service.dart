@@ -7,7 +7,12 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 
 class WatchHistoryService extends GetxService {
-  static WatchHistoryService get to => Get.find<WatchHistoryService>();
+  static WatchHistoryService get to {
+    if (!Get.isRegistered<WatchHistoryService>()) {
+      Get.put(WatchHistoryService(), permanent: true);
+    }
+    return Get.find<WatchHistoryService>();
+  }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final RxMap<String, double> _watchProgress =

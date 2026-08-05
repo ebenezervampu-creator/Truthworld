@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 
 enum UnlockPillState {
   hidden,
@@ -12,7 +13,7 @@ enum UnlockPillState {
 }
 
 /// Controller managing screen lock state and floating unlock hint pill
-class PlayerLockController extends GetxController {
+class PlayerLockController extends BaseController {
   final RxBool isLocked = false.obs;
   final Rx<UnlockPillState> pillState = UnlockPillState.hidden.obs;
   Timer? _pillHideTimer;

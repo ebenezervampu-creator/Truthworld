@@ -74,7 +74,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                 );
               }
 
-              if (controller.isLoading.value) {
+              if (controller.isLoading) {
                 return SliverToBoxAdapter(
                   child: _buildLoadingState(isMobile, isTablet),
                 );
@@ -901,7 +901,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
             ),
             const SizedBox(height: 16),
             Text(
-              controller.errorMessage.value,
+              controller.errorMessage,
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.textSecondary),
             ),

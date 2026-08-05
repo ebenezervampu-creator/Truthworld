@@ -10,7 +10,12 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// - Video screen shows videos representing the OPPOSITE perspective of the currently playing video
 ///   (e.g., Iran President → Israel President / Opposing diplomatic views)
 class FlipCoinService extends GetxService {
-  static FlipCoinService get to => Get.find<FlipCoinService>();
+  static FlipCoinService get to {
+    if (!Get.isRegistered<FlipCoinService>()) {
+      Get.put(FlipCoinService(), permanent: true);
+    }
+    return Get.find<FlipCoinService>();
+  }
 
   /// Surface flip states
   final RxBool isHomeFlipped = false.obs;

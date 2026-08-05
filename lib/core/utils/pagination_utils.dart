@@ -145,6 +145,7 @@ mixin InfiniteScrollMixin on State {
 
     scrollController = ScrollController();
     scrollController.addListener(() {
+      if (!scrollController.hasClients || scrollController.positions.length != 1) return;
       final position = scrollController.position;
 
       // Check if scrolled past threshold

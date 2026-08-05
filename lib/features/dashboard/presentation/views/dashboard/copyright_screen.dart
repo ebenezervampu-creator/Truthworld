@@ -86,7 +86,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
           'Copyright & Content Protection',
           style: AppTextStyles.pageTitle.copyWith(
             fontSize: 20,
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         backgroundColor: isDarkMode
@@ -94,15 +94,15 @@ class _CopyrightScreenState extends State<CopyrightScreen>
             : AppColors.textPrimary,
         elevation: 0,
         iconTheme: IconThemeData(
-          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+          color: isDarkMode ? AppColors.textPrimary : Colors.black,
         ),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.brand,
-          labelColor: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+          labelColor: isDarkMode ? AppColors.textPrimary : Colors.black,
           unselectedLabelColor: isDarkMode
               ? AppColors.textSecondary
-              : AppColors.textSecondary,
+              : Colors.black,
           tabs: const [
             Tab(
               icon: Icon(Icons.gavel_rounded, color: Colors.white, size: 18),
@@ -243,7 +243,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                         fontSize: 20,
                         color: isDarkMode
                             ? AppColors.textPrimary
-                            : AppColors.bgPage,
+                            : Colors.black,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -255,7 +255,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                         fontSize: 14,
                         color: isDarkMode
                             ? AppColors.textSecondary
-                            : AppColors.textSecondary,
+                            : Colors.black,
                       ),
                     ),
                   ],
@@ -338,7 +338,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                             fontSize: 15,
                             color: isDarkMode
                                 ? AppColors.textPrimary
-                                : AppColors.bgPage,
+                                : Colors.black,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -401,7 +401,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.bodySmall.copyWith(
               fontSize: 12,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
+              color: isDarkMode ? AppColors.textSecondary : Colors.black,
             ),
           ),
         ),
@@ -454,7 +454,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                               fontSize: 18,
                               color: isDarkMode
                                   ? AppColors.textPrimary
-                                  : AppColors.bgPage,
+                                  : Colors.black,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -464,7 +464,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                               fontSize: 13,
                               color: isDarkMode
                                   ? AppColors.textSecondary
-                                  : AppColors.textSecondary,
+                                  : Colors.black,
                             ),
                           ),
                         ],
@@ -496,7 +496,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                             fontWeight: FontWeight.bold,
                             color: isDarkMode
                                 ? AppColors.textPrimary
-                                : AppColors.bgPage,
+                                : Colors.black,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -507,7 +507,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                             fontSize: 14,
                             color: isDarkMode
                                 ? AppColors.textSecondary
-                                : AppColors.textSecondary,
+                                : Colors.black,
                           ),
                         ),
                       ],
@@ -604,7 +604,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
             ),
             const SizedBox(height: 4),
@@ -614,7 +614,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                 fontSize: 13,
                 color: isDarkMode
                     ? AppColors.textSecondary
-                    : AppColors.textSecondary,
+                    : Colors.black,
               ),
             ),
             const SizedBox(height: 16),
@@ -635,7 +635,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDarkMode
                         ? AppColors.textPrimary
-                        : AppColors.bgPage,
+                        : Colors.black,
                     side: BorderSide(
                       color: isDarkMode ? AppColors.bgDivider : Colors.grey,
                     ),
@@ -687,7 +687,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
         title: Text(
           'Contact Channel Owner',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         content: Column(
@@ -697,14 +697,14 @@ class _CopyrightScreenState extends State<CopyrightScreen>
               controller: messageController,
               maxLines: 4,
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: InputDecoration(
                 labelText: 'Notice Message',
                 labelStyle: TextStyle(
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                 ),
                 filled: true,
                 fillColor: isDarkMode
@@ -758,7 +758,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
         title: Text(
           'Submit DMCA Removal Request?',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         content: Text(
@@ -766,7 +766,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
           style: TextStyle(
             color: isDarkMode
                 ? AppColors.textSecondary
-                : AppColors.textSecondary,
+                : Colors.black,
           ),
         ),
         actions: [
@@ -839,7 +839,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
               'Channel content is claim-free',
               style: AppTextStyles.pageTitle.copyWith(
                 fontSize: 18,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
             ),
             const SizedBox(height: 8),
@@ -850,7 +850,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
                 fontSize: 14,
                 color: isDarkMode
                     ? AppColors.textSecondary
-                    : AppColors.textSecondary,
+                    : Colors.black,
               ),
             ),
           ],
@@ -873,7 +873,7 @@ class _CopyrightScreenState extends State<CopyrightScreen>
               style: AppTextStyles.titleLarge.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
             ),
             const SizedBox(height: 24),
@@ -919,13 +919,13 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
                 'Claim details',
                 style: AppTextStyles.headlineSmall.copyWith(
                   fontSize: 20,
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
                 ),
               ),
               IconButton(
                 icon: Icon(
                   Icons.close,
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
@@ -973,7 +973,7 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black,
             ),
           ),
         ],

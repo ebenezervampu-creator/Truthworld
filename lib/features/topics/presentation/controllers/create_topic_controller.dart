@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/cloud_vision_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -9,7 +10,7 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 
 /// Industry-standard controller for topic creation, form validation, profanity checking,
 /// and Google Cloud Vision AI thumbnail verification.
-class CreateTopicController extends GetxController with ContentValidationMixin {
+class CreateTopicController extends BaseController with ContentValidationMixin {
   final GoogleCloudVisionService _visionService = GoogleCloudVisionService();
 
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -19,6 +20,7 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
   final TextEditingController handleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController accessCodeController = TextEditingController();
+  final TextEditingController tagsController = TextEditingController();
   final TextEditingController categoryController = TextEditingController(
     text: 'Technology',
   );
@@ -59,6 +61,7 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
     handleController.dispose();
     descriptionController.dispose();
     accessCodeController.dispose();
+    tagsController.dispose();
     categoryController.dispose();
     super.onClose();
   }
@@ -216,6 +219,16 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
       return false;
     }
 
+    final tags = tagsController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (tags.length > 5) {
+      profanityError.value = 'Maximum 5 tags allowed per topic.';
+      return false;
+    }
+
     // Thumbnail validation
     if (thumbnailSource.value == 'custom') {
       if (pickedCustomImageBytes.value == null) {
@@ -259,6 +272,7 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
     handleController.clear();
     descriptionController.clear();
     accessCodeController.clear();
+    tagsController.clear();
     categoryController.text = 'Technology';
     selectedVisibility.value = TopicVisibilityType.public;
     obscureAccessCode.value = true;

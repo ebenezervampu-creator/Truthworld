@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// studio_comments_module.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -156,7 +156,7 @@ Timestamp? _timestampFrom(dynamic val) {
 // STUDIO COMMENTS CONTROLLER
 // ------------------------------------------------------------
 
-class StudioCommentsController extends GetxController {
+class StudioCommentsController extends BaseController {
   StudioCommentsController({
     required this.channelId,
     required this.channelImageUrl,
@@ -174,7 +174,7 @@ class StudioCommentsController extends GetxController {
   final String channelName;
 
   final RxList<VideoComment> comments = <VideoComment>[].obs;
-  final RxBool isLoading = true.obs;
+  final RxBool rxIsLoading = true.obs;
   final RxString selectedFilter = 'all'.obs;
   final RxString selectedSort = 'newest'.obs;
   final RxString searchQuery = ''.obs;
@@ -211,7 +211,7 @@ class StudioCommentsController extends GetxController {
 
   Future<void> _loadComments() async {
     try {
-      isLoading.value = true;
+      rxIsLoading.value = true;
       comments.clear();
 
       final videosSnapshot = await FirebaseFirestore.instance
@@ -293,7 +293,7 @@ class StudioCommentsController extends GetxController {
       debugPrint('Error loading comments: $e');
       Get.snackbar('Error', 'Failed to load comments');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -479,7 +479,7 @@ class StudioCommentsController extends GetxController {
 // REPLY CONTROLLER
 // ------------------------------------------------------------
 
-class ReplyController extends GetxController {
+class ReplyController extends BaseController {
   ReplyController({
     required this.videoId,
     required this.commentId,
@@ -490,7 +490,7 @@ class ReplyController extends GetxController {
   final String channelId;
 
   final RxList<Reply> replies = <Reply>[].obs;
-  final RxBool isLoading = true.obs;
+  final RxBool rxIsLoading = true.obs;
 
   @override
   void onInit() {
@@ -500,7 +500,7 @@ class ReplyController extends GetxController {
 
   Future<void> _loadReplies() async {
     try {
-      isLoading.value = true;
+      rxIsLoading.value = true;
       final snapshot = await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .doc(videoId)
@@ -514,7 +514,7 @@ class ReplyController extends GetxController {
     } catch (e) {
       debugPrint('Error loading replies: $e');
     } finally {
-      isLoading.value = false;
+      rxIsLoading.value = false;
     }
   }
 
@@ -683,7 +683,7 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
           ),
         ),
         body: Obx(() {
-          if (controller.isLoading.value) {
+          if (controller.rxIsLoading.value) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.textLink),
             );
@@ -1249,7 +1249,7 @@ class CommentCard extends StatelessWidget {
                   channelId: controller.channelId,
                 ),
                 builder: (replyCtrl) {
-                  if (replyCtrl.isLoading.value) {
+                  if (replyCtrl.rxIsLoading.value) {
                     return const Padding(
                       padding: EdgeInsets.all(24),
                       child: Center(

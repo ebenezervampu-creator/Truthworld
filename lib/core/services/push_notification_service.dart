@@ -13,7 +13,12 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
 class PushNotificationService extends GetxService {
-  static PushNotificationService get to => Get.find<PushNotificationService>();
+  static PushNotificationService get to {
+    if (!Get.isRegistered<PushNotificationService>()) {
+      Get.put(PushNotificationService(), permanent: true);
+    }
+    return Get.find<PushNotificationService>();
+  }
 
   StreamSubscription? _onMessageSubscription;
   StreamSubscription? _onMessageOpenedAppSubscription;

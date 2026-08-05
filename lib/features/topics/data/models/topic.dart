@@ -31,6 +31,7 @@ class Topic {
     this.postCount = 0,
     this.featuredVideoIds = const [],
     this.relatedTopics = const [],
+    this.tags = const [],
     this.likeCount = 0,
     this.commentCount = 0,
     this.views = 0,
@@ -63,6 +64,7 @@ class Topic {
       postCount: data['postCount'] ?? 0,
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(data['relatedTopics'] ?? []),
+      tags: List<String>.from(data['tags'] ?? []).take(5).toList(),
       createdAt:
           TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
       updatedAt:
@@ -101,6 +103,7 @@ class Topic {
       postCount: map['postCount'] ?? 0,
       featuredVideoIds: List<String>.from(map['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(map['relatedTopics'] ?? []),
+      tags: List<String>.from(map['tags'] ?? []).take(5).toList(),
       createdAt:
           TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt:
@@ -134,6 +137,7 @@ class Topic {
   final int postCount;
   final List<String> featuredVideoIds;
   final List<String> relatedTopics;
+  final List<String> tags;
   final DateTime createdAt;
   final DateTime updatedAt;
   final int likeCount;
@@ -165,6 +169,7 @@ class Topic {
       'postCount': postCount,
       'featuredVideoIds': featuredVideoIds,
       'relatedTopics': relatedTopics,
+      'tags': tags.take(5).toList(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'likeCount': likeCount,
@@ -197,6 +202,7 @@ class Topic {
       'postCount': postCount,
       'featuredVideoIds': featuredVideoIds,
       'relatedTopics': relatedTopics,
+      'tags': tags.take(5).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'likeCount': likeCount,

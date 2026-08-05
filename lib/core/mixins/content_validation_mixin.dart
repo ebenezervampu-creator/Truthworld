@@ -24,7 +24,7 @@ mixin ContentValidationMixin on GetxController {
 
   static const int maxTitleLength = 100;
   static const int maxDescriptionLength = 5000;
-  static const int maxTags = 15;
+  static const int maxTags = 5;
 
   /// Call during [onInit] to set up the filter instances.
   void initializeContentFilters() {

@@ -92,7 +92,7 @@ void main() {
       expect(video.viewCount, 0);
       expect(video.likeCount, 0);
       expect(video.tags, isEmpty);
-      expect(video.visibility, 'Public');
+      expect(video.visibility, 'public');
     });
 
     test('toMap produces serializable output', () {

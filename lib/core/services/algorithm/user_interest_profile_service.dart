@@ -20,8 +20,12 @@ import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 /// - Incremental update on user interactions (via onVideoWatched, onVideoLiked, etc.)
 /// - Cached locally in GetStorage for instant startup
 class UserInterestProfileService extends GetxService {
-  static UserInterestProfileService get to =>
-      Get.find<UserInterestProfileService>();
+  static UserInterestProfileService get to {
+    if (!Get.isRegistered<UserInterestProfileService>()) {
+      Get.put(UserInterestProfileService(), permanent: true);
+    }
+    return Get.find<UserInterestProfileService>();
+  }
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _storage = GetStorage();

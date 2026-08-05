@@ -17,28 +17,13 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
+import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/routes/app_pages.dart';
 import 'package:truthworld/theme/app_theme.dart';
-
-/// Global error handler for production
-void _handleFlutterError(FlutterErrorDetails details) {
-  if (kDebugMode) {
-    FlutterError.dumpErrorToConsole(details);
-    logger.error(
-      'Flutter Error',
-      error: details.exception,
-      stackTrace: details.stack,
-      tag: 'FlutterFramework',
-    );
-  } else {
-    // Production: send to Crashlytics
-    unawaited(FirebaseCrashlytics.instance.recordFlutterFatalError(details));
-  }
-}
 
 /// Initialize and run the application with proper error handling
 void main() {
@@ -61,7 +46,7 @@ void main() {
               : 4, // Verbose in debug, Info in production
         );
 
-        FlutterError.onError = _handleFlutterError;
+        setupGlobalErrorHandlers();
 
         try {
           // Initialize Firebase with error handling
@@ -71,9 +56,9 @@ void main() {
             );
             logger.info('Firebase initialized successfully', tag: 'Startup');
 
-            // Enable Firestore offline cache/persistence bounded to 100 MB
+            // Enable Firestore offline cache/persistence bounded to 100 MB (only on non-web)
             FirebaseFirestore.instance.settings = const Settings(
-              persistenceEnabled: true,
+              persistenceEnabled: !kIsWeb,
               cacheSizeBytes: 100 * 1024 * 1024,
             );
             // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
@@ -271,16 +256,19 @@ class Truthworld extends StatelessWidget {
       return overrideInitialRoute!;
     }
     if (kIsWeb) {
-      final host = Uri.base.host;
+      final host = Uri.base.host.toLowerCase();
       final uriStr = Uri.base.toString().toLowerCase();
       if (host.startsWith('admin') ||
+          host.contains('admin') ||
           uriStr.contains('admin') ||
           Uri.base.queryParameters.containsKey('admin')) {
         return '/admin/login';
       }
       if (host.startsWith('studio') ||
+          host.contains('studio') ||
+          uriStr.contains('studio') ||
           Uri.base.queryParameters.containsKey('studio')) {
-        return '/';
+        return '/studio';
       }
     }
     return '/';

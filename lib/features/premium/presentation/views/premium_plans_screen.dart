@@ -154,7 +154,7 @@ class PremiumPlansScreen extends StatelessWidget {
               ),
 
               // Loading overlay
-              if (controller.isLoading.value || controller.isSimulating.value)
+              if (controller.rxIsLoading.value || controller.isSimulating.value)
                 ColoredBox(
                   color: AppColors.bgPage.withValues(alpha: 0.75),
                   child: const Center(

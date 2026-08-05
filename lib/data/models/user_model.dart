@@ -85,6 +85,8 @@ class UserModel {
     this.city,
     this.state,
     this.country,
+    this.hasCompletedOnboarding = false,
+    this.ageGroup,
   });
 
   /// Create from Firestore document snapshot
@@ -114,6 +116,8 @@ class UserModel {
       city: data['city'] as String?,
       state: data['state'] as String?,
       country: data['country'] as String?,
+      hasCompletedOnboarding: data['hasCompletedOnboarding'] as bool? ?? false,
+      ageGroup: data['ageGroup'] as String?,
     );
   }
 
@@ -151,6 +155,8 @@ class UserModel {
   final String? city;
   final String? state;
   final String? country;
+  final bool hasCompletedOnboarding;
+  final String? ageGroup;
 
   /// Serialize for Firestore document creation
   /// Uses `FieldValue.serverTimestamp()` for consistent timestamps
@@ -169,6 +175,7 @@ class UserModel {
       'fcmTokens': fcmTokens,
       'metadata': metadata,
       'channelId': channelId,
+      'hasCompletedOnboarding': hasCompletedOnboarding,
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -176,6 +183,7 @@ class UserModel {
       if (city != null) 'city': city,
       if (state != null) 'state': state,
       if (country != null) 'country': country,
+      if (ageGroup != null) 'ageGroup': ageGroup,
     };
   }
 
@@ -189,6 +197,7 @@ class UserModel {
       'lastLoginAt': FieldValue.serverTimestamp(),
       'status': status.value,
       'channelId': channelId,
+      'hasCompletedOnboarding': hasCompletedOnboarding,
       if (gender != null) 'gender': gender,
       if (age != null) 'age': age,
       if (birthdate != null) 'birthdate': birthdate,
@@ -196,6 +205,7 @@ class UserModel {
       if (city != null) 'city': city,
       if (state != null) 'state': state,
       if (country != null) 'country': country,
+      if (ageGroup != null) 'ageGroup': ageGroup,
     };
   }
 
@@ -215,6 +225,8 @@ class UserModel {
     String? city,
     String? state,
     String? country,
+    bool? hasCompletedOnboarding,
+    String? ageGroup,
   }) {
     return UserModel(
       uid: uid,
@@ -235,6 +247,9 @@ class UserModel {
       city: city ?? this.city,
       state: state ?? this.state,
       country: country ?? this.country,
+      hasCompletedOnboarding:
+          hasCompletedOnboarding ?? this.hasCompletedOnboarding,
+      ageGroup: ageGroup ?? this.ageGroup,
     );
   }
 

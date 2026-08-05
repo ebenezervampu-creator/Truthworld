@@ -58,7 +58,7 @@ class SecurityTab extends StatelessWidget {
             const Text(
               'Lockdown Mode',
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -162,7 +162,7 @@ class SecurityTab extends StatelessWidget {
                   subtitle: Text(
                     'IP Range: 192.168.1.x',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                     ),
                   ),
@@ -222,7 +222,7 @@ class SecurityTab extends StatelessWidget {
               Text(
                 desc,
                 style: const TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   fontSize: 12,
                 ),
               ),
@@ -283,7 +283,7 @@ class SecurityTab extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+        Text(label, style: const TextStyle(color: AppColors.textPrimary)),
         SizedBox(
           width: 100,
           height: 36,

@@ -91,7 +91,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
           'Channel Memberships & Fan Funding',
           style: AppTextStyles.pageTitle.copyWith(
             fontSize: 20,
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         backgroundColor: isDarkMode
@@ -99,7 +99,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
             : AppColors.textPrimary,
         elevation: 0,
         iconTheme: IconThemeData(
-          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+          color: isDarkMode ? AppColors.textPrimary : Colors.black,
         ),
         actions: [
           Padding(
@@ -151,7 +151,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                     fontWeight: FontWeight.bold,
                     color: isDarkMode
                         ? AppColors.textPrimary
-                        : AppColors.bgPage,
+                        : Colors.black,
                   ),
                 ),
                 TextButton.icon(
@@ -332,7 +332,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                   fontSize: 12,
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -345,7 +345,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black,
             ),
           ),
           const SizedBox(height: 2),
@@ -387,7 +387,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black,
             ),
           ),
           const SizedBox(height: 6),
@@ -398,7 +398,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
               fontSize: 13,
               color: isDarkMode
                   ? AppColors.textSecondary
-                  : AppColors.textSecondary,
+                  : Colors.black,
             ),
           ),
           const SizedBox(height: 20),
@@ -457,7 +457,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                       fontWeight: FontWeight.bold,
                       color: isDarkMode
                           ? AppColors.textPrimary
-                          : AppColors.bgPage,
+                          : Colors.black,
                     ),
                   ),
                 ),
@@ -499,7 +499,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                 fontWeight: FontWeight.bold,
                 color: isDarkMode
                     ? AppColors.textSecondary
-                    : AppColors.textSecondary,
+                    : Colors.black,
                 letterSpacing: 1,
               ),
             ),
@@ -529,7 +529,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                             fontSize: 13,
                             color: isDarkMode
                                 ? AppColors.textPrimary
-                                : AppColors.bgPage,
+                                : Colors.black,
                           ),
                         ),
                       ],
@@ -609,7 +609,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
         title: Text(
           'Create Membership Tier',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         content: Column(
@@ -618,14 +618,14 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
             TextField(
               controller: nameController,
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: InputDecoration(
                 labelText: 'Tier Name (e.g. Silver VIP)',
                 labelStyle: TextStyle(
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                 ),
                 filled: true,
                 fillColor: isDarkMode
@@ -640,14 +640,14 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                 decimal: true,
               ),
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: InputDecoration(
                 labelText: r'Monthly Price ($)',
                 labelStyle: TextStyle(
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                 ),
                 filled: true,
                 fillColor: isDarkMode
@@ -660,14 +660,14 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
               controller: perksController,
               maxLines: 2,
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: InputDecoration(
                 labelText: 'Perks (comma-separated)',
                 labelStyle: TextStyle(
                   color: isDarkMode
                       ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      : Colors.black,
                 ),
                 filled: true,
                 fillColor: isDarkMode
@@ -750,7 +750,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
         title: Text(
           'Edit Membership Tier',
           style: TextStyle(
-            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
           ),
         ),
         content: Column(
@@ -759,7 +759,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
             TextField(
               controller: nameController,
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: const InputDecoration(labelText: 'Tier Name'),
             ),
@@ -770,7 +770,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                 decimal: true,
               ),
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: const InputDecoration(
                 labelText: r'Monthly Price ($)',
@@ -781,7 +781,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
               controller: perksController,
               maxLines: 2,
               style: TextStyle(
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
               ),
               decoration: const InputDecoration(
                 labelText: 'Perks (comma-separated)',

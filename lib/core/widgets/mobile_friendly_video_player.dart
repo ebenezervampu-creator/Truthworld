@@ -57,12 +57,22 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
     _initPlayer();
   }
 
+  void _safeDisposeChewie(ChewieController? ctrl) {
+    if (ctrl == null) return;
+    try {
+      ctrl.pause();
+    } catch (_) {}
+    try {
+      ctrl.dispose();
+    } catch (_) {}
+  }
+
   @override
   void didUpdateWidget(MobileFriendlyVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       _cleanupListener(oldWidget.controller);
-      _chewieController.value?.dispose();
+      _safeDisposeChewie(_chewieController.value);
       _chewieController.value = null;
       _initPlayer();
     }
@@ -98,7 +108,7 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
         showControls: widget.showControls,
         allowedScreenSleep: false,
       );
-      old?.dispose();
+      _safeDisposeChewie(old);
     }
   }
 
@@ -111,7 +121,8 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
   @override
   void dispose() {
     _cleanupListener(widget.controller);
-    _chewieController.value?.dispose();
+    _safeDisposeChewie(_chewieController.value);
+    _chewieController.value = null;
     super.dispose();
   }
 
