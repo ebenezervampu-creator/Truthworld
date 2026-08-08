@@ -10,6 +10,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
@@ -514,6 +515,69 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     }
     Clipboard.setData(ClipboardData(text: linkUrl));
     showSuccess('Copied target Audio Stream Link to clipboard natively!');
+  }
+
+  Future<void> downloadAudioTrack(AudioTrackItem track) async {
+    var url = track.audioUrl;
+    final video = selectedVideo.value;
+    if (url.isEmpty && video != null) {
+      url = video.videoUrl;
+    }
+
+    if (url.isEmpty) {
+      showError('No audio track URL available to download.');
+      return;
+    }
+
+    var downloadUrl = url;
+    if (url.startsWith('gs://')) {
+      try {
+        downloadUrl = await FirebaseStorage.instance
+            .refFromURL(url)
+            .getDownloadURL();
+      } catch (e) {
+        logger.error('Failed resolving gs:// audio track reference: $url', error: e, tag: _tag);
+      }
+    }
+
+    final rawTitle = video?.title ?? 'audio';
+    final videoTitle = rawTitle
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final fileName = '${videoTitle}_${track.languageCode}_audio.mp3';
+
+    DownloadHelper.downloadFromUrl(downloadUrl, fileName);
+    showSuccess('Downloading ${track.languageName} Audio Track: $fileName');
+  }
+
+  Future<void> downloadCommentaryTrack(CommentaryTrackItem track) async {
+    final url = track.audioUrl.isNotEmpty ? track.audioUrl : track.videoUrl;
+    if (url.isEmpty) {
+      showError('No media URL available to download.');
+      return;
+    }
+
+    var downloadUrl = url;
+    if (url.startsWith('gs://')) {
+      try {
+        downloadUrl = await FirebaseStorage.instance
+            .refFromURL(url)
+            .getDownloadURL();
+      } catch (e) {
+        logger.error('Failed resolving gs:// commentary track reference: $url', error: e, tag: _tag);
+      }
+    }
+
+    final safeTitle = track.title
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final ext = track.audioUrl.isNotEmpty ? 'mp3' : 'mp4';
+    final fileName = '${safeTitle}_${track.langCode}.$ext';
+
+    DownloadHelper.downloadFromUrl(downloadUrl, fileName);
+    showSuccess('Downloading ${track.role} Track: $fileName');
   }
 
   Future<void> saveCurrentAudioTracks() async {

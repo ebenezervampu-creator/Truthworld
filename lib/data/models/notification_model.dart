@@ -16,10 +16,13 @@ class NotificationModel {
 
   factory NotificationModel.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;
+    final rawTitle = (data['title'] as String?)?.trim() ?? '';
+    final rawMessage = (data['message'] as String?)?.trim() ?? '';
+
     return NotificationModel(
       id: doc.id,
-      title: data['title'] ?? '',
-      message: data['message'] ?? '',
+      title: rawTitle.isNotEmpty ? rawTitle : 'Truthworld Notification',
+      message: rawMessage.isNotEmpty ? rawMessage : 'You have a new update.',
       type: data['type'] ?? 'general',
       timestamp:
           TimestampUtils.parseToDateTime(data['timestamp']) ?? DateTime.now(),

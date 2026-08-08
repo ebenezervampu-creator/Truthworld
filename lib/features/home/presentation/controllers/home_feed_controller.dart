@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/feed_algorithm_service.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
@@ -292,7 +293,7 @@ class HomeFeedController extends BaseController {
               if (fallbackVideos.isNotEmpty) {
                 videos.assignAll(fallbackVideos);
               } else {
-                videos.assignAll(fallbackResults.docs.map(Video.fromDocumentSnapshot).where((v) => v.status != VideoStatus.deleted).toList());
+                videos.clear();
               }
             } else {
               videos.clear();
@@ -367,7 +368,11 @@ class HomeFeedController extends BaseController {
     final mixed = <dynamic>[];
     var videoIndex = 0;
     var postIndex = 0;
+    var adIndex = 0;
     final limitedPosts = communityPosts.take(3).toList();
+    final homepageAds = Get.isRegistered<AdService>()
+        ? AdService.to.getAdsForType('homepage')
+        : <AdItem>[];
 
     while (videoIndex < videos.length || postIndex < limitedPosts.length) {
       for (var i = 0; i < 6 && videoIndex < videos.length; i++) {
@@ -378,7 +383,16 @@ class HomeFeedController extends BaseController {
       } else if (videos.isEmpty && postIndex < 1) {
         mixed.add(limitedPosts[postIndex++]);
       }
+      if (homepageAds.isNotEmpty) {
+        mixed.add(homepageAds[adIndex++ % homepageAds.length]);
+      }
     }
+
+    if (homepageAds.isNotEmpty && !mixed.any((item) => item is AdItem)) {
+      final insertPos = mixed.length > 2 ? 2 : mixed.length;
+      mixed.insert(insertPos, homepageAds.first);
+    }
+
     homeFeedItems.assignAll(mixed);
   }
 

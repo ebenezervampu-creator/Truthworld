@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
@@ -60,14 +61,56 @@ class HomeRedirectMiddleware extends GetMiddleware {
   }
 }
 
-/// Middleware that redirects `/dashboard` to `/studio` to consolidate.
+/// Middleware that redirects `/dashboard` to `/studio` (or `/` on studio.truthworld.in).
 class DashboardRedirectMiddleware extends GetMiddleware {
   @override
   int? get priority => 1;
 
   @override
   RouteSettings? redirect(String? route) {
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
+        return RouteSettings(name: '/', arguments: Get.arguments);
+      }
+    }
     return RouteSettings(name: '/studio', arguments: Get.arguments);
+  }
+}
+
+/// Middleware that redirects `/studio` to `/` if accessed on studio.truthworld.in domain.
+class StudioRedirectMiddleware extends GetMiddleware {
+  @override
+  int? get priority => 1;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
+        return const RouteSettings(name: '/');
+      }
+    }
+    return null;
+  }
+}
+
+/// Middleware that redirects `/admin` or `/admin/login` to `/` if accessed on admin.truthworld.in domain.
+class AdminRedirectMiddleware extends GetMiddleware {
+  @override
+  int? get priority => 1;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host.startsWith('admin') || host.contains('admin.truthworld.in')) {
+        if (route == '/admin' || route == '/admin/login') {
+          return const RouteSettings(name: '/');
+        }
+      }
+    }
+    return null;
   }
 }
 

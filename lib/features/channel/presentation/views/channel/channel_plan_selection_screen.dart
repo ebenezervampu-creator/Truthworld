@@ -642,273 +642,283 @@ class ChannelTypeSelectorModal extends StatefulWidget {
 }
 
 class _ChannelTypeSelectorModalState extends State<ChannelTypeSelectorModal> {
-  late ChannelPlanType _selectedPlan;
+  late final Rx<ChannelPlanType> _selectedPlan;
 
   @override
   void initState() {
     super.initState();
-    _selectedPlan = widget.initialPlan;
+    _selectedPlan = widget.initialPlan.obs;
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isStandard = _selectedPlan == ChannelPlanType.standard;
-    final primaryColor = isStandard
-        ? const Color(0xFF3B82F6)
-        : const Color(0xFF8B5CF6);
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
-      ),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.bgSurface : AppColors.textPrimary,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle & Header
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Select Channel Type',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? AppColors.textPrimary
-                            : const Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Choose your channel monetization & infrastructure plan',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? AppColors.textSecondary
-                            : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: Icon(
-                    Icons.close_rounded,
-                    color: isDark
-                        ? AppColors.textSecondary
-                        : const Color(0xFF64748B),
-                  ),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.bgDivider),
+    return Obx(() {
+      final selectedPlanVal = _selectedPlan.value;
+      final isStandard = selectedPlanVal == ChannelPlanType.standard;
+      final primaryColor = isStandard
+          ? const Color(0xFF3B82F6)
+          : const Color(0xFF8B5CF6);
 
-          // Scrollable Cards
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
+      return Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.bgSurface : AppColors.textPrimary,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle & Header
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Standard Card
-                  _buildOptionCard(
-                    type: ChannelPlanType.standard,
-                    title: 'Standard Channel',
-                    subtitle: 'Zero upfront costs • 55% Net Revenue Share',
-                    icon: Icons.play_circle_filled,
-                    primaryColor: const Color(0xFF3B82F6),
-                    gradientStart: const Color(0xFF60A5FA),
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 16),
-                  // Custom Card
-                  _buildOptionCard(
-                    type: ChannelPlanType.custom,
-                    title: 'Custom Channel',
-                    subtitle:
-                        '100% Gross Revenue Share - Infra • Unlimited Uploads',
-                    icon: Icons.rocket_launch,
-                    primaryColor: const Color(0xFF8B5CF6),
-                    gradientStart: const Color(0xFFA78BFA),
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Benefits & How It Works breakdown for selected option
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: primaryColor.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.stars_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              isStandard
-                                  ? 'Standard Channel Benefits'
-                                  : 'Custom Channel Benefits',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: primaryColor,
-                              ),
-                            ),
-                          ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select Channel Type',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : const Color(0xFF0F172A),
                         ),
-                        const SizedBox(height: 12),
-                        if (isStandard) ...[
-                          _buildBulletPoint(
-                            r'Revenue Share: 55% Net Creator Share ($0 Platform Fee)',
-                          ),
-                          _buildBulletPoint(
-                            'Upload Limit: Up to 5 Videos (Min 2 min per video, 10 min total duration)',
-                          ),
-                          _buildBulletPoint(
-                            'Infrastructure: 100% Free platform hosting & streaming',
-                          ),
-                          _buildBulletPoint(
-                            'Cash-Out Rule: Earnings unlocked after 10 Hours watch time per video',
-                          ),
-                          const SizedBox(height: 12),
-                          const Divider(height: 1, color: AppColors.bgDivider),
-                          const SizedBox(height: 12),
-                          Text(
-                            'How it Works:',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? AppColors.textPrimary
-                                  : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Standard channels require zero technical setup or infrastructure charges. Truthworld manages video transcoding, streaming, and storage. Day-1 ad revenue accumulates automatically.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? AppColors.textSecondary
-                                  : const Color(0xFF475569),
-                              height: 1.4,
-                            ),
-                          ),
-                        ] else ...[
-                          _buildBulletPoint(
-                            'Revenue Share: 100% Gross Creator Revenue Share (minus raw infra)',
-                          ),
-                          _buildBulletPoint(
-                            'Upload Limit: Unlimited Videos (up to 24 Hours duration)',
-                          ),
-                          _buildBulletPoint(
-                            'Infrastructure: Custom bandwidth, storage & transcoding control',
-                          ),
-                          _buildBulletPoint(
-                            'Cash-Out Rule: Direct & instant cash withdrawals on all earnings',
-                          ),
-                          const SizedBox(height: 12),
-                          const Divider(height: 1, color: AppColors.bgDivider),
-                          const SizedBox(height: 12),
-                          Text(
-                            'How it Works:',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? AppColors.textPrimary
-                                  : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Custom channels give you maximum economic leverage. You retain 100% of all ad & subscription gross earnings, paying only for the exact cloud bandwidth and storage consumed.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? AppColors.textSecondary
-                                  : const Color(0xFF475569),
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Choose your channel monetization & infrastructure plan',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? AppColors.textSecondary
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: isDark
+                          ? AppColors.textSecondary
+                          : const Color(0xFF64748B),
                     ),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
             ),
-          ),
+            const Divider(height: 1, color: AppColors.bgDivider),
 
-          // Bottom Continue Action Dock
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.bgPage : const Color(0xFFF8FAFC),
-              border: const Border(top: BorderSide(color: AppColors.bgDivider)),
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (widget.onSelect != null) {
-                    widget.onSelect!(_selectedPlan);
-                  } else {
-                    Navigator.of(context).pop(_selectedPlan);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 4,
+            // Scrollable Cards
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Standard Card
+                    _buildOptionCard(
+                      type: ChannelPlanType.standard,
+                      title: 'Standard Channel',
+                      subtitle:
+                          '80% Revenue Share • Turnkey Hosting & Infrastructure',
+                      icon: Icons.storefront_rounded,
+                      primaryColor: const Color(0xFF3B82F6),
+                      gradientStart: const Color(0xFF60A5FA),
+                      isDark: isDark,
+                      selectedPlan: selectedPlanVal,
+                    ),
+                    const SizedBox(height: 16),
+                    // Custom Card
+                    _buildOptionCard(
+                      type: ChannelPlanType.custom,
+                      title: 'Custom Channel',
+                      subtitle:
+                          '100% Gross Revenue Share - Infra • Unlimited Uploads',
+                      icon: Icons.rocket_launch,
+                      primaryColor: const Color(0xFF8B5CF6),
+                      gradientStart: const Color(0xFFA78BFA),
+                      isDark: isDark,
+                      selectedPlan: selectedPlanVal,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Benefits & How It Works breakdown for selected option
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: primaryColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.stars_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isStandard
+                                    ? 'Standard Channel Benefits'
+                                    : 'Custom Channel Benefits',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: isDark
+                                      ? AppColors.textPrimary
+                                      : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (isStandard) ...[
+                            _buildBulletPoint(
+                              'Platform Rev-Share: You earn 80% of all ad revenue & channel memberships',
+                            ),
+                            _buildBulletPoint(
+                              'Infrastructure: 100% Free video bandwidth, storage, HLS transcoding & CDN delivery',
+                            ),
+                            _buildBulletPoint(
+                              'Upload Limit: Max 1 Hour video duration per upload',
+                            ),
+                            _buildBulletPoint(
+                              r'Payout Threshold: Revenue unlocked & cashable after reaching $100 minimum earnings',
+                            ),
+                            const SizedBox(height: 12),
+                            const Divider(height: 1, color: AppColors.bgDivider),
+                            const SizedBox(height: 12),
+                            Text(
+                              'How it Works:',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? AppColors.textPrimary
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Standard channels are completely free to operate. Truthworld handles all bandwidth, transcoding, and cloud infrastructure expenses. You earn 80% net revenue split on all video ads and subscriber perks.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.textSecondary
+                                    : const Color(0xFF475569),
+                                height: 1.4,
+                              ),
+                            ),
+                          ] else ...[
+                            _buildBulletPoint(
+                              'Platform Rev-Share: You earn 100% gross of all ad revenue, tipping & memberships',
+                            ),
+                            _buildBulletPoint(
+                              'Upload Limit: Unlimited Videos (up to 24 Hours duration)',
+                            ),
+                            _buildBulletPoint(
+                              'Infrastructure: Custom bandwidth, storage & transcoding control',
+                            ),
+                            _buildBulletPoint(
+                              'Cash-Out Rule: Direct & instant cash withdrawals on all earnings',
+                            ),
+                            const SizedBox(height: 12),
+                            const Divider(height: 1, color: AppColors.bgDivider),
+                            const SizedBox(height: 12),
+                            Text(
+                              'How it Works:',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isDark
+                                    ? AppColors.textPrimary
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Custom channels give you maximum economic leverage. You retain 100% of all ad & subscription gross earnings, paying only for the exact cloud bandwidth and storage consumed.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.textSecondary
+                                    : const Color(0xFF475569),
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  'Continue with ${isStandard ? 'Standard Channel' : 'Custom Channel'}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            // Bottom Continue Action Dock
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.bgPage : const Color(0xFFF8FAFC),
+                border: const Border(top: BorderSide(color: AppColors.bgDivider)),
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (widget.onSelect != null) {
+                      widget.onSelect!(selectedPlanVal);
+                    } else {
+                      Navigator.of(context).pop(selectedPlanVal);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 4,
+                  ),
+                  child: Text(
+                    'Continue with ${isStandard ? 'Standard Channel' : 'Custom Channel'}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 
   Widget _buildOptionCard({
@@ -919,11 +929,12 @@ class _ChannelTypeSelectorModalState extends State<ChannelTypeSelectorModal> {
     required Color primaryColor,
     required Color gradientStart,
     required bool isDark,
+    required ChannelPlanType selectedPlan,
   }) {
-    final isSelected = _selectedPlan == type;
+    final isSelected = selectedPlan == type;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedPlan = type),
+      onTap: () => _selectedPlan.value = type,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(18),

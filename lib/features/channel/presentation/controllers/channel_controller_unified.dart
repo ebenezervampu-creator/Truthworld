@@ -11,9 +11,10 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -289,8 +290,8 @@ class ChannelController extends BaseController
   final RxBool isUploadingAvatar = false.obs;
 
   // Moderation statuses
-  final RxString bannerStatus = 'PENDING'.obs;
-  final RxString avatarStatus = 'PENDING'.obs;
+  final RxString bannerStatus = ''.obs;
+  final RxString avatarStatus = ''.obs;
   final RxString bannerStatusReason = ''.obs;
   final RxString avatarStatusReason = ''.obs;
 
@@ -379,29 +380,31 @@ class ChannelController extends BaseController
   ];
 
   final List<String> categories = [
+    // Fact-checking / High-credibility categories first
+    'Business',
+    'History',
+    'News',
+    'Education',
+    'Science',
+    'Technology',
+    'Finance',
+    'Health',
+    'Documentary',
+    'Fitness',
+    // General / Entertainment / Lifestyle categories
     'Music',
     'Entertainment',
-    'Education',
-    'Technology',
     'Sports',
-    'News',
     'Lifestyle',
     'Travel',
     'Food',
     'Fashion',
-    'Health',
-    'Business',
     'Comedy',
-    'Science',
     'Art',
-    'Documentary',
     'Animation',
     'Automotive',
     'Pets & Animals',
     'DIY & How-to',
-    'Fitness',
-    'Finance',
-    'History',
     'Nature',
     'Spirituality',
     'Kids & Family',
@@ -1105,11 +1108,36 @@ class ChannelController extends BaseController
     isSubmitting.value = true;
 
     try {
-      // 0. Limit Check
-      if (channels.length >= maxChannelsPerUser) {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _showErrorSnackbar('You must be signed in to create a channel.');
+        return;
+      }
+      final uid = user.uid;
+
+      // 0. Strict 1-Channel Limit Check per Google Account
+      if (channels.isNotEmpty ||
+          AuthService.to.hasChannel.value ||
+          AuthService.to.userChannel != null) {
         _showErrorSnackbar(
-          'You can only create one channel per Google account.',
+          'You already have a channel. Only one channel is allowed per Google account.',
         );
+        Get.offAllNamed('/studio');
+        return;
+      }
+
+      // Check user document directly in Firestore to guarantee no second channel
+      final userDoc = await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(uid)
+          .get();
+      final existingChannelId = userDoc.data()?['channelId'] as String?;
+      if (existingChannelId != null && existingChannelId.isNotEmpty) {
+        _showErrorSnackbar(
+          'You already have a channel. Only one channel is allowed per Google account.',
+        );
+        AuthService.to.hasChannel.value = true;
+        Get.offAllNamed('/studio');
         return;
       }
 
@@ -1157,25 +1185,23 @@ class ChannelController extends BaseController
         return;
       }
 
-      /* Auto-accepting terms for smoother creation
-      if (!isAgreed.value) {
-        _showErrorSnackbar("You must agree to the Terms and Conditions.");
-        return;
-      }
-      */
-
       // Animation
       await buttonAnimationController.forward();
       await buttonAnimationController.reverse();
 
       // Prepare data
-      final uid = _auth.currentUser!.uid;
-
-      final tagsList = tags.text
+      final parsedTags = tags.text
           .split(',')
           .map((t) => t.trim())
           .where((t) => t.isNotEmpty)
           .toList();
+
+      if (parsedTags.length > 5) {
+        _showErrorSnackbar('Maximum 5 tags allowed. Please reduce the number of tags.');
+        return;
+      }
+
+      final tagsList = parsedTags.take(5).toList();
 
       final channelNameText = channelName.text.trim();
       final customUrlText = customUrl.text.trim();
@@ -1195,6 +1221,7 @@ class ChannelController extends BaseController
         'avatarStatus': avatarStatus.value,
         'bannerStatus': bannerStatus.value,
         'ownerId': uid,
+        'userId': uid,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
 
@@ -1283,22 +1310,27 @@ class ChannelController extends BaseController
       hasDraft.value = false;
       draftId.value = null;
 
+      final createdChannel = Channel.fromMap(
+        {
+          ...channelData,
+          'id': newChannelId,
+        },
+        newChannelId ?? '',
+      );
+
+      channels.assignAll([createdChannel]);
+      AuthService.to.hasChannel.value = true;
+
       _showSuccessSnackbar('Channel "$channelNameText" created successfully!');
-      debugPrint('âœ… Channel created with ID: $newChannelId');
-      debugPrint('ðŸ“ Channel name: $channelNameText');
+      debugPrint('✅ Channel created with ID: $newChannelId');
+      debugPrint('📌 Channel name: $channelNameText');
 
       _resetForm();
 
-      // Navigate back to Home and open Creator Studio app externally
-      Get.offAllNamed('/home');
-      StudioLauncher.openStudio(
-        arguments: {
-          'channel': {
-            'id': newChannelId,
-            'name': channelNameText,
-          },
-        },
-      );
+      // Navigate directly to Creator Studio with the resolved channel
+      Get.offAllNamed('/studio', arguments: {
+        'channel': createdChannel,
+      });
     } catch (e) {
       debugPrint('âŒ Error creating channel: $e');
       _showErrorSnackbar('Failed to create channel: $e');
@@ -1538,8 +1570,29 @@ class ChannelController extends BaseController
           );
         }
 
+        if (draftData['channelType'] != null) {
+          final typeStr = draftData['channelType'] as String;
+          selectedChannelType.value = ChannelType.values.firstWhere(
+            (e) => e.name == typeStr,
+            orElse: () => ChannelType.standard,
+          );
+        }
+
         bannerUrl.value = draftData['bannerUrl'] ?? '';
         avatarUrl.value = draftData['avatarUrl'] ?? '';
+        bannerFileId.value = draftData['bannerFileId'] ?? '';
+        avatarFileId.value = draftData['avatarFileId'] ?? '';
+        bannerStatus.value = draftData['bannerStatus'] ?? '';
+        avatarStatus.value = draftData['avatarStatus'] ?? '';
+        bannerStatusReason.value = draftData['bannerStatusReason'] ?? '';
+        avatarStatusReason.value = draftData['avatarStatusReason'] ?? '';
+
+        if (avatarFileId.value.isNotEmpty && avatarStatus.value == 'PENDING') {
+          _startModerationListener(avatarFileId.value, false);
+        }
+        if (bannerFileId.value.isNotEmpty && bannerStatus.value == 'PENDING') {
+          _startModerationListener(bannerFileId.value, true);
+        }
 
         hasDraft.value = true;
         lastDraftSaveTime.value = (draftData['updatedAt'] as Timestamp?)
@@ -1554,15 +1607,16 @@ class ChannelController extends BaseController
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        debugPrint('âŒ Cannot save draft: No user logged in');
+        debugPrint('❌ Cannot save draft: No user logged in');
         return;
       }
 
-      debugPrint('ðŸ’¾ Saving draft for user: ${user.uid}');
+      debugPrint('💾 Saving draft for user: ${user.uid}');
       isSavingDraft.value = true;
 
       final draftData = {
         'ownerId': user.uid,
+        'channelType': selectedChannelType.value.name,
         'channelName': channelName.text.trim(),
         'description': description.text.trim(),
         'customUrl': customUrl.text.trim(),
@@ -1576,6 +1630,12 @@ class ChannelController extends BaseController
         'advancedSettings': Map<String, dynamic>.from(advancedSettings),
         'bannerUrl': bannerUrl.value,
         'avatarUrl': avatarUrl.value,
+        'bannerFileId': bannerFileId.value,
+        'avatarFileId': avatarFileId.value,
+        'bannerStatus': bannerStatus.value,
+        'avatarStatus': avatarStatus.value,
+        'bannerStatusReason': bannerStatusReason.value,
+        'avatarStatusReason': avatarStatusReason.value,
         'currentStep': currentStep ?? 0,
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': draftId.value == null
@@ -1654,6 +1714,7 @@ class ChannelController extends BaseController
   // ==========================================================================
 
   void _resetForm() {
+    selectedChannelType.value = ChannelType.standard;
     channelName.clear();
     description.clear();
     customUrl.clear();
@@ -1666,8 +1727,8 @@ class ChannelController extends BaseController
     avatarUrl.value = '';
     bannerFileId.value = '';
     avatarFileId.value = '';
-    bannerStatus.value = 'PENDING';
-    avatarStatus.value = 'PENDING';
+    bannerStatus.value = '';
+    avatarStatus.value = '';
     bannerStatusReason.value = '';
     avatarStatusReason.value = '';
     isPublic.value = true;
@@ -1910,11 +1971,14 @@ class ChannelController extends BaseController
       final snapshot = await query.limit(12).get();
 
       if (snapshot.docs.isNotEmpty) {
-        videos.value = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
+        videos.value = snapshot.docs
+            .map(Video.fromDocumentSnapshot)
+            .where(VideoVisibilityPolicy.isValidVideo)
+            .toList();
         lastVideoDocument.value = snapshot.docs.last;
-        hasVideos.value = true;
+        hasVideos.value = videos.isNotEmpty;
         if (channelVideoCount.value == 0) {
-          channelVideoCount.value = snapshot.docs.length;
+          channelVideoCount.value = videos.length;
         }
       } else {
         videos.clear();
@@ -1970,7 +2034,10 @@ class ChannelController extends BaseController
           .get();
       if (snapshot.docs.isNotEmpty) {
         videos.addAll(
-          snapshot.docs.map(Video.fromDocumentSnapshot).toList(),
+          snapshot.docs
+              .map(Video.fromDocumentSnapshot)
+              .where(VideoVisibilityPolicy.isValidVideo)
+              .toList(),
         );
         lastVideoDocument.value = snapshot.docs.last;
       }

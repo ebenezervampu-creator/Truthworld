@@ -35,22 +35,27 @@ class AdminController extends BaseController {
   final RxList<Map<String, dynamic>> auditLogs = <Map<String, dynamic>>[].obs;
   final RxList<Map<String, dynamic>> channels = <Map<String, dynamic>>[].obs;
   final RxList<Map<String, dynamic>> reports = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> ads = <Map<String, dynamic>>[].obs;
 
   // Selected Detail views
   final Rxn<Map<String, dynamic>> selectedVideo = Rxn<Map<String, dynamic>>();
   final Rxn<Map<String, dynamic>> selectedImage = Rxn<Map<String, dynamic>>();
   final Rxn<Map<String, dynamic>> selectedChannel = Rxn<Map<String, dynamic>>();
   final Rxn<Map<String, dynamic>> selectedReport = Rxn<Map<String, dynamic>>();
+  final Rxn<Map<String, dynamic>> selectedAd = Rxn<Map<String, dynamic>>();
 
   // System statistics
   final RxInt pendingVideos = 0.obs;
   final RxInt pendingImages = 0.obs;
   final RxInt pendingChannels = 0.obs;
   final RxInt pendingReports = 0.obs;
+  final RxInt pendingAds = 0.obs;
   final RxInt totalVideos = 0.obs;
   final RxInt totalImages = 0.obs;
   final RxInt totalChannels = 0.obs;
   final RxInt totalReports = 0.obs;
+  final RxInt totalAds = 0.obs;
+  final RxString adFilterTab = 'all'.obs;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FEATURE: Search & Filter
@@ -123,6 +128,7 @@ class AdminController extends BaseController {
   StreamSubscription<QuerySnapshot>? _videoReportsSub;
   StreamSubscription<QuerySnapshot>? _altVideoReportsSub;
   StreamSubscription<QuerySnapshot>? _appealsSub;
+  StreamSubscription<QuerySnapshot>? _adsSub;
 
   List<Map<String, dynamic>> _rawCommunityPosts = [];
   List<Map<String, dynamic>> _rawFlaggedImages = [];
@@ -715,6 +721,47 @@ class AdminController extends BaseController {
 
     // 6. Monitor content_appeals collection
     _startAppealsSubscription();
+
+    // 7. Monitor ad_campaigns collection
+    if (_adsSub == null) {
+      _adsSub = FirebaseFirestore.instance
+          .collection('ad_campaigns')
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final list = snapshot.docs.map((doc) {
+                return {'id': doc.id, ...doc.data()};
+              }).toList();
+
+              list.sort((a, b) {
+                final timeA = a['createdAt'] ?? a['timestamp'];
+                final timeB = b['createdAt'] ?? b['timestamp'];
+                if (timeA == null && timeB == null) return 0;
+                if (timeA == null) return 1;
+                if (timeB == null) return -1;
+                final dtA = timeA is Timestamp
+                    ? timeA.toDate()
+                    : (DateTime.tryParse(timeA.toString()) ??
+                        DateTime.fromMillisecondsSinceEpoch(0));
+                final dtB = timeB is Timestamp
+                    ? timeB.toDate()
+                    : (DateTime.tryParse(timeB.toString()) ??
+                        DateTime.fromMillisecondsSinceEpoch(0));
+                return dtB.compareTo(dtA);
+              });
+
+              ads.assignAll(list);
+              pendingAds.value =
+                  ads.where((a) => a['status'] == 'underReview').length;
+              totalAds.value = ads.length;
+            },
+            onError: (e) {
+              debugPrint('AdminController Ads Stream Error: $e');
+            },
+          );
+      if (_adsSub != null) trackSubscription(_adsSub!);
+    }
   }
 
   void _startAppealsSubscription() {
@@ -1083,6 +1130,7 @@ class AdminController extends BaseController {
     if (_channelsSub != null) unawaited(_channelsSub!.cancel());
     if (_reportsSub != null) unawaited(_reportsSub!.cancel());
     if (_appealsSub != null) unawaited(_appealsSub!.cancel());
+    if (_adsSub != null) unawaited(_adsSub!.cancel());
     _videosSub = null;
     _imagesSub = null;
     _communitySub = null;
@@ -1090,6 +1138,7 @@ class AdminController extends BaseController {
     _channelsSub = null;
     _reportsSub = null;
     _appealsSub = null;
+    _adsSub = null;
   }
 
   /// Initiates Google Sign In
@@ -1149,40 +1198,52 @@ class AdminController extends BaseController {
       // 0ms Optimistic UI update
       final vIdx = videos.indexWhere((v) => v['id'] == videoId);
       if (vIdx != -1) {
-        final item = Map<String, dynamic>.from(videos[vIdx]);
-        item['status'] = newStatus == 'approved' ? 'published' : 'rejected';
-        item['isApproved'] = newStatus == 'approved';
-        item['visibility'] = newStatus == 'approved' ? 'public' : 'rejected';
-        item['moderation'] = {
-          'status': newStatus,
-          'moderationReason': reason,
-          'overriddenByAdmin': true,
-          'updatedAt': DateTime.now().millisecondsSinceEpoch,
-          'moderatedBy': adminUid,
-        };
-        videos[vIdx] = item;
-        videos.refresh();
-        pendingVideos.value = videos.where(isVideoPending).length;
-      }
-
-      // 1. Direct Firestore update for immediate override & real-time sync
-      unawaited(
-        FirebaseFirestore.instance.collection('videos').doc(videoId).set({
-          'moderation': {
-            'status': newStatus,
+        if (action == 'reject') {
+          videos.removeAt(vIdx);
+        } else {
+          final item = Map<String, dynamic>.from(videos[vIdx]);
+          item['status'] = 'published';
+          item['isApproved'] = true;
+          item['visibility'] = 'public';
+          item['moderation'] = {
+            'status': 'approved',
             'moderationReason': reason,
             'overriddenByAdmin': true,
             'updatedAt': DateTime.now().millisecondsSinceEpoch,
             'moderatedBy': adminUid,
-          },
-          'status': newStatus == 'approved' ? 'published' : 'rejected',
-          'isApproved': newStatus == 'approved',
-          'visibility': newStatus == 'approved' ? 'public' : 'rejected',
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)).catchError((e) {
-          debugPrint('Firestore moderateVideo set error: $e');
-        }),
-      );
+          };
+          videos[vIdx] = item;
+        }
+        videos.refresh();
+        pendingVideos.value = videos.where(isVideoPending).length;
+      }
+
+      // 1. Direct Firestore update/delete for immediate real-time sync
+      if (action == 'reject') {
+        unawaited(
+          FirebaseFirestore.instance.collection('videos').doc(videoId).delete().catchError((e) {
+            debugPrint('Firestore moderateVideo delete error: $e');
+          }),
+        );
+      } else {
+        unawaited(
+          FirebaseFirestore.instance.collection('videos').doc(videoId).set({
+            'moderation': {
+              'status': 'approved',
+              'moderationReason': reason,
+              'overriddenByAdmin': true,
+              'updatedAt': DateTime.now().millisecondsSinceEpoch,
+              'moderatedBy': adminUid,
+            },
+            'status': 'published',
+            'isApproved': true,
+            'visibility': 'public',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)).catchError((e) {
+            debugPrint('Firestore moderateVideo set error: $e');
+          }),
+        );
+      }
 
       // 2. Call Cloud Function endpoint if user is authenticated
       if (user != null) {
@@ -1417,6 +1478,72 @@ class AdminController extends BaseController {
       Get.snackbar(
         'Moderation Error',
         e.toString(),
+        backgroundColor: const Color(0xFFCF6679),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return false;
+    } finally {
+      isActionSubmitting.value = false;
+    }
+  }
+
+  Future<bool> moderateAd(
+    String adId,
+    String action, {
+    String? reason,
+  }) async {
+    isActionSubmitting.value = true;
+    try {
+      final status = action == 'approve' ? 'active' : 'verification_rejected';
+
+      // 0ms Optimistic UI update
+      final adIdx = ads.indexWhere((a) => a['id'] == adId);
+      if (adIdx != -1) {
+        final item = Map<String, dynamic>.from(ads[adIdx]);
+        item['status'] = status;
+        if (action == 'approve') {
+          item.remove('moderationReason');
+        } else {
+          item['moderationReason'] = reason ?? 'Violates advertising policy';
+        }
+        item['geminiApproved'] = action == 'approve';
+        ads[adIdx] = item;
+        ads.refresh();
+        pendingAds.value =
+            ads.where((a) => a['status'] == 'underReview').length;
+      }
+
+      // Update Firestore ad_campaigns document
+      unawaited(
+        FirebaseFirestore.instance
+            .collection('ad_campaigns')
+            .doc(adId)
+            .update({
+              'status': status,
+              'moderationReason': action == 'approve'
+                  ? FieldValue.delete()
+                  : (reason ?? 'Violates advertising policy'),
+              'geminiApproved': action == 'approve',
+              'updatedAt': FieldValue.serverTimestamp(),
+            }).catchError((e) {
+              debugPrint('Firestore moderateAd error: $e');
+            }),
+      );
+
+      Get.snackbar(
+        'Success',
+        'Campaign successfully ${action}d.',
+        backgroundColor: const Color(0xFF2BA640),
+        colorText: AppColors.textPrimary,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      selectedAd.value = null;
+      return true;
+    } catch (e) {
+      Get.snackbar(
+        'Moderation Error',
+        'Failed to $action ad campaign: $e',
         backgroundColor: const Color(0xFFCF6679),
         colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,

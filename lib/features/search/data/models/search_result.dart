@@ -129,6 +129,18 @@ class SearchResult {
   int? get videoCount =>
       type == ResultType.playlist || type == ResultType.topic ? views : null;
 
+  bool get isValid {
+    final t = title.trim().toLowerCase();
+    if (t.isEmpty ||
+        t == 'untitled' ||
+        t == 'untitled video' ||
+        t == 'untitled draft' ||
+        t.startsWith('untitled')) {
+      return false;
+    }
+    return true;
+  }
+
   /// Convert to map for testing
   Map<String, dynamic> toMap() => {
     'id': id,

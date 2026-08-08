@@ -520,15 +520,13 @@ class _VideoProgressBar extends StatefulWidget {
 }
 
 class _VideoProgressBarState extends State<_VideoProgressBar> {
-  bool _isDragging = false;
-  double? _dragRatio;
+  final RxBool _isDragging = false.obs;
+  final RxnDouble _dragRatio = RxnDouble();
 
   void _updateSeek(Offset localPosition, double width) {
     if (width <= 0) return;
     final ratio = (localPosition.dx / width).clamp(0.0, 1.0);
-    setState(() {
-      _dragRatio = ratio;
-    });
+    _dragRatio.value = ratio;
     widget.controller.seekToRatio(ratio);
   }
 
@@ -543,25 +541,19 @@ class _VideoProgressBarState extends State<_VideoProgressBar> {
             _updateSeek(details.localPosition, width);
           },
           onHorizontalDragStart: (details) {
-            setState(() {
-              _isDragging = true;
-            });
+            _isDragging.value = true;
             _updateSeek(details.localPosition, width);
           },
           onHorizontalDragUpdate: (details) {
             _updateSeek(details.localPosition, width);
           },
           onHorizontalDragEnd: (details) {
-            setState(() {
-              _isDragging = false;
-              _dragRatio = null;
-            });
+            _isDragging.value = false;
+            _dragRatio.value = null;
           },
           onHorizontalDragCancel: () {
-            setState(() {
-              _isDragging = false;
-              _dragRatio = null;
-            });
+            _isDragging.value = false;
+            _dragRatio.value = null;
           },
           child: Container(
             height: 18,
@@ -572,10 +564,12 @@ class _VideoProgressBarState extends State<_VideoProgressBar> {
                   widget.controller.currentPosition.value.inMilliseconds;
               final dur = widget.controller.totalDuration.value.inMilliseconds;
               final actualValue = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
-              final value = _isDragging && _dragRatio != null
-                  ? _dragRatio!
+              final isDraggingVal = _isDragging.value;
+              final dragRatioVal = _dragRatio.value;
+              final value = isDraggingVal && dragRatioVal != null
+                  ? dragRatioVal
                   : actualValue;
-              final barHeight = _isDragging ? 6.0 : 4.0;
+              final barHeight = isDraggingVal ? 6.0 : 4.0;
 
               return SizedBox(
                 height: barHeight,
@@ -592,7 +586,7 @@ class _VideoProgressBarState extends State<_VideoProgressBar> {
                       height: barHeight,
                       color: AppColors.error,
                     ),
-                    if (_isDragging)
+                    if (isDraggingVal)
                       Positioned(
                         left: (width * value - 5).clamp(0.0, width - 10),
                         top: -2,

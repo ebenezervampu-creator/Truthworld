@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
@@ -14,7 +15,7 @@ import 'package:truthworld/features/video/data/services/comment_service.dart';
 
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
-class CommentsController extends BaseController {
+class CommentsController extends BaseController with ContentValidationMixin {
   CommentsController({this.video, this.isOffline = false});
   final CommentService _commentService = CommentService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -238,6 +239,12 @@ class CommentsController extends BaseController {
 
     if (currentUserId.isEmpty) {
       throw Exception('User not authenticated');
+    }
+
+    final validation = await validateContent(text, fieldName: 'Comment');
+    if (!validation.isValid) {
+      commentError.value = validation.message;
+      throw Exception(validation.message);
     }
 
     try {
@@ -573,6 +580,12 @@ class CommentsController extends BaseController {
     String? commentAuthorId,
   }) async {
     if (text.trim().isEmpty || video == null) return;
+
+    final validation = await validateContent(text, fieldName: 'Reply');
+    if (!validation.isValid) {
+      commentError.value = validation.message;
+      return;
+    }
 
     try {
       isSubmittingComment.value = true;

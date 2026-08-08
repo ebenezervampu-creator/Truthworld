@@ -83,8 +83,8 @@ export class MediaService {
   }
 
   async mergeAudioChunks(jobId: string, audioUrls: string[]): Promise<string> {
-    const outputPath = `audio/${jobId}/final-stitched.mp3`;
-    // For now, return path where they WILL be stored
+    const outputPath = `audiotracks/${jobId}/final-stitched.mp3`;
+    // Stored in audiotracks folder in Storage
     return `gs://${storage().bucket().name}/${outputPath}`;
   }
 }

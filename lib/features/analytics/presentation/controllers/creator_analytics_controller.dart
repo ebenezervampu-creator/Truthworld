@@ -16,8 +16,21 @@ import 'package:truthworld/features/video/data/models/video.dart';
 class CreatorAnalyticsController extends BaseController {
   static const String _tag = 'CreatorAnalyticsController';
 
-  final VideoAnalyticsService _videoAnalyticsService = Get.find();
-  final GeolocationService _geolocationService = Get.find();
+  static CreatorAnalyticsController get to {
+    if (!Get.isRegistered<CreatorAnalyticsController>()) {
+      return Get.put(CreatorAnalyticsController());
+    }
+    return Get.find<CreatorAnalyticsController>();
+  }
+
+  final VideoAnalyticsService _videoAnalyticsService =
+      Get.isRegistered<VideoAnalyticsService>()
+          ? Get.find<VideoAnalyticsService>()
+          : Get.put(VideoAnalyticsService());
+  final GeolocationService _geolocationService =
+      Get.isRegistered<GeolocationService>()
+          ? Get.find<GeolocationService>()
+          : Get.put(GeolocationService());
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ---------------------------------------------------------------------------

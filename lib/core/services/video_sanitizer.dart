@@ -23,6 +23,7 @@ class VideoSanitizer {
 
     for (final video in videos) {
       if (video.id.isEmpty) continue;
+      if (!VideoVisibilityPolicy.isValidVideo(video)) continue;
 
       // 1. Deduplicate by video ID
       if (seenIds.contains(video.id)) continue;

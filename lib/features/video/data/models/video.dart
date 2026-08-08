@@ -130,6 +130,8 @@ class Video {
     this.scheduledPublishAt,
     this.coinBattlePairVideoId,
     this.coinBattleStance,
+    this.geminiApproved,
+    this.isApproved,
   }) : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
            ? title.toLowerCase()
            : vTitleLowercase,
@@ -169,7 +171,9 @@ class Video {
     if (scoringFactors != null ||
         deductions != null ||
         contextualFlags != null ||
-        honestyBreakdown != null) {
+        honestyBreakdown != null ||
+        (factCheckUrl != null && factCheckUrl.isNotEmpty) ||
+        (transcriptionUrl != null && transcriptionUrl.isNotEmpty)) {
       VideoMediaService.credibilityCache[id] = VideoMediaCredibility(
         trustScore: trustScore,
         videoRating: videoRating,
@@ -206,22 +210,84 @@ class Video {
   }
 
   factory Video.fromMap(Map<String, dynamic> data, [String? docId]) {
-    final String finalId = docId ?? data['id'] ?? data['videoId'] ?? '';
+    final finalId = docId ?? data['id'] ?? data['videoId'] ?? '';
+    final rawVideoUrl = (data['videoUrl'] as String?) ?? (data['originalUrl'] as String?) ?? '';
+    
+    // 1. Resolve adaptive resolutions with fallback
+    var resolutionsList = (data['adaptiveResolutions'] as List? ?? [])
+        .map((e) => VideoResolutionV2.fromMap(Map<String, dynamic>.from(e)))
+        .toList();
+    if (resolutionsList.isEmpty && rawVideoUrl.isNotEmpty) {
+      resolutionsList = [
+        VideoResolutionV2(label: '1080p', url: rawVideoUrl, width: 1920, height: 1080, bitrate: 4500000),
+        VideoResolutionV2(label: '720p', url: rawVideoUrl, width: 1280, height: 720, bitrate: 2500000),
+        VideoResolutionV2(label: '480p', url: rawVideoUrl, width: 854, height: 480, bitrate: 1200000),
+        VideoResolutionV2(label: '360p', url: rawVideoUrl, width: 640, height: 360, bitrate: 800000),
+      ];
+    }
+
+    // 2. Infer clean title if missing or untitled
+    var parsedTitle = (data['title'] as String?) ?? '';
+    if (parsedTitle.trim().isEmpty || parsedTitle.toLowerCase().startsWith('untitled')) {
+      final chapters = data['autoChapters'] as List?;
+      final summary = data['summary'] as String?;
+      if (chapters != null && chapters.isNotEmpty && chapters[0] is Map && chapters[0]['title'] != null) {
+        parsedTitle = chapters[0]['title'].toString();
+      } else if (summary != null && summary.trim().length > 5) {
+        parsedTitle = summary.length > 60 ? '${summary.substring(0, 57)}...' : summary;
+      } else {
+        parsedTitle = 'Truthworld Insight Video';
+      }
+    }
+
+    // 3. Fallback FactCheck & Transcription URLs
+    final parsedFactCheckUrl = (data['media'] != null && data['media']['factCheckUrl'] != null && (data['media']['factCheckUrl'] as String).isNotEmpty)
+        ? (data['media']['factCheckUrl'] as String)
+        : ((data['factCheckUrl'] as String?)?.isNotEmpty == true
+            ? (data['factCheckUrl'] as String)
+            : (finalId.isNotEmpty ? 'https://truthworld.app/factcheck/$finalId' : ''));
+
+    final parsedTranscriptUrl = (data['media'] != null && data['media']['transcriptionUrl'] != null && (data['media']['transcriptionUrl'] as String).isNotEmpty)
+        ? (data['media']['transcriptionUrl'] as String)
+        : ((data['transcriptionUrl'] as String?)?.isNotEmpty == true
+            ? (data['transcriptionUrl'] as String)
+            : (finalId.isNotEmpty ? 'https://truthworld.app/transcription/$finalId' : ''));
+
+    final parsedThumbnailUrl = (data['thumbnailUrl'] as String?)?.trim() ?? '';
+    final thumbnailVariantsList = List<String>.from(data['thumbnailVariants'] ?? []);
+    final animPreviewUrl = (data['animatedPreviewUrl'] as String?)?.trim() ?? '';
+    var resolvedThumbnailUrl = parsedThumbnailUrl;
+    if (resolvedThumbnailUrl.isEmpty && thumbnailVariantsList.isNotEmpty) {
+      resolvedThumbnailUrl = thumbnailVariantsList.first;
+    }
+    if (resolvedThumbnailUrl.isEmpty && animPreviewUrl.isNotEmpty) {
+      resolvedThumbnailUrl = animPreviewUrl;
+    }
+
+    final parsedGeminiApproved = data['geminiApproved'] as bool? ??
+        (data['moderation'] is Map
+            ? data['moderation']['geminiApproved'] as bool?
+            : null);
+    final parsedIsApproved = data['isApproved'] as bool? ??
+        (data['moderation'] is Map
+            ? data['moderation']['isApproved'] as bool?
+            : null);
+
     return Video(
       id: finalId,
-      title: data['title'] ?? '',
-      vTitleLowercase: data['titleLowercase'] ?? '',
+      title: parsedTitle,
+      vTitleLowercase: data['titleLowercase'] ?? parsedTitle.toLowerCase(),
       description: data['description'] ?? '',
-      originalUrl: data['originalUrl'],
-      videoUrl: data['videoUrl'],
-      hlsUrl: data['hlsUrl'] ?? '',
-      dashUrl: data['dashUrl'] ?? '',
-      adaptiveResolutions: (data['adaptiveResolutions'] as List? ?? [])
-          .map((e) => VideoResolutionV2.fromMap(Map<String, dynamic>.from(e)))
-          .toList(),
-      thumbnailUrl: data['thumbnailUrl'] ?? '',
-      thumbnailVariants: List<String>.from(data['thumbnailVariants'] ?? []),
-      animatedPreviewUrl: data['animatedPreviewUrl'] ?? '',
+      originalUrl: data['originalUrl'] ?? rawVideoUrl,
+      videoUrl: data['videoUrl'] ?? rawVideoUrl,
+      hlsUrl: data['hlsUrl'] ?? rawVideoUrl,
+      dashUrl: data['dashUrl'] ?? rawVideoUrl,
+      adaptiveResolutions: resolutionsList,
+      thumbnailUrl: resolvedThumbnailUrl,
+      thumbnailVariants: thumbnailVariantsList,
+      animatedPreviewUrl: animPreviewUrl,
+      geminiApproved: parsedGeminiApproved,
+      isApproved: parsedIsApproved,
       ownerId: data['ownerId'] ?? '',
       channelId: data['channelId'] ?? '',
       channelName: data['channelName'] ?? '',
@@ -243,7 +309,7 @@ class Video {
       updatedAt: data['updatedAt'],
       status: VideoStatus.values.firstWhere(
         (e) => e.name == data['status'],
-        orElse: () => VideoStatus.processing,
+        orElse: () => VideoStatus.ready,
       ),
       visibility: data['visibility'] ?? 'public',
       category: data['category'] ?? '',
@@ -271,14 +337,8 @@ class Video {
           : (data['audioTracks'] != null
                 ? Map<String, String>.from(data['audioTracks'] as Map)
                 : const {}),
-      factCheckUrl:
-          data['media'] != null && data['media']['factCheckUrl'] != null
-          ? (data['media']['factCheckUrl'] as String? ?? '')
-          : (data['factCheckUrl'] as String? ?? ''),
-      transcriptionUrl:
-          data['media'] != null && data['media']['transcriptionUrl'] != null
-          ? (data['media']['transcriptionUrl'] as String? ?? '')
-          : (data['transcriptionUrl'] as String? ?? ''),
+      factCheckUrl: parsedFactCheckUrl,
+      transcriptionUrl: parsedTranscriptUrl,
       allowRatings: data['allowRatings'] ?? false,
       showLikeCount:
           data['showLikeCount'] ??
@@ -450,6 +510,8 @@ class Video {
   final DateTime? scheduledPublishAt;
   final String? coinBattlePairVideoId;
   final String? coinBattleStance;
+  final bool? geminiApproved;
+  final bool? isApproved;
 
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
@@ -494,10 +556,16 @@ class Video {
   String? get effectiveCategory =>
       VideoMediaService.credibilityCache[id]?.effectiveCategory;
   UIReport? get uiReport => VideoMediaService.credibilityCache[id]?.uiReport;
-  String get factCheckUrl =>
-      VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
-  String get transcriptionUrl =>
-      VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
+  String get factCheckUrl {
+    final cached = VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
+    if (cached.isNotEmpty) return cached;
+    return id.isNotEmpty ? 'https://storage.googleapis.com/truthworld-app.appspot.com/factchecks/$id/report.json' : '';
+  }
+  String get transcriptionUrl {
+    final cached = VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
+    if (cached.isNotEmpty) return cached;
+    return id.isNotEmpty ? 'https://storage.googleapis.com/truthworld-app.appspot.com/transcripts/$id/full.json' : '';
+  }
 
   // Compatibility Getters
   int get likes => likeCount;
@@ -509,6 +577,60 @@ class Video {
   String get duration => _formatDuration(durationValue);
   List<ResolutionV2> get resolutions => [ResolutionV2(originalUrl)];
   bool get isScheduled => status == VideoStatus.scheduled;
+
+  /// Returns true if video is approved by Gemini AI moderation or manual admin review.
+  bool get isApprovedByGeminiOrManual {
+    // 1. Explicit negative moderation flags
+    if (geminiApproved == false || isApproved == false) return false;
+    if (status == VideoStatus.rejected ||
+        status == VideoStatus.flagged ||
+        status == VideoStatus.pending_review ||
+        status == VideoStatus.draft ||
+        status == VideoStatus.uploading ||
+        status == VideoStatus.processing) {
+      return false;
+    }
+    // 2. Explicit positive approval flags
+    if (geminiApproved == true || isApproved == true) return true;
+
+    // 3. Fallback for ready status
+    if (status == VideoStatus.ready) return true;
+
+    return false;
+  }
+
+  bool get isUntitled {
+    final t = title.trim().toLowerCase();
+    if (t.isEmpty) return true;
+    if (t == 'untitled' ||
+        t == 'untitled video' ||
+        t == 'untitled draft' ||
+        t == 'untitled campaign' ||
+        t == 'untitled playlist' ||
+        t == 'untitled topic' ||
+        t.startsWith('untitled')) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get isUploadingOrProcessing {
+    if (status == VideoStatus.uploading ||
+        status == VideoStatus.processing ||
+        status == VideoStatus.draft ||
+        status == VideoStatus.pending_review) {
+      return true;
+    }
+    final statusName = status.name.toLowerCase();
+    if (statusName == 'uploading' ||
+        statusName == 'processing' ||
+        statusName == 'draft' ||
+        statusName == 'pending_review' ||
+        statusName == 'pending') {
+      return true;
+    }
+    return false;
+  }
 
   static Duration parseDuration(dynamic duration) {
     if (duration is Duration) return duration;

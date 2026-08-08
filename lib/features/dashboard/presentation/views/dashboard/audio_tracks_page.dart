@@ -789,6 +789,26 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
             ),
           ),
           const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              final tracks = controller.currentTracks;
+              if (tracks.isNotEmpty) {
+                controller.downloadAudioTrack(tracks.first);
+              } else {
+                controller.showError('No audio track available to download.');
+              }
+            },
+            icon: const Icon(Icons.download_rounded, size: 16, color: AppColors.textPrimary),
+            label: const Text(
+              'Download Audio',
+              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              side: BorderSide(color: widget.isDarkMode ? const Color(0xFF333333) : AppColors.bgDivider),
+            ),
+          ),
+          const SizedBox(width: 8),
 
           Obx(() {
             final hasReqs = controller.languageRequests.where((r) => r.type == 'audio').isNotEmpty;
@@ -1183,7 +1203,12 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                   ),
                 ),
 
-                // Actions: Copy Link & Delete
+                // Actions: Download, Copy Link & Delete
+                IconButton(
+                  tooltip: 'Download Audio Track',
+                  icon: const Icon(Icons.download_rounded, size: 18, color: AppColors.textPrimary),
+                  onPressed: () => controller.downloadAudioTrack(track),
+                ),
                 IconButton(
                   tooltip: 'Copy Reference Link',
                   icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.textPrimary),
@@ -1290,6 +1315,12 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
             ),
           ),
           IconButton(
+            tooltip: 'Download Track',
+            icon: const Icon(Icons.download_rounded, size: 18, color: AppColors.textPrimary),
+            onPressed: () => controller.downloadCommentaryTrack(track),
+          ),
+          IconButton(
+            tooltip: 'Copy Reference Link',
             icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.textPrimary),
             onPressed: () => controller.exportTrackLinkToClipboard(track.videoUrl),
           ),

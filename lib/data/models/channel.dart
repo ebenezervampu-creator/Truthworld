@@ -152,24 +152,33 @@ class Channel {
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   factory Channel.fromMap(Map<String, dynamic> data, String docId) {
+    var nameVal = (data['name'] as String?)?.trim() ?? (data['channelName'] as String?)?.trim() ?? '';
+    if (nameVal.isEmpty || nameVal.toLowerCase().startsWith('untitled')) {
+      nameVal = 'Truthworld Channel';
+    }
+    var handleVal = (data['handle'] as String?)?.trim() ?? '';
+    if (handleVal.isEmpty) {
+      handleVal = '@${nameVal.toLowerCase().replaceAll(RegExp(r'\s+'), '')}';
+    }
+
     return Channel(
       id: docId,
-      name: data['name'] ?? '',
-      nameLowercase: data['nameLowercase'] ?? '',
-      handle: data['handle'] ?? '',
-      handleLowercase: data['handleLowercase'] ?? '',
+      name: nameVal,
+      nameLowercase: data['nameLowercase'] ?? nameVal.toLowerCase(),
+      handle: handleVal,
+      handleLowercase: data['handleLowercase'] ?? handleVal.toLowerCase(),
       description: data['description'] ?? '',
-      avatarUrl: data['avatarUrl'] ?? '',
-      bannerUrl: data['bannerUrl'] ?? '',
+      avatarUrl: data['avatarUrl'] ?? data['avatarImage'] ?? data['channelAvatarUrl'] ?? '',
+      bannerUrl: data['bannerUrl'] ?? data['bannerImage'] ?? '',
       avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
       avatarFileId: data['avatarFileId'] as String?,
       bannerFileId: data['bannerFileId'] as String?,
       avatarStatus: data['avatarStatus'] as String?,
       bannerStatus: data['bannerStatus'] as String?,
-      ownerId: data['ownerId'] ?? '',
+      ownerId: data['ownerId'] ?? data['userId'] ?? '',
       createdAt: TimestampUtils.parse(data['createdAt']),
       updatedAt: TimestampUtils.parse(data['updatedAt']),
-      subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? 0,
+      subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? (data['subscribers'] as num?)?.toInt() ?? 0,
       videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
       metrics: data['metrics'] != null
           ? ChannelMetricsV2.fromMap(Map<String, dynamic>.from(data['metrics']))
@@ -224,7 +233,11 @@ class Channel {
   }
 
   factory Channel.fromDocumentSnapshot(DocumentSnapshot doc) {
-    return Channel.fromMap(doc.data()! as Map<String, dynamic>, doc.id);
+    final data = doc.data();
+    if (data == null || data is! Map) {
+      return Channel.fromMap(<String, dynamic>{}, doc.id);
+    }
+    return Channel.fromMap(Map<String, dynamic>.from(data), doc.id);
   }
   final String id;
   final String name;

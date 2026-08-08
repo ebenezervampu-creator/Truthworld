@@ -18,7 +18,7 @@ import { aggregationLayer } from "../layers/09-aggregation";
 import { fingerprintService } from "../services/fingerprintService";
 import { copyrightDetectionService } from "../services/copyrightDetection";
 import { copyrightClaimsService } from "../services/copyrightClaims";
-import { DETECTION_THRESHOLDS } from "../services/copyrightTypes";
+import { CopyrightMatch, DEFAULT_CONFIDENCE_WEIGHTS, DETECTION_THRESHOLDS } from "../services/copyrightTypes";
 
 const db = () => admin.firestore();
 
@@ -39,17 +39,23 @@ export async function runCopyrightCheck(
     });
 
     // 2. Fetch video and job details
-    const [jobSnap, videoSnap, transcriptSnap] = await Promise.all([
+    const [jobSnap, transcriptSnap] = await Promise.all([
       db().collection("video_jobs").doc(jobId).get(),
-      db().collection("videos").doc(jobId).get(), // canonical videoId is usually same as jobId in our publish-gated model
       db().collection("transcripts").doc(jobId).get(),
     ]);
 
-    if (!jobSnap.exists || !videoSnap.exists || !transcriptSnap.exists) {
-      throw new Error(`Required documents missing for copyright check. Job: ${jobSnap.exists}, Video: ${videoSnap.exists}, Transcript: ${transcriptSnap.exists}`);
+    if (!jobSnap.exists || !transcriptSnap.exists) {
+      throw new Error(`Required documents missing for copyright check. Job: ${jobSnap.exists}, Transcript: ${transcriptSnap.exists}`);
     }
 
     const jobData = jobSnap.data()!;
+    const targetVideoId = jobData.videoId || (jobData.linkedVideoIds?.[0]) || jobId;
+    const videoSnap = await db().collection("videos").doc(targetVideoId).get();
+
+    if (!videoSnap.exists) {
+      throw new Error(`Required video document missing for copyright check: ${targetVideoId}`);
+    }
+
     const videoData = videoSnap.data()!;
     const transcriptData = transcriptSnap.data()!;
 
@@ -59,6 +65,83 @@ export async function runCopyrightCheck(
     const transcript = transcriptData.text || "";
     const summary = jobData.outputs?.summary || videoData.summary || transcriptData.summary || transcript.slice(0, 2000);
     const utterances = transcriptData.utterances || [];
+
+    // ── Pre-flagged hash match detection (from ingestion layer) ────────────────
+    let highConfidenceViolation = false;
+
+    if (videoData.copyrightHashMatch) {
+      logger.info("[CopyrightTask] Pre-flagged hash match detected — creating immediate claim", { jobId });
+
+      const { originalJobId, originalUserId: _originalUserId, md5Hash: _flaggedHash } = videoData.copyrightHashMatch;
+
+      // Look up the original job to get its channelId and linked video info
+      const origJobSnap = await db().collection("video_jobs").doc(originalJobId).get();
+
+      if (origJobSnap.exists) {
+        const origJobData = origJobSnap.data()!;
+        const origVideoId = origJobData.videoId || (origJobData.linkedVideoIds?.[0]) || originalJobId;
+        const origVideoSnap = await db().collection("videos").doc(origVideoId).get();
+
+        if (origVideoSnap.exists) {
+          const origVideoData = origVideoSnap.data()!;
+
+          const matchId = `match_md5_${jobId}_${Date.now()}`;
+          const preFlaggedMatch: CopyrightMatch = {
+            matchId,
+            assetId: origVideoId,
+            matchedVideoId: targetVideoId,
+            matchedOwnerId: userId,
+            matchedChannelId: jobData.channelId || "",
+            matchType: "exact_md5",
+            matchedSegments: [],
+            score: 1.0,
+            signals: {
+              md5: 1.0,
+              summaryEmbedding: null,
+              chunkEmbedding: null,
+              transcriptOverlap: null,
+              gemini: null,
+            },
+            confidenceBreakdown: {
+              md5Score: 1.0,
+              embeddingScore: null,
+              transcriptScore: null,
+              semanticScore: null,
+              weights: { ...DEFAULT_CONFIDENCE_WEIGHTS },
+            },
+            finalConfidence: 1.0,
+            detectorVersion: 1,
+            embeddingModel: "text-embedding-005",
+            geminiModel: "gemini-2.0-flash",
+            pipelineVersion: "1.0.0",
+            status: "detected",
+            claimId: null,
+            detectedAt: Date.now(),
+          };
+
+          // Persist the match to copyright_matches collection
+          await db().collection("copyright_matches").doc(matchId).set(preFlaggedMatch);
+
+          // Retrieve original transcript for claim processing
+          const origTranscriptSnap = await db().collection("transcripts").doc(origVideoId).get();
+          const origTranscript = origTranscriptSnap.exists ? origTranscriptSnap.data()?.text || "" : "";
+
+          await copyrightClaimsService.processMatchAndCreateClaim(
+            preFlaggedMatch,
+            transcript,
+            origTranscript,
+            origVideoData.title || "Original Video",
+            origVideoData.title || ""
+          );
+
+          highConfidenceViolation = true;
+        } else {
+          logger.warn("[CopyrightTask] Pre-flagged match: original video not found", { jobId, origVideoId });
+        }
+      } else {
+        logger.warn("[CopyrightTask] Pre-flagged match: original job not found", { jobId, originalJobId });
+      }
+    }
 
     await EdgeLayer.updateStageSync(jobId, "copyright", {
       status: "running",
@@ -98,8 +181,6 @@ export async function runCopyrightCheck(
       status: "running",
       progress: 80,
     });
-
-    let highConfidenceViolation = false;
 
     // 5. If matches found, process them and create claims
     if (detectionResult.hasMatch && detectionResult.matches.length > 0) {

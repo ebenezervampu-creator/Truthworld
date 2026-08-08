@@ -15,8 +15,8 @@ import 'package:truthworld/features/settings/data/repositories/settings_reposito
 
 class UserSettingsController extends BaseController {
   static UserSettingsController get to {
-    if (Get.isRegistered<UserSettingsController>()) {
-      return Get.find<UserSettingsController>();
+    if (!Get.isRegistered<UserSettingsController>()) {
+      Get.put(UserSettingsController());
     }
     return Get.find<UserSettingsController>();
   }

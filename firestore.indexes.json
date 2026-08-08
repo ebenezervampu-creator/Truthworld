@@ -346,15 +346,13 @@
         { "fieldPath": "assetId", "order": "ASCENDING" },
         { "fieldPath": "chunkIndex", "order": "ASCENDING" }
       ]
-    }
-  ],
-  "fieldOverrides": [
+    },
     {
       "collectionGroup": "copyright_assets",
-      "fieldPath": "summaryEmbedding",
-      "indexes": [
+      "queryScope": "COLLECTION",
+      "fields": [
         {
-          "queryScope": "COLLECTION",
+          "fieldPath": "summaryEmbedding",
           "vectorConfig": {
             "dimension": 256,
             "flat": {}
@@ -364,10 +362,10 @@
     },
     {
       "collectionGroup": "copyright_chunks",
-      "fieldPath": "chunkEmbedding",
-      "indexes": [
+      "queryScope": "COLLECTION",
+      "fields": [
         {
-          "queryScope": "COLLECTION",
+          "fieldPath": "chunkEmbedding",
           "vectorConfig": {
             "dimension": 256,
             "flat": {}
@@ -375,5 +373,6 @@
         }
       ]
     }
-  ]
+  ],
+  "fieldOverrides": []
 }

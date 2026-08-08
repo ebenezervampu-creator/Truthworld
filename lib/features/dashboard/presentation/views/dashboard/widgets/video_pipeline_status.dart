@@ -77,57 +77,64 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   .doc(video.id)
                   .snapshots(),
               builder: (context, resolutionSnap) {
-                return StreamBuilder<QuerySnapshot>(
+                return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: FirebaseFirestore.instance
                       .collection('video_jobs')
-                      .where('videoId', isEqualTo: video.id)
-                      .limit(1)
+                      .doc(video.id)
                       .snapshots(),
-                  builder: (context, jobsSnap) {
+                  builder: (context, jobDocSnap) {
                     final videoDocData = videoDocSnap.data?.data();
                     final imageDoc = imageSnap.data?.data();
                     final resolutionDoc = resolutionSnap.data?.data();
+                    final jobDocData = jobDocSnap.data?.data();
 
-                    // Video Content Moderation (Gemini v3.0 Intent-Aware Analysis)
-                    final moderationData =
-                        videoDocData?['moderation'] as Map<String, dynamic>?;
-                    final moderationStatus =
-                        (moderationData?['status'] as String?)?.toUpperCase() ??
-                        'PENDING';
-                    final moderationReason =
-                        moderationData?['policyReason'] as String? ??
-                        moderationData?['reason'] as String?;
-                    final moderationSummary =
-                        moderationData?['summary'] as String?;
-                    final moderationCategories =
-                        (moderationData?['violationCategories']
-                                as List<dynamic>?)
-                            ?.cast<String>() ??
-                        [];
-                    final moderationTime =
-                        moderationData?['processingTimeMs'] as num?;
-                    final moderationTopic = moderationData?['topic'] as String?;
-                    final moderationIntent =
-                        moderationData?['intent'] as String?;
-                    final moderationRiskLevel =
-                        moderationData?['riskLevel'] as String?;
-                    final moderationExplanation =
-                        moderationData?['explanation'] as String?;
+                        final jobStages =
+                            (jobDocData?['stages'] as Map<String, dynamic>?) ?? {};
+                        final videoStages =
+                            (videoDocData?['stages'] as Map<String, dynamic>?) ?? {};
+                        final stages = {...videoStages, ...jobStages};
 
-                    // Thumbnail Safety Verification (Vertex AI Vision)
-                    final imageStatus =
-                        (imageDoc?['status'] as String?)?.toUpperCase() ??
-                        'PENDING';
-                    final imageReason = imageDoc?['reason'] as String?;
+                        // Video Content Moderation (Gemini v3.0 Intent-Aware Analysis)
+                        final moderationData =
+                            (jobDocData?['moderation'] as Map<String, dynamic>?) ??
+                                (videoDocData?['moderation']
+                                    as Map<String, dynamic>?) ??
+                                (stages['moderation'] as Map<String, dynamic>?);
+                        final moderationStatus =
+                            (moderationData?['status'] as String?)?.toUpperCase() ??
+                            'PENDING';
+                        final moderationReason =
+                            moderationData?['policyReason'] as String? ??
+                            moderationData?['reason'] as String?;
+                        final moderationSummary =
+                            moderationData?['summary'] as String?;
+                        final moderationCategories =
+                            (moderationData?['violationCategories']
+                                    as List<dynamic>?)
+                                ?.cast<String>() ??
+                            [];
+                        final moderationTime =
+                            moderationData?['processingTimeMs'] as num?;
+                        final moderationTopic = moderationData?['topic'] as String?;
+                        final moderationIntent =
+                            moderationData?['intent'] as String?;
+                        final moderationRiskLevel =
+                            moderationData?['riskLevel'] as String?;
+                        final moderationExplanation =
+                            moderationData?['explanation'] as String?;
 
-                    // Resolution job status mapping
-                    final variants =
-                        resolutionDoc?['variants'] as Map<String, dynamic>? ??
-                        {};
+                        // Thumbnail Safety Verification (Vertex AI Vision)
+                        final imageStatus =
+                            (imageDoc?['status'] as String?)?.toUpperCase() ??
+                            'PENDING';
+                        final imageReason = imageDoc?['reason'] as String?;
 
-                    // Pipeline timeline stages mapping from videoDoc
-                    final stages =
-                        videoDocData?['stages'] as Map<String, dynamic>? ?? {};
+                        // Resolution job status mapping
+                        final variants =
+                            resolutionDoc?['variants'] as Map<String, dynamic>? ??
+                            (jobDocData?['variants'] as Map<String, dynamic>?) ??
+                            (jobDocData?['resolutions'] as Map<String, dynamic>?) ??
+                            {};
 
                     return Obx(() {
                       return Container(
@@ -813,6 +820,33 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     );
   }
 
+  Map<String, dynamic>? _getStageData(
+    String key,
+    Map<String, dynamic> stages,
+  ) {
+    if (stages.containsKey(key) && stages[key] is Map<String, dynamic>) {
+      return stages[key] as Map<String, dynamic>;
+    }
+
+    final aliases = <String, List<String>>{
+      'upload': ['uploadSource', 'ingestion', 'upload_source'],
+      'validation': ['safety', 'safetyFormatCheck', 'formatCheck', 'safety_and_format'],
+      'transcription': ['transcribe', 'audioTranscription', 'transcription_gemini'],
+      'credibility': ['factcheck', 'truthEngine', 'fact_check', 'credibilityCheck'],
+      'dubbing': ['localization', 'reachEngine', 'translation', 'translate'],
+      'rendering': ['render', 'videoRendering', 'transcoding'],
+      'aggregation': ['finalizing', 'finish', 'complete', 'aggregationFinish'],
+    };
+
+    final altKeys = aliases[key] ?? [];
+    for (final alt in altKeys) {
+      if (stages.containsKey(alt) && stages[alt] is Map<String, dynamic>) {
+        return stages[alt] as Map<String, dynamic>;
+      }
+    }
+    return null;
+  }
+
   Widget _buildPipelineTimeline(Map<String, dynamic> stages) {
     final orderedStages = [
       {'key': 'moderation', 'label': 'Content Moderation (Gemini)'},
@@ -829,9 +863,16 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       children: orderedStages.map((stage) {
         final key = stage['key']!;
         final label = stage['label']!;
-        final stageData = stages[key] as Map<String, dynamic>?;
-        final status = stageData?['status'] as String? ?? 'pending';
-        final progress = stageData?['progress'] as num? ?? 0;
+        final stageData = _getStageData(key, stages);
+        var status = (stageData?['status'] as String?)?.toLowerCase() ?? 'pending';
+
+        if (status == 'pending' &&
+            (video.status.name == 'ready' || video.status.name == 'published')) {
+          status = 'completed';
+        }
+
+        final progress =
+            stageData?['progress'] as num? ?? (status == 'completed' ? 100 : 0);
 
         Color itemColor;
         Widget leadingWidget;

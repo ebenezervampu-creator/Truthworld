@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -12,7 +13,7 @@ import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class TopicInteractionController extends BaseController {
+class TopicInteractionController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final RxInt likeCount = 0.obs;
@@ -289,6 +290,17 @@ class TopicInteractionController extends BaseController {
       return;
     }
 
+    final validation = await validateContent(text, fieldName: 'Comment');
+    if (!validation.isValid) {
+      AppSnackbar.show(
+        'Inappropriate Content',
+        validation.message,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
+
     try {
       final commentRef = _firestore
           .collection(FirestoreCollections.topics)
@@ -374,6 +386,17 @@ class TopicInteractionController extends BaseController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to reply.',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
+
+    final validation = await validateContent(text, fieldName: 'Reply');
+    if (!validation.isValid) {
+      AppSnackbar.show(
+        'Inappropriate Content',
+        validation.message,
         backgroundColor: AppColors.error,
         colorText: AppColors.textPrimary,
       );

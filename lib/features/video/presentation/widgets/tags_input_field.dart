@@ -9,7 +9,7 @@ class TagInputField extends StatelessWidget {
 
   void _addTag(String tag) {
     tag = tag.trim().toLowerCase(); // Normalize tag input
-    if (tag.isNotEmpty && !tags.contains(tag) && tags.length < 10) {
+    if (tag.isNotEmpty && !tags.contains(tag) && tags.length < 5) {
       tags.add(tag);
       onTagsChanged(tags.toList());
     }

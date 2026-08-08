@@ -44,11 +44,13 @@ class VideoMediaService {
 
       if (doc.exists && doc.data() != null) {
         final result = VideoMediaLocalization.fromMap(doc.data()!);
-        localizationCache[videoId] = result;
-        return result;
+        if (!result.isEmpty) {
+          localizationCache[videoId] = result;
+          return result;
+        }
       }
 
-      // Fallback: try reading from legacy fields on main video doc
+      // Fallback: try reading from top-level fields on main video doc
       return await _fallbackLocalization(videoId);
     } catch (e) {
       debugPrint('[VideoMediaService] Error fetching localization: $e');

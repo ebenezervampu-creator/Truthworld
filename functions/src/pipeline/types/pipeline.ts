@@ -147,6 +147,19 @@ export interface UserConfig {
 
 export interface ExecutionPlan {
   jobId: string;
+  videoId?: string;
+  title?: string;
+  description?: string;
+  thumbnailUrl?: string;
+  thumbnail?: string;
+  channelId?: string;
+  channelName?: string;
+  channelAvatarUrl?: string;
+  category?: string;
+  tags?: string[];
+  topics?: string[];
+  providedSources?: string[];
+  visibility?: string;
   enablePath1: boolean;
   enablePath2: boolean;
   enableTruthEngine: boolean;

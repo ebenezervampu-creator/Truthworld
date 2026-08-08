@@ -767,6 +767,8 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     const SizedBox(width: 12),
                     _buildRequestsButton(),
                     const SizedBox(width: 8),
+                    _buildDownloadSrtButton(textColor, borderColor),
+                    const SizedBox(width: 8),
                     _buildExportButton(textColor, borderColor),
                     const SizedBox(width: 8),
                     _buildSaveButton(),
@@ -942,12 +944,36 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
     });
   }
 
+  Widget _buildDownloadSrtButton(Color textColor, Color borderColor) {
+    return ElevatedButton.icon(
+      onPressed: () => controller.downloadSrtTrack(),
+      icon: const Icon(Icons.download_rounded, size: 16, color: Colors.black),
+      label: Text(
+        'Download SRT',
+        style: AppTextStyles.buttonText.copyWith(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.black,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.brand,
+        foregroundColor: Colors.black,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      ),
+    );
+  }
+
   Widget _buildExportButton(Color textColor, Color borderColor) {
     return OutlinedButton.icon(
-      onPressed: () => controller.exportCurrentTrack(),
-      icon: const Icon(Icons.copy_all_rounded, size: 16),
+      onPressed: () => controller.downloadVttTrack(),
+      icon: const Icon(
+        Icons.file_download_outlined,
+        size: 16,
+        color: AppColors.textPrimary,
+      ),
       label: Text(
-        'Export VTT',
+        'Download VTT',
         style: AppTextStyles.buttonText.copyWith(
           fontSize: 12,
           color: textColor,

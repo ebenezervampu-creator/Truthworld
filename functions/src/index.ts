@@ -49,6 +49,7 @@ import { logger } from "./pipeline/utils/logger";
 setGlobalOptions({
   region: "asia-south1",
   invoker: "public",
+  cpu: "gcf_gen1",
 });
 
 /**
@@ -75,6 +76,7 @@ export const submitVideo = onRequest(
     minInstances: 0,
     maxInstances: 2,
     concurrency: 100,
+    cpu: 1,
     timeoutSeconds: 30,
     memory: "256MiB",
 
@@ -411,7 +413,8 @@ export const onVideoUpload = onObjectFinalized(
   {
     bucket: "truthworld-1.firebasestorage.app",
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 1,
+    cpu: 0.16,
     memory: "256MiB",
   },
   async (event) => {
@@ -662,7 +665,8 @@ export const handleCopyrightCheck = onMessagePublished(
     timeoutSeconds: 540,
     memory: "1GiB",
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 1,
+    cpu: 0.5,
     secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {
@@ -1254,6 +1258,18 @@ export const onVideoPublished = onDocumentUpdated(
 
       const executionPlan: ExecutionPlan = {
         jobId,
+        videoId,
+        title: afterData.title || "",
+        description: afterData.description || "",
+        thumbnailUrl: afterData.thumbnailUrl || "",
+        channelId: afterData.channelId || "",
+        channelName: afterData.channelName || "",
+        channelAvatarUrl: afterData.channelImage || afterData.channelAvatarUrl || "",
+        category: afterData.category || afterData.videoCategory || "Other",
+        tags: afterData.tags || [],
+        topics: afterData.topics || [],
+        providedSources: afterData.providedSources || [],
+        visibility: afterData.visibility || "public",
         enablePath1: enableFactChecking,
         enablePath2,
         enableTruthEngine: enableFactChecking,
@@ -1283,7 +1299,7 @@ export const onVideoPublished = onDocumentUpdated(
 
         // Duration from video doc metadata
         duration: afterData.duration ? parseInt(String(afterData.duration)) : undefined,
-        videoCategory: afterData.category || "Other",
+        videoCategory: afterData.category || afterData.videoCategory || "Other",
       };
 
       // ── Build pipeline stages ───────────────────────────────────────────────
@@ -1311,7 +1327,7 @@ export const onVideoPublished = onDocumentUpdated(
 
       // Add per-language stages for localization tracking
       if (enablePath2) {
-        const targetLangs = requestedLanguages.filter(l => l !== "en");
+        const targetLangs = (requestedLanguages || []).filter(l => l !== "en");
         for (const lang of targetLangs) {
           stages[`translating_${lang}`] = { status: "pending", progress: 0 };
           if (enableDubbing) {
@@ -1461,7 +1477,7 @@ export const onVideoPublished = onDocumentUpdated(
         updatedAt: Date.now(),
       };
 
-      const targetLangs = (getTranslationLangs(afterData) as string[]).filter((l: string) => l !== "en");
+      const targetLangs = ((getTranslationLangs(afterData) as string[]) || []).filter((l: string) => l !== "en");
       for (const lang of targetLangs) {
         updatePayload[`stages.translating_${lang}`] = { status: "pending", progress: 0 };
         updatePayload[`stages.dubbing_${lang}`] = { status: "pending", progress: 0 };
@@ -1632,6 +1648,7 @@ export {
 
 export { createChannel, switchChannelType } from "./channels/channels";
 */
+export { createChannel, switchChannelType, onChannelCreatedSyncUser } from "./channels/channels";
 export { onChannelWritten, onImageVerificationWritten } from "./channels/moderation";
 export { onTopicWritten } from "./topics/moderation";
 
@@ -2112,3 +2129,5 @@ export const onVideoDisputeSubmitted = onDocumentUpdated(
 export * from "./admin/adminSearch";
 export * from "./admin/adminBulkModerate";
 export * from "./admin/userManagement";
+export * from "./admin/repairStuckJobs";
+export * from "./admin/repairIncompleteVideoDocs";

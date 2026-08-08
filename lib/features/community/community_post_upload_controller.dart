@@ -460,6 +460,21 @@ class CommunityPostUploadController extends BaseController
     required String description,
     required String tagsRaw,
   }) async {
+    final parsedTags = tagsRaw
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    if (parsedTags.length > 5) {
+      AppSnackbar.show(
+        'Too Many Tags',
+        'Maximum 5 tags allowed (currently ${parsedTags.length})',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
     if (selectedChannel.value == null) {
       AppSnackbar.show(
         'Channel Required',

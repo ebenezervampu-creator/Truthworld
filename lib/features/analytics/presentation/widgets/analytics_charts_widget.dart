@@ -7,8 +7,7 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Display pie chart for watchtime categories
 class WatchtimePieChart extends StatelessWidget {
   WatchtimePieChart({super.key});
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
+  final CreatorAnalyticsController controller = CreatorAnalyticsController.to;
 
   @override
   Widget build(BuildContext context) {
@@ -117,8 +116,7 @@ class WatchtimePieChart extends StatelessWidget {
 /// Display pie chart for state-wise traffic
 class StateTrafficChart extends StatelessWidget {
   StateTrafficChart({super.key});
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
+  final CreatorAnalyticsController controller = CreatorAnalyticsController.to;
 
   @override
   Widget build(BuildContext context) {
@@ -223,8 +221,7 @@ class StateTrafficChart extends StatelessWidget {
 /// Summary metrics cards
 class AnalyticsSummaryCards extends StatelessWidget {
   AnalyticsSummaryCards({super.key});
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
+  final CreatorAnalyticsController controller = CreatorAnalyticsController.to;
 
   @override
   Widget build(BuildContext context) {
@@ -349,8 +346,7 @@ class AnalyticsSummaryCards extends StatelessWidget {
 /// Top states breakdown
 class TopStatesBreakdown extends StatelessWidget {
   TopStatesBreakdown({super.key});
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
+  final CreatorAnalyticsController controller = CreatorAnalyticsController.to;
 
   @override
   Widget build(BuildContext context) {
@@ -464,8 +460,7 @@ class TopStatesBreakdown extends StatelessWidget {
 /// Device breakdown
 class DeviceBreakdownWidget extends StatelessWidget {
   DeviceBreakdownWidget({super.key});
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
+  final CreatorAnalyticsController controller = CreatorAnalyticsController.to;
 
   @override
   Widget build(BuildContext context) {

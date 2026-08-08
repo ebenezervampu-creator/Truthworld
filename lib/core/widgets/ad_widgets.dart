@@ -1,7 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
+import 'package:truthworld/features/video/data/models/reply.dart';
+import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
@@ -29,8 +38,13 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
   }
 
   void _initializeVideo() {
+    final url = widget.ad.videoUrl;
+    if (url == null || url.isEmpty || url.startsWith('blob:')) {
+      _isInitialized.value = false;
+      return;
+    }
     _controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.ad.videoUrl!),
+      Uri.parse(url),
       videoPlayerOptions: VideoPlayerOptions(
         mixWithOthers: true,
       ),
@@ -257,7 +271,7 @@ class HomepageAdCard extends StatelessWidget {
               color: Colors.transparent,
               borderRadius: AppTheme.radius.circularLg,
               child: InkWell(
-                onTap: () => AdService.to.showAdPromoDialog(context, ad),
+                onTap: () => AdService.to.launchCtaUrl(ad),
                 borderRadius: AppTheme.radius.circularLg,
                 splashColor: AppTheme.colors.primary.withValues(alpha: 0.2),
                 child: Column(
@@ -275,145 +289,234 @@ class HomepageAdCard extends StatelessWidget {
                           fit: StackFit.expand,
                           children: [
                             AdMediaWidget(ad: ad),
-                            if (ad.videoUrl != null &&
-                                    ad.videoUrl!.isNotEmpty ||
-                                ad.imageUrl.isNotEmpty)
-                              Container(
-                                color: AppColors.bgPage.withValues(alpha: 0.3),
-                              ),
-                            () {
-                              final isLightBg =
-                                  ad.gradientColors.first.computeLuminance() >
-                                  0.5;
-                              final textColor = isLightBg
-                                  ? AppColors.bgPage.withValues(alpha: 0.6)
-                                  : AppColors.textSecondary;
-                              final titleColor = isLightBg
-                                  ? AppColors.bgPage
-                                  : AppColors.textPrimary;
-                              final logoColor = isLightBg
-                                  ? AppColors.bgPage
-                                  : AppColors.textPrimary;
-                              final iconColor = isLightBg
-                                  ? AppColors.bgPage.withValues(alpha: 0.1)
-                                  : AppColors.textPrimary.withValues(
-                                      alpha: 0.12,
-                                    );
+                            if (ad.imageUrl.isEmpty &&
+                                (ad.videoUrl == null || ad.videoUrl!.isEmpty))
+                              () {
+                                final isLightBg =
+                                    ad.gradientColors.first.computeLuminance() >
+                                    0.5;
+                                final textColor = isLightBg
+                                    ? AppColors.bgPage.withValues(alpha: 0.6)
+                                    : AppColors.textSecondary;
+                                final titleColor = isLightBg
+                                    ? AppColors.bgPage
+                                    : AppColors.textPrimary;
+                                final iconColor = isLightBg
+                                    ? AppColors.bgPage.withValues(alpha: 0.1)
+                                    : AppColors.textPrimary.withValues(
+                                        alpha: 0.12,
+                                      );
 
-                              return Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  // Decorative Background Icon
-                                  if (ad.videoUrl == null ||
-                                      ad.videoUrl!.isEmpty)
-                                    if (ad.imageUrl.isEmpty)
-                                      Center(
-                                        child: Icon(
-                                          ad.fallbackIcon ??
-                                              Icons.ads_click_rounded,
-                                          size: 72,
-                                          color: iconColor,
-                                        ),
+                                return Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Center(
+                                      child: Icon(
+                                        ad.fallbackIcon ??
+                                            Icons.ads_click_rounded,
+                                        size: 72,
+                                        color: iconColor,
                                       ),
-                                  // Left-Aligned Promotional Content
-                                  Positioned(
-                                    left: 16,
-                                    top: 16,
-                                    bottom: 16,
-                                    right: 80,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              ad.fallbackIcon ??
-                                                  Icons.ads_click_rounded,
-                                              size: 16,
-                                              color: logoColor,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              ad.advertiser.toUpperCase(),
-                                              style: TextStyle(
-                                                color: textColor,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                                letterSpacing: 1,
+                                    ),
+                                    Positioned(
+                                      left: 16,
+                                      top: 16,
+                                      bottom: 16,
+                                      right: 80,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                ad.fallbackIcon ??
+                                                    Icons.ads_click_rounded,
+                                                size: 16,
+                                                color: Colors.white,
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          ad.title,
-                                          maxLines: 2,
-                                          style: TextStyle(
-                                            color: titleColor,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            height: 1.2,
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                ad.advertiser.toUpperCase(),
+                                                style: TextStyle(
+                                                  color: textColor,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  letterSpacing: 1,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                        const Spacer(),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.bgPage.withValues(
-                                              alpha: 0.8,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            border: Border.all(
-                                              color: AppColors.textPrimary
-                                                  .withValues(
-                                                    alpha: 0.15,
-                                                  ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            ad.title,
+                                            maxLines: 2,
+                                            style: TextStyle(
+                                              color: titleColor,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              height: 1.2,
                                             ),
                                           ),
-                                          child: Text(
-                                            ad.ctaText.toUpperCase(),
-                                            style: const TextStyle(
-                                              color: AppColors.textPrimary,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }()
+                            else
+                              const SizedBox.shrink(),
+
+                            // Floating CTA Button Badge on Bottom Right of Media
+                            Positioned(
+                              bottom: 10,
+                              right: 10,
+                              child: GestureDetector(
+                                onTap: () => AdService.to.launchCtaUrl(ad),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bgPage.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: AppColors.textPrimary.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
-                                  // External Link/Arrow Overlay on Bottom Right
-                                  Positioned(
-                                    bottom: 12,
-                                    right: 12,
-                                    child: Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.bgPage.withValues(
-                                          alpha: 0.6,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        ad.ctaText.toUpperCase(),
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
                                         ),
-                                        shape: BoxShape.circle,
                                       ),
-                                      child: const Icon(
+                                      const SizedBox(width: 4),
+                                      const Icon(
                                         Icons.north_east_rounded,
-                                        color: AppColors.textPrimary,
-                                        size: 18,
+                                        color: Colors.white,
+                                        size: 13,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Top-Right More Vertical (3-dot) Options Menu
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Material(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                shape: const CircleBorder(),
+                                clipBehavior: Clip.antiAlias,
+                                child: PopupMenuButton<String>(
+                                  icon: const Icon(
+                                    Icons.more_vert_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  color: const Color(0xFF1E1E1E),
+                                  onSelected: (value) {
+                                    if (value == 'report') {
+                                      AdService.to.showReportAdDialog(
+                                        context,
+                                        ad,
+                                      );
+                                    } else if (value == 'copy') {
+                                      Clipboard.setData(
+                                        ClipboardData(text: ad.ctaTarget),
+                                      );
+                                      AppSnackbar.show(
+                                        'Link Copied',
+                                        'Ad destination link copied.',
+                                      );
+                                    } else if (value == 'save') {
+                                      AdService.to.toggleSaveAd(ad.id);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem<String>(
+                                      value: 'report',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.report_problem_outlined,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            "Report Ad / Don't Show",
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              );
-                            }(),
+                                    const PopupMenuItem<String>(
+                                      value: 'copy',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.link_rounded,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            'Copy Ad Link',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem<String>(
+                                      value: 'save',
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.bookmark_outline_rounded,
+                                            color: Colors.white,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            AdService.to.savedAdIds.contains(
+                                                  ad.id,
+                                                )
+                                                ? 'Remove Bookmark'
+                                                : 'Save Ad',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -501,7 +604,11 @@ class HomepageAdCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    buildAdActionBar(context, ad),
+                    GestureDetector(
+                      onTap: () {},
+                      behavior: HitTestBehavior.opaque,
+                      child: buildAdActionBar(context, ad),
+                    ),
                   ],
                 ),
               ),
@@ -559,7 +666,7 @@ class ScrollAdCard extends StatelessWidget {
               color: Colors.transparent,
               borderRadius: AppTheme.radius.circularLg,
               child: InkWell(
-                onTap: () => AdService.to.showAdPromoDialog(context, ad),
+                onTap: () => AdService.to.launchCtaUrl(ad),
                 borderRadius: AppTheme.radius.circularLg,
                 splashColor: AppTheme.colors.primary.withValues(alpha: 0.2),
                 child: Padding(
@@ -655,22 +762,103 @@ class ScrollAdCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            buildAdActionBar(context, ad),
+                            GestureDetector(
+                              onTap: () {},
+                              behavior: HitTestBehavior.opaque,
+                              child: buildAdActionBar(context, ad),
+                            ),
                           ],
                         ),
                       ),
 
-                      // Options button (Matches VideoCard)
-                      IconButton(
+                      // Options button with PopupMenu (Report Ad, Copy Link, Save Ad)
+                      PopupMenuButton<String>(
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.more_vert_rounded,
                           size: 20,
-                          color: AppTheme.colors.textTertiary,
+                          color: Colors.white,
                         ),
-                        onPressed: () =>
-                            AdService.to.showAdPromoDialog(context, ad),
+                        color: const Color(0xFF1E1E1E),
+                        onSelected: (value) {
+                          if (value == 'report') {
+                            AdService.to.showReportAdDialog(context, ad);
+                          } else if (value == 'copy') {
+                            Clipboard.setData(
+                              ClipboardData(text: ad.ctaTarget),
+                            );
+                            AppSnackbar.show(
+                              'Link Copied',
+                              'Ad destination link copied.',
+                            );
+                          } else if (value == 'save') {
+                            AdService.to.toggleSaveAd(ad.id);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem<String>(
+                            value: 'report',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.report_problem_outlined,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  "Report Ad / Don't Show",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'copy',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.link_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Copy Ad Link',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'save',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.bookmark_outline_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  AdService.to.savedAdIds.contains(ad.id)
+                                      ? 'Remove Bookmark'
+                                      : 'Save Ad',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -688,6 +876,7 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
     child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Thumbs Up (Like)
         Obx(() {
@@ -701,7 +890,7 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
                 icon: Icon(
                   isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
                   size: 14,
-                  color: isLiked ? AppColors.warning : AppColors.textSecondary,
+                  color: Colors.white,
                 ),
                 label: Text(
                   '$count',
@@ -724,36 +913,7 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
             },
           );
         }),
-        const SizedBox(width: 12),
-        // Comments
-        StreamBuilder<int>(
-          stream: AdService.to.getAdCommentsCountStream(ad.id),
-          builder: (context, snapshot) {
-            final count = snapshot.data ?? 0;
-            return TextButton.icon(
-              onPressed: () =>
-                  AdService.to.showAdCommentsBottomSheet(context, ad),
-              icon: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 14,
-                color: AppColors.textSecondary,
-              ),
-              label: Text(
-                '$count',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            );
-          },
-        ),
-        const Spacer(),
+        const SizedBox(width: 8),
         // Save / Bookmark
         Obx(() {
           final isSaved = AdService.to.savedAdIds.contains(ad.id);
@@ -762,7 +922,7 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
             icon: Icon(
               isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
               size: 16,
-              color: isSaved ? AppColors.warning : AppColors.textSecondary,
+              color: Colors.white,
             ),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -770,5 +930,559 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
         }),
       ],
     ),
+  );
+}
+
+Widget _buildAdvertiserLogoAvatar(AdItem ad, {double radius = 16}) {
+  final logoUrl = ad.imageUrl.trim();
+  final isValidUrl = logoUrl.isNotEmpty && (logoUrl.startsWith('http://') || logoUrl.startsWith('https://'));
+
+  if (isValidUrl) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: const Color(0xFF333333),
+      child: ClipOval(
+        child: Image.network(
+          logoUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Center(
+              child: Text(
+                ad.advertiser.isNotEmpty ? ad.advertiser[0].toUpperCase() : 'S',
+                style: GoogleFonts.roboto(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: radius * 0.8,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: const Color(0xFF333333),
+    child: Text(
+      ad.advertiser.isNotEmpty ? ad.advertiser[0].toUpperCase() : 'S',
+      style: GoogleFonts.roboto(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+        fontSize: radius * 0.8,
+      ),
+    ),
+  );
+}
+
+class PinnedSponsorCommentCard extends StatelessWidget {
+  const PinnedSponsorCommentCard({
+    required this.ad,
+    this.videoId,
+    this.onOpenDiscussion,
+    this.isInModal = false,
+    super.key,
+  });
+
+  final AdItem ad;
+  final String? videoId;
+  final VoidCallback? onOpenDiscussion;
+  final bool isInModal;
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdService.to.recordImpression(ad.id);
+    });
+
+    final commentText = ad.pinnedCommentText?.isNotEmpty == true
+        ? ad.pinnedCommentText!
+        : 'Welcome viewers! Feel free to ask us any questions or check out our exclusive offer!';
+
+    final sponsorCommentId = 'sponsor_${ad.id}';
+    final targetVideoId = videoId ?? ad.videoId ?? 'default_video';
+
+    return InkWell(
+      onTap: isInModal
+          ? null
+          : (onOpenDiscussion ??
+              () => showSponsorDiscussionModal(context: context, ad: ad, videoId: targetVideoId)),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: isInModal ? 0 : 16,
+          vertical: isInModal ? 4 : 8,
+        ),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Pinned Header
+            Row(
+              children: [
+                const Icon(
+                  Icons.push_pin_rounded,
+                  size: 13,
+                  color: Colors.white70,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Pinned Sponsor',
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAdvertiserLogoAvatar(ad),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            ad.advertiser.isNotEmpty ? ad.advertiser : 'Official Sponsor',
+                            style: GoogleFonts.roboto(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1D9BF0).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'SPONSOR',
+                              style: GoogleFonts.roboto(
+                                color: const Color(0xFF1D9BF0),
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        commentText,
+                        style: GoogleFonts.roboto(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                      if (ad.ctaText.isNotEmpty && ad.ctaTarget.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () => AdService.to.launchCtaUrl(ad),
+                          child: Text(
+                            '${ad.ctaText} →',
+                            style: GoogleFonts.roboto(
+                              color: const Color(0xFF1D9BF0),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (!isInModal) ...[
+              const SizedBox(height: 10),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('videos')
+                    .doc(targetVideoId)
+                    .collection('comments')
+                    .doc(sponsorCommentId)
+                    .collection('replies')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final replyCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  return Row(
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 14,
+                        color: Colors.white70,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        replyCount == 0
+                            ? 'Reply to Sponsor'
+                            : '$replyCount ${replyCount == 1 ? 'Reply' : 'Replies'}',
+                        style: GoogleFonts.roboto(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void showSponsorDiscussionModal({
+  required BuildContext context,
+  required AdItem ad,
+  required String videoId,
+}) {
+  final replyController = TextEditingController();
+  final isSubmitting = false.obs;
+  final sponsorCommentId = 'sponsor_${ad.id}';
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF161616),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.campaign_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${ad.advertiser.isNotEmpty ? ad.advertiser : "Sponsor"} Discussion',
+                          style: GoogleFonts.roboto(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(color: Colors.white12, height: 1),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      PinnedSponsorCommentCard(
+                        ad: ad,
+                        videoId: videoId,
+                        isInModal: true,
+                      ),
+                      const SizedBox(height: 16),
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.forum_rounded,
+                            size: 15,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'User Replies & Discussion',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('videos')
+                            .doc(videoId)
+                            .collection('comments')
+                            .doc(sponsorCommentId)
+                            .collection('replies')
+                            .orderBy('createdAt', descending: false)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Center(
+                                child: CircularProgressIndicator(color: Colors.white),
+                              ),
+                            );
+                          }
+
+                          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                              alignment: Alignment.center,
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.chat_bubble_outline_rounded,
+                                    color: AppColors.textDisabled,
+                                    size: 40,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'No replies yet',
+                                    style: GoogleFonts.roboto(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Be the first to reply to ${ad.advertiser.isNotEmpty ? ad.advertiser : "our sponsor"}!',
+                                    style: GoogleFonts.roboto(
+                                      color: AppColors.textDisabled,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          final replies = snapshot.data!.docs
+                              .map(Reply.fromDocumentSnapshot)
+                              .toList();
+
+                          return Column(
+                            children: replies.map((reply) {
+                              final formattedTime = timeago.format(reply.createdAt.toDate());
+                              final displayName = reply.channelName?.isNotEmpty == true
+                                  ? reply.channelName!
+                                  : (reply.userName.isNotEmpty ? reply.userName : 'Anonymous User');
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E1E1E),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 15,
+                                      backgroundColor: const Color(0xFF333333),
+                                      child: Text(
+                                        displayName[0].toUpperCase(),
+                                        style: GoogleFonts.roboto(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                displayName,
+                                                style: GoogleFonts.roboto(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                formattedTime,
+                                                style: GoogleFonts.roboto(
+                                                  color: AppColors.textDisabled,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            reply.text,
+                                            style: GoogleFonts.roboto(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    top: 10,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF161616),
+                    border: Border(
+                      top: BorderSide(color: Colors.white12),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: replyController,
+                          style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'Reply to ${ad.advertiser.isNotEmpty ? ad.advertiser : "sponsor"}...',
+                            hintStyle: GoogleFonts.roboto(color: AppColors.textDisabled, fontSize: 13),
+                            filled: true,
+                            fillColor: const Color(0xFF242424),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Obx(() {
+                        return IconButton(
+                          onPressed: isSubmitting.value
+                              ? null
+                              : () async {
+                                  final text = replyController.text.trim();
+                                  if (text.isEmpty) return;
+
+                                  isSubmitting.value = true;
+                                  try {
+                                    final authService = Get.isRegistered<AuthService>()
+                                        ? AuthService.to
+                                        : null;
+                                    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+                                    final userName = authService?.activeDisplayName ?? 'User';
+                                    final userPic = authService?.activePhotoUrl ?? '';
+                                    final channel = authService?.userChannel;
+
+                                    await CommentService().addReply(
+                                      videoId: videoId,
+                                      commentId: sponsorCommentId,
+                                      userId: currentUid,
+                                      userName: userName,
+                                      userProfilePicUrl: userPic,
+                                      text: text,
+                                      channelId: channel?.id ?? currentUid,
+                                      channelName: channel?.name,
+                                      channelProfilePicUrl: channel?.avatarUrl,
+                                    );
+
+                                    replyController.clear();
+                                  } catch (err) {
+                                    AppSnackbar.show(
+                                      'Reply Error',
+                                      'Could not post reply: $err',
+                                      backgroundColor: AppColors.error,
+                                      colorText: Colors.white,
+                                    );
+                                  } finally {
+                                    isSubmitting.value = false;
+                                  }
+                                },
+                          icon: isSubmitting.value
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.send_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
   );
 }

@@ -401,6 +401,63 @@ export class FingerprintService {
   }
 
   /**
+   * Register a provisional copyright_assets entry during ingestion.
+   * Contains only MD5 hash and ownership metadata — embeddings are added
+   * later when the full registerAsset() runs after transcription.
+   *
+   * This closes the detection window where a video is uploaded but not yet
+   * protected in copyright_assets. Uses set() with merge:true so the full
+   * registration later will merge cleanly.
+   *
+   * Cost: 1 Firestore write (~$0.00000018).
+   */
+  async registerProvisionalAsset(params: {
+    videoId: string;
+    ownerId: string;
+    channelId: string;
+    videoTitle: string;
+    videoDuration: number;
+    md5Hash: string;
+  }): Promise<void> {
+    try {
+      const assetId = params.videoId;
+      await db().collection("copyright_assets").doc(assetId).set({
+        assetId,
+        md5Hash: params.md5Hash,
+        originalVideoId: params.videoId,
+        ownerId: params.ownerId,
+        channelId: params.channelId,
+        videoTitle: params.videoTitle,
+        videoDuration: params.videoDuration,
+        protectionLevel: "standard",
+        allowFairUse: true,
+        claimPolicy: "track_only",
+        policy: {
+          action: "track_only",
+          allowFairUse: true,
+          allowCommentary: true,
+          allowEducation: true,
+          minMatchScore: 0.90,
+          clipThresholdSeconds: 30,
+        },
+        provisionalEntry: true,
+        registeredAt: Date.now(),
+        updatedAt: Date.now(),
+      }, { merge: true });
+
+      logger.info("[Fingerprint] Provisional copyright asset registered", {
+        assetId,
+        md5Hash: params.md5Hash,
+      });
+    } catch (err) {
+      logger.warn("[Fingerprint] Failed to register provisional asset", {
+        videoId: params.videoId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
    * Generate fingerprints for a NEW video (not yet registered) to check
    * against existing assets. Returns the fingerprint data without persisting.
    */

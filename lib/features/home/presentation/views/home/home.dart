@@ -15,15 +15,19 @@ import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
+import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart'
     deferred as about;
+import 'package:truthworld/features/advertiser/presentation/views/saved_ads_page.dart'
+    deferred as saved_ads;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
     deferred as channel_details;
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -438,6 +442,7 @@ class HomeSidebarVisibility {
       'Your videos',
       'Your Clips',
       'Downloads',
+      'Interacted Ads',
     ];
   }
 }
@@ -458,6 +463,9 @@ class Home extends GetView<HomeController> {
     lib_feature.loadLibrary().catchError(
       (e) => debugPrint('Preload library error: $e'),
     );
+    saved_ads.loadLibrary().catchError(
+      (e) => debugPrint('Preload saved_ads error: $e'),
+    );
     explore_topics.loadLibrary().catchError(
       (e) => debugPrint('Preload explore_topics error: $e'),
     );
@@ -468,6 +476,7 @@ class Home extends GetView<HomeController> {
     // Preload deferred layouts to ensure zero-latency transitions
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _preloadDeferredLibraries();
+      AuthService.to.checkAndPromptOnboarding(context);
     });
 
     // Check if we need to open a playlist detail
@@ -828,15 +837,22 @@ class Home extends GetView<HomeController> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'Truthworld',
-                    style: modernDarkProfessionalTheme.textTheme.titleLarge
-                        ?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color:
-                              modernDarkProfessionalTheme.colorScheme.onSurface,
-                        ),
-                  ),
+                  Obx(() {
+                    final isPremium =
+                        Get.isRegistered<AuthService>() &&
+                        AuthService.to.isPremiumUser.value;
+                    return Text(
+                      isPremium ? 'Truthworld Premium' : 'Truthworld',
+                      style: modernDarkProfessionalTheme.textTheme.titleLarge
+                          ?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color:
+                                modernDarkProfessionalTheme
+                                    .colorScheme
+                                    .onSurface,
+                          ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -937,14 +953,20 @@ class Home extends GetView<HomeController> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                'Truthworld',
-                style: modernDarkProfessionalTheme.textTheme.titleLarge
-                    ?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: modernDarkProfessionalTheme.colorScheme.onSurface,
-                    ),
-              ),
+              Obx(() {
+                final isPremium =
+                    Get.isRegistered<AuthService>() &&
+                    AuthService.to.isPremiumUser.value;
+                return Text(
+                  isPremium ? 'Truthworld Premium' : 'Truthworld',
+                  style: modernDarkProfessionalTheme.textTheme.titleLarge
+                      ?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color:
+                            modernDarkProfessionalTheme.colorScheme.onSurface,
+                      ),
+                );
+              }),
             ],
           ),
         ),
@@ -1087,7 +1109,7 @@ class Home extends GetView<HomeController> {
         onSelected: (value) {
           switch (value) {
             case 'studio':
-              if (AuthService.to.hasChannel.value) {
+              if (AuthService.to.hasChannel.value || AuthService.to.userChannel != null) {
                 StudioLauncher.openStudio();
               } else {
                 Get.toNamed('/channelscreen');
@@ -1634,6 +1656,18 @@ class _ModernSideNavigationRail extends StatelessWidget {
                         HomeController.indexDownloads,
                         route: '/downloads',
                         requiresAuth: true,
+                      ),
+                      _buildNavItem(
+                        context,
+                        Icons.bookmark_rounded,
+                        Icons.bookmark_outline_rounded,
+                        'Interacted Ads',
+                        -1,
+                        requiresAuth: true,
+                        onTap: () async {
+                          await saved_ads.loadLibrary();
+                          Get.to(() => saved_ads.SavedAdsPage());
+                        },
                       ),
                     ],
                   ),
@@ -2741,6 +2775,8 @@ class _ModernVideoGridSection extends StatelessWidget {
             return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
           } else if (item is CommunityPostModel) {
             return CommunityPostCard(post: item);
+          } else if (item is AdItem) {
+            return HomepageAdCard(ad: item);
           }
           return const SizedBox.shrink();
         },

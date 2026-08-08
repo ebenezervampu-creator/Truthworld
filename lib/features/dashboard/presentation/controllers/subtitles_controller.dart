@@ -14,6 +14,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/download_helper.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
@@ -577,6 +578,155 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     showSuccess(
       'Exported ${getLanguageName(selectedLanguage.value)} track to Clipboard in WEBVTT format!',
     );
+  }
+
+  Future<void> downloadSrtTrack({String? langCode}) async {
+    final targetLang = langCode ?? selectedLanguage.value;
+    if (targetLang.isEmpty) {
+      showError('No subtitle language track selected.');
+      return;
+    }
+
+    final video = selectedVideo.value;
+    final titleRaw = video?.title ?? 'subtitles';
+    final videoTitle = titleRaw
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final fileName = '${videoTitle}_$targetLang.srt';
+
+    if (targetLang == selectedLanguage.value && currentCues.isNotEmpty) {
+      final srtContent = _compileSrtContent(currentCues);
+      DownloadHelper.downloadText(
+        srtContent,
+        fileName,
+        mimeType: 'application/x-subrip',
+      );
+      showSuccess('Downloaded SRT subtitles: $fileName');
+      return;
+    }
+
+    final rawSub = video?.mediaSubtitles[targetLang];
+    if (rawSub != null && rawSub.isNotEmpty) {
+      if (rawSub.startsWith('gs://') ||
+          rawSub.startsWith('http://') ||
+          rawSub.startsWith('https://')) {
+        var downloadUrl = rawSub;
+        if (rawSub.startsWith('gs://')) {
+          try {
+            downloadUrl = await FirebaseStorage.instance
+                .refFromURL(rawSub)
+                .getDownloadURL();
+          } catch (e) {
+            logger.error('Failed resolving gs:// subtitle URL', error: e, tag: _tag);
+          }
+        }
+        DownloadHelper.downloadFromUrl(downloadUrl, fileName);
+        showSuccess('Downloading SRT file for ${getLanguageName(targetLang)}...');
+      } else {
+        final srtContent = _convertTextToSrt(rawSub);
+        DownloadHelper.downloadText(
+          srtContent,
+          fileName,
+          mimeType: 'application/x-subrip',
+        );
+        showSuccess('Downloaded SRT subtitles: $fileName');
+      }
+    } else {
+      showError('No subtitle data available to download.');
+    }
+  }
+
+  void downloadVttTrack({String? langCode}) {
+    final targetLang = langCode ?? selectedLanguage.value;
+    if (targetLang.isEmpty || currentCues.isEmpty) {
+      showError('No subtitle segments available to download.');
+      return;
+    }
+    final video = selectedVideo.value;
+    final titleRaw = video?.title ?? 'subtitles';
+    final videoTitle = titleRaw
+        .replaceAll(RegExp(r'[^\w\s\-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
+    final fileName = '${videoTitle}_$targetLang.vtt';
+
+    final buffer = StringBuffer();
+    buffer.writeln('WEBVTT');
+    buffer.writeln();
+    for (final cue in currentCues) {
+      buffer.writeln('${cue.startTime} --> ${cue.endTime}');
+      buffer.writeln(cue.text);
+      buffer.writeln();
+    }
+
+    DownloadHelper.downloadText(
+      buffer.toString(),
+      fileName,
+      mimeType: 'text/vtt',
+    );
+    showSuccess('Downloaded WebVTT subtitles: $fileName');
+  }
+
+  String _compileSrtContent(List<SubtitleCue> cues) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < cues.length; i++) {
+      final cue = cues[i];
+      final startSrt = cue.startTime.replaceAll('.', ',');
+      final endSrt = cue.endTime.replaceAll('.', ',');
+      buffer.writeln('${i + 1}');
+      buffer.writeln('$startSrt --> $endSrt');
+      buffer.writeln(cue.text);
+      buffer.writeln();
+    }
+    return buffer.toString();
+  }
+
+  String _convertTextToSrt(String rawContent) {
+    if (rawContent.contains('-->')) {
+      final lines = rawContent.split('\n');
+      final cues = <SubtitleCue>[];
+      SubtitleCue? pendingCue;
+      for (final line in lines) {
+        if (line.contains('-->')) {
+          if (pendingCue != null) cues.add(pendingCue);
+          final parts = line.split('-->');
+          pendingCue = SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: parts[0].trim(),
+            endTime: parts.length > 1 ? parts[1].trim() : '00:00:05.000',
+            text: '',
+          );
+        } else if (line.trim().isNotEmpty &&
+            !line.startsWith('WEBVTT') &&
+            pendingCue != null) {
+          pendingCue.text = pendingCue.text.isEmpty
+              ? line.trim()
+              : '${pendingCue.text}\n${line.trim()}';
+        }
+      }
+      if (pendingCue != null) cues.add(pendingCue);
+      return _compileSrtContent(cues);
+    } else {
+      final lines =
+          rawContent.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final cues = <SubtitleCue>[];
+      var startSec = 1;
+      for (var i = 0; i < lines.length; i++) {
+        final sStr = "00:00:${startSec.toString().padLeft(2, '0')}.000";
+        final eStr = "00:00:${(startSec + 4).toString().padLeft(2, '0')}.000";
+        cues.add(
+          SubtitleCue(
+            id: UniqueKey().toString(),
+            startTime: sStr,
+            endTime: eStr,
+            text: lines[i].trim(),
+          ),
+        );
+        startSec += 5;
+      }
+      return _compileSrtContent(cues);
+    }
   }
 
   Future<void> saveCurrentSubtitles() async {

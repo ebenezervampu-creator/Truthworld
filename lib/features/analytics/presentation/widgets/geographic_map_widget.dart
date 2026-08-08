@@ -27,7 +27,9 @@ class GeographicMapWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mapController = Get.find<GeographicMapController>();
+    final mapController = Get.isRegistered<GeographicMapController>()
+        ? Get.find<GeographicMapController>()
+        : Get.put(GeographicMapController());
 
     return Obx(() {
       final isStates = controller.selectedGeoTab.value == 'states';
@@ -119,7 +121,7 @@ class GeographicMapWidget extends StatelessWidget {
                 height: 200,
                 width: double.infinity,
                 child: hasApiKey
-                    ? _buildGoogleStaticMap(markers)
+                    ? _buildGoogleStaticMap(markers, mapController)
                     : _buildVectorMapFallback(markers, mapController),
               ),
             ),
@@ -178,7 +180,10 @@ class GeographicMapWidget extends StatelessWidget {
     });
   }
 
-  Widget _buildGoogleStaticMap(List<MapMarker> markers) {
+  Widget _buildGoogleStaticMap(
+    List<MapMarker> markers,
+    GeographicMapController mapController,
+  ) {
     if (markers.isEmpty) {
       return const Center(
         child: Text(
@@ -220,7 +225,7 @@ class GeographicMapWidget extends StatelessWidget {
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
       errorWidget: (context, url, error) =>
-          _buildVectorMapFallback(markers, Get.find<GeographicMapController>()),
+          _buildVectorMapFallback(markers, mapController),
     );
   }
 

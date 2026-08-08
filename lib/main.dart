@@ -262,12 +262,30 @@ class Truthworld extends StatelessWidget {
           host.contains('admin') ||
           uriStr.contains('admin') ||
           Uri.base.queryParameters.containsKey('admin')) {
+        if (host.startsWith('admin') || host.contains('admin.truthworld.in')) {
+          final path = Uri.base.path.toLowerCase();
+          if (path == '/admin' || path == '/admin/' || path == '/admin/login' || path == '/' || path.isEmpty) {
+            return '/';
+          }
+          return path;
+        }
+        final path = Uri.base.path.toLowerCase();
+        if (path.isNotEmpty && path != '/' && path != '/admin' && path != '/admin/') {
+          return path;
+        }
         return '/admin/login';
       }
       if (host.startsWith('studio') ||
           host.contains('studio') ||
           uriStr.contains('studio') ||
           Uri.base.queryParameters.containsKey('studio')) {
+        if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
+          final path = Uri.base.path.toLowerCase();
+          if (path == '/studio' || path == '/studio/' || path == '/' || path.isEmpty) {
+            return '/';
+          }
+          return path;
+        }
         return '/studio';
       }
     }

@@ -115,7 +115,7 @@ void main() {
 
         runApp(
           const Truthworld(
-            overrideInitialRoute: '/admin',
+            overrideInitialRoute: '/',
             title: 'Truthworld Admin',
           ),
         );

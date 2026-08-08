@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
@@ -124,12 +125,13 @@ class CommunityPostCard extends StatefulWidget {
   State<CommunityPostCard> createState() => _CommunityPostCardState();
 }
 
-class _CommunityPostCardState extends State<CommunityPostCard> {
+class _CommunityPostCardState extends State<CommunityPostCard>
+    with ContentValidationMixin {
   final RxInt _currentPage = 0.obs;
   late final Rx<CommunityPostReactionState> _reactionState;
-  int _commentCount = 0;
+  late final RxInt _commentCount;
   final String? _currentUid = FirebaseAuth.instance.currentUser?.uid;
-  bool _isHidden = false;
+  final RxBool _isHidden = false.obs;
   final RxBool _isSaved = false.obs;
 
   @override
@@ -145,7 +147,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       isLiked: _currentUid != null && likedBy.contains(_currentUid),
       isDisliked: _currentUid != null && dislikedBy.contains(_currentUid),
     ).obs;
-    _commentCount = widget.post.commentCount;
+    _commentCount = widget.post.commentCount.obs;
     _checkSavedStatus();
     _checkHiddenStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -189,9 +191,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       ]);
       if (results[0].exists || results[1].exists || results[2].exists) {
         if (mounted) {
-          setState(() {
-            _isHidden = true;
-          });
+          _isHidden.value = true;
         }
       }
     } catch (_) {}
@@ -229,7 +229,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
       isLiked: _currentUid != null && likedBy.contains(_currentUid),
       isDisliked: _currentUid != null && dislikedBy.contains(_currentUid),
     );
-    _commentCount = widget.post.commentCount;
+    _commentCount = widget.post.commentCount.obs;
   }
 
   Future<void> _toggleLike() async {
@@ -325,11 +325,13 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isHidden) return const SizedBox.shrink();
-    if (!widget.isFullWidth) {
-      return _buildCompactGridCard(context);
-    }
-    return _buildFullYoutubeCard(context);
+    return Obx(() {
+      if (_isHidden.value) return const SizedBox.shrink();
+      if (!widget.isFullWidth) {
+        return _buildCompactGridCard(context);
+      }
+      return _buildFullYoutubeCard(context);
+    });
   }
 
   Widget _buildFullYoutubeCard(BuildContext context) {
@@ -492,13 +494,13 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                               size: 20,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              FormatUtils.formatCount(_commentCount),
+                            Obx(() => Text(
+                              FormatUtils.formatCount(_commentCount.value),
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 13,
                               ),
-                            ),
+                            )),
                           ],
                         ),
                       ),
@@ -866,9 +868,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
   }
 
   Future<void> _hidePost() async {
-    setState(() {
-      _isHidden = true;
-    });
+    _isHidden.value = true;
     if (_currentUid != null) {
       try {
         await FirebaseFirestore.instance
@@ -894,9 +894,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
   }
 
   Future<void> _turnOffChannelPosts() async {
-    setState(() {
-      _isHidden = true;
-    });
+    _isHidden.value = true;
     if (_currentUid != null) {
       try {
         await FirebaseFirestore.instance
@@ -1184,9 +1182,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
   Future<void> _submitReport(String reason, String details) async {
     if (_currentUid == null) return;
-    setState(() {
-      _isHidden = true;
-    });
+    _isHidden.value = true;
 
     try {
       await FirebaseFirestore.instance.collection('reports').add({
@@ -1879,6 +1875,20 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                               );
                               return;
                             }
+                            final validation = await validateContent(
+                              text,
+                              fieldName: 'Comment',
+                            );
+                            if (!validation.isValid) {
+                              Get.snackbar(
+                                'Inappropriate Content',
+                                validation.message,
+                                snackPosition: SnackPosition.BOTTOM,
+                                backgroundColor: AppColors.bgSurface,
+                                colorText: AppColors.textPrimary,
+                              );
+                              return;
+                            }
                             textController.clear();
                             try {
                               final authService = AuthService.to;
@@ -1926,9 +1936,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                               await postDoc.update({
                                 'commentCount': FieldValue.increment(1),
                               });
-                              setState(() {
-                                _commentCount += 1;
-                              });
+                              _commentCount.value += 1;
                             } catch (e) {
                               Get.snackbar(
                                 'Error',
@@ -1971,7 +1979,7 @@ class _CommunityCommentItemWidget extends StatefulWidget {
 }
 
 class _CommunityCommentItemWidgetState
-    extends State<_CommunityCommentItemWidget> {
+    extends State<_CommunityCommentItemWidget> with ContentValidationMixin {
   late RxBool _isLiked;
   late RxBool _isDisliked;
   late RxInt _likeCount;
@@ -2110,6 +2118,17 @@ class _CommunityCommentItemWidgetState
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       Get.snackbar('Authentication Required', 'Please sign in to reply.');
+      return;
+    }
+    final validation = await validateContent(text, fieldName: 'Reply');
+    if (!validation.isValid) {
+      Get.snackbar(
+        'Inappropriate Content',
+        validation.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.bgSurface,
+        colorText: AppColors.textPrimary,
+      );
       return;
     }
     _replyController.clear();

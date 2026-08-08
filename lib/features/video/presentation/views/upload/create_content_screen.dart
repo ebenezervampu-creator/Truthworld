@@ -2161,8 +2161,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         const SizedBox(height: 20),
         _buildEnhancedTextField(
           controller: _communityTagsController,
-          label: 'Tags',
-          hint: 'Add tags separated by commas',
+          label: 'Tags (Max 5)',
+          hint: 'Add tags separated by commas (max 5 tags)',
           icon: Icons.tag_rounded,
           isDark: isDark,
           maxLength: 200,
@@ -2696,11 +2696,17 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         throw Exception('Channel selection failed - please try again');
       }
 
-      final tags = _tagsController.text
+      final rawTags = _tagsController.text
           .split(',')
           .map((tag) => tag.trim())
           .where((tag) => tag.isNotEmpty)
           .toList();
+
+      if (rawTags.length > 5) {
+        throw Exception('Maximum 5 tags allowed (currently ${rawTags.length})');
+      }
+
+      final tags = rawTags.take(5).toList();
       final selectedLanguages = _uploadController.aiTranslationLanguages
           .toList();
 
@@ -2797,11 +2803,17 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       _uploadController.processingMessage.value =
           'Publishing community post...';
 
-      final tags = _communityTagsController.text
+      final rawCommunityTags = _communityTagsController.text
           .split(',')
           .map((tag) => tag.trim())
           .where((tag) => tag.isNotEmpty)
           .toList();
+
+      if (rawCommunityTags.length > 5) {
+        throw Exception('Maximum 5 tags allowed (currently ${rawCommunityTags.length})');
+      }
+
+      final tags = rawCommunityTags.take(5).toList();
 
       await _uploadController.uploadCommunityPost(
         _communityTitleController.text.trim(),
@@ -3179,8 +3191,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             const SizedBox(height: 20),
             _buildEnhancedTextField(
               controller: _tagsController,
-              label: 'Tags',
-              hint: 'Add tags separated by commas',
+              label: 'Tags (Max 5)',
+              hint: 'Add tags separated by commas (max 5 tags)',
               icon: Icons.tag_rounded,
               isDark: isDark,
               maxLength: 500,

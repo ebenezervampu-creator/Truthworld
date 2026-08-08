@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_video_player_controller.dart';
+import 'package:truthworld/features/admin/presentation/views/ad_reports_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/ads_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/alerts_config_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/analytics_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/appeals_tab.dart';
@@ -78,6 +80,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     return _buildAuditLogsTab(context, controller);
                   case 'users':
                     return UserManagementTab(controller: controller);
+                  case 'ads':
+                    return AdsTab(controller: controller);
+                  case 'ad_reports':
+                    return AdReportsTab(controller: controller);
                   case 'analytics':
                     return AnalyticsTab(controller: controller);
                   case 'alerts':
@@ -145,6 +151,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             controller.selectedChannel.value = null;
             controller.selectedReport.value = null;
             controller.selectedAppeal.value = null;
+            controller.selectedAd.value = null;
             if (targetTab == 'analytics') {
               controller.fetchAnalytics();
             } else if (targetTab == 'appeals') {
@@ -390,6 +397,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   activeIcon: Icons.people_rounded,
                   label: 'User Management',
                   tabId: 'users',
+                  controller: controller,
+                  context: context,
+                ),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.campaign_outlined,
+                    activeIcon: Icons.campaign_rounded,
+                    label: 'Ad Campaigns',
+                    tabId: 'ads',
+                    badgeCount: controller.pendingAds.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
+                _buildNavItem(
+                  icon: Icons.report_problem_outlined,
+                  activeIcon: Icons.report_problem_rounded,
+                  label: 'Advertiser Reports',
+                  tabId: 'ad_reports',
                   controller: controller,
                   context: context,
                 ),

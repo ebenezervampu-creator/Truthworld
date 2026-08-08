@@ -114,5 +114,14 @@ service firebase.storage {
       allow write: if isSignedIn() && isValidVideo();
       allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
     }
+
+    // ================================
+    // AD CAMPAIGNS MEDIA
+    // ================================
+    match /ad_campaigns_media/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+      allow delete: if true;
+    }
   }
 }

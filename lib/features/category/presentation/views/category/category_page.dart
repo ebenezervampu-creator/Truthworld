@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/video_card.dart' as app_video_card;
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/category/presentation/controllers/category_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -742,13 +743,14 @@ class _CategoryPageState extends State<CategoryPage>
                     .map(Video.fromDocumentSnapshot)
                     .where(
                       (video) =>
-                          controller.debouncedSearchQuery.value.isEmpty ||
-                          video.title.toLowerCase().contains(
-                            controller.debouncedSearchQuery.value,
-                          ) ||
-                          video.channelName.toLowerCase().contains(
-                            controller.debouncedSearchQuery.value,
-                          ),
+                          VideoVisibilityPolicy.isValidVideo(video) &&
+                          (controller.debouncedSearchQuery.value.isEmpty ||
+                              video.title.toLowerCase().contains(
+                                controller.debouncedSearchQuery.value,
+                              ) ||
+                              video.channelName.toLowerCase().contains(
+                                controller.debouncedSearchQuery.value,
+                              )),
                     )
                     .toList();
 
@@ -967,13 +969,14 @@ class _CategoryPageState extends State<CategoryPage>
                   .map(Video.fromDocumentSnapshot)
                   .where(
                     (video) =>
-                        controller.debouncedSearchQuery.value.isEmpty ||
-                        video.title.toLowerCase().contains(
-                          controller.debouncedSearchQuery.value,
-                        ) ||
-                        video.channelName.toLowerCase().contains(
-                          controller.debouncedSearchQuery.value,
-                        ),
+                        VideoVisibilityPolicy.isValidVideo(video) &&
+                        (controller.debouncedSearchQuery.value.isEmpty ||
+                            video.title.toLowerCase().contains(
+                              controller.debouncedSearchQuery.value,
+                            ) ||
+                            video.channelName.toLowerCase().contains(
+                              controller.debouncedSearchQuery.value,
+                            )),
                   )
                   .toList();
 
@@ -1045,13 +1048,14 @@ class _CategoryPageState extends State<CategoryPage>
                   .map(Video.fromDocumentSnapshot)
                   .where(
                     (video) =>
-                        controller.debouncedSearchQuery.value.isEmpty ||
-                        video.title.toLowerCase().contains(
-                          controller.debouncedSearchQuery.value,
-                        ) ||
-                        video.channelName.toLowerCase().contains(
-                          controller.debouncedSearchQuery.value,
-                        ),
+                        VideoVisibilityPolicy.isValidVideo(video) &&
+                        (controller.debouncedSearchQuery.value.isEmpty ||
+                            video.title.toLowerCase().contains(
+                              controller.debouncedSearchQuery.value,
+                            ) ||
+                            video.channelName.toLowerCase().contains(
+                              controller.debouncedSearchQuery.value,
+                            )),
                   )
                   .toList();
 

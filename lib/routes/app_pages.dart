@@ -15,6 +15,11 @@ import 'package:truthworld/features/admin/presentation/views/admin_login_screen.
 import 'package:truthworld/features/advertiser/presentation/bindings/advertiser_binding.dart';
 import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart'
     deferred as advertiser_portal;
+import 'package:truthworld/features/analytics/presentation/bindings/analytics_binding.dart';
+import 'package:truthworld/features/analytics/presentation/pages/creator_analytics_dashboard.dart';
+import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
+import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
+import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/category/presentation/bindings/category_binding.dart';
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -62,6 +67,8 @@ import 'package:truthworld/features/subscriptions/presentation/bindings/subscrip
 import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart'
     deferred as subscriptions;
 import 'package:truthworld/features/topics/presentation/bindings/topics_binding.dart';
+import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart'
+    deferred as explore_topics;
 import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart'
     deferred as following_topics;
 import 'package:truthworld/features/topics/presentation/pages/topic_page.dart';
@@ -108,7 +115,24 @@ class AppPages {
         }
         return const Home();
       },
-      binding: HomeBinding(),
+      binding: BindingsBuilder(() {
+        if (kIsWeb) {
+          final host = Uri.base.host.toLowerCase();
+          if (host.startsWith('admin') ||
+              host.contains('admin') ||
+              Uri.base.queryParameters.containsKey('admin')) {
+            AdminBinding().dependencies();
+            return;
+          }
+          if (host.startsWith('studio') ||
+              host.contains('studio') ||
+              Uri.base.queryParameters.containsKey('studio')) {
+            DashboardBinding().dependencies();
+            return;
+          }
+        }
+        HomeBinding().dependencies();
+      }),
     ),
     GetPage(
       name: '/studio',
@@ -116,7 +140,7 @@ class AppPages {
         loader: dashboard.loadLibrary,
         builder: () => dashboard.DashboardScreen(),
       ),
-      middlewares: [AuthGuard()],
+      middlewares: [StudioRedirectMiddleware(), AuthGuard()],
       binding: DashboardBinding(),
     ),
     GetPage(
@@ -170,6 +194,14 @@ class AppPages {
         builder: () => following_topics.FollowingTopicsPage(),
       ),
       middlewares: [AuthGuard()],
+      binding: TopicsBinding(),
+    ),
+    GetPage(
+      name: '/explore-topics',
+      page: () => DeferredWidget(
+        loader: explore_topics.loadLibrary,
+        builder: () => explore_topics.ExploreTopicsPage(),
+      ),
       binding: TopicsBinding(),
     ),
     GetPage(
@@ -419,6 +451,31 @@ class AppPages {
       ), // channelId and isDarkMode should be set dynamically
     ),
     GetPage(
+      name: '/WatchTimePage',
+      page: () => const WatchTimePage(),
+      binding: AnalyticsBinding(),
+    ),
+    GetPage(
+      name: '/watchtime',
+      page: () => const WatchTimePage(),
+      binding: AnalyticsBinding(),
+    ),
+    GetPage(
+      name: '/views',
+      page: () => const ViewsPage(),
+      binding: AnalyticsBinding(),
+    ),
+    GetPage(
+      name: '/subscribers',
+      page: () => const SubscribersPage(),
+      binding: AnalyticsBinding(),
+    ),
+    GetPage(
+      name: '/analytics',
+      page: () => const CreatorAnalyticsDashboard(),
+      binding: AnalyticsBinding(),
+    ),
+    GetPage(
       name: '/trending',
       page: TrendingVideosPage.new,
       binding: TrendingBinding(),
@@ -435,6 +492,7 @@ class AppPages {
     GetPage(
       name: '/admin',
       binding: AdminBinding(),
+      middlewares: [AdminRedirectMiddleware()],
       page: () => DeferredWidget(
         loader: admin_login.loadLibrary,
         builder: () => admin_login.AdminLoginScreen(),
@@ -443,6 +501,7 @@ class AppPages {
     GetPage(
       name: '/admin/login',
       binding: AdminBinding(),
+      middlewares: [AdminRedirectMiddleware()],
       page: () => DeferredWidget(
         loader: admin_login.loadLibrary,
         builder: () => admin_login.AdminLoginScreen(),

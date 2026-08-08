@@ -40,6 +40,7 @@ import 'package:truthworld/features/analytics/data/services/video_analytics_serv
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
@@ -110,6 +111,7 @@ class InitialBinding extends Bindings {
     Get.lazyPut(CreateTopicController.new, fenix: true);
 
     // Core Feature Controllers
+    Get.lazyPut(UserSettingsController.new, fenix: true);
     Get.lazyPut(PlaylistController.new, fenix: true);
     Get.lazyPut(SubscriptionController.new, fenix: true);
     Get.lazyPut(WatchHistoryController.new, fenix: true);

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -46,8 +47,8 @@ class TruthVerificationDashboardPage extends StatefulWidget {
 
 class _TruthVerificationDashboardPageState
     extends State<TruthVerificationDashboardPage> {
-  bool _isPublished = false;
-  String _selectedFilter = 'all';
+  final RxBool _isPublished = true.obs;
+  final RxString _selectedFilter = 'all'.obs;
 
   String _formatTimestamp(double? seconds) {
     if (seconds == null || seconds <= 0) return '00:00';
@@ -173,9 +174,7 @@ class _TruthVerificationDashboardPageState
                     'status': 'pending_review',
                   });
 
-                  setState(() {
-                    claim.status = ClaimStatus.disputed;
-                  });
+                  claim.status = ClaimStatus.disputed;
 
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -351,11 +350,12 @@ class _TruthVerificationDashboardPageState
 
           // Apply filters
           final filteredClaims = allClaims.where((claim) {
-            if (_selectedFilter == 'verified') {
+            final filter = _selectedFilter.value;
+            if (filter == 'verified') {
               return claim.status == ClaimStatus.verified;
-            } else if (_selectedFilter == 'unverified') {
+            } else if (filter == 'unverified') {
               return claim.status == ClaimStatus.unverified;
-            } else if (_selectedFilter == 'disputed') {
+            } else if (filter == 'disputed') {
               return claim.status == ClaimStatus.disputed;
             }
             return true;
@@ -401,48 +401,49 @@ class _TruthVerificationDashboardPageState
                         ],
                       ),
                     ),
-                    ElevatedButton.icon(
-                      icon: Icon(
-                        _isPublished ? Icons.verified : Icons.publish,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      label: Text(
-                        _isPublished
-                            ? 'Score Badge Published'
-                            : 'Approve & Publish Score Badge',
-                        style: GoogleFonts.roboto(
+                    Obx(() {
+                      final published = _isPublished.value;
+                      return ElevatedButton.icon(
+                        icon: Icon(
+                          published
+                              ? Icons.visibility_rounded
+                              : Icons.visibility_off_rounded,
+                          size: 18,
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
                         ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isPublished
-                            ? AppColors.success
-                            : AppColors.brand,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 14,
+                        label: Text(
+                          published
+                              ? 'Published to Player'
+                              : 'Unpublished (Draft)',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPublished = !_isPublished;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              _isPublished
-                                  ? 'Credibility badge is now visible on player overlays.'
-                                  : 'Score badge unpublished.',
-                            ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: published
+                              ? AppColors.success
+                              : AppColors.brand,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
                           ),
-                        );
-                      },
-                    ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          _isPublished.toggle();
+                          final pub = _isPublished.value;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                pub
+                                    ? 'Credibility badge is now visible on player overlays.'
+                                    : 'Score badge unpublished.',
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -558,44 +559,41 @@ class _TruthVerificationDashboardPageState
                           color: Colors.white,
                         ),
                         const SizedBox(width: 6),
-                        DropdownButton<String>(
-                          value: _selectedFilter,
-                          dropdownColor: widget.isDarkMode
-                              ? AppColors.bgSurface
-                              : AppColors.textPrimary,
-                          underline: const SizedBox.shrink(),
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
-                            color: widget.isDarkMode
-                                ? AppColors.textPrimary
-                                : Colors.black,
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'all',
-                              child: Text('All Claims'),
+                        Obx(() => DropdownButton<String>(
+                            value: _selectedFilter.value,
+                            dropdownColor: widget.isDarkMode
+                                ? AppColors.bgSurface
+                                : Colors.white,
+                            underline: const SizedBox(),
+                            style: TextStyle(
+                              color: widget.isDarkMode
+                                  ? AppColors.textPrimary
+                                  : Colors.black,
                             ),
-                            DropdownMenuItem(
-                              value: 'verified',
-                              child: Text('Verified'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'unverified',
-                              child: Text('Needs Review'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'disputed',
-                              child: Text('Disputed'),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _selectedFilter = val;
-                              });
-                            }
-                          },
-                        ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'all',
+                                child: Text('All Claims'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'verified',
+                                child: Text('Verified'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'unverified',
+                                child: Text('Needs Review'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'disputed',
+                                child: Text('Disputed'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                _selectedFilter.value = val;
+                              }
+                            },
+                          )),
                       ],
                     ),
                   ],

@@ -6,8 +6,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart' hide GoogleSignInException;
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/google_onboarding_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -39,10 +41,65 @@ class AuthService extends GetxService {
 
   final Rxn<Channel> _userChannel = Rxn<Channel>();
   Channel? get userChannel => _userChannel.value;
+  Rxn<Channel> get rxUserChannel => _userChannel;
 
   StreamSubscription? _channelSubscription;
   final RxBool isPremiumUser = false.obs;
   final RxnString premiumPlanId = RxnString();
+  final RxnInt premiumStartedAt = RxnInt();
+  final RxnInt premiumExpiresAt = RxnInt();
+
+  bool get isTrialExpired {
+    final exp = premiumExpiresAt.value;
+    if (exp == null) return false;
+    return DateTime.now().millisecondsSinceEpoch > exp;
+  }
+
+  void checkTrialExpiry() {
+    final exp = premiumExpiresAt.value;
+    if (exp != null && DateTime.now().millisecondsSinceEpoch > exp) {
+      if (isPremiumUser.value) {
+        isPremiumUser.value = false;
+        try {
+          final box = GetStorage();
+          box.write('isPremiumUser', false);
+        } catch (_) {}
+      }
+    }
+  }
+
+  String get formattedStartedDate {
+    final start = premiumStartedAt.value;
+    if (start == null) return 'N/A';
+    final dt = DateTime.fromMillisecondsSinceEpoch(start);
+    return DateFormat('MMM dd, yyyy • hh:mm a').format(dt);
+  }
+
+  String get formattedExpiresDate {
+    final exp = premiumExpiresAt.value;
+    if (exp == null) return 'N/A';
+    final dt = DateTime.fromMillisecondsSinceEpoch(exp);
+    return DateFormat('MMM dd, yyyy • hh:mm a').format(dt);
+  }
+
+  String get formattedRemainingTime {
+    final exp = premiumExpiresAt.value;
+    if (exp == null) return 'N/A';
+    final diff = DateTime.fromMillisecondsSinceEpoch(exp).difference(
+      DateTime.now(),
+    );
+    if (diff.isNegative) return 'Trial Expired';
+    final days = diff.inDays;
+    final hours = diff.inHours % 24;
+    final mins = diff.inMinutes % 60;
+    if (days > 0) {
+      return '$days days, $hours hrs remaining';
+    } else if (hours > 0) {
+      return '$hours hrs, $mins mins remaining';
+    } else {
+      return '${diff.inMinutes} mins remaining';
+    }
+  }
   final RxnString userGender = RxnString();
   final RxnInt userAge = RxnInt();
   final RxnString userAgeGroup = RxnString();
@@ -81,6 +138,30 @@ class AuthService extends GetxService {
   /// ✅ SAFE async initialization (no Firebase calls before this)
   Future<AuthService> init() async {
     _auth = FirebaseAuth.instance;
+
+    // Load locally cached Premium status synchronously so page refresh never resets state
+    try {
+      final box = GetStorage();
+      final savedIsPremium = box.read('isPremiumUser') as bool? ?? false;
+      final savedPlanId = box.read('premiumPlanId') as String?;
+      final savedStartedAt = box.read('premiumStartedAt') as int?;
+      final savedExpiresAt = box.read('premiumExpiresAt') as int?;
+
+      premiumStartedAt.value = savedStartedAt;
+      premiumExpiresAt.value = savedExpiresAt;
+
+      if (savedExpiresAt != null &&
+          DateTime.now().millisecondsSinceEpoch > savedExpiresAt) {
+        isPremiumUser.value = false;
+        premiumPlanId.value = savedPlanId;
+        box.write('isPremiumUser', false);
+      } else {
+        isPremiumUser.value = savedIsPremium;
+        premiumPlanId.value = savedPlanId;
+      }
+    } catch (e) {
+      debugPrint('AuthService: error loading cached premium status: $e');
+    }
 
     // Google Sign-In v7 requires explicit initialization
     try {
@@ -133,18 +214,64 @@ class AuthService extends GetxService {
         .where('ownerId', isEqualTo: user.uid)
         .snapshots()
         .listen(
-          (snapshot) {
+          (snapshot) async {
             final activeChannels = snapshot.docs
                 .map(Channel.fromDocumentSnapshot)
                 .where((c) => c.status != ChannelStatus.deleted)
                 .toList();
 
-            _hasChannel.value = activeChannels.isNotEmpty;
             if (activeChannels.isNotEmpty) {
+              _hasChannel.value = true;
               _userChannel.value = activeChannels.first;
-            } else {
-              _userChannel.value = null;
+              return;
             }
+
+            // Fallback 1: Check by userId if ownerId returned nothing
+            try {
+              final userSnap = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .where('userId', isEqualTo: user.uid)
+                  .get();
+              final userChannels = userSnap.docs
+                  .map(Channel.fromDocumentSnapshot)
+                  .where((c) => c.status != ChannelStatus.deleted)
+                  .toList();
+              if (userChannels.isNotEmpty) {
+                _hasChannel.value = true;
+                _userChannel.value = userChannels.first;
+                return;
+              }
+            } catch (e) {
+              debugPrint('AuthService: fallback channel check by userId error: $e');
+            }
+
+            // Fallback 2: Check user document for channelId reference
+            try {
+              final userDoc = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.users)
+                  .doc(user.uid)
+                  .get();
+              final chId = userDoc.data()?['channelId'] as String?;
+              if (chId != null && chId.isNotEmpty) {
+                final chDoc = await FirebaseFirestore.instance
+                    .collection(FirestoreCollections.channels)
+                    .doc(chId)
+                    .get();
+                if (chDoc.exists && chDoc.data() != null) {
+                  final ch = Channel.fromDocumentSnapshot(chDoc);
+                  if (ch.status != ChannelStatus.deleted) {
+                    _hasChannel.value = true;
+                    _userChannel.value = ch;
+                    return;
+                  }
+                }
+              }
+            } catch (e) {
+              debugPrint('AuthService: fallback channel check by user doc error: $e');
+            }
+
+            _hasChannel.value = false;
+            _userChannel.value = null;
           },
           onError: (error) {
             debugPrint('AuthService Firestore error: $error');
@@ -154,9 +281,25 @@ class AuthService extends GetxService {
 
   void _updateUserDocSubscription(User? user) {
     _userDocSubscription?.cancel();
+    final box = GetStorage();
+    final cachedIsPremium = box.read('isPremiumUser') as bool? ?? false;
+    final cachedPlanId = box.read('premiumPlanId') as String?;
+    final cachedStartedAt = box.read('premiumStartedAt') as int?;
+    final cachedExpiresAt = box.read('premiumExpiresAt') as int?;
+
     if (user == null) {
-      isPremiumUser.value = false;
-      premiumPlanId.value = null;
+      premiumStartedAt.value = cachedStartedAt;
+      premiumExpiresAt.value = cachedExpiresAt;
+
+      if (cachedExpiresAt != null &&
+          DateTime.now().millisecondsSinceEpoch > cachedExpiresAt) {
+        isPremiumUser.value = false;
+        premiumPlanId.value = cachedPlanId;
+      } else {
+        isPremiumUser.value = cachedIsPremium;
+        premiumPlanId.value = cachedPlanId;
+      }
+
       userGender.value = null;
       userAge.value = null;
       userAgeGroup.value = null;
@@ -175,8 +318,44 @@ class AuthService extends GetxService {
           (snapshot) {
             if (snapshot.exists) {
               final data = snapshot.data() ?? {};
-              isPremiumUser.value = data['isPremium'] as bool? ?? false;
-              premiumPlanId.value = data['premiumPlanId'] as String?;
+              final startAt = (data['premiumStartedAt'] as num?)?.toInt() ?? cachedStartedAt;
+              final expAt = (data['premiumExpiresAt'] as num?)?.toInt() ?? cachedExpiresAt;
+
+              premiumStartedAt.value = startAt;
+              premiumExpiresAt.value = expAt;
+
+              if (startAt != null) box.write('premiumStartedAt', startAt);
+              if (expAt != null) box.write('premiumExpiresAt', expAt);
+
+              final isExpired = expAt != null && DateTime.now().millisecondsSinceEpoch > expAt;
+
+              if (data.containsKey('isPremium')) {
+                final isPrem = data['isPremium'] as bool? ?? false;
+                final planId = data['premiumPlanId'] as String?;
+
+                if (isExpired) {
+                  isPremiumUser.value = false;
+                  premiumPlanId.value = planId ?? cachedPlanId;
+                  box.write('isPremiumUser', false);
+                } else {
+                  isPremiumUser.value = isPrem;
+                  premiumPlanId.value = planId;
+                  box.write('isPremiumUser', isPrem);
+                }
+
+                if (planId != null) {
+                  box.write('premiumPlanId', planId);
+                } else {
+                  box.remove('premiumPlanId');
+                }
+              } else {
+                if (isExpired) {
+                  isPremiumUser.value = false;
+                } else {
+                  isPremiumUser.value = cachedIsPremium;
+                }
+                premiumPlanId.value = cachedPlanId;
+              }
               userGender.value = data['gender'] as String?;
               userAge.value = (data['age'] as num?)?.toInt();
               userAgeGroup.value = data['ageGroup'] as String?;
@@ -185,9 +364,17 @@ class AuthService extends GetxService {
               userCity.value = data['city'] as String?;
               userState.value = data['state'] as String?;
               userCountry.value = data['country'] as String?;
+
+              final hasCompletedOnboarding =
+                  data['hasCompletedOnboarding'] as bool? ??
+                  (data['birthdate'] != null &&
+                      data['birthdate'].toString().isNotEmpty);
+              needsOnboarding.value = !hasCompletedOnboarding;
             } else {
-              isPremiumUser.value = false;
-              premiumPlanId.value = null;
+              isPremiumUser.value = cachedIsPremium;
+              premiumPlanId.value = cachedPlanId;
+              premiumStartedAt.value = cachedStartedAt;
+              premiumExpiresAt.value = cachedExpiresAt;
               userGender.value = null;
               userAge.value = null;
               userAgeGroup.value = null;
@@ -196,6 +383,7 @@ class AuthService extends GetxService {
               userCity.value = null;
               userState.value = null;
               userCountry.value = null;
+              needsOnboarding.value = true;
             }
           },
           onError: (e) {
@@ -212,6 +400,17 @@ class AuthService extends GetxService {
   }
 
   Future<void> cancelPremiumSubscription() async {
+    isPremiumUser.value = false;
+    premiumPlanId.value = null;
+    premiumStartedAt.value = null;
+    premiumExpiresAt.value = null;
+
+    final box = GetStorage();
+    box.write('isPremiumUser', false);
+    box.remove('premiumPlanId');
+    box.remove('premiumStartedAt');
+    box.remove('premiumExpiresAt');
+
     final u = _user.value;
     if (u == null) return;
     try {
@@ -221,6 +420,8 @@ class AuthService extends GetxService {
           .update({
             'isPremium': false,
             'premiumPlanId': FieldValue.delete(),
+            'premiumStartedAt': FieldValue.delete(),
+            'premiumExpiresAt': FieldValue.delete(),
           });
     } catch (e) {
       debugPrint('Error cancelling premium subscription: $e');
@@ -231,11 +432,19 @@ class AuthService extends GetxService {
 
   Future<UserCredential> signInWithGoogle() async {
     try {
-      if (kIsWeb) {
-        return await _signInWithGoogleWeb();
-      } else {
-        return await _signInWithGoogleMobile();
+      final credential = kIsWeb
+          ? await _signInWithGoogleWeb()
+          : await _signInWithGoogleMobile();
+
+      final u = credential.user;
+      if (u != null) {
+        _user.value = u;
+        _isAuthenticated.value = true;
+        await _syncUserToFirestore(u);
+        PushNotificationService.to.registerToken(u.uid);
       }
+
+      return credential;
     } catch (e, st) {
       final mapped = GoogleSignInExceptionHandler.from(e);
       if (mapped.code == 'user-cancelled') {
@@ -468,6 +677,9 @@ class AuthService extends GetxService {
         debugPrint(
           'AuthService: [SYNC] ✅ NEW user record created successfully',
         );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          checkAndPromptOnboarding();
+        });
       } else {
         debugPrint(
           'AuthService: [SYNC] Document exists. Updating lifecycle timestamps...',
@@ -478,6 +690,12 @@ class AuthService extends GetxService {
             (docData['birthdate'] != null &&
                 docData['birthdate'].toString().isNotEmpty);
         needsOnboarding.value = !hasCompletedOnboarding;
+
+        if (!hasCompletedOnboarding) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            checkAndPromptOnboarding();
+          });
+        }
 
         final currentUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
@@ -520,6 +738,9 @@ class AuthService extends GetxService {
           SetOptions(merge: true),
         );
         debugPrint('AuthService: [SYNC] ✅ Idempotent fallback successful');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          checkAndPromptOnboarding();
+        });
       } catch (fallbackError) {
         debugPrint(
           'AuthService: [SYNC] ❌ CRITICAL: Fallback also failed: $fallbackError',
@@ -569,11 +790,45 @@ class AuthService extends GetxService {
     needsOnboarding.value = false;
   }
 
+  bool _isOnboardingPromptShowing = false;
+
   /// Prompts onboarding sheet if the user needs to complete Date of Birth / Gender details
   Future<void> checkAndPromptOnboarding([BuildContext? context]) async {
+    if (_isOnboardingPromptShowing) return;
     final ctx = context ?? Get.context;
-    if (needsOnboarding.value && ctx != null) {
-      await GoogleOnboardingSheet.show(ctx);
+    if (ctx == null) return;
+
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    // If needsOnboarding has not been determined or is false, query Firestore doc
+    if (!needsOnboarding.value) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(currentUser.uid)
+            .get();
+        if (doc.exists) {
+          final data = doc.data() ?? {};
+          final hasCompleted = data['hasCompletedOnboarding'] as bool? ??
+              (data['birthdate'] != null &&
+                  data['birthdate'].toString().isNotEmpty);
+          needsOnboarding.value = !hasCompleted;
+        } else {
+          needsOnboarding.value = true;
+        }
+      } catch (e) {
+        debugPrint('AuthService: Error checking onboarding status: $e');
+      }
+    }
+
+    if (needsOnboarding.value && ctx.mounted && !_isOnboardingPromptShowing) {
+      _isOnboardingPromptShowing = true;
+      try {
+        await GoogleOnboardingSheet.show(ctx);
+      } finally {
+        _isOnboardingPromptShowing = false;
+      }
     }
   }
 }

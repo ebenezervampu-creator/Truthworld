@@ -41,7 +41,6 @@ class AdvertiserPortalController extends BaseController {
     'Performance Reports',
     'AI Video Subtitles',
     'AI Audio Dubbing',
-    'Ad Comments & Replies',
   ];
 
   final List<Map<String, String>> supportedLanguages = [

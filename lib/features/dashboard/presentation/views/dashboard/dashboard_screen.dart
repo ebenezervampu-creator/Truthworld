@@ -348,11 +348,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
 
+  Worker? _authWorker;
+  Worker? _channelWorker;
+
   // Get channel from arguments, controller, or AuthService
   dynamic get channel {
     final args = Get.arguments;
     if (args is Map && args['channel'] != null) {
-      return args['channel'];
+      final ch = args['channel'];
+      if (ch is Channel) return ch;
+      if (ch is Map<String, dynamic>) {
+        return Channel.fromMap(ch, (ch['id'] ?? '').toString());
+      }
+      return ch;
     }
     if (Get.isRegistered<DashboardController>() &&
         controller.currentChannel.value != null) {
@@ -375,10 +383,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   String _getOwnerId(dynamic ch) {
     if (ch == null) return '';
     if (ch is Channel) return ch.ownerId;
-    if (ch is Map) return (ch['ownerId'] ?? '').toString();
+    if (ch is Map) return (ch['ownerId'] ?? ch['userId'] ?? '').toString();
     if (ch is DocumentSnapshot) {
       final data = ch.data() as Map<String, dynamic>?;
-      return (data?['ownerId'] ?? '').toString();
+      return (data?['ownerId'] ?? data?['userId'] ?? '').toString();
     }
     return '';
   }
@@ -409,13 +417,38 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.initState();
     _initializeAnimations(); // Initialize early to avoid LateInitializationError in dispose
     unawaited(_resolveChannelAndInit());
+
+    _authWorker = ever(AuthService.to.isAuthenticated, (isAuth) {
+      if (isAuth && !isSelectingDefault.value && channel == null) {
+        unawaited(_resolveChannelAndInit());
+      }
+    });
+
+    _channelWorker = ever(AuthService.to.rxUserChannel, (ch) {
+      if (ch != null) {
+        if (Get.isRegistered<DashboardController>()) {
+          controller.currentChannel.value = ch;
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    });
   }
 
   Future<void> _resolveChannelAndInit() async {
     isSelectingDefault.value = true;
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
+      final authService = AuthService.to;
+      var user = FirebaseAuth.instance.currentUser;
+
+      // Allow brief moment for auth token restoration on cold start / new tab
+      if (user == null && !authService.isAuthenticated.value) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        user = FirebaseAuth.instance.currentUser;
+      }
+
+      if (user == null && !authService.isAuthenticated.value) {
         isSelectingDefault.value = false;
         return;
       }
@@ -423,28 +456,66 @@ class _DashboardScreenState extends State<DashboardScreen>
       dynamic resolvedChannel = channel;
 
       // 1. If channel not in args, check AuthService.to.userChannel
-      if (resolvedChannel == null && AuthService.to.userChannel != null) {
-        resolvedChannel = AuthService.to.userChannel;
+      if (resolvedChannel == null && authService.userChannel != null) {
+        resolvedChannel = authService.userChannel;
       }
 
-      // 2. If still null, try querying Firestore directly by ownerId
-      if (resolvedChannel == null) {
+      // 2. Direct Firestore fallback query if stream hasn't emitted yet
+      if (resolvedChannel == null && user != null) {
         try {
-          final snapshot = await FirebaseFirestore.instance
+          var snapshot = await FirebaseFirestore.instance
               .collection(FirestoreCollections.channels)
               .where('ownerId', isEqualTo: user.uid)
               .get();
+
+          if (snapshot.docs.isEmpty) {
+            snapshot = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.channels)
+                .where('userId', isEqualTo: user.uid)
+                .get();
+          }
+
           if (snapshot.docs.isNotEmpty) {
-            final firstChannel = snapshot.docs.first;
-            resolvedChannel = {'id': firstChannel.id, ...firstChannel.data()};
+            final activeDocs = snapshot.docs
+                .map(Channel.fromDocumentSnapshot)
+                .where((c) => c.status != ChannelStatus.deleted)
+                .toList();
+            if (activeDocs.isNotEmpty) {
+              resolvedChannel = activeDocs.first;
+              authService.hasChannel.value = true;
+            }
+          }
+
+          // Check user document for channelId reference
+          if (resolvedChannel == null) {
+            final userDoc = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.users)
+                .doc(user.uid)
+                .get();
+            final chId = userDoc.data()?['channelId'] as String?;
+            if (chId != null && chId.isNotEmpty) {
+              final chDoc = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.channels)
+                  .doc(chId)
+                  .get();
+              if (chDoc.exists && chDoc.data() != null) {
+                final ch = Channel.fromDocumentSnapshot(chDoc);
+                if (ch.status != ChannelStatus.deleted) {
+                  resolvedChannel = ch;
+                  authService.hasChannel.value = true;
+                }
+              }
+            }
           }
         } on Object catch (e) {
           debugPrint('Error fetching channel for studio: $e');
         }
       }
 
-      // 3. If user has NO channel, redirect to channel creation screen!
-      if (resolvedChannel == null && !AuthService.to.hasChannel.value) {
+      // 3. Only redirect to channel creation if confirmed authenticated with 0 channels
+      if (resolvedChannel == null &&
+          !authService.hasChannel.value &&
+          authService.isAuthenticated.value) {
         isSelectingDefault.value = false;
         await Get.offAllNamed<dynamic>('/channelscreen');
         return;
@@ -465,6 +536,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       if (resolvedChannel is Channel) {
         controller.currentChannel.value = resolvedChannel;
+      } else if (resolvedChannel is Map) {
+        controller.currentChannel.value = Channel.fromMap(
+          Map<String, dynamic>.from(resolvedChannel),
+          (resolvedChannel['id'] ?? channelId).toString(),
+        );
       }
 
       final args = Get.arguments;
@@ -586,6 +662,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _authWorker?.dispose();
+    _channelWorker?.dispose();
     _searchController.dispose();
     _staggeredAnimationController.dispose();
     _drawerAnimationController.dispose();

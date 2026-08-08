@@ -1,3 +1,5 @@
+// ignore_for_file: invalid_use_of_protected_member, use_build_context_synchronously
+
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -734,7 +736,7 @@ class _RecommendedDownloadCard extends StatefulWidget {
 }
 
 class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
-  bool isDownloading = false;
+  final RxBool isDownloading = false.obs;
 
   @override
   Widget build(BuildContext context) {
@@ -816,39 +818,38 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              onPressed: (widget.isDownloaded || isDownloading)
-                  ? null
-                  : () async {
-                      setState(() {
-                        isDownloading = true;
-                      });
-                      widget.onDownload();
-                      if (mounted) {
-                        setState(() {
-                          isDownloading = false;
-                        });
-                      }
-                    },
-              icon: isDownloading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.brand,
+            Obx(() {
+              final downloading = isDownloading.value;
+              return IconButton(
+                onPressed: (widget.isDownloaded || downloading)
+                    ? null
+                    : () async {
+                        isDownloading.value = true;
+                        widget.onDownload();
+                        if (mounted) {
+                          isDownloading.value = false;
+                        }
+                      },
+                icon: downloading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.brand,
+                        ),
+                      )
+                    : Icon(
+                        widget.isDownloaded
+                            ? Icons.download_done_rounded
+                            : Icons.download_for_offline_outlined,
+                        color: widget.isDownloaded
+                            ? AppColors.brand
+                            : AppColors.textPrimary,
+                        size: 26,
                       ),
-                    )
-                  : Icon(
-                      widget.isDownloaded
-                          ? Icons.download_done_rounded
-                          : Icons.download_for_offline_outlined,
-                      color: widget.isDownloaded
-                          ? AppColors.brand
-                          : AppColors.textPrimary,
-                      size: 26,
-                    ),
-            ),
+              );
+            }),
           ],
         ),
       ),

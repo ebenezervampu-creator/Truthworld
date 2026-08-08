@@ -97,6 +97,7 @@ class SearchService {
     final results = <SearchResult>[];
 
     void addResult(SearchResult item) {
+      if (!item.isValid) return;
       if (foundIds.add(item.id)) {
         results.add(item);
       }

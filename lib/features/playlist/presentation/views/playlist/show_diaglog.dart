@@ -63,7 +63,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     with TickerProviderStateMixin {
   final TextEditingController newPlaylistCtrl = TextEditingController();
   late PlaylistDialogController _dialogController;
-  bool _isPublicNewPlaylist = false;
+  final RxBool _isPublicNewPlaylist = false.obs;
   PlaylistModel? _selectedPlaylist;
 
   late AnimationController _scaleController;
@@ -301,36 +301,39 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                'Privacy: ',
-                style: TextStyle(
-                  fontSize: isTablet ? 14 : 12,
-                  color: colorScheme.onSurface.withValues(alpha: 0.7),
-                  fontWeight: FontWeight.w500,
+          Obx(() {
+            final isPublic = _isPublicNewPlaylist.value;
+            return Row(
+              children: [
+                Text(
+                  'Privacy: ',
+                  style: TextStyle(
+                    fontSize: isTablet ? 14 : 12,
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Private'),
-                selected: !_isPublicNewPlaylist,
-                onSelected: (val) {
-                  if (val) setState(() => _isPublicNewPlaylist = false);
-                },
-                selectedColor: colorScheme.secondaryContainer,
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Public'),
-                selected: _isPublicNewPlaylist,
-                onSelected: (val) {
-                  if (val) setState(() => _isPublicNewPlaylist = true);
-                },
-                selectedColor: colorScheme.secondaryContainer,
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Private'),
+                  selected: !isPublic,
+                  onSelected: (val) {
+                    if (val) _isPublicNewPlaylist.value = false;
+                  },
+                  selectedColor: colorScheme.secondaryContainer,
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Public'),
+                  selected: isPublic,
+                  onSelected: (val) {
+                    if (val) _isPublicNewPlaylist.value = true;
+                  },
+                  selectedColor: colorScheme.secondaryContainer,
+                ),
+              ],
+            );
+          }),
           const SizedBox(height: 12),
           TextField(
             controller: newPlaylistCtrl,
@@ -770,21 +773,25 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     _dialogController.setCreatingPlaylist(true);
 
     try {
+      final messenger = ScaffoldMessenger.of(context);
+      final theme = Theme.of(context);
+      final navigator = Navigator.of(context);
+
       final newPlaylist = await playlistController.createPlayList(
         name,
-        isPublic: _isPublicNewPlaylist,
+        isPublic: _isPublicNewPlaylist.value,
         videoIds: [widget.videoId],
       );
 
       newPlaylistCtrl.clear();
 
       if (mounted) {
-        Navigator.of(context).pop();
+        navigator.pop();
         if (newPlaylist != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger.showSnackBar(
             SnackBar(
               content: Text('Playlist "$name" created and video added!'),
-              backgroundColor: Theme.of(context).colorScheme.secondary,
+              backgroundColor: theme.colorScheme.secondary,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -820,19 +827,22 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     }
 
     _dialogController.setAddingToPlaylist(true);
+    final messenger = ScaffoldMessenger.of(context);
+    final theme = Theme.of(context);
+    final navigator = Navigator.of(context);
 
     try {
       if (selectedId == 'watchlater') {
         final wasIn = playlistController.isInWatchLater(widget.videoId);
         await playlistController.toggleWatchLater(widget.videoId);
         if (mounted) {
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
+          navigator.pop();
+          messenger.showSnackBar(
             SnackBar(
               content: Text(
                 wasIn ? 'Removed from Watch Later' : 'Added to Watch Later',
               ),
-              backgroundColor: Theme.of(context).colorScheme.primary,
+              backgroundColor: theme.colorScheme.primary,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -852,11 +862,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             isPublic,
           );
           if (mounted) {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
+            navigator.pop();
+            messenger.showSnackBar(
               SnackBar(
                 content: const Text('Removed from playlist successfully'),
-                backgroundColor: Theme.of(context).colorScheme.primary,
+                backgroundColor: theme.colorScheme.primary,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -871,11 +881,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             isPublic,
           );
           if (mounted) {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
+            navigator.pop();
+            messenger.showSnackBar(
               SnackBar(
                 content: const Text('Video added to playlist successfully'),
-                backgroundColor: Theme.of(context).colorScheme.primary,
+                backgroundColor: theme.colorScheme.primary,
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -887,14 +897,10 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
-            content: Text('Failed to update playlist: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            content: Text('Failed: $e'),
+            backgroundColor: theme.colorScheme.error,
           ),
         );
       }

@@ -110,39 +110,67 @@ export class IngestionLayer {
         // RE-LINK Relationship: Ensure the new video document knows about the existing job
         const jobSnap = await db().collection("video_jobs").doc(existingJobId).get();
         const jobData = jobSnap.data();
-        const isCompleted = jobData?.status === "completed";
+        const originalUserId = jobData?.userId ?? "";
 
-        const videoUpdate: Record<string, any> = {
-          jobId: existingJobId,
-          updatedAt: Date.now(),
-        };
-        
-        // If the job is already done, mark the video as ready immediately
-        if (isCompleted) {
-          videoUpdate.status = "ready";
+        // Cross-channel copyright check: only re-link if the uploader is the same owner
+        if (originalUserId && originalUserId !== userId) {
+          // Different owner — flag for copyright review instead of re-linking
+          logger.info("[Ingestion] Cross-channel duplicate detected — flagging for copyright review", {
+            videoId, userId, originalUserId, existingJobId, md5: meta.md5Hash,
+          });
+
+          await db().collection("videos").doc(videoId).update({
+            copyrightStatus: "pending_review",
+            copyrightHashMatch: {
+              originalJobId: existingJobId,
+              originalUserId,
+              md5Hash: meta.md5Hash,
+              detectedAt: Date.now(),
+            },
+            updatedAt: Date.now(),
+          });
+
+          // Register this video's hash so it gets its own tracking entry
+          await this.registerVideoHash(meta.md5Hash!, videoId);
+
+          // Fall through to the normal upload tracking path (lines 163-190)
+          // so the video gets its own pipeline processing and copyright check.
         } else {
-          videoUpdate.status = "processing";
+          // Same owner — proceed with re-link logic
+          const isCompleted = jobData?.status === "completed";
+
+          const videoUpdate: Record<string, any> = {
+            jobId: existingJobId,
+            updatedAt: Date.now(),
+          };
+          
+          // If the job is already done, mark the video as ready immediately
+          if (isCompleted) {
+            videoUpdate.status = "ready";
+          } else {
+            videoUpdate.status = "processing";
+          }
+
+          await db().collection("videos").doc(videoId).update({
+            ...videoUpdate,
+            videoRating: 0,
+          });
+
+          // Reverse Mapping: Track that this job now serves multiple videos
+          await db().collection("video_jobs").doc(existingJobId).update({
+            linkedVideoCount: admin.firestore.FieldValue.increment(1),
+            linkedVideoIds: admin.firestore.FieldValue.arrayUnion(videoId),
+            updatedAt: Date.now(),
+          });
+
+          // RE-TRIGGER: If job is stalled/failed, the user can re-publish
+          // via the UI and the onVideoPublished trigger will handle re-creation.
+          if (!isCompleted) {
+            logger.info("[Ingestion] Linked to in-progress job — user can re-publish if needed", { existingJobId });
+          }
+
+          return existingJobId;
         }
-
-        await db().collection("videos").doc(videoId).update({
-          ...videoUpdate,
-          videoRating: 0,
-        });
-
-        // Reverse Mapping: Track that this job now serves multiple videos
-        await db().collection("video_jobs").doc(existingJobId).update({
-          linkedVideoCount: admin.firestore.FieldValue.increment(1),
-          linkedVideoIds: admin.firestore.FieldValue.arrayUnion(videoId),
-          updatedAt: Date.now(),
-        });
-
-        // RE-TRIGGER: If job is stalled/failed, the user can re-publish
-        // via the UI and the onVideoPublished trigger will handle re-creation.
-        if (!isCompleted) {
-          logger.info("[Ingestion] Linked to in-progress job — user can re-publish if needed", { existingJobId });
-        }
-
-        return existingJobId;
       }
     }
 

@@ -681,7 +681,8 @@ class SettingsScreen extends StatelessWidget {
     final locationCtrl = TextEditingController(
       text: auth.userLocation.value ?? '',
     );
-    var selectedGender = auth.userGender.value ?? 'Prefer not to say';
+    final selectedGender =
+        (auth.userGender.value ?? 'Prefer not to say').obs;
     final genderOptions = <String>[
       'Male',
       'Female',
@@ -689,103 +690,102 @@ class SettingsScreen extends StatelessWidget {
       'Other',
       'Prefer not to say',
     ];
-    if (!genderOptions.contains(selectedGender)) {
-      genderOptions.add(selectedGender);
+    if (!genderOptions.contains(selectedGender.value)) {
+      genderOptions.add(selectedGender.value);
     }
 
     Get.dialog(
-      StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            backgroundColor: context.colors.surface,
-            title: const Text(
-              'Edit Profile Details',
-              style: TextStyle(color: AppColors.textPrimary),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: nameCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Display Name',
-                    ),
+      Obx(() {
+        final currentGender = selectedGender.value;
+        return AlertDialog(
+          backgroundColor: context.colors.surface,
+          title: const Text(
+            'Edit Profile Details',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'Display Name',
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: handleCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
-                      labelText: 'Handle',
-                      prefixText: '@',
-                    ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: handleCtrl,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(
+                    labelText: 'Handle',
+                    prefixText: '@',
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: bioCtrl,
-                    maxLines: 2,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'Bio'),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    dropdownColor: context.colors.surface,
-                    value: selectedGender,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'Gender'),
-                    items: genderOptions
-                        .map(
-                          (g) => DropdownMenuItem(
-                            value: g,
-                            child: Text(
-                              g,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                              ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: bioCtrl,
+                  maxLines: 2,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(labelText: 'Bio'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  dropdownColor: context.colors.surface,
+                  value: currentGender,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(labelText: 'Gender'),
+                  items: genderOptions
+                      .map(
+                        (g) => DropdownMenuItem(
+                          value: g,
+                          child: Text(
+                            g,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
                             ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => selectedGender = val);
-                    },
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) selectedGender.value = val;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ageCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: const InputDecoration(labelText: 'Age (Years)'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationCtrl,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Location (City, Country)',
+                    helperText: 'Leave blank or tap clear to remove location',
+                    helperStyle:
+                        const TextStyle(color: AppColors.textTertiary),
+                    suffixIcon: locationCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.clear,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            onPressed: locationCtrl.clear,
+                          )
+                        : null,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: ageCtrl,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'Age (Years)'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: locationCtrl,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: InputDecoration(
-                      labelText: 'Location (City, Country)',
-                      helperText: 'Leave blank or tap clear to remove location',
-                      helperStyle:
-                          const TextStyle(color: AppColors.textTertiary),
-                      suffixIcon: locationCtrl.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.clear,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              onPressed: () =>
-                                  setState(locationCtrl.clear),
-                            )
-                          : null,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            actions: [
+          ),
+          actions: [
               TextButton(
                 onPressed: Get.back,
                 child: const Text(
@@ -811,7 +811,7 @@ class SettingsScreen extends StatelessWidget {
                         'displayName': newName,
                         'handle': newHandle,
                         'bio': newBio,
-                        'gender': selectedGender,
+                        'gender': selectedGender.value,
                         'age': parsedAge,
                       };
 
@@ -1142,7 +1142,7 @@ class SettingsScreen extends StatelessWidget {
                             wb.bedtimeEndTime,
                             wb.bedtimeDaysSchedule,
                           );
-                          setState(() {});
+                          ctrl.update();
                         }
                       },
                     ),
@@ -1171,7 +1171,7 @@ class SettingsScreen extends StatelessWidget {
                             picked.format(dlgContext),
                             wb.bedtimeDaysSchedule,
                           );
-                          setState(() {});
+                          ctrl.update();
                         }
                       },
                     ),
@@ -1514,8 +1514,9 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildBackgroundPlaybackTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     final isSupported = ctrl.isBackgroundPlaybackSupported;
-    return Obx(
-      () => ListTile(
+    return Obx(() {
+      final playbackMode = ctrl.playback.value.backgroundPlaybackMode;
+      return ListTile(
         leading: Icon(
           Icons.picture_in_picture_alt,
           color: isSupported ? AppColors.textPrimary : Colors.grey,
@@ -1526,15 +1527,15 @@ class SettingsScreen extends StatelessWidget {
         ),
         subtitle: Text(
           isSupported
-              ? 'Mode: ${ctrl.playback.value.backgroundPlaybackMode}'
+              ? 'Mode: $playbackMode'
               : 'Unsupported on Web browser',
           style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
         ),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
         enabled: isSupported,
         onTap: () => _showBackgroundPlaybackDialog(context),
-      ),
-    );
+      );
+    });
   }
 
   void _showBackgroundPlaybackDialog(BuildContext context) {

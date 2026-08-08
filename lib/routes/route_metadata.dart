@@ -95,6 +95,11 @@ class RouteMetadataConfig {
       description: 'Discover videos by category on Truthworld',
       keywords: 'category, discover, genres',
     ),
+    '/explore-topics': const RouteMetadata(
+      title: 'Explore Topics | Truthworld',
+      description: 'Explore trending and diverse topics on Truthworld',
+      keywords: 'explore, topics, trending, discover',
+    ),
     '/settings': const RouteMetadata(
       title: 'Settings',
       description: 'Manage your account settings and preferences',

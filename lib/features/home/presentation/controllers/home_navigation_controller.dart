@@ -228,7 +228,7 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
       showSignInSnackbar();
       return;
     }
-    if (AuthService.to.hasChannel.value && AuthService.to.userChannel != null) {
+    if (AuthService.to.hasChannel.value || AuthService.to.userChannel != null) {
       StudioLauncher.openStudio();
     } else {
       Get.toNamed('/channelscreen');

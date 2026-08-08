@@ -67,7 +67,8 @@ class AuthGuard extends GetMiddleware {
 
   /// Show dialog informing user to sign in
   static void _showAuthRequiredDialog() {
-    if (Get.context == null) return;
+    final context = Get.context;
+    if (context == null || !context.mounted) return;
     if (Get.isDialogOpen ?? false) return;
 
     unawaited(
@@ -103,7 +104,14 @@ class ChannelCreationGuard extends GetMiddleware {
 
   @override
   RouteSettings? redirect(String? route) {
-    if (_authService.isAuthenticated.value && _authService.hasChannel.value) {
+    if (_authService.isAuthenticated.value &&
+        (_authService.hasChannel.value || _authService.userChannel != null)) {
+      if (kIsWeb) {
+        final host = Uri.base.host.toLowerCase();
+        if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
+          return const RouteSettings(name: '/');
+        }
+      }
       return const RouteSettings(name: '/studio');
     }
     return null;

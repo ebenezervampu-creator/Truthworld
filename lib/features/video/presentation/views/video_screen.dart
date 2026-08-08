@@ -13,9 +13,11 @@ import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -3805,7 +3807,9 @@ class VideoScreen extends GetView<VideoController> {
 
   List<Widget> _buildCommentsSlivers(BuildContext context) {
     final tag = 'video_${controller.video.id}';
-    final commentsController = Get.find<CommentsController>(tag: tag);
+    final commentsController = Get.isRegistered<CommentsController>(tag: tag)
+        ? Get.find<CommentsController>(tag: tag)
+        : Get.put(CommentsController(video: controller.video), tag: tag);
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return [
@@ -3972,6 +3976,16 @@ class VideoScreen extends GetView<VideoController> {
           ),
         ),
       ),
+      SliverToBoxAdapter(
+        child: Obx(() {
+          if (!Get.isRegistered<AdService>() || !AdService.to.showAds.value) {
+            return const SizedBox.shrink();
+          }
+          final sponsorAd = AdService.to.getSponsorAdForVideo(controller.video.id);
+          if (sponsorAd == null) return const SizedBox.shrink();
+          return PinnedSponsorCommentCard(ad: sponsorAd, videoId: controller.video.id);
+        }),
+      ),
 
       Obx(() {
         if (commentsController.commentsError.value != null) {
@@ -4042,7 +4056,9 @@ class VideoScreen extends GetView<VideoController> {
 
   void _showCommentsBottomSheet(BuildContext context) {
     final tag = 'video_${controller.video.id}';
-    final commentsController = Get.find<CommentsController>(tag: tag);
+    final commentsController = Get.isRegistered<CommentsController>(tag: tag)
+        ? Get.find<CommentsController>(tag: tag)
+        : Get.put(CommentsController(video: controller.video), tag: tag);
     final currentUser = FirebaseAuth.instance.currentUser;
 
     showModalBottomSheet(
@@ -4122,7 +4138,7 @@ class VideoScreen extends GetView<VideoController> {
                       if (commentsController.isLoadingComments.value &&
                           commentsController.comments.isEmpty) {
                         return const Center(
-                          child: CircularProgressIndicator(color: primary),
+                          child: CircularProgressIndicator(color: AppColors.brand),
                         );
                       }
                       if (commentsController.commentsError.value != null) {
@@ -4133,33 +4149,47 @@ class VideoScreen extends GetView<VideoController> {
                           ),
                         );
                       }
+                      final sponsorAd = Get.isRegistered<AdService>() && AdService.to.showAds.value
+                          ? AdService.to.getSponsorAdForVideo(controller.video.id)
+                          : null;
                       if (commentsController.comments.isEmpty) {
-                        return const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                color: textSecondary,
-                                size: 48,
+                        return ListView(
+                          controller: scrollController,
+                          children: [
+                            if (sponsorAd != null) PinnedSponsorCommentCard(ad: sponsorAd, videoId: controller.video.id),
+                            const SizedBox(height: 40),
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.chat_bubble_outline,
+                                    color: textSecondary,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No comments yet',
+                                    style: GoogleFonts.roboto(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              SizedBox(height: 16),
-                              Text(
-                                'No comments yet',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         );
                       }
                       return ListView.builder(
                         controller: scrollController,
-                        itemCount: commentsController.comments.length,
+                        itemCount: commentsController.comments.length + (sponsorAd != null ? 1 : 0),
                         itemBuilder: (context, index) {
-                          final comment = commentsController.comments[index];
+                          if (sponsorAd != null && index == 0) {
+                            return PinnedSponsorCommentCard(ad: sponsorAd, videoId: controller.video.id);
+                          }
+                          final commentIndex = sponsorAd != null ? index - 1 : index;
+                          final comment = commentsController.comments[commentIndex];
                           return _buildCommentItem(
                             comment,
                             controller.video.id,
@@ -4322,7 +4352,25 @@ class VideoScreen extends GetView<VideoController> {
             // Show Transcript button
             InkWell(
               onTap: () {
-                controller.isTranscriptVisible.value = !showTranscript;
+                final nextVisible = !showTranscript;
+                controller.isTranscriptVisible.value = nextVisible;
+                if (nextVisible) {
+                  TowerPlayerController? playerCtrl;
+                  final tag = controller.video.id;
+                  if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
+                    playerCtrl = Get.find<TowerPlayerController>(tag: tag);
+                  } else if (Get.isRegistered<TowerPlayerController>()) {
+                    playerCtrl = Get.find<TowerPlayerController>();
+                  }
+                  if (playerCtrl != null && playerCtrl.subtitleSegments.isEmpty) {
+                    final subUrl = controller.availableSubtitles.firstOrNull?.url ??
+                        controller.video.mediaSubtitles['en'] ??
+                        controller.video.transcriptionUrl;
+                    if (subUrl.isNotEmpty) {
+                      playerCtrl.fetchAndParseSubtitles(subUrl);
+                    }
+                  }
+                }
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
@@ -4649,7 +4697,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
 
     try {
       final tag = 'video_${widget.videoId}';
-      final commentsController = Get.find<CommentsController>(tag: tag);
+      final commentsController = Get.isRegistered<CommentsController>(tag: tag)
+          ? Get.find<CommentsController>(tag: tag)
+          : Get.put(CommentsController(), tag: tag);
 
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value;
@@ -5021,7 +5071,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     final commentId = comment.id;
 
     final tag = 'video_${widget.videoId}';
-    final commentsController = Get.find<CommentsController>(tag: tag);
+    final commentsController = Get.isRegistered<CommentsController>(tag: tag)
+        ? Get.find<CommentsController>(tag: tag)
+        : Get.put(CommentsController(), tag: tag);
 
     return Obx(() {
       final isLiked = commentsController.isCommentLikedByUser(comment);
@@ -5358,7 +5410,9 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
 
   Widget _buildRepliesList(String commentId, Comment parentComment) {
     final tag = 'video_${widget.videoId}';
-    final commentsController = Get.find<CommentsController>(tag: tag);
+    final commentsController = Get.isRegistered<CommentsController>(tag: tag)
+        ? Get.find<CommentsController>(tag: tag)
+        : Get.put(CommentsController(), tag: tag);
 
     return StreamBuilder<List<Reply>>(
       stream: widget.mainController.getRepliesStream(widget.videoId, commentId),
@@ -5909,6 +5963,18 @@ class RecommendationFeed extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           pillsBar,
+          // Render Scroll Ad before recommended videos
+          if (Get.isRegistered<AdService>() && AdService.to.showAds.value)
+            Obx(() {
+              final scrollAds = AdService.to.getAdsForType('scroll');
+              final sponsorAd = AdService.to.getSponsorAdForVideo(controller.video.id);
+              final displayAd = scrollAds.isNotEmpty ? scrollAds.first : sponsorAd;
+              if (displayAd == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
+                child: ScrollAdCard(ad: displayAd),
+              );
+            }),
           if (displayVideos.isEmpty)
             const Center(
               child: Padding(
@@ -6395,9 +6461,9 @@ class TopicVideosBottomSheet extends StatefulWidget {
 }
 
 class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
-  String _selectedFilter = 'All';
-  List<Video> _allVideos = [];
-  bool _isLoading = true;
+  final RxString _selectedFilter = 'All'.obs;
+  final RxList<Video> _allVideos = <Video>[].obs;
+  final RxBool _isLoading = true.obs;
 
   final List<String> _filters = [
     'All',
@@ -6451,19 +6517,17 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
         fetched = snapIds.docs.map(Video.fromDocumentSnapshot).toList();
       }
 
-      // 3. Fallback: query videos matching topic title
+      // 3. Fallback to broad query
       if (fetched.isEmpty) {
         final snapFallback = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)
-            .limit(25)
+            .limit(30)
             .get();
         fetched = snapFallback.docs
             .map(Video.fromDocumentSnapshot)
             .where(
               (v) =>
-                  v.title.toLowerCase().contains(
-                    widget.topic.title.toLowerCase(),
-                  ) ||
+                  v.topics.any((t) => t.toLowerCase() == slug.toLowerCase()) ||
                   v.tags.any(
                     (t) => t.toLowerCase() == widget.topic.title.toLowerCase(),
                   ) ||
@@ -6476,14 +6540,12 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
       }
 
       if (mounted) {
-        setState(() {
-          _allVideos = fetched;
-          _isLoading = false;
-        });
+        _allVideos.assignAll(fetched);
+        _isLoading.value = false;
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        _isLoading.value = false;
       }
     }
   }
@@ -6491,11 +6553,13 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
   List<Video> get _filteredVideos {
     final videoController = _videoController;
     final currentVideo = videoController?.video;
+    final filter = _selectedFilter.value;
+    final all = _allVideos;
 
-    switch (_selectedFilter) {
+    switch (filter) {
       case 'From subscribed channels':
-        if (videoController == null || currentVideo == null) return _allVideos;
-        return _allVideos.where((v) {
+        if (videoController == null || currentVideo == null) return all;
+        return all.where((v) {
           return videoController.channelController.isSubscribed.value &&
               v.channelId == currentVideo.channelId;
         }).toList();
@@ -6562,67 +6626,59 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final videoController = _videoController;
-    final currentVideoId = videoController?.video.id ?? '';
-    final isPlaying = videoController?.isPlayingRx.value ?? false;
-
     return Container(
       height: MediaQuery.of(context).size.height * 0.82,
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border.all(
-          color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
+          color: Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
         children: [
-          // Drag handle bar
+          // Drag indicator handle
+          const SizedBox(height: 10),
           Center(
             child: Container(
-              margin: const EdgeInsets.only(top: 10, bottom: 6),
-              width: 38,
+              width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: Colors.white30,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
+          const SizedBox(height: 10),
 
-          // Header
+          // Sheet Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                RotatingTopicAvatar(
-                  topic: widget.topic,
-                  isPlaying: isPlaying,
-                  size: 44,
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.topic.title,
-                        style: GoogleFonts.roboto(
+                        style: GoogleFonts.outfit(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      Obx(() => Text(
                         '${_allVideos.length} topic videos',
                         style: GoogleFonts.roboto(
                           color: Colors.white60,
                           fontSize: 12,
                         ),
-                      ),
+                      )),
                     ],
                   ),
                 ),
@@ -6637,211 +6693,222 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
           const Divider(color: Colors.white10, height: 1),
 
           // Filter pills bar
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              children: _filters.map((filter) {
-                final isSelected = _selectedFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(
-                      filter,
-                      style: GoogleFonts.roboto(
-                        color: isSelected ? Colors.white : Colors.white70,
-                        fontSize: 12,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+          Obx(() {
+            final activeFilter = _selectedFilter.value;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: _filters.map((filter) {
+                  final isSelected = activeFilter == filter;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(
+                        filter,
+                        style: GoogleFonts.roboto(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) {
+                          _selectedFilter.value = filter;
+                        }
+                      },
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
+                      selectedColor: const Color(0xFF3B82F6),
+                      checkmarkColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: isSelected
+                              ? const Color(0xFF3B82F6)
+                              : Colors.white.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      showCheckmark: false,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
                       ),
                     ),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedFilter = filter);
-                      }
-                    },
-                    backgroundColor: Colors.white.withValues(alpha: 0.08),
-                    selectedColor: const Color(0xFF3B82F6),
-                    checkmarkColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected
-                            ? const Color(0xFF3B82F6)
-                            : Colors.white.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    showCheckmark: false,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
+                  );
+                }).toList(),
+              ),
+            );
+          }),
 
           const Divider(color: Colors.white10, height: 1),
 
           // Video list
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF3B82F6),
-                    ),
-                  )
-                : _filteredVideos.isEmpty
-                ? Center(
-                    child: Text(
-                      'No videos found for "$_selectedFilter"',
-                      style: GoogleFonts.roboto(
-                        color: Colors.white54,
-                        fontSize: 14,
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredVideos.length,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemBuilder: (context, index) {
-                      final video = _filteredVideos[index];
-                      final isCurrent = video.id == currentVideoId;
+            child: Obx(() {
+              final loading = _isLoading.value;
+              final filtered = _filteredVideos;
+              final activeFilter = _selectedFilter.value;
+              final controller = _videoController;
+              final currentVideoId = controller?.video.id;
+              final isPlaying = controller?.isPlayingRx.value ?? false;
 
-                      return Material(
-                        color: isCurrent
-                            ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                            : Colors.transparent,
-                        child: InkWell(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            Get.offNamed(
-                              '/watch?v=${video.id}',
-                              arguments: {
-                                'video': video,
-                                'topic': widget.topic,
-                                'fromTopic': true,
-                              },
-                            );
+              if (loading) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF3B82F6),
+                  ),
+                );
+              }
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No videos found for "$activeFilter"',
+                    style: GoogleFonts.roboto(
+                      color: Colors.white54,
+                      fontSize: 14,
+                    ),
+                  ),
+                );
+              }
+              return ListView.builder(
+                itemCount: filtered.length,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemBuilder: (context, index) {
+                  final video = filtered[index];
+                  final isCurrent = video.id == currentVideoId;
+
+                  return Material(
+                    color: isCurrent
+                        ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Get.offNamed(
+                          '/watch?v=${video.id}',
+                          arguments: {
+                            'video': video,
+                            'topic': widget.topic,
+                            'fromTopic': true,
                           },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Thumbnail (NO drag handle '=' lines before it!)
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Stack(
-                                    children: [
-                                      Image.network(
-                                        video.thumbnailUrl,
-                                        width: 120,
-                                        height: 68,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) => Container(
-                                          width: 120,
-                                          height: 68,
-                                          color: Colors.grey[900],
-                                          child: const Icon(
-                                            Icons.play_circle_fill_rounded,
-                                            color: Colors.white38,
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Stack(
+                                children: [
+                                  Image.network(
+                                    video.thumbnailUrl,
+                                    width: 120,
+                                    height: 68,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Container(
+                                      width: 120,
+                                      height: 68,
+                                      color: Colors.grey[900],
+                                      child: const Icon(
+                                        Icons.play_circle_fill_rounded,
+                                        color: Colors.white38,
+                                      ),
+                                    ),
+                                  ),
+                                  if (video.duration.isNotEmpty)
+                                    Positioned(
+                                      bottom: 4,
+                                      right: 4,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.8,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          video.duration,
+                                          style: GoogleFonts.roboto(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                       ),
-                                      if (video.duration.isNotEmpty)
-                                        Positioned(
-                                          bottom: 4,
-                                          right: 4,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 4,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.8,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              video.duration,
-                                              style: GoogleFonts.roboto(
-                                                color: Colors.white,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Video details (NO like/dislike buttons!)
-                                Expanded(
-                                  child: Column(
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              video.title,
-                                              style: GoogleFonts.roboto(
-                                                color: isCurrent
-                                                    ? const Color(0xFF3B82F6)
-                                                    : Colors.white,
-                                                fontSize: 13,
-                                                fontWeight: isCurrent
-                                                    ? FontWeight.bold
-                                                    : FontWeight.w500,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                                      Expanded(
+                                        child: Text(
+                                          video.title,
+                                          style: GoogleFonts.roboto(
+                                            color: isCurrent
+                                                ? const Color(0xFF3B82F6)
+                                                : Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: isCurrent
+                                                ? FontWeight.bold
+                                                : FontWeight.w500,
                                           ),
-                                          if (isCurrent) ...[
-                                            const SizedBox(width: 6),
-                                            PlayingAudioWaveAnimation(
-                                              isPlaying: isPlaying,
-                                              height: 12,
-                                              barWidth: 2,
-                                              color: const Color(0xFF3B82F6),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${video.channelName} • ${_formatViews(video.views)} views • ${_formatDate(video.createdAt)}',
-                                        style: GoogleFonts.roboto(
-                                          color: Colors.white60,
-                                          fontSize: 11,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
+                                      if (isCurrent) ...[
+                                        const SizedBox(width: 6),
+                                        PlayingAudioWaveAnimation(
+                                          isPlaying: isPlaying,
+                                          height: 12,
+                                          barWidth: 2,
+                                          color: const Color(0xFF3B82F6),
+                                        ),
+                                      ],
                                     ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${video.channelName} • ${_formatViews(video.views)} views • ${_formatDate(video.createdAt)}',
+                                    style: GoogleFonts.roboto(
+                                      color: Colors.white60,
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
           ),
         ],
       ),

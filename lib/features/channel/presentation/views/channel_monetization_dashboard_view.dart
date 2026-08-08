@@ -21,9 +21,13 @@ class ChannelMonetizationDashboardView extends StatefulWidget {
 
 class _ChannelMonetizationDashboardViewState
     extends State<ChannelMonetizationDashboardView> {
-  late Channel _channel;
-  bool _isUpdating = false;
-  String _selectedPlanId = 'starter_15';
+  late final Rx<Channel> _channelRx;
+  Channel get _channel => _channelRx.value;
+
+  final RxBool _isUpdatingRx = false.obs;
+  bool get _isUpdating => _isUpdatingRx.value;
+
+  final RxString _selectedPlanId = 'starter_15'.obs;
 
   // Demo revenue numbers for visualization
   final double _adRevenue = 15000.0;
@@ -43,9 +47,9 @@ class _ChannelMonetizationDashboardViewState
   @override
   void initState() {
     super.initState();
-    _channel = widget.channel;
+    _channelRx = widget.channel.obs;
     if (_channel.infraConfig != null) {
-      _selectedPlanId = _channel.infraConfig!.planTier;
+      _selectedPlanId.value = _channel.infraConfig!.planTier;
     }
   }
 
@@ -67,14 +71,15 @@ class _ChannelMonetizationDashboardViewState
 
   Future<void> _scheduleTierChange() async {
     final controller = _channelController;
-    final newType = _channel.channelType == ChannelType.standard
+    final ch = _channel;
+    final newType = ch.channelType == ChannelType.standard
         ? ChannelType.custom
         : ChannelType.standard;
 
-    setState(() => _isUpdating = true);
+    _isUpdatingRx.value = true;
 
     final success = await controller.scheduleChannelTypeChange(
-      _channel.id,
+      ch.id,
       newType,
     );
     if (success) {
@@ -82,35 +87,33 @@ class _ChannelMonetizationDashboardViewState
       final effectiveDate = DateTime(now.year, now.month + 1);
       final effectiveTimestamp = Timestamp.fromDate(effectiveDate);
 
-      setState(() {
-        _channel = Channel(
-          id: _channel.id,
-          name: _channel.name,
-          nameLowercase: _channel.nameLowercase,
-          handle: _channel.handle,
-          handleLowercase: _channel.handleLowercase,
-          description: _channel.description,
-          avatarUrl: _channel.avatarUrl,
-          bannerUrl: _channel.bannerUrl,
-          ownerId: _channel.ownerId,
-          createdAt: _channel.createdAt,
-          updatedAt: _channel.updatedAt,
-          subscriberCount: _channel.subscriberCount,
-          videoCount: _channel.videoCount,
-          metrics: _channel.metrics,
-          status: _channel.status,
-          isVerified: _channel.isVerified,
-          category: _channel.category,
-          categories: _channel.categories,
-          language: _channel.language,
-          monetizationTier: _channel.monetizationTier,
-          channelType: _channel.channelType,
-          infraConfig: _channel.infraConfig,
-          pendingChannelType: newType,
-          pendingTypeEffectiveDate: effectiveTimestamp,
-          nextBillingCycleDate: effectiveTimestamp,
-        );
-      });
+      _channelRx.value = Channel(
+        id: ch.id,
+        name: ch.name,
+        nameLowercase: ch.nameLowercase,
+        handle: ch.handle,
+        handleLowercase: ch.handleLowercase,
+        description: ch.description,
+        avatarUrl: ch.avatarUrl,
+        bannerUrl: ch.bannerUrl,
+        ownerId: ch.ownerId,
+        createdAt: ch.createdAt,
+        updatedAt: ch.updatedAt,
+        subscriberCount: ch.subscriberCount,
+        videoCount: ch.videoCount,
+        metrics: ch.metrics,
+        status: ch.status,
+        isVerified: ch.isVerified,
+        category: ch.category,
+        categories: ch.categories,
+        language: ch.language,
+        monetizationTier: ch.monetizationTier,
+        channelType: ch.channelType,
+        infraConfig: ch.infraConfig,
+        pendingChannelType: newType,
+        pendingTypeEffectiveDate: effectiveTimestamp,
+        nextBillingCycleDate: effectiveTimestamp,
+      );
 
       final formattedDate = DateFormat('MMMM d, yyyy').format(effectiveDate);
       final daysLeft = _calculateDaysLeftToSwitch();
@@ -131,45 +134,44 @@ class _ChannelMonetizationDashboardViewState
       );
     }
 
-    setState(() => _isUpdating = false);
+    _isUpdatingRx.value = false;
   }
 
   Future<void> _cancelScheduledChange() async {
     final controller = _channelController;
+    final ch = _channel;
 
-    setState(() => _isUpdating = true);
+    _isUpdatingRx.value = true;
 
     final success = await controller.cancelScheduledChannelTypeChange(
-      _channel.id,
+      ch.id,
     );
     if (success) {
-      setState(() {
-        _channel = Channel(
-          id: _channel.id,
-          name: _channel.name,
-          nameLowercase: _channel.nameLowercase,
-          handle: _channel.handle,
-          handleLowercase: _channel.handleLowercase,
-          description: _channel.description,
-          avatarUrl: _channel.avatarUrl,
-          bannerUrl: _channel.bannerUrl,
-          ownerId: _channel.ownerId,
-          createdAt: _channel.createdAt,
-          updatedAt: _channel.updatedAt,
-          subscriberCount: _channel.subscriberCount,
-          videoCount: _channel.videoCount,
-          metrics: _channel.metrics,
-          status: _channel.status,
-          isVerified: _channel.isVerified,
-          category: _channel.category,
-          categories: _channel.categories,
-          language: _channel.language,
-          monetizationTier: _channel.monetizationTier,
-          channelType: _channel.channelType,
-          infraConfig: _channel.infraConfig,
-          nextBillingCycleDate: _channel.nextBillingCycleDate,
-        );
-      });
+      _channelRx.value = Channel(
+        id: ch.id,
+        name: ch.name,
+        nameLowercase: ch.nameLowercase,
+        handle: ch.handle,
+        handleLowercase: ch.handleLowercase,
+        description: ch.description,
+        avatarUrl: ch.avatarUrl,
+        bannerUrl: ch.bannerUrl,
+        ownerId: ch.ownerId,
+        createdAt: ch.createdAt,
+        updatedAt: ch.updatedAt,
+        subscriberCount: ch.subscriberCount,
+        videoCount: ch.videoCount,
+        metrics: ch.metrics,
+        status: ch.status,
+        isVerified: ch.isVerified,
+        category: ch.category,
+        categories: ch.categories,
+        language: ch.language,
+        monetizationTier: ch.monetizationTier,
+        channelType: ch.channelType,
+        infraConfig: ch.infraConfig,
+        nextBillingCycleDate: ch.nextBillingCycleDate,
+      );
 
       Get.snackbar(
         'Request Canceled',
@@ -179,7 +181,7 @@ class _ChannelMonetizationDashboardViewState
       );
     }
 
-    setState(() => _isUpdating = false);
+    _isUpdatingRx.value = false;
   }
 
   @override
@@ -685,18 +687,19 @@ class _ChannelMonetizationDashboardViewState
           ),
           const SizedBox(height: 16),
 
-          // Plan Cards List
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: InfrastructureMeteringService.availablePlans.map((
-                plan,
-              ) {
-                final isSelected = _selectedPlanId == plan.id;
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedPlanId = plan.id),
-                  child: Container(
-                    width: 220,
+          Obx(() {
+            final currentSelectedPlanId = _selectedPlanId.value;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: InfrastructureMeteringService.availablePlans.map((
+                  plan,
+                ) {
+                  final isSelected = currentSelectedPlanId == plan.id;
+                  return GestureDetector(
+                    onTap: () => _selectedPlanId.value = plan.id,
+                    child: Container(
+                      width: 220,
                     margin: const EdgeInsets.only(right: 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -787,7 +790,8 @@ class _ChannelMonetizationDashboardViewState
                 );
               }).toList(),
             ),
-          ),
+          );
+          }),
         ],
       ),
     );

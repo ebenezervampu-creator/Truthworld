@@ -9,7 +9,9 @@ import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AdItem {
   const AdItem({
@@ -215,9 +217,6 @@ class AdService extends GetxService {
   final RxList<AdItem> customCampaigns = <AdItem>[].obs;
   final _storage = GetStorage();
 
-  final Set<String> _trackedImpressions = {};
-  final Set<String> _trackedClicks = {};
-
   Timer? _adRefreshTimer;
   Worker? _authWorker;
 
@@ -260,6 +259,9 @@ class AdService extends GetxService {
               }
               customCampaigns.assignAll(campaigns);
               _syncToLocalCache();
+              if (Get.isRegistered<HomeFeedController>()) {
+                Get.find<HomeFeedController>().mixHomeFeed();
+              }
             },
             onError: (err) {
               if (err.toString().contains('permission-denied')) {
@@ -287,6 +289,11 @@ class AdService extends GetxService {
 
   void _loadFromLocalCache() {
     try {
+      _loadUserInteractionCounts();
+      final cachedHidden = _storage.read<List<dynamic>>('hidden_ad_ids');
+      if (cachedHidden != null) {
+        hiddenAdIds.assignAll(cachedHidden.cast<String>());
+      }
       final cached = _storage.read<List<dynamic>>('local_ad_campaigns');
       if (cached != null) {
         customCampaigns.assignAll(
@@ -294,6 +301,7 @@ class AdService extends GetxService {
               .map((item) => AdItem.fromMap(Map<String, dynamic>.from(item)))
               .toList(),
         );
+        _syncLocalCampaignsToFirestore();
       }
     } catch (e) {
       debugPrint('Failed to load ad campaigns from cache: $e');
@@ -312,6 +320,7 @@ class AdService extends GetxService {
       }
 
       // The Firestore stream listener will update the list and sync cache
+      _syncLocalCampaignsToFirestore();
       return true;
     } catch (e) {
       debugPrint('Save campaign to Firestore failed: $e');
@@ -319,6 +328,18 @@ class AdService extends GetxService {
       customCampaigns.add(ad);
       _syncToLocalCache();
       return true;
+    }
+  }
+
+  void _syncLocalCampaignsToFirestore() {
+    for (final ad in customCampaigns) {
+      FirebaseFirestore.instance
+          .collection('ad_campaigns')
+          .doc(ad.id)
+          .set(ad.toMap())
+          .catchError((e) {
+        debugPrint('[AdService] Syncing local campaign to Firestore error: $e');
+      });
     }
   }
 
@@ -481,6 +502,30 @@ class AdService extends GetxService {
     }
   }
 
+  Future<bool> updateCampaign(AdItem ad) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('ad_campaigns')
+          .doc(ad.id)
+          .set(ad.toMap(), SetOptions(merge: true));
+
+      final index = customCampaigns.indexWhere((item) => item.id == ad.id);
+      if (index != -1) {
+        customCampaigns[index] = ad;
+      }
+      _syncToLocalCache();
+      return true;
+    } catch (e) {
+      debugPrint('Update campaign failed: $e');
+      final index = customCampaigns.indexWhere((item) => item.id == ad.id);
+      if (index != -1) {
+        customCampaigns[index] = ad;
+      }
+      _syncToLocalCache();
+      return true;
+    }
+  }
+
   Future<bool> deleteCampaign(String adId) async {
     try {
       await FirebaseFirestore.instance
@@ -499,11 +544,84 @@ class AdService extends GetxService {
     }
   }
 
+  final Map<String, DateTime> _lastImpressionTimes = {};
+  final Map<String, DateTime> _lastClickTimes = {};
+  final Map<String, int> _userAdImpressionCounts = {};
+  final Map<String, int> _userAdClickCounts = {};
+
+  void _loadUserInteractionCounts() {
+    try {
+      final cachedClicks =
+          _storage.read<Map<String, dynamic>>('user_ad_clicks');
+      if (cachedClicks != null) {
+        _userAdClickCounts.clear();
+        cachedClicks.forEach((k, v) {
+          if (v is int) _userAdClickCounts[k] = v;
+          if (v is num) _userAdClickCounts[k] = v.toInt();
+        });
+      }
+      final cachedImpressions =
+          _storage.read<Map<String, dynamic>>('user_ad_impressions');
+      if (cachedImpressions != null) {
+        _userAdImpressionCounts.clear();
+        cachedImpressions.forEach((k, v) {
+          if (v is int) _userAdImpressionCounts[k] = v;
+          if (v is num) _userAdImpressionCounts[k] = v.toInt();
+        });
+      }
+    } catch (e) {
+      debugPrint('[AdService] Error loading user interaction counts: $e');
+    }
+  }
+
+  void _saveUserClickCount(String key, int count) {
+    _userAdClickCounts[key] = count;
+    try {
+      final raw = _storage.read('user_ad_clicks');
+      final map = raw != null ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      map[key] = count;
+      _storage.write('user_ad_clicks', map);
+    } catch (_) {}
+  }
+
+  void _saveUserImpressionCount(String key, int count) {
+    _userAdImpressionCounts[key] = count;
+    try {
+      final raw = _storage.read('user_ad_impressions');
+      final map = raw != null ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      map[key] = count;
+      _storage.write('user_ad_impressions', map);
+    } catch (_) {}
+  }
+
   Future<void> recordImpression(String adId) async {
-    // Only track advertiser campaigns (campaign documents have ID starting with 'camp_')
-    if (!adId.startsWith('camp_')) return;
-    if (_trackedImpressions.contains(adId)) return;
-    _trackedImpressions.add(adId);
+    final uid = AuthService.to.uid.isNotEmpty ? AuthService.to.uid : 'guest';
+    final key = '${uid}_$adId';
+
+    // Maximum 10 impressions per user per ad campaign to prevent impression inflation
+    final currentCount = _userAdImpressionCounts[key] ?? 0;
+    if (currentCount >= 10) {
+      debugPrint(
+        '[AdService] Impression limit reached (max 10) for user $uid on campaign $adId',
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastTime = _lastImpressionTimes[key];
+    // 3-second viewability cooldown per user per ad
+    if (lastTime != null && now.difference(lastTime).inSeconds < 3) return;
+    _lastImpressionTimes[key] = now;
+    _saveUserImpressionCount(key, currentCount + 1);
+
+    // Update in-memory state instantly for zero-latency UI updates
+    final idx = customCampaigns.indexWhere((a) => a.id == adId);
+    if (idx != -1) {
+      final current = customCampaigns[idx];
+      customCampaigns[idx] = current.copyWith(
+        impressions: current.impressions + 1,
+      );
+    }
 
     try {
       await FirebaseFirestore.instance
@@ -517,9 +635,31 @@ class AdService extends GetxService {
   }
 
   Future<void> recordClick(String adId) async {
-    if (!adId.startsWith('camp_')) return;
-    if (_trackedClicks.contains(adId)) return;
-    _trackedClicks.add(adId);
+    final uid = AuthService.to.uid.isNotEmpty ? AuthService.to.uid : 'guest';
+    final key = '${uid}_$adId';
+
+    // Maximum 3 clicks per user per ad campaign to prevent click spam/fraud
+    final currentCount = _userAdClickCounts[key] ?? 0;
+    if (currentCount >= 3) {
+      debugPrint(
+        '[AdService] Click limit reached (max 3) for user $uid on campaign $adId',
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastTime = _lastClickTimes[key];
+    // 5-second anti-spam cooldown per user per ad
+    if (lastTime != null && now.difference(lastTime).inSeconds < 5) return;
+    _lastClickTimes[key] = now;
+    _saveUserClickCount(key, currentCount + 1);
+
+    // Update in-memory state instantly for zero-latency UI updates
+    final idx = customCampaigns.indexWhere((a) => a.id == adId);
+    if (idx != -1) {
+      final current = customCampaigns[idx];
+      customCampaigns[idx] = current.copyWith(clicks: current.clicks + 1);
+    }
 
     try {
       await FirebaseFirestore.instance
@@ -571,13 +711,24 @@ class AdService extends GetxService {
 
   /// Get specific ads based on target adType
   List<AdItem> getAdsForType(String type) {
+    if (Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value) {
+      return [];
+    }
     return customCampaigns
-        .where((ad) => ad.adType == type && ad.status == 'active')
+        .where(
+          (ad) =>
+              ad.adType == type &&
+              ad.status == 'active' &&
+              !hiddenAdIds.contains(ad.id),
+        )
         .toList();
   }
 
   /// Get list of active skippable video ads
   List<AdItem> getSkippableVideoAds() {
+    if (Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value) {
+      return [];
+    }
     return customCampaigns
         .where(
           (ad) =>
@@ -591,6 +742,9 @@ class AdService extends GetxService {
 
   /// Get active video sponsor campaign for a given video ID (or fallback to any active sponsor ad)
   AdItem? getSponsorAdForVideo(String? videoId) {
+    if (Get.isRegistered<AuthService>() && AuthService.to.isPremiumUser.value) {
+      return null;
+    }
     if (videoId == null || videoId.isEmpty) {
       return customCampaigns.firstWhereOrNull(
         (ad) => ad.adType == 'video_sponsor' && ad.status == 'active',
@@ -605,6 +759,34 @@ class AdService extends GetxService {
         customCampaigns.firstWhereOrNull(
           (ad) => ad.adType == 'video_sponsor' && ad.status == 'active',
         );
+  }
+
+  /// Launch Call-To-Action (CTA) target URL in external browser/app
+  Future<void> launchCtaUrl(AdItem ad) async {
+    recordClick(ad.id);
+    final rawTarget = ad.ctaTarget.trim();
+    if (rawTarget.isEmpty) return;
+
+    if (rawTarget == '/premium') {
+      Get.toNamed('/premium');
+      return;
+    }
+
+    var formattedUrl = rawTarget;
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      formattedUrl = 'https://$formattedUrl';
+    }
+
+    try {
+      final uri = Uri.parse(formattedUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(uri);
+      }
+    } catch (e) {
+      debugPrint('[AdService] Error launching CTA URL $formattedUrl: $e');
+    }
   }
 
   /// Interactive Premium Ad Dialog Showcase
@@ -792,24 +974,13 @@ class AdService extends GetxService {
                     children: [
                       // Primary Visit Button
                       ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           isSimulatingVisit.value = true;
-                          Future.delayed(
-                            const Duration(milliseconds: 1800),
-                            () {
-                              isSimulatingVisit.value = false;
-                              Get.back();
-                              AppSnackbar.show(
-                                'Sponsor Visited',
-                                'Thank you for supporting Truthworld sponsors!',
-                                backgroundColor: AppColors.success,
-                                colorText: AppColors.textPrimary,
-                                snackPosition: SnackPosition.BOTTOM,
-                                margin: const EdgeInsets.all(16),
-                                duration: const Duration(seconds: 3),
-                              );
-                            },
-                          );
+                          await launchCtaUrl(ad);
+                          isSimulatingVisit.value = false;
+                          if (Get.isDialogOpen ?? false) {
+                            Get.back();
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.textPrimary,
@@ -884,7 +1055,13 @@ class AdService extends GetxService {
             );
           },
           onError: (err) {
-            debugPrint('[AdService] ad_likes stream error: $err');
+            if (err.toString().contains('permission-denied')) {
+              debugPrint(
+                '[AdService] ad_likes stream restricted by Firestore security rules. Local memory state active.',
+              );
+            } else {
+              debugPrint('[AdService] ad_likes stream error: $err');
+            }
           },
         );
 
@@ -899,7 +1076,13 @@ class AdService extends GetxService {
             );
           },
           onError: (err) {
-            debugPrint('[AdService] ad_saves stream error: $err');
+            if (err.toString().contains('permission-denied')) {
+              debugPrint(
+                '[AdService] ad_saves stream restricted by Firestore security rules. Local memory state active.',
+              );
+            } else {
+              debugPrint('[AdService] ad_saves stream error: $err');
+            }
           },
         );
   }
@@ -911,16 +1094,27 @@ class AdService extends GetxService {
       return;
     }
 
-    final docId = '${uid}_$adId';
-    final ref = FirebaseFirestore.instance.collection('ad_likes').doc(docId);
-    if (likedAdIds.contains(adId)) {
-      await ref.delete();
+    final isLiked = likedAdIds.contains(adId);
+    if (isLiked) {
+      likedAdIds.remove(adId);
     } else {
-      await ref.set({
-        'userId': uid,
-        'adId': adId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      likedAdIds.add(adId);
+    }
+
+    try {
+      final docId = '${uid}_$adId';
+      final ref = FirebaseFirestore.instance.collection('ad_likes').doc(docId);
+      if (isLiked) {
+        await ref.delete();
+      } else {
+        await ref.set({
+          'userId': uid,
+          'adId': adId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('[AdService] Firestore ad_likes write notice: $e');
     }
   }
 
@@ -931,17 +1125,227 @@ class AdService extends GetxService {
       return;
     }
 
-    final docId = '${uid}_$adId';
-    final ref = FirebaseFirestore.instance.collection('ad_saves').doc(docId);
-    if (savedAdIds.contains(adId)) {
-      await ref.delete();
+    final isSaved = savedAdIds.contains(adId);
+    if (isSaved) {
+      savedAdIds.remove(adId);
     } else {
-      await ref.set({
-        'userId': uid,
-        'adId': adId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      savedAdIds.add(adId);
     }
+
+    try {
+      final docId = '${uid}_$adId';
+      final ref = FirebaseFirestore.instance.collection('ad_saves').doc(docId);
+      if (isSaved) {
+        await ref.delete();
+      } else {
+        await ref.set({
+          'userId': uid,
+          'adId': adId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('[AdService] Firestore ad_saves write notice: $e');
+    }
+  }
+
+  final RxSet<String> hiddenAdIds = <String>{}.obs;
+
+  Future<void> reportAd({
+    required AdItem ad,
+    required String reason,
+    String details = '',
+  }) async {
+    final uid = AuthService.to.uid;
+    final userName = AuthService.to.activeDisplayName.isNotEmpty
+        ? AuthService.to.activeDisplayName
+        : 'Anonymous User';
+    final userEmail = AuthService.to.user?.email ?? '';
+
+    // Hide ad locally for this user session & persist permanently
+    hiddenAdIds.add(ad.id);
+    try {
+      _storage.write('hidden_ad_ids', hiddenAdIds.toList());
+    } catch (_) {}
+
+    customCampaigns.refresh();
+    if (Get.isRegistered<HomeFeedController>()) {
+      Get.find<HomeFeedController>().mixHomeFeed();
+    }
+
+    try {
+      final docRef = FirebaseFirestore.instance.collection('ad_reports').doc();
+      await docRef.set({
+        'id': docRef.id,
+        'adId': ad.id,
+        'advertiser': ad.advertiser,
+        'campaignTitle': ad.title,
+        'userId': uid,
+        'userName': userName,
+        'userEmail': userEmail,
+        'reason': reason,
+        'details': details,
+        'createdAt': DateTime.now().toIso8601String(),
+        'status': 'pending',
+      });
+
+      // Increment report count on ad_campaigns doc
+      await FirebaseFirestore.instance
+          .collection('ad_campaigns')
+          .doc(ad.id)
+          .update({
+        'reportCount': FieldValue.increment(1),
+        'lastReportedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[AdService] Report ad Firestore write notice: $e');
+    }
+
+    AppSnackbar.show(
+      'Ad Reported',
+      'Thank you for your feedback. We have hidden this ad.',
+    );
+  }
+
+  void showReportAdDialog(BuildContext context, AdItem ad) {
+    final reasons = [
+      'Inappropriate or Offensive Content',
+      'Misleading, False or Scam Ad',
+      "Repetitive / Don't want to see this ad",
+      'Copyright or Intellectual Property Violation',
+      'Harmful, Dangerous or illegal',
+      'Other',
+    ];
+
+    final selectedReason = reasons.first.obs;
+    final detailsController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF181818),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.bgDivider),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.report_problem_rounded,
+                color: AppColors.warning,
+                size: 24,
+              ),
+              SizedBox(width: 10),
+              Text(
+                'Report Advertisement',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Why are you reporting "${ad.title}" by ${ad.advertiser}?',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Obx(
+                  () => Column(
+                    children: reasons.map((r) {
+                      final isSelected = selectedReason.value == r;
+                      return RadioListTile<String>(
+                        value: r,
+                        groupValue: selectedReason.value,
+                        activeColor: AppColors.warning,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: Text(
+                          r,
+                          style: TextStyle(
+                            color: isSelected
+                                ? AppColors.textPrimary
+                                : AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        onChanged: (val) {
+                          if (val != null) {
+                            selectedReason.value = val;
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: detailsController,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Additional details (optional)...',
+                    hintStyle: const TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 12,
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFF0F0F0F),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.bgDivider),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textTertiary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                reportAd(
+                  ad: ad,
+                  reason: selectedReason.value,
+                  details: detailsController.text.trim(),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                foregroundColor: Colors.black,
+              ),
+              child: const Text(
+                'Submit Report',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> addAdComment(String adId, String text) async {
@@ -997,6 +1401,10 @@ class AdService extends GetxService {
               .toList();
           comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return comments;
+        })
+        .handleError((err) {
+          debugPrint('[AdService] ad_comments stream notice: $err');
+          return <AdComment>[];
         });
   }
 
@@ -1005,7 +1413,11 @@ class AdService extends GetxService {
         .collection('ad_comments')
         .where('adId', isEqualTo: adId)
         .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+        .map((snapshot) => snapshot.docs.length)
+        .handleError((err) {
+          debugPrint('[AdService] ad_comments count stream notice: $err');
+          return 0;
+        });
   }
 
   Stream<int> getAdLikesCountStream(String adId) {
@@ -1013,7 +1425,11 @@ class AdService extends GetxService {
         .collection('ad_likes')
         .where('adId', isEqualTo: adId)
         .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+        .map((snapshot) => snapshot.docs.length)
+        .handleError((err) {
+          debugPrint('[AdService] ad_likes count stream notice: $err');
+          return 0;
+        });
   }
 
   void showAdCommentsBottomSheet(BuildContext context, AdItem ad) {

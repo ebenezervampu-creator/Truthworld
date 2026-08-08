@@ -47,12 +47,18 @@ class Topic {
   });
 
   /// Create from Firestore document
+  /// Create from Firestore document
   factory Topic.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data()! as Map<String, dynamic>;
     final slugVal = data['slug'] ?? '';
+    var rawTitle = (data['title'] as String?)?.trim() ?? '';
+    if (rawTitle.isEmpty || rawTitle.toLowerCase().startsWith('untitled')) {
+      rawTitle = slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : 'Featured Topic';
+    }
+
     return Topic(
       id: doc.id,
-      title: data['title'] ?? '',
+      title: rawTitle,
       slug: slugVal,
       handle: data['handle'] ?? 'T/$slugVal',
       handleLowercase: data['handleLowercase'] ?? 't/${slugVal.toLowerCase()}',
@@ -89,9 +95,14 @@ class Topic {
   /// Create from Map (e.g. from local storage cache)
   factory Topic.fromMap(Map<String, dynamic> map, {String? docId}) {
     final slugVal = map['slug'] ?? '';
+    var rawTitle = (map['title'] as String?)?.trim() ?? '';
+    if (rawTitle.isEmpty || rawTitle.toLowerCase().startsWith('untitled')) {
+      rawTitle = slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : 'Featured Topic';
+    }
+
     return Topic(
       id: docId ?? map['id'] ?? '',
-      title: map['title'] ?? '',
+      title: rawTitle,
       slug: slugVal,
       handle: map['handle'] ?? 'T/$slugVal',
       handleLowercase: map['handleLowercase'] ?? 't/${slugVal.toLowerCase()}',

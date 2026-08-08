@@ -71,6 +71,7 @@ export const scheduledPublishing = onMessagePublished(
     minInstances: 0,
     maxInstances: 2,
     concurrency: 10,
+    cpu: 1,
     timeoutSeconds: 540,
     memory: "512MiB",
   },

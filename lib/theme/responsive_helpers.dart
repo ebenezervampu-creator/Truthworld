@@ -80,7 +80,7 @@ class ResponsiveContainer extends StatelessWidget {
       child: child,
     );
 
-    if (effectiveMaxWidth < double.infinity || centerContent) {
+    if (effectiveMaxWidth.isFinite && (effectiveMaxWidth < double.infinity || centerContent)) {
       current = Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: effectiveMaxWidth),

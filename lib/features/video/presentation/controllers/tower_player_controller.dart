@@ -1591,12 +1591,48 @@ class TowerPlayerController extends BaseController {
       if (response.statusCode == 200) {
         var content = utf8.decode(response.bodyBytes, allowMalformed: true);
         if (content.startsWith('\uFEFF')) content = content.substring(1);
-        subtitleSegments.assignAll(_parseSRT(content));
+        final trimmed = content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          subtitleSegments.assignAll(_parseJsonTranscript(trimmed));
+        } else {
+          subtitleSegments.assignAll(_parseSRT(content));
+        }
       }
     } catch (e) {
       debugPrint('[TowerPlayer] Subtitle error: $e');
       subtitleSegments.clear();
     }
+  }
+
+  List<SubtitleSegment> _parseJsonTranscript(String content) {
+    final segs = <SubtitleSegment>[];
+    try {
+      final decoded = json.decode(content);
+      final list = decoded is List
+          ? decoded
+          : (decoded is Map ? (decoded['segments'] ?? decoded['words'] ?? []) : []);
+      if (list is List) {
+        for (final item in list) {
+          if (item is Map) {
+            final start = (item['start'] as num?)?.toDouble() ?? 0.0;
+            final end = (item['end'] as num?)?.toDouble() ?? (start + 2.0);
+            final text = (item['text'] ?? item['translatedText'] ?? item['word'] ?? '').toString().trim();
+            if (text.isNotEmpty) {
+              final startMs = (start * (start < 10000 ? 1000 : 1)).round();
+              final endMs = (end * (end < 10000 ? 1000 : 1)).round();
+              segs.add(SubtitleSegment(
+                start: Duration(milliseconds: startMs),
+                end: Duration(milliseconds: endMs),
+                text: text,
+              ));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[TowerPlayer] JSON transcript parse error: $e');
+    }
+    return segs;
   }
 
   List<SubtitleSegment> _parseSRT(String content) {
@@ -2367,9 +2403,14 @@ class TowerPlayerController extends BaseController {
     }
 
     final pos = val.position;
-    final dur = val.duration;
+    final mediaDur = val.duration;
+    final targetDur = currentAd.value?.duration;
 
-    adTimeRemaining.value = max(0, dur.inSeconds - pos.inSeconds);
+    final effectiveDur = (targetDur != null && targetDur > Duration.zero)
+        ? (mediaDur > Duration.zero && mediaDur < targetDur ? mediaDur : targetDur)
+        : mediaDur;
+
+    adTimeRemaining.value = max(0, effectiveDur.inSeconds - pos.inSeconds);
 
     if (currentAd.value?.skippable ?? false) {
       final elapsed = pos.inSeconds;
@@ -2385,7 +2426,7 @@ class TowerPlayerController extends BaseController {
       skipCountdown.value = 0;
     }
 
-    if (pos >= dur && dur > Duration.zero) {
+    if (pos >= effectiveDur && effectiveDur > Duration.zero) {
       _finishAd();
     }
   }

@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -368,7 +370,21 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
             return _buildErrorState(isMobile, isTablet, isDesktop);
           }
 
+          final sponsorAd = Get.isRegistered<AdService>() && AdService.to.showAds.value
+              ? AdService.to.getSponsorAdForVideo(widget.video.id)
+              : null;
+
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            if (sponsorAd != null) {
+              return SingleChildScrollView(
+                child: Column(
+                  children: [
+                    PinnedSponsorCommentCard(ad: sponsorAd, videoId: widget.video.id),
+                    _buildEmptyState(isMobile, isTablet, isDesktop),
+                  ],
+                ),
+              );
+            }
             return _buildEmptyState(isMobile, isTablet, isDesktop);
           }
 
@@ -376,14 +392,20 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
               .map(Comment.fromDocumentSnapshot)
               .toList();
 
+          final extraItemCount = sponsorAd != null ? 1 : 0;
+
           return ListView.builder(
             physics: const NeverScrollableScrollPhysics(),
             shrinkWrap: true,
-            itemCount: comments.length,
+            itemCount: comments.length + extraItemCount,
             itemBuilder: (context, index) {
-              final comment = comments[index];
+              if (sponsorAd != null && index == 0) {
+                return PinnedSponsorCommentCard(ad: sponsorAd, videoId: widget.video.id);
+              }
+              final commentIndex = sponsorAd != null ? index - 1 : index;
+              final comment = comments[commentIndex];
               return TweenAnimationBuilder<double>(
-                duration: Duration(milliseconds: 300 + (index * 100)),
+                duration: Duration(milliseconds: 300 + (commentIndex * 100)),
                 tween: Tween(begin: 0, end: 1),
                 curve: Curves.easeOutCubic,
                 builder: (context, value, child) {

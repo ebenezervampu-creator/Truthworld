@@ -85,7 +85,9 @@ class ChannelLoaderScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Get.find<ChannelLoaderController>();
+    if (!Get.isRegistered<ChannelLoaderController>()) {
+      Get.put(ChannelLoaderController());
+    }
     return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

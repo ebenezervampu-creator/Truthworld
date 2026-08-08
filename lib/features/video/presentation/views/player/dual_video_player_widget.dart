@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -21,10 +22,22 @@ class DualVideoPlayerWidget extends StatefulWidget {
 
   @override
   State<DualVideoPlayerWidget> createState() => _DualVideoPlayerWidgetState();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DualVideoPlayerWidget &&
+          runtimeType == other.runtimeType &&
+          key == other.key &&
+          videoA == other.videoA &&
+          videoB == other.videoB;
+
+  @override
+  int get hashCode => Object.hash(key, videoA, videoB);
 }
 
 class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
-  int activeAudioIndex = 0; // 0 = Video A, 1 = Video B
+  final RxInt activeAudioIndex = 0.obs; // 0 = Video A, 1 = Video B
 
   @override
   Widget build(BuildContext context) {
@@ -137,30 +150,29 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
   }
 
   Widget _buildVideoCard(Video video, String tagLabel, int index) {
-    final isActiveAudio = activeAudioIndex == index;
+    return Obx(() {
+      final isActiveAudio = activeAudioIndex.value == index;
 
-    return InkWell(
-      onTap: () {
-        setState(() {
-          activeAudioIndex = index;
-        });
-      },
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Thumbnail background
-          CachedNetworkImage(
-            imageUrl: video.thumbnailUrl,
-            fit: BoxFit.cover,
-            errorWidget: (_, _, _) => Container(color: Colors.black45),
-          ),
+      return InkWell(
+        onTap: () {
+          activeAudioIndex.value = index;
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Thumbnail background
+            CachedNetworkImage(
+              imageUrl: video.thumbnailUrl,
+              fit: BoxFit.cover,
+              errorWidget: (_, _, _) => Container(color: Colors.black45),
+            ),
 
-          // Dim overlay
-          Container(
-            color: isActiveAudio
-                ? Colors.black.withValues(alpha: 0.2)
-                : Colors.black.withValues(alpha: 0.6),
-          ),
+            // Dim overlay
+            Container(
+              color: isActiveAudio
+                  ? Colors.black.withValues(alpha: 0.2)
+                  : Colors.black.withValues(alpha: 0.6),
+            ),
 
           // Tag Label (Top Left)
           Positioned(
@@ -252,5 +264,6 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
         ],
       ),
     );
+    });
   }
 }

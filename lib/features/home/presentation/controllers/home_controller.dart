@@ -96,15 +96,23 @@ class HomeController extends BaseController {
       if (u != null) {
         _checkUserLibraryData(u.uid);
         discovery.fetchSubscribedChannels();
+        _authService.checkAndPromptOnboarding();
       } else {
         _resetLibraryData();
         discovery.subscribedChannelList.clear();
       }
     }));
 
+    trackSubscription(_authService.needsOnboarding.listen((needs) {
+      if (needs) {
+        _authService.checkAndPromptOnboarding();
+      }
+    }));
+
     final currentUid = _authService.user?.uid;
     if (currentUid != null && currentUid.isNotEmpty) {
       _checkUserLibraryData(currentUid);
+      _authService.checkAndPromptOnboarding();
     }
   }
 

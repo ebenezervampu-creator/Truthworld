@@ -370,7 +370,7 @@ export class DubbingEngine {
     }
 
     const bucket = admin.storage().bucket();
-    const transPath = `translations/${jobId}/${targetLang}.json`;
+    const transPath = `subtitles/${jobId}/${targetLang}.json`;
     await bucket.file(transPath).save(JSON.stringify(dubbingSegs, null, 2), {
       metadata: { contentType: "application/json" }
     });
@@ -396,10 +396,28 @@ export class DubbingEngine {
           linkedVideoIds.push(jobData.videoId);
         }
 
+        const directSubtitleUrl = subtitleUrl.startsWith("gs://")
+          ? `https://storage.googleapis.com/${bucket.name}/${subtitleUrl.replace(`gs://${bucket.name}/`, "")}`
+          : subtitleUrl;
+
         for (const vid of linkedVideoIds) {
+          // Update top-level videos/{vid} document directly
+          await db().collection("videos").doc(vid).set({
+            subtitles: {
+              [targetLang]: directSubtitleUrl,
+            },
+            media: {
+              subtitles: {
+                [targetLang]: directSubtitleUrl,
+              }
+            },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+
+          // Also update subcollection for backwards compatibility
           await db().collection("videos").doc(vid).collection("media").doc("localization").set({
             subtitles: {
-              [targetLang]: subtitleUrl,
+              [targetLang]: directSubtitleUrl,
             },
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });

@@ -5,13 +5,122 @@ class VideoVisibilityPolicy {
   static const VideoStatus publicStatus = VideoStatus.ready;
   static const String publicVisibilityString = 'Public';
 
+  /// Industry standard check: video must have at least one valid, non-empty media URL.
+  static bool hasPlayableMedia(Video video) {
+    if (video.videoUrl.trim().isNotEmpty) return true;
+    if (video.originalUrl.trim().isNotEmpty) return true;
+    if (video.hlsUrl.trim().isNotEmpty) return true;
+    if (video.dashUrl.trim().isNotEmpty) return true;
+    if (video.adaptiveResolutions.any((r) => r.url.trim().isNotEmpty)) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Industry standard check: video should have a valid thumbnail image or preview source.
+  static bool hasValidThumbnail(Video video) {
+    if (video.thumbnailUrl.trim().isNotEmpty) return true;
+    if (video.thumbnailVariants.any((v) => v.trim().isNotEmpty)) return true;
+    if (video.animatedPreviewUrl.trim().isNotEmpty) return true;
+    return false;
+  }
+
+  /// Primary validity check: video must not be untitled, uploading, processing, draft, deleted, unapproved, or missing media.
+  static bool isValidVideo(Video video) {
+    if (video.isUntitled) return false;
+    if (video.isUploadingOrProcessing) return false;
+    if (video.status == VideoStatus.deleted ||
+        video.status == VideoStatus.rejected) {
+      return false;
+    }
+    final statusName = video.status.name.toLowerCase();
+    if (statusName == 'deleted' ||
+        statusName == 'deletion_pending' ||
+        statusName == 'rejected' ||
+        statusName == 'draft' ||
+        statusName == 'uploading' ||
+        statusName == 'processing') {
+      return false;
+    }
+
+    // Must be approved by Gemini AI moderation or manual review
+    if (!video.isApprovedByGeminiOrManual) return false;
+
+    // Must contain playable video stream URL
+    if (!hasPlayableMedia(video)) return false;
+    return true;
+  }
+
+  /// Raw Map validator for queries returning Map structures directly
+  static bool isMapValid(Map<String, dynamic> data) {
+    final title = (data['title'] as String?)?.trim() ?? '';
+    final titleLower = title.toLowerCase();
+    if (title.isEmpty ||
+        titleLower == 'untitled' ||
+        titleLower == 'untitled video' ||
+        titleLower == 'untitled draft' ||
+        titleLower.startsWith('untitled')) {
+      return false;
+    }
+
+    final statusStr = (data['status'] as String?)?.toLowerCase() ?? '';
+    if (statusStr == 'uploading' ||
+        statusStr == 'processing' ||
+        statusStr == 'draft' ||
+        statusStr == 'pending_review' ||
+        statusStr == 'deleted' ||
+        statusStr == 'deletion_pending' ||
+        statusStr == 'rejected' ||
+        statusStr == 'pending') {
+      return false;
+    }
+
+    // Gemini AI / Manual moderation approval check
+    final geminiApproved = data['geminiApproved'] as bool? ??
+        (data['moderation'] is Map
+            ? data['moderation']['geminiApproved'] as bool?
+            : null);
+    final isApproved = data['isApproved'] as bool? ??
+        (data['moderation'] is Map
+            ? data['moderation']['isApproved'] as bool?
+            : null);
+    if (geminiApproved == false || isApproved == false) {
+      return false;
+    }
+
+    // Media stream validation for raw Maps
+    final videoUrl = (data['videoUrl'] as String?)?.trim() ?? '';
+    final originalUrl = (data['originalUrl'] as String?)?.trim() ?? '';
+    final hlsUrl = (data['hlsUrl'] as String?)?.trim() ?? '';
+    final dashUrl = (data['dashUrl'] as String?)?.trim() ?? '';
+    final adaptiveResolutions = data['adaptiveResolutions'] as List?;
+    final hasAdaptive = adaptiveResolutions != null &&
+        adaptiveResolutions.isNotEmpty &&
+        adaptiveResolutions.any(
+          (r) =>
+              r is Map &&
+              (r['url'] as String?)?.trim().isNotEmpty == true,
+        );
+
+    if (videoUrl.isEmpty &&
+        originalUrl.isEmpty &&
+        hlsUrl.isEmpty &&
+        dashUrl.isEmpty &&
+        !hasAdaptive) {
+      return false;
+    }
+
+    return true;
+  }
+
   /// Standard check for Home Feed, Trending, and Category carousels
   static bool isVisibleForFeed(Video video) {
-    if (!_isBasicStatusValid(video)) return false;
+    if (!isValidVideo(video)) return false;
     if (video.visibility != publicVisibilityString &&
         video.visibility != 'public') {
       return false;
     }
+    if (!hasValidThumbnail(video)) return false;
     if (_isScheduledInFuture(video)) return false;
     if (_isChannelDeleted(video)) return false;
     return true;
@@ -19,11 +128,12 @@ class VideoVisibilityPolicy {
 
   /// Search & Autocomplete visibility check
   static bool isVisibleForSearch(Video video) {
-    if (!_isBasicStatusValid(video)) return false;
+    if (!isValidVideo(video)) return false;
     if (video.visibility != publicVisibilityString &&
         video.visibility != 'public') {
       return false;
     }
+    if (!hasValidThumbnail(video)) return false;
     if (_isScheduledInFuture(video)) return false;
     if (_isChannelDeleted(video)) return false;
     return true;
@@ -35,20 +145,13 @@ class VideoVisibilityPolicy {
   }
 
   /// Watch History visibility check
-  /// Allows rendering history entries, but caller can detect if underlying video is invalid
   static bool isVisibleForHistory(Video video) {
-    return video.status != VideoStatus.deleted;
+    return isValidVideo(video);
   }
 
   /// Check basic video status against deleted / pending deletion
   static bool _isBasicStatusValid(Video video) {
-    if (video.status == VideoStatus.deleted) return false;
-    // Handle string representation if status is pending deletion
-    final statusName = video.status.name.toLowerCase();
-    if (statusName == 'deleted' || statusName == 'deletion_pending') {
-      return false;
-    }
-    return true;
+    return isValidVideo(video);
   }
 
   /// Check if scheduled video publish timestamp is in the future
@@ -69,3 +172,5 @@ class VideoVisibilityPolicy {
     return false;
   }
 }
+
+

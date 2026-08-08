@@ -314,35 +314,81 @@ export const moderateVideoManual = onRequest(
 
         if (!jobsSnap.empty) {
           const jobDoc = jobsSnap.docs[0];
+          const jobData = jobDoc.data() || {};
+          const executionPlan = jobData.executionPlan || {};
+          const userId = jobData.userId || authUser.uid;
+
           await jobDoc.ref.update({
+            gatewayDecision: {
+              status: "APPROVED",
+              confidence: 1.0,
+              evaluatedAt: now,
+              reviewReason: reason || "Manually approved by administrator.",
+            },
+            gatewayStatus: "APPROVED",
+            status: "published",
+            metadataComplete: true,
+            publishedAt: now,
+            updatedAt: now,
             "stages.moderation": {
               status: "completed",
               progress: 100,
               completedAt: now,
-              summary: "Manually approved by administrator.",
+              summary: reason || "Manually approved by administrator.",
             },
-            updatedAt: now,
           });
+
+          // Resume downstream processing (Fact-checking, Dubbing, Copyright)
+          try {
+            const { DistributionLayer } = require("../pipeline/layers/04-distribution");
+            const { AggregationLayer } = require("../pipeline/layers/09-aggregation");
+            const distribution = new DistributionLayer();
+            const aggregationLayer = new AggregationLayer();
+
+            await aggregationLayer.onStageComplete(jobDoc.id, "transcription", userId, executionPlan).catch(() => {});
+
+            await distribution.publish("copyright-processing" as any, {
+              eventId: `copy_manual_${jobDoc.id}`,
+              eventType: "copyright-processing" as any,
+              jobId: jobDoc.id, userId,
+              timestamp: now,
+              data: { videoUrl: jobData.videoUrl, executionPlan },
+              retryCount: 0,
+              source: "admin-manual-approval"
+            }).catch(() => {});
+
+            const shouldRunCredibility = !!(
+              executionPlan.enablePath1 ||
+              executionPlan.enableTruthEngine ||
+              executionPlan.enableCredibility ||
+              executionPlan.enableFactChecking
+            );
+
+            if (shouldRunCredibility) {
+              await distribution.publish("fact-processing", {
+                eventId: `fact_manual_${jobDoc.id}`,
+                eventType: "fact-processing",
+                jobId: jobDoc.id, userId,
+                timestamp: now,
+                data: { executionPlan },
+                retryCount: 0,
+                source: "admin-manual-approval"
+              }).catch(() => {});
+            }
+          } catch (fanoutErr) {
+            console.warn("[VideoModeration] Manual approval downstream fanout error:", fanoutErr);
+          }
         }
 
         res.status(200).json({ success: true, message: `Video approved manually.` });
       } else {
         // action === "reject"
-        // Update Video doc
-        await videoRef.update({
-          "moderation.status": "rejected",
-          "moderation.reason": reason || "Manually rejected by administrator.",
-          "moderation.manuallyVerified": true,
-          "moderation.verifiedBy": authUser.uid,
-          "moderation.checkedAt": now,
-          status: "rejected",
-          rejectionReason: reason || "Content violates Community Guidelines",
-        });
+        // 1. Delete entire Video document from Videos collection
+        await videoRef.delete();
 
-        // Cancel running pipeline jobs
+        // 2. Update Job doc & admin_review_queue doc
         const jobsSnap = await db.collection("video_jobs")
           .where("videoId", "==", videoId)
-          .where("status", "in", ["accepted", "processing", "running"])
           .limit(1)
           .get();
 
@@ -359,21 +405,27 @@ export const moderateVideoManual = onRequest(
           });
         }
 
-        // Quarantine original file and resolution files in Storage
+        await db.collection("admin_review_queue").doc(videoId).delete().catch(() => {});
+
+        // 3. Delete files from Storage (videos/{videoId}/ and thumbnails/{videoId}/)
         const bucket = admin.storage().bucket(BUCKET_NAME);
         try {
           const [files] = await bucket.getFiles({ prefix: `videos/${videoId}/` });
           for (const file of files) {
-            const destPath = file.name.replace(`videos/${videoId}/`, `_quarantine/videos/${videoId}/`);
-            await file.copy(bucket.file(destPath));
-            await file.delete();
-            console.log(`[VideoModeration] Quarantined file: ${file.name} -> ${destPath}`);
+            await file.delete().catch(() => {});
+            console.log(`[VideoModeration] Deleted Storage file: ${file.name}`);
+          }
+
+          const [thumbFiles] = await bucket.getFiles({ prefix: `thumbnails/${videoId}/` });
+          for (const file of thumbFiles) {
+            await file.delete().catch(() => {});
+            console.log(`[VideoModeration] Deleted Storage thumbnail file: ${file.name}`);
           }
         } catch (storageErr) {
-          console.error(`[VideoModeration] Storage quarantine failed:`, storageErr);
+          console.error(`[VideoModeration] Storage deletion error:`, storageErr);
         }
 
-        res.status(200).json({ success: true, message: `Video rejected manually and files quarantined.` });
+        res.status(200).json({ success: true, message: `Video document deleted from videos collection and files removed from Storage.` });
       }
     } catch (err) {
       console.error("[VideoModeration] Manual moderation failed:", err);

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -179,7 +180,7 @@ class TopicRepository {
       final snapshot = await query.get();
       final videos = snapshot.docs
           .map(Video.fromDocumentSnapshot)
-          .where((video) => video.visibility.toLowerCase() == 'public')
+          .where((video) => VideoVisibilityPolicy.isValidVideo(video) && video.visibility.toLowerCase() == 'public')
           .toList();
       final newLastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
       return TopicVideosPage(videos: videos, lastDoc: newLastDoc);
@@ -205,7 +206,7 @@ class TopicRepository {
         .map(
           (snapshot) => snapshot.docs
               .map(Video.fromDocumentSnapshot)
-              .where((video) => video.visibility.toLowerCase() == 'public')
+              .where((video) => VideoVisibilityPolicy.isValidVideo(video) && video.visibility.toLowerCase() == 'public')
               .toList(),
         );
   }
@@ -230,7 +231,7 @@ class TopicRepository {
         allVideos.addAll(
           query.docs
               .map(Video.fromDocumentSnapshot)
-              .where((video) => video.visibility.toLowerCase() == 'public'),
+              .where((video) => VideoVisibilityPolicy.isValidVideo(video) && video.visibility.toLowerCase() == 'public'),
         );
       }
 

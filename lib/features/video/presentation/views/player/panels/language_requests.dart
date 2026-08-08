@@ -33,7 +33,7 @@ class RequestLanguageButton extends StatelessWidget {
             children: [
               const Icon(
                 Icons.add_circle_outline_rounded,
-                color: PT.primary,
+                color: AppColors.textPrimary,
                 size: 20,
               ),
               const SizedBox(width: 12),
@@ -60,6 +60,7 @@ class LanguageRequestsList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -72,92 +73,94 @@ class LanguageRequestsList extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(
-          child: Obx(() {
-            if (!Get.isRegistered<VideoController>(tag: tag)) {
-              return const SizedBox.shrink();
-            }
-            final vc = Get.find<VideoController>(tag: tag);
-            vc.rxVideo.value;
-            final reqs = vc.languageRequests
-                .where((r) => r.type == type)
-                .toList();
-            if (vc.isLoadingLanguageRequests.value) {
-              return Shimmer.fromColors(
-                baseColor: AppColors.textPrimary.withValues(alpha: 0.1),
-                highlightColor: AppColors.textPrimary.withValues(alpha: 0.2),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: 3,
-                  itemBuilder: (_, _) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ListTile(
-                      dense: true,
-                      leading: Container(
-                        width: 18,
-                        height: 18,
-                        decoration: const BoxDecoration(
-                          color: AppColors.textPrimary,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      title: Container(
-                        width: 80,
-                        height: 12,
-                        color: AppColors.textPrimary,
-                      ),
-                      subtitle: Container(
-                        width: 120,
-                        height: 10,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }
-            if (reqs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(20),
-                child: Center(
-                  child: Text(
-                    'No requests yet',
-                    style: TS.bodySm.copyWith(color: AppColors.textDisabled),
-                  ),
-                ),
-              );
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: reqs.length,
-              itemBuilder: (_, i) {
-                final r = reqs[i];
-                return Padding(
+        Obx(() {
+          if (!Get.isRegistered<VideoController>(tag: tag)) {
+            return const SizedBox.shrink();
+          }
+          final vc = Get.find<VideoController>(tag: tag);
+          vc.rxVideo.value;
+          final reqs = vc.languageRequests
+              .where((r) => r.type == type)
+              .toList();
+          if (vc.isLoadingLanguageRequests.value) {
+            return Shimmer.fromColors(
+              baseColor: AppColors.textPrimary.withValues(alpha: 0.1),
+              highlightColor: AppColors.textPrimary.withValues(alpha: 0.2),
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                itemCount: 3,
+                itemBuilder: (_, _) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: ListTile(
                     dense: true,
-                    leading: const Icon(
-                      Icons.language_rounded,
-                      color: AppColors.textTertiary,
-                      size: 18,
-                    ),
-                    title: Text(
-                      r.language,
-                      style: TS.body.copyWith(fontSize: 13),
-                    ),
-                    subtitle: Text(
-                      'Requested on ${_fmtDate(r.createdAt.toDate())}',
-                      style: TS.bodySm.copyWith(
-                        color: AppColors.textDisabled,
-                        fontSize: 11,
+                    leading: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: const BoxDecoration(
+                        color: AppColors.textPrimary,
+                        shape: BoxShape.circle,
                       ),
                     ),
+                    title: Container(
+                      width: 80,
+                      height: 12,
+                      color: AppColors.textPrimary,
+                    ),
+                    subtitle: Container(
+                      width: 120,
+                      height: 10,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                );
-              },
+                ),
+              ),
             );
-          }),
-        ),
+          }
+          if (reqs.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Text(
+                  'No requests yet',
+                  style: TS.bodySm.copyWith(color: AppColors.textDisabled),
+                ),
+              ),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            itemCount: reqs.length,
+            itemBuilder: (_, i) {
+              final r = reqs[i];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(
+                    Icons.language_rounded,
+                    color: AppColors.textTertiary,
+                    size: 18,
+                  ),
+                  title: Text(
+                    r.language,
+                    style: TS.body.copyWith(fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    'Requested on ${_fmtDate(r.createdAt.toDate())}',
+                    style: TS.bodySm.copyWith(
+                      color: AppColors.textDisabled,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }),
       ],
     );
   }

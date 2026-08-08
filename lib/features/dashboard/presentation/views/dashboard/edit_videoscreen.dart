@@ -121,7 +121,16 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
               const SizedBox(height: 20),
               _buildTextField(
                 controller: _tagsController,
-                label: 'Tags (comma separated)',
+                label: 'Tags (comma separated, max 5)',
+                validator: (val) {
+                  if (val != null && val.trim().isNotEmpty) {
+                    final count = val.split(',').where((e) => e.trim().isNotEmpty).length;
+                    if (count > 5) {
+                      return 'Maximum 5 tags allowed';
+                    }
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 20),
               _buildDropdownField(),

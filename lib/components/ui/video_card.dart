@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,6 +13,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -419,6 +422,9 @@ class _VideoCardState extends State<VideoCard> {
           label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
           onTap: () => _handleTap(context),
           child: Obx(() {
+            if (!VideoVisibilityPolicy.isValidVideo(widget.video)) {
+              return const SizedBox.shrink();
+            }
             if (Get.isRegistered<UserPreferencesService>() &&
                 UserPreferencesService.to.isVideoBlocked(widget.video)) {
               return const SizedBox.shrink();

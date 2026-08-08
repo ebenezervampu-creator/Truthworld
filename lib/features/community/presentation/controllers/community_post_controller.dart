@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
@@ -98,7 +99,7 @@ class CommunityPostCardReactionEngine {
   }
 }
 
-class CommunityPostController extends BaseController {
+class CommunityPostController extends BaseController with ContentValidationMixin {
   CommunityPostController({required CommunityPostModel post})
     : _initialPost = post;
 
@@ -508,6 +509,12 @@ class CommunityPostController extends BaseController {
     }
 
     if (text.trim().isEmpty) return;
+
+    final validation = await validateContent(text, fieldName: 'Comment');
+    if (!validation.isValid) {
+      showWarning(validation.message);
+      return;
+    }
 
     final batch = FirebaseFirestore.instance.batch();
 

@@ -900,7 +900,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   Future<void> fetchAvailableSubtitles() async {
     try {
-      final subs = video.mediaSubtitles;
+      var subs = video.mediaSubtitles;
+      if (subs.isEmpty) {
+        final loc = await VideoMediaService().getLocalization(video.id);
+        subs = loc.subtitles;
+      }
       if (subs.isEmpty) {
         debugPrint('[VideoController] ℹ️ No subtitles found in video metadata');
         return;
@@ -955,7 +959,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   Future<void> fetchAvailableAudioTracks() async {
     try {
-      final audioTracksMap = video.audioTracks;
+      var audioTracksMap = video.audioTracks;
+      if (audioTracksMap.isEmpty) {
+        final loc = await VideoMediaService().getLocalization(video.id);
+        audioTracksMap = loc.audioTracks;
+      }
       final dubbedVideosMap = video.dubbedVideos;
       final fetchTasks = <Future<AudioTrack?>>[];
 

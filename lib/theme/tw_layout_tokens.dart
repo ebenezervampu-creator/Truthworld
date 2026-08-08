@@ -159,7 +159,11 @@ class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
     );
   }
 
-  double _lerp(double a, double b, double t) => a + (b - a) * t;
+  double _lerp(double a, double b, double t) {
+    if (a == b) return a;
+    if (a.isInfinite || b.isInfinite) return t < 0.5 ? a : b;
+    return a + (b - a) * t;
+  }
 }
 
 extension TWLayoutTokensExtension on BuildContext {

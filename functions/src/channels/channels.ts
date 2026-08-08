@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { Channel, ChannelType } from "../pipeline/types";
 
@@ -65,7 +66,7 @@ async function checkRateLimit(userId: string): Promise<void> {
 
 /**
  * 🚀 CREATE CHANNEL (Callable)
- * Atomic creation of a channel with the new economic model.
+ * Atomic creation of a channel enforcing strictly ONE channel per Google account.
  */
 export const createChannel = onCall(
   {
@@ -136,15 +137,29 @@ export const createChannel = onCall(
       const result = await db().runTransaction(async (tx) => {
         const userRef = db().collection(USERS_COLLECTION).doc(userId);
         const userSnap = await tx.get(userRef);
-        const userData = userSnap.exists ? userSnap.data() as any : { channelsCount: 0 };
+        const userData = userSnap.exists ? (userSnap.data() as any) : {};
         const currentCount = userData.channelsCount || 0;
 
-        // Standard limit: one channel per user
-        const maxChannels = 1;
-        const maxDuration = 10800; // 3 hr
+        // Strict Enforcement: Strictly ONE channel per Google account in Truthworld
+        if (currentCount >= 1 || userData.channelId || userData.hasChannel === true) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Only one channel per Google account is allowed in Truthworld. You already have an active channel."
+          );
+        }
 
-        if (currentCount >= maxChannels) {
-          throw new HttpsError("failed-precondition", "Only one channel per user is allowed in the basic tier. Upgrade to create more.");
+        // Query channels collection inside transaction to prevent race condition duplicates
+        const existingByOwner = await tx.get(
+          db().collection(CHANNELS_COLLECTION).where("ownerId", "==", userId).limit(1)
+        );
+        if (!existingByOwner.empty) {
+          const chData = existingByOwner.docs[0].data();
+          if (chData.status !== "deleted") {
+            throw new HttpsError(
+              "failed-precondition",
+              "Only one channel per Google account is allowed in Truthworld. You already have an active channel."
+            );
+          }
         }
 
         const normalizedSlug = slug.toLowerCase();
@@ -164,12 +179,16 @@ export const createChannel = onCall(
         const adsRevShare = channelType === 'custom' ? 1.0 : 0.75;
         const memberRevShare = channelType === 'custom' ? 0.75 : 1.0;
 
-                const channelDoc: any = {
+        const channelDoc: any = {
           id: channelId,
           ownerId: userId,
+          userId: userId,
           handle: normalizedSlug,
           displayName: name.trim(),
+          name: name.trim(),
+          channelName: name.trim(),
           about: description || "",
+          description: description || "",
           type: channelType, 
           outstandingCosts: 0,
           hasPaidSubscriptionBuyout: false,
@@ -179,6 +198,8 @@ export const createChannel = onCall(
           moderationReason: "",
           category: categoriesList.join(", "),
           categories: categoriesList,
+          avatarUrl: avatarUrl || "",
+          bannerUrl: bannerUrl || "",
           profile: {
             photoUrl: avatarUrl || "",
             coverUrl: bannerUrl || "",
@@ -201,26 +222,20 @@ export const createChannel = onCall(
             defaultPlatform,
           },
           limits: {
-            maxDurationSec: maxDuration,
-            maxChannels: maxChannels,
+            maxDurationSec: 10800,
+            maxChannels: 1,
           }
         };
 
         tx.set(channelRef, channelDoc);
         tx.set(slugRef, { channelId, ownerId: userId, createdAt: now });
         
-        if (!userSnap.exists) {
-          tx.set(userRef, { 
-            channelsCount: 1,
-            createdAt: now,
-            updatedAt: now
-          });
-        } else {
-          tx.set(userRef, { 
-            channelsCount: admin.firestore.FieldValue.increment(1),
-            updatedAt: now
-          }, { merge: true });
-        }
+        tx.set(userRef, { 
+          channelId: channelId,
+          hasChannel: true,
+          channelsCount: 1,
+          updatedAt: now
+        }, { merge: true });
 
         return { channelId, handle: channelDoc.handle };
       });
@@ -296,3 +311,108 @@ export const switchChannelType = onCall(
     }
   }
 );
+
+/**
+ * 🔒 ON CHANNEL WRITTEN SYNC USER (Firestore Trigger)
+ * Automatically keeps user document in sync and enforces the strict 1-channel rule in Firestore.
+ */
+export const onChannelCreatedSyncUser = onDocumentWritten(
+  {
+    document: "channels/{channelId}",
+    region: "asia-south1",
+    retry: false,
+    maxInstances: 5,
+  },
+  async (event) => {
+    const channelId = event.params.channelId;
+    const afterData = event.data?.after.data();
+
+    if (!afterData) {
+      // Channel was deleted
+      const beforeData = event.data?.before.data();
+      const ownerId = beforeData?.ownerId || beforeData?.userId;
+      if (ownerId) {
+        const remainingChannels = await db()
+          .collection(CHANNELS_COLLECTION)
+          .where("ownerId", "==", ownerId)
+          .get();
+
+        const activeChannels = remainingChannels.docs
+          .filter((d) => d.id !== channelId && d.data().status !== "deleted");
+
+        if (activeChannels.length === 0) {
+          await db().collection(USERS_COLLECTION).doc(ownerId).set(
+            {
+              hasChannel: false,
+              channelId: null,
+              channelsCount: 0,
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          );
+        } else {
+          await db().collection(USERS_COLLECTION).doc(ownerId).set(
+            {
+              hasChannel: true,
+              channelId: activeChannels[0].id,
+              channelsCount: activeChannels.length,
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          );
+        }
+      }
+      return;
+    }
+
+    const ownerId = afterData.ownerId || afterData.userId;
+    if (!ownerId) return;
+
+    const isDeleted = afterData.status === "deleted";
+
+    if (!isDeleted) {
+      // Strict 1-Channel Check: verify whether user already has another active channel
+      const allUserChannels = await db()
+        .collection(CHANNELS_COLLECTION)
+        .where("ownerId", "==", ownerId)
+        .get();
+
+      const activeChannels = allUserChannels.docs.filter(
+        (d) => d.data().status !== "deleted"
+      );
+
+      // If more than 1 active channel is detected for this Google account, mark duplicate as deleted
+      if (activeChannels.length > 1) {
+        // Sort by createdAt ascending to preserve the original channel
+        activeChannels.sort(
+          (a, b) => (a.data().createdAt || 0) - (b.data().createdAt || 0)
+        );
+        const originalChannel = activeChannels[0];
+
+        if (channelId !== originalChannel.id) {
+          logger.warn(
+            `[onChannelCreatedSyncUser] Duplicate channel detected (${channelId}) for user ${ownerId}. Marking as duplicate/deleted.`
+          );
+          await db().collection(CHANNELS_COLLECTION).doc(channelId).update({
+            status: "deleted",
+            moderationReason: "Strict rule violation: Only one channel per Google account is allowed.",
+            updatedAt: Date.now(),
+          });
+          return;
+        }
+      }
+
+      // Sync primary user doc
+      await db().collection(USERS_COLLECTION).doc(ownerId).set(
+        {
+          channelId: channelId,
+          hasChannel: true,
+          channelsCount: 1,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    }
+  }
+);
+

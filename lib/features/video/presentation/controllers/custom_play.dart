@@ -2889,7 +2889,7 @@ class _SubtitlesPanel extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.closed_caption_rounded,
-                  color: PT.primary,
+                  color: AppColors.textPrimary,
                   size: 20,
                 ),
                 const SizedBox(width: 16),

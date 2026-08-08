@@ -115,7 +115,7 @@ void main() {
 
         runApp(
           const Truthworld(
-            overrideInitialRoute: '/studio',
+            overrideInitialRoute: '/',
             title: 'Truthworld Studio',
           ),
         );

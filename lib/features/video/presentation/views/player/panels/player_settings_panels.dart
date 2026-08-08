@@ -554,95 +554,106 @@ class SubtitlesPanel extends StatelessWidget {
           actionIcon: Icons.tune_rounded,
           onAction: () => ctrl.activePanel.value = 'subtitle_style',
         ),
-        Obx(
-          () => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            child: Row(
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
               children: [
-                const Icon(
-                  Icons.closed_caption_rounded,
-                  color: PT.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  'Subtitles',
-                  style: TS.body.copyWith(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                Obx(
+                  () => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.closed_caption_rounded,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          'Subtitles',
+                          style: TS.body.copyWith(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        Switch(
+                          value: ctrl.subtitlesEnabled.value,
+                          onChanged: (v) => ctrl.setSubtitles(enabled: v),
+                          activeThumbColor: PT.primary,
+                          activeTrackColor: PT.primary.withValues(alpha: 0.4),
+                          inactiveThumbColor: AppColors.textTertiary,
+                          inactiveTrackColor: AppColors.bgDivider,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const Spacer(),
-                Switch(
-                  value: ctrl.subtitlesEnabled.value,
-                  onChanged: (v) => ctrl.setSubtitles(enabled: v),
-                  activeThumbColor: PT.primary,
-                  activeTrackColor: PT.primary.withValues(alpha: 0.4),
-                  inactiveThumbColor: AppColors.textTertiary,
-                  inactiveTrackColor: AppColors.bgDivider,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                const PlayerDivider(),
+                SettingsTile(
+                  icon: Icons.tune_rounded,
+                  title: 'Subtitle Appearance & Style',
+                  value: 'Customize',
+                  onTap: () => ctrl.activePanel.value = 'subtitle_style',
                 ),
+                const PlayerDivider(),
+                Obx(() {
+                  if (ctrl.subtitleTracks.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(
+                        child: Text(
+                          'No subtitles available',
+                          style: TS.bodySm,
+                        ),
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: ctrl.subtitleTracks
+                        .map(
+                          (t) => SelectTile(
+                            label: t.label,
+                            badge: t.langCode.toUpperCase(),
+                            selected:
+                                ctrl.subtitlesEnabled.value &&
+                                ctrl.activeSubLang.value == t.label,
+                            dimmed: !ctrl.subtitlesEnabled.value,
+                            onTap: ctrl.subtitlesEnabled.value
+                                ? () => ctrl.setSubtitles(
+                                      enabled: true,
+                                      track: t,
+                                    )
+                                : null,
+                          ),
+                        )
+                        .toList(),
+                  );
+                }),
+                const PlayerDivider(),
+                ConfigureLanguagesButton(
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (_) => const LanguagePreferencesDialog(),
+                  ),
+                ),
+                const PlayerDivider(),
+                RequestLanguageButton(
+                  type: 'subtitle',
+                  onTap: () => ctrl.showRequestDialog(context, 'subtitle'),
+                ),
+                const PlayerDivider(),
+                LanguageRequestsList(type: 'subtitle', tag: ctrl.tag),
+                const SizedBox(height: 12),
               ],
             ),
           ),
         ),
-        const PlayerDivider(),
-        SettingsTile(
-          icon: Icons.tune_rounded,
-          title: 'Subtitle Appearance & Style',
-          value: 'Customize',
-          onTap: () => ctrl.activePanel.value = 'subtitle_style',
-        ),
-        const PlayerDivider(),
-        ConfigureLanguagesButton(
-          onTap: () => showDialog(
-            context: context,
-            builder: (_) => const LanguagePreferencesDialog(),
-          ),
-        ),
-        const PlayerDivider(),
-        RequestLanguageButton(
-          type: 'subtitle',
-          onTap: () => ctrl.showRequestDialog(context, 'subtitle'),
-        ),
-        const PlayerDivider(),
-        Expanded(
-          child: LanguageRequestsList(type: 'subtitle', tag: ctrl.tag),
-        ),
-        const PlayerDivider(),
-        Expanded(
-          flex: 2,
-          child: SingleChildScrollView(
-            child: Obx(() {
-              if (ctrl.subtitleTracks.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(
-                    child: Text('No subtitles available', style: TS.bodySm),
-                  ),
-                );
-              }
-              return Column(
-                children: ctrl.subtitleTracks
-                    .map(
-                      (t) => SelectTile(
-                        label: t.label,
-                        badge: t.langCode.toUpperCase(),
-                        selected:
-                            ctrl.subtitlesEnabled.value &&
-                            ctrl.activeSubLang.value == t.label,
-                        dimmed: !ctrl.subtitlesEnabled.value,
-                        onTap: ctrl.subtitlesEnabled.value
-                            ? () => ctrl.setSubtitles(enabled: true, track: t)
-                            : null,
-                      ),
-                    )
-                    .toList(),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 8),
       ],
     );
   }
@@ -1360,50 +1371,55 @@ class LanguagePanel extends StatelessWidget {
           onBack: () => ctrl.activePanel.value = '',
           onClose: null,
         ),
-        ConfigureLanguagesButton(
-          onTap: () => showDialog(
-            context: context,
-            builder: (_) => const LanguagePreferencesDialog(),
-          ),
-        ),
-        const PlayerDivider(),
-        RequestLanguageButton(
-          type: 'audio',
-          onTap: () => ctrl.showRequestDialog(context, 'audio'),
-        ),
-        const PlayerDivider(),
-        Expanded(
-          child: LanguageRequestsList(type: 'audio', tag: ctrl.tag),
-        ),
-        const PlayerDivider(),
         Expanded(
           child: SingleChildScrollView(
-            child: Obx(() {
-              if (ctrl.audioTracks.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(
-                    child: Text('Original audio only', style: TS.bodySm),
-                  ),
-                );
-              }
-              return Column(
-                children: ctrl.audioTracks
-                    .map(
-                      (t) => SelectTile(
-                        label: t.label,
-                        sublabel: t.type,
-                        badge: t.langCode.toUpperCase(),
-                        selected: ctrl.activeAudioLang.value == t.label,
-                        onTap: () => ctrl.setAudioLanguage(t),
+            child: Column(
+              children: [
+                Obx(() {
+                  if (ctrl.audioTracks.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(
+                        child: Text(
+                          'Original audio only',
+                          style: TS.bodySm,
+                        ),
                       ),
-                    )
-                    .toList(),
-              );
-            }),
+                    );
+                  }
+                  return Column(
+                    children: ctrl.audioTracks
+                        .map(
+                          (t) => SelectTile(
+                            label: t.label,
+                            sublabel: t.type,
+                            badge: t.langCode.toUpperCase(),
+                            selected: ctrl.activeAudioLang.value == t.label,
+                            onTap: () => ctrl.setAudioLanguage(t),
+                          ),
+                        )
+                        .toList(),
+                  );
+                }),
+                const PlayerDivider(),
+                ConfigureLanguagesButton(
+                  onTap: () => showDialog(
+                    context: context,
+                    builder: (_) => const LanguagePreferencesDialog(),
+                  ),
+                ),
+                const PlayerDivider(),
+                RequestLanguageButton(
+                  type: 'audio',
+                  onTap: () => ctrl.showRequestDialog(context, 'audio'),
+                ),
+                const PlayerDivider(),
+                LanguageRequestsList(type: 'audio', tag: ctrl.tag),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 8),
       ],
     );
   }
@@ -1885,7 +1901,7 @@ class ConfigureLanguagesButton extends StatelessWidget {
             children: [
               const Icon(
                 Icons.settings_suggest_rounded,
-                color: PT.primary,
+                color: AppColors.textPrimary,
                 size: 20,
               ),
               const SizedBox(width: 16),

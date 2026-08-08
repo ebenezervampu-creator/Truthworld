@@ -487,6 +487,17 @@ export class AggregationLayer {
             videoRating: 0,
             contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
             factCheckUrl: directFactCheckUrl,
+            transcriptionUrl: directTranscriptUrl,
+            subtitles: flatSubtitles,
+            audioTracks: audioTracksMap,
+            dubbedVideos: dubbedMap,
+            media: {
+              subtitles: flatSubtitles,
+              audioTracks: audioTracksMap,
+              dubbedVideos: dubbedMap,
+              factCheckUrl: directFactCheckUrl,
+              transcriptionUrl: directTranscriptUrl,
+            },
             trustLabel: null,
             credibilityVerified: !!cred, // v12.0: Flag for recommendations
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

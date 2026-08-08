@@ -12,7 +12,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<CreatorAnalyticsController>();
+    final controller = CreatorAnalyticsController.to;
     final args = Get.arguments as Map<String, dynamic>? ?? {};
     final channelId = args['channelId'] as String? ?? '';
     final channelName = args['channelName'] as String? ?? 'My Channel';

@@ -2,10 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 
-class CommentInputController extends BaseController {
+class CommentInputController extends BaseController with ContentValidationMixin {
   CommentInputController({required this.videoId, required this.enableComments});
   final String videoId;
   final bool enableComments;
@@ -46,6 +47,12 @@ class CommentInputController extends BaseController {
     if (commentController.text.trim().isEmpty ||
         !enableComments ||
         isSubmitting.value) {
+      return;
+    }
+
+    final validation = await validateContent(commentController.text, fieldName: 'Comment');
+    if (!validation.isValid) {
+      showWarning(validation.message);
       return;
     }
 

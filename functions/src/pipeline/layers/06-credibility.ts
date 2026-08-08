@@ -370,8 +370,10 @@ export class CredibilityEngine {
             : (Array.isArray(jobData.features?.providedSources) ? jobData.features.providedSources : []);
           let disputeSources: string[] = [];
           
+          const targetVideoId = (executionPlan as any).videoId || jobData.videoId || (jobData.linkedVideoIds?.[0]) || jobId;
+          
           try {
-            const videoSnap = await db().collection("videos").doc(jobId).get();
+            const videoSnap = await db().collection("videos").doc(targetVideoId).get();
             if (videoSnap.exists) {
               const vData = videoSnap.data() || {};
               if (Array.isArray(vData.providedSources)) {
@@ -382,12 +384,12 @@ export class CredibilityEngine {
               }
             }
           } catch (e) {
-            logger.warn("[Credibility] Could not fetch extra video providedSources", { jobId, error: (e as any)?.message });
+            logger.warn("[Credibility] Could not fetch extra video providedSources", { jobId, targetVideoId, error: (e as any)?.message });
           }
 
           let communitySources: string[] = [];
           try {
-            const claimSourcesSnap = await db().collection("videos").doc(jobId).collection("claim_sources").get();
+            const claimSourcesSnap = await db().collection("videos").doc(targetVideoId).collection("claim_sources").get();
             if (!claimSourcesSnap.empty) {
               claimSourcesSnap.docs.forEach(doc => {
                 const data = doc.data();
@@ -398,7 +400,7 @@ export class CredibilityEngine {
               });
             }
           } catch (e) {
-            logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, error: (e as any)?.message });
+            logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, targetVideoId, error: (e as any)?.message });
           }
 
           const channelProvidedSources = Array.from(new Set([...rawProvidedSources, ...disputeSources, ...communitySources])).filter(s => typeof s === 'string' && s.trim().length > 0);

@@ -32,7 +32,7 @@ class TopicHeroWidget extends StatefulWidget {
 }
 
 class _TopicHeroWidgetState extends State<TopicHeroWidget> {
-  bool _isExpanded = false;
+  final RxBool _isExpanded = false.obs;
 
   @override
   Widget build(BuildContext context) {
@@ -85,11 +85,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
 
               // Title (Tappable to expand description)
               InkWell(
-                onTap: () {
-                  setState(() {
-                    _isExpanded = !_isExpanded;
-                  });
-                },
+                onTap: _isExpanded.toggle,
                 splashColor: Colors.transparent,
                 highlightColor: Colors.transparent,
                 child: Text(
@@ -110,50 +106,49 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
               // Collapsible Description ("show more / show less")
               if (topic.description.isNotEmpty)
                 InkWell(
-                  onTap: () {
-                    setState(() {
-                      _isExpanded = !_isExpanded;
-                    });
-                  },
+                  onTap: _isExpanded.toggle,
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          topic.description,
-                          style: TextStyle(
-                            fontSize: widget.isDesktop ? 16 : 14,
-                            color: AppColors.textSecondary,
-                            height: 1.4,
+                    child: Obx(() {
+                      final expanded = _isExpanded.value;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            topic.description,
+                            style: TextStyle(
+                              fontSize: widget.isDesktop ? 16 : 14,
+                              color: AppColors.textSecondary,
+                              height: 1.4,
+                            ),
+                            maxLines: expanded ? 100 : 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: _isExpanded ? 100 : 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _isExpanded ? 'Show less' : '...more',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.brand,
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                expanded ? 'Show less' : '...more',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.brand,
+                                ),
                               ),
-                            ),
-                            Icon(
-                              _isExpanded
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              size: 18,
-                              color: AppColors.brand,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                              Icon(
+                                expanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }),
                   ),
                 ),
 

@@ -9,9 +9,9 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/storage_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/core/widgets/clickable_url_text.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 class ChartData {
   ChartData(this.x, this.y);
@@ -170,7 +170,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
       Icons.analytics_rounded,
       Icons.subtitles_rounded,
       Icons.translate_rounded,
-      Icons.chat_bubble_rounded,
     ];
 
     return ListView(
@@ -228,8 +227,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
         return _buildSubtitlesTab(context, controller);
       case 4:
         return _buildAudioDubsTab(context, controller);
-      case 5:
-        return _buildAdCommentsRepliesTab(context, controller);
       default:
         return _buildDashboardTab(context, controller);
     }
@@ -2237,260 +2234,378 @@ class AdvertiserPortalScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.bgDivider),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 100,
-              height: 60,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: campaign.gradientColors),
-              ),
-              child: Center(
-                child: Icon(
-                  campaign.adType == 'video_sponsor'
-                      ? Icons.stars_rounded
-                      : isSkippable
-                      ? Icons.play_circle_filled_rounded
-                      : Icons.ad_units_rounded,
-                  color: AppColors.textSecondary,
-                  size: 28,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      campaign.advertiser,
-                      style: AppTextStyles.badge.copyWith(
-                        color: AppColors.warning,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgDivider,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        campaign.adType == 'video_sponsor'
-                            ? 'Sponsor Ad'
-                            : isSkippable
-                            ? 'Video Ad'
-                            : 'Feed Ad',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  campaign.title,
-                  style: AppTextStyles.sectionHeader.copyWith(
-                    fontSize: 16,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  campaign.description,
-                  style: AppTextStyles.labelMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                amountStr,
-                style: AppTextStyles.sectionHeader.copyWith(
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                budgetStr,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(
-                    Icons.circle,
-                    color: campaign.status == 'paused'
-                        ? AppColors.textSecondary
-                        : campaign.status == 'underReview'
-                        ? AppColors.warning
-                        : campaign.status == 'verification_rejected'
-                        ? AppColors.error
-                        : AppColors.success,
-                    size: 8,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: 100,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: campaign.gradientColors),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    campaign.status == 'paused'
-                        ? 'Paused'
-                        : campaign.status == 'underReview'
-                        ? 'Under Review'
-                        : campaign.status == 'verification_rejected'
-                        ? 'Rejected'
-                        : 'Active',
-                    style: AppTextStyles.badge.copyWith(
-                      color: campaign.status == 'paused'
-                          ? AppColors.textTertiary
-                          : campaign.status == 'underReview'
-                          ? AppColors.warning
-                          : campaign.status == 'verification_rejected'
-                          ? AppColors.error
-                          : AppColors.success,
+                  child: Center(
+                    child: Icon(
+                      campaign.adType == 'video_sponsor'
+                          ? Icons.stars_rounded
+                          : isSkippable
+                          ? Icons.play_circle_filled_rounded
+                          : Icons.ad_units_rounded,
+                      color: Colors.white,
+                      size: 28,
                     ),
                   ),
-                ],
+                ),
               ),
-              if (campaign.status == 'verification_rejected' &&
-                  campaign.moderationReason != null) ...[
-                const SizedBox(height: 4),
-                GestureDetector(
-                  onTap: () {
-                    Get.defaultDialog(
-                      title: 'Moderation Details',
-                      titleStyle: const TextStyle(
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            campaign.advertiser,
+                            style: AppTextStyles.badge.copyWith(
+                              color: AppColors.warning,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgDivider,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            campaign.adType == 'video_sponsor'
+                                ? 'Sponsor Ad'
+                                : isSkippable
+                                ? 'Video Ad'
+                                : 'Feed Ad',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      campaign.title,
+                      style: AppTextStyles.sectionHeader.copyWith(
+                        fontSize: 16,
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
-                      middleText: campaign.moderationReason!,
-                      middleTextStyle: const TextStyle(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      campaign.description,
+                      style: AppTextStyles.labelMedium.copyWith(
                         color: AppColors.textSecondary,
                       ),
-                      backgroundColor: const Color(0xFF161616),
-                      textConfirm: 'OK',
-                      confirmTextColor: AppColors.bgPage,
-                      buttonColor: AppColors.warning,
-                      onConfirm: Get.back,
-                    );
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    amountStr,
+                    style: AppTextStyles.sectionHeader.copyWith(
+                      fontSize: 16,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    budgetStr,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
                     children: [
-                      const Icon(
-                        Icons.info_outline,
-                        color: AppColors.error,
-                        size: 12,
+                      Icon(
+                        Icons.circle,
+                        color: campaign.status == 'paused'
+                            ? AppColors.textSecondary
+                            : campaign.status == 'underReview'
+                            ? AppColors.warning
+                            : campaign.status == 'verification_rejected'
+                            ? AppColors.error
+                            : AppColors.success,
+                        size: 8,
                       ),
-                      const SizedBox(width: 2),
+                      const SizedBox(width: 4),
                       Text(
-                        'Why?',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.error,
-                          decoration: TextDecoration.underline,
+                        campaign.status == 'paused'
+                            ? 'Paused'
+                            : campaign.status == 'underReview'
+                            ? 'Under Review'
+                            : campaign.status == 'verification_rejected'
+                            ? 'Rejected'
+                            : 'Active',
+                        style: AppTextStyles.badge.copyWith(
+                          color: campaign.status == 'paused'
+                              ? AppColors.textTertiary
+                              : campaign.status == 'underReview'
+                              ? AppColors.warning
+                              : campaign.status == 'verification_rejected'
+                              ? AppColors.error
+                              : AppColors.success,
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: () => AdService.to.toggleCampaignStatus(campaign.id),
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgDivider,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Icon(
-                        (campaign.status == 'underReview' ||
-                                campaign.status == 'verification_rejected')
-                            ? Icons.lock_outline
-                            : isPaused
-                            ? Icons.play_arrow_rounded
-                            : Icons.pause_rounded,
-                        color:
-                            (campaign.status == 'underReview' ||
-                                campaign.status == 'verification_rejected')
-                            ? AppColors.textTertiary
-                            : isPaused
-                            ? AppColors.success
-                            : AppColors.warning,
-                        size: 16,
+                  if (campaign.status == 'verification_rejected' &&
+                      campaign.moderationReason != null) ...[
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () {
+                        Get.defaultDialog(
+                          title: 'Moderation Details',
+                          titleStyle: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          middleText: campaign.moderationReason!,
+                          middleTextStyle: const TextStyle(
+                            color: AppColors.textSecondary,
+                          ),
+                          backgroundColor: const Color(0xFF161616),
+                          textConfirm: 'OK',
+                          confirmTextColor: AppColors.bgPage,
+                          buttonColor: AppColors.warning,
+                          onConfirm: Get.back,
+                        );
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            'Why?',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.error,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () {
-                      Get.defaultDialog(
-                        title: 'Delete Campaign',
-                        titleStyle: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
+                  ],
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('ad_reports')
+                        .where('adId', isEqualTo: campaign.id)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final reports = snapshot.data?.docs ?? [];
+                      if (reports.isEmpty) return const SizedBox.shrink();
+                      final firstReport = reports.first.data();
+                      final reason =
+                          firstReport['reason'] ?? 'User Feedback Received';
+
+                      return Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
                         ),
-                        middleText:
-                            'Are you sure you want to delete "${campaign.title}"?',
-                        middleTextStyle: const TextStyle(
-                          color: AppColors.textSecondary,
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.3),
+                          ),
                         ),
-                        backgroundColor: const Color(0xFF161616),
-                        textConfirm: 'Delete',
-                        textCancel: 'Cancel',
-                        confirmTextColor: AppColors.bgPage,
-                        cancelTextColor: AppColors.textPrimary,
-                        buttonColor: AppColors.error,
-                        onConfirm: () {
-                          AdService.to.deleteCampaign(campaign.id);
-                          Get.back();
-                        },
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.report_problem_rounded,
+                              color: AppColors.error,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${reports.length} User Report(s): "$reason"',
+                                style: const TextStyle(
+                                  color: AppColors.error,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgDivider,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: () => AdService.to.toggleCampaignStatus(campaign.id),
                         borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgDivider,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            (campaign.status == 'underReview' ||
+                                    campaign.status == 'verification_rejected')
+                                ? Icons.lock_outline
+                                : isPaused
+                                ? Icons.play_arrow_rounded
+                                : Icons.pause_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.delete_outline_rounded,
-                        color: AppColors.error,
-                        size: 16,
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () => _showCreateCampaignWizard(
+                          context,
+                          controller,
+                          existingCampaign: campaign,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgDivider,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () {
+                          Get.defaultDialog(
+                            title: 'Delete Campaign',
+                            titleStyle: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            middleText:
+                                'Are you sure you want to delete "${campaign.title}"?',
+                            middleTextStyle: const TextStyle(
+                              color: AppColors.textSecondary,
+                            ),
+                            backgroundColor: const Color(0xFF161616),
+                            textConfirm: 'Delete',
+                            textCancel: 'Cancel',
+                            confirmTextColor: AppColors.bgPage,
+                            cancelTextColor: AppColors.textPrimary,
+                            buttonColor: AppColors.error,
+                            onConfirm: () {
+                              AdService.to.deleteCampaign(campaign.id);
+                              Get.back();
+                            },
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgDivider,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ],
           ),
+          if (campaign.status == 'verification_rejected') ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Rejection Error: ',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          TextSpan(
+                            text: campaign.moderationReason ??
+                                'Violation of Community Guidelines',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2739,24 +2854,44 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
   void _showCreateCampaignWizard(
     BuildContext context,
-    AdvertiserPortalController controller,
-  ) {
-    final advertiserController = TextEditingController();
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final ctaTextController = TextEditingController(text: 'Learn More');
-    final ctaUrlController = TextEditingController();
-    final videoUrlController = TextEditingController();
-    final imageUrlController = TextEditingController();
-    final midrollVideoUrlController = TextEditingController();
-    final pinnedCommentController = TextEditingController();
+    AdvertiserPortalController controller, {
+    AdItem? existingCampaign,
+  }) {
+    final advertiserController = TextEditingController(
+      text: existingCampaign?.advertiser ?? '',
+    );
+    final titleController = TextEditingController(
+      text: existingCampaign?.title ?? '',
+    );
+    final descriptionController = TextEditingController(
+      text: existingCampaign?.description ?? '',
+    );
+    final ctaTextController = TextEditingController(
+      text: existingCampaign?.ctaText ?? 'Learn More',
+    );
+    final ctaUrlController = TextEditingController(
+      text: existingCampaign?.ctaTarget ?? '',
+    );
+    final videoUrlController = TextEditingController(
+      text: existingCampaign?.videoUrl ?? '',
+    );
+    final imageUrlController = TextEditingController(
+      text: existingCampaign?.imageUrl ?? '',
+    );
+    final midrollVideoUrlController = TextEditingController(
+      text: existingCampaign?.midrollVideoUrl ?? '',
+    );
+    final pinnedCommentController = TextEditingController(
+      text: existingCampaign?.pinnedCommentText ?? '',
+    );
 
-    final adFormat = 'skippable'.obs;
-    final selectedBudget = 'startup'.obs;
+    final adFormat = (existingCampaign?.adType ?? 'skippable').obs;
+    final selectedBudget =
+        (existingCampaign?.budgetTier?.toLowerCase() ?? 'startup').obs;
     final selectedGradient = 0.obs;
 
     final selectedVideoTitle = ''.obs;
-    final selectedVideoId = ''.obs;
+    final selectedVideoId = (existingCampaign?.videoId ?? '').obs;
     final pickedBumperFileName = ''.obs;
     final pickedMidrollFileName = ''.obs;
     final pickedBannerFileName = ''.obs;
@@ -2833,7 +2968,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Ad Campaign Creation Studio',
+                                    existingCampaign != null
+                                        ? 'Edit Ad Campaign Studio'
+                                        : 'Ad Campaign Creation Studio',
                                     style: AppTextStyles.pageTitle.copyWith(
                                       color: AppColors.textPrimary,
                                       fontSize: 18,
@@ -2906,12 +3043,64 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     child: Obx(() {
                       final isSkippable = adFormat.value == 'skippable';
                       final isSponsor = adFormat.value == 'video_sponsor';
+                      final isScroll = adFormat.value == 'scroll';
+
+                      Widget buildRejectionBanner() {
+                        if (existingCampaign?.status !=
+                            'verification_rejected') {
+                          return const SizedBox.shrink();
+                        }
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: AppColors.error.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Campaign Rejected - Action Required',
+                                      style: AppTextStyles.labelLarge.copyWith(
+                                        color: AppColors.error,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      existingCampaign?.moderationReason ??
+                                          'Please update your campaign details below to address the violation and resubmit.',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
 
                       // STEP 1: Format & Objective
                       if (currentStep.value == 1) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            buildRejectionBanner(),
                             Text(
                               'Select Campaign Placement & Format',
                               style: AppTextStyles.sectionHeader.copyWith(
@@ -3164,6 +3353,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     fileType: FileType.any,
                                     targetController: videoUrlController,
                                     pickedFileNameNotifier: pickedBumperFileName,
+                                    maxDurationSeconds: 5.0,
                                   ),
                                   icon: const Icon(
                                     Icons.file_upload_rounded,
@@ -3325,6 +3515,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               Text(
                                 isSponsor
                                     ? '3. Sponsor Brand Banner Image (Pick Image from Device) [Required]'
+                                    : isScroll
+                                    ? 'Image Banner (Pick Image from Device) [Required for Scroll Ads]'
                                     : 'Image Banner (Pick Image from Device) [Optional]',
                                 style: AppTextStyles.labelMedium.copyWith(
                                   color: AppColors.textSecondary,
@@ -3481,7 +3673,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          if (!isSkippable && !isSponsor) ...[
+                          if (!isSkippable && !isSponsor && !isScroll) ...[
                             const SizedBox(height: 24),
                             Text(
                               'Select Fallback / Banner Theme',
@@ -3586,6 +3778,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   );
                                   return;
                                 }
+                                if (adFormat.value == 'scroll' &&
+                                    imageUrlController.text.trim().isEmpty) {
+                                  AppSnackbar.show(
+                                    'Image Required',
+                                    'Scroll Ads require an Image Banner creative. Please pick or select an image file.',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                  return;
+                                }
                               }
                               currentStep.value++;
                             },
@@ -3643,8 +3845,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                       'https://images.unsplash.com/photo-1523474253046-8cd2748b5fd2?w=500';
                                 }
                                 if (pinnedCommentController.text.trim().isEmpty) {
+                                  final brandName = advertiserController.text.trim().isNotEmpty
+                                      ? advertiserController.text.trim()
+                                      : (titleController.text.trim().isNotEmpty
+                                          ? titleController.text.trim()
+                                          : 'our sponsor');
                                   pinnedCommentController.text =
-                                      'Hey there! We are Amazon. Feel free to ask us any questions here!';
+                                      'Welcome viewers! Thanks for checking out $brandName. Feel free to ask us any questions here!';
                                 }
                               }
 
@@ -3684,6 +3891,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 pinnedCommentText: adFormat.value == 'video_sponsor'
                                     ? pinnedCommentController.text.trim()
                                     : null,
+                                existingCampaign: existingCampaign,
                               );
                             },
                             icon: const Icon(
@@ -4077,6 +4285,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     required TextEditingController targetController,
     required RxString pickedFileNameNotifier,
     List<String>? allowedExtensions,
+    double? maxDurationSeconds,
   }) async {
     try {
       final result = await FilePicker.pickFiles(
@@ -4087,6 +4296,54 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
       if (result != null && result.files.isNotEmpty) {
         final pickedFile = result.files.first;
+
+        // If a max duration limit is specified (e.g. 5 seconds for Sponsor Ads), validate duration
+        if (maxDurationSeconds != null) {
+          try {
+            VideoPlayerController? tempController;
+            if (pickedFile.bytes != null) {
+              final ext = pickedFile.extension?.toLowerCase() ?? '';
+              final isAudio = ext == 'mp3' ||
+                  ext == 'wav' ||
+                  ext == 'm4a' ||
+                  ext == 'aac' ||
+                  ext == 'ogg';
+              final mime = isAudio ? 'audio/mp3' : 'video/mp4';
+              final dataUri =
+                  Uri.dataFromBytes(pickedFile.bytes!, mimeType: mime)
+                      .toString();
+              tempController =
+                  VideoPlayerController.networkUrl(Uri.parse(dataUri));
+            } else if (pickedFile.path != null &&
+                pickedFile.path!.isNotEmpty) {
+              tempController = VideoPlayerController.networkUrl(
+                Uri.parse(pickedFile.path!),
+              );
+            }
+
+            if (tempController != null) {
+              await tempController.initialize();
+              final durSec =
+                  tempController.value.duration.inMilliseconds / 1000.0;
+              await tempController.dispose();
+
+              if (durSec > maxDurationSeconds) {
+                AppSnackbar.show(
+                  'Media Exceeds Duration Limit',
+                  'Sponsor video/audio ads must be 5 seconds or less in duration. Selected file duration is ${durSec.toStringAsFixed(1)} seconds.',
+                  backgroundColor: AppColors.error,
+                  colorText: Colors.white,
+                );
+                return;
+              }
+            }
+          } catch (durErr) {
+            debugPrint(
+              '[AdvertiserPortal] Duration validation notice: $durErr',
+            );
+          }
+        }
+
         pickedFileNameNotifier.value = pickedFile.name;
 
         String? finalPath;
@@ -4098,9 +4355,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
             final timestamp = DateTime.now().millisecondsSinceEpoch;
             final storagePath =
                 'ad_campaigns_media/${timestamp}_${pickedFile.name}';
+            final ext = pickedFile.extension?.toLowerCase() ?? '';
+            var mimeType = fileType == FileType.image
+                ? 'image/jpeg'
+                : fileType == FileType.video
+                    ? 'video/mp4'
+                    : 'application/octet-stream';
+            if (ext == 'png') mimeType = 'image/png';
+            if (ext == 'webp') mimeType = 'image/webp';
+            if (ext == 'gif') mimeType = 'image/gif';
+            if (ext == 'webm') mimeType = 'video/webm';
+
             finalPath = await storageService.uploadFileFromBytes(
               path: storagePath,
               bytes: pickedFile.bytes!,
+              mimeType: mimeType,
             );
           } catch (uploadErr) {
             debugPrint(
@@ -4326,6 +4595,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     String? videoId,
     String? midrollVideoUrl,
     String? pinnedCommentText,
+    AdItem? existingCampaign,
   }) {
     final cardNumber = TextEditingController(text: '4242 4242 4242 4242');
     final cardExpiry = TextEditingController(text: '12/28');
@@ -4493,13 +4763,52 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () {
                       progressStep.value = 1;
-                      Future.delayed(const Duration(milliseconds: 1000), () {
+                      Future.delayed(const Duration(milliseconds: 600), () {
                         progressStep.value = 2;
-                        Future.delayed(const Duration(milliseconds: 1000), () {
+                        Future.delayed(const Duration(milliseconds: 600), () {
                           progressStep.value = 3;
                           Future.delayed(
-                            const Duration(milliseconds: 1000),
+                            const Duration(milliseconds: 600),
                             () async {
+                              if (existingCampaign != null) {
+                                final ad = existingCampaign.copyWith(
+                                  advertiser: brand,
+                                  title: title,
+                                  description: description,
+                                  imageUrl: imageUrl ?? '',
+                                  ctaText: ctaText,
+                                  ctaTarget: ctaTarget,
+                                  gradientColors:
+                                      gradient ?? existingCampaign.gradientColors,
+                                  isSkippableAd: isSkippable,
+                                  videoUrl: videoUrl,
+                                  budgetTier: budgetTier.toUpperCase(),
+                                  budgetAmount: cost,
+                                  adType: adType,
+                                  status: 'underReview',
+                                  videoId: (videoId ?? '').isNotEmpty
+                                      ? videoId
+                                      : existingCampaign.videoId,
+                                  midrollVideoUrl: midrollVideoUrl,
+                                  pinnedCommentText: pinnedCommentText,
+                                );
+
+                                final success =
+                                    await AdService.to.updateCampaign(ad);
+                                if (success) {
+                                  checkoutSuccess.value = true;
+                                } else {
+                                  progressStep.value = 0;
+                                  AppSnackbar.show(
+                                    'Update Failed',
+                                    'Failed to update campaign.',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                }
+                                return;
+                              }
+
                               final ad = AdItem(
                                 id: 'camp_${DateTime.now().millisecondsSinceEpoch}',
                                 userId: AuthService.to.uid,
@@ -4554,7 +4863,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'Pay ₹${cost.toStringAsFixed(0)}',
+                      existingCampaign != null
+                          ? 'Save & Resubmit Campaign'
+                          : 'Pay ₹${cost.toStringAsFixed(0)}',
                       style: AppTextStyles.sectionHeader.copyWith(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -4569,383 +4880,5 @@ class AdvertiserPortalScreen extends StatelessWidget {
       ),
       barrierDismissible: false,
     );
-  }
-
-  Widget _buildAdCommentsRepliesTab(
-    BuildContext context,
-    AdvertiserPortalController controller,
-  ) {
-    final uid = AuthService.to.uid;
-
-    return Obx(() {
-      final myCampaigns = AdService.to.customCampaigns
-          .where((ad) => ad.userId == uid)
-          .toList();
-
-      if (myCampaigns.isEmpty) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.campaign_rounded,
-                  size: 64,
-                  color: AppColors.textDisabled,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No Campaigns Found',
-                  style: AppTextStyles.sectionHeader.copyWith(
-                    fontSize: 18,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Create an advertising campaign to receive user feedback.',
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 13,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      final campaignIds = myCampaigns.map((c) => c.id).toSet();
-
-      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('ad_comments')
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.warning),
-            );
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-          final allComments = docs
-              .map((doc) => AdComment.fromMap(doc.data(), doc.id))
-              .toList();
-
-          // Filter comments that belong to any of this advertiser's campaigns
-          final comments = allComments
-              .where((c) => campaignIds.contains(c.adId))
-              .toList();
-          comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-          if (comments.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    size: 64,
-                    color: AppColors.textDisabled,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Comments Yet',
-                    style: AppTextStyles.sectionHeader.copyWith(
-                      fontSize: 18,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Users have not commented on your campaigns yet.',
-                    style: AppTextStyles.labelLarge.copyWith(
-                      color: AppColors.textTertiary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'User Feedback & Comments',
-                  style: AppTextStyles.pageTitle.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "Manage comments and reply directly to your sponsors' audience.",
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final comment = comments[index];
-                    final ad = myCampaigns.firstWhere(
-                      (c) => c.id == comment.adId,
-                    );
-                    final replyController = TextEditingController();
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF161616),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.bgDivider),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Campaign Info Header
-                          Row(
-                            children: [
-                              Container(
-                                width: 50,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: ad.gradientColors,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Icon(
-                                  Icons.campaign_rounded,
-                                  color: AppColors.textPrimary,
-                                  size: 14,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      ad.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTextStyles.labelLarge.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Campaign: ${ad.advertiser}',
-                                      style: AppTextStyles.badge.copyWith(
-                                        color: AppColors.warning,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(color: AppColors.bgDivider, height: 24),
-
-                          // Comment Details
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundImage:
-                                    comment.userProfilePicUrl.isNotEmpty
-                                    ? NetworkImage(comment.userProfilePicUrl)
-                                    : null,
-                                backgroundColor: AppColors.bgDivider,
-                                child: comment.userProfilePicUrl.isEmpty
-                                    ? const Icon(
-                                        Icons.person,
-                                        color: AppColors.textTertiary,
-                                        size: 16,
-                                      )
-                                    : null,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          comment.userName,
-                                          style: AppTextStyles.labelLarge
-                                              .copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.textSecondary,
-                                                fontSize: 13,
-                                              ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '${comment.createdAt.hour}:${comment.createdAt.minute.toString().padLeft(2, '0')}',
-                                          style: AppTextStyles.caption.copyWith(
-                                            color: AppColors.textTertiary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      comment.text,
-                                      style: AppTextStyles.labelLarge.copyWith(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // Reply Section
-                          if (comment.replyText != null) ...[
-                            const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withValues(
-                                  alpha: 0.05,
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: AppColors.success.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(
-                                    Icons.reply_rounded,
-                                    color: AppColors.success,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Your Reply (${comment.repliedBy}):',
-                                          style: AppTextStyles.badge.copyWith(
-                                            color: AppColors.success,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        ClickableUrlText(
-                                          text: comment.replyText!,
-                                          style: AppTextStyles.labelMedium
-                                              .copyWith(
-                                                color: AppColors.textPrimary,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ] else ...[
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.bgDivider,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                    ),
-                                    child: TextField(
-                                      controller: replyController,
-                                      style: AppTextStyles.labelLarge.copyWith(
-                                        color: AppColors.textPrimary,
-                                        fontSize: 13,
-                                      ),
-                                      decoration: InputDecoration(
-                                        hintText: 'Type a reply...',
-                                        hintStyle: AppTextStyles.labelMedium
-                                            .copyWith(
-                                              color: AppColors.textTertiary,
-                                            ),
-                                        border: InputBorder.none,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    final text = replyController.text.trim();
-                                    if (text.isNotEmpty) {
-                                      AdService.to.replyToAdComment(
-                                        comment.id,
-                                        text,
-                                        ad.advertiser,
-                                      );
-                                      replyController.clear();
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.warning,
-                                    foregroundColor: AppColors.bgPage,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    minimumSize: const Size(0, 40),
-                                  ),
-                                  child: Text(
-                                    'Reply',
-                                    style: AppTextStyles.badge.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    });
   }
 }

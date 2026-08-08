@@ -25,11 +25,11 @@ class GoogleOnboardingSheet extends StatefulWidget {
 }
 
 class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
-  String? _selectedAgeGroup;
-  String? _selectedGender;
+  final RxnString _selectedAgeGroup = RxnString();
+  final RxnString _selectedGender = RxnString();
   final TextEditingController _selfDescribeController =
       TextEditingController();
-  bool _isSaving = false;
+  final RxBool _isSaving = false.obs;
 
   final List<String> _ageGroupOptions = const [
     'Under 13',
@@ -52,30 +52,30 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
   ];
 
   Future<void> _onSave() async {
-    setState(() {
-      _isSaving = true;
-    });
+    _isSaving.value = true;
+    final navigator = Navigator.of(context);
 
     try {
       String? genderValue;
-      if (_selectedGender != null) {
-        if (_selectedGender == 'Self-describe') {
+      final selectedGenderVal = _selectedGender.value;
+      if (selectedGenderVal != null) {
+        if (selectedGenderVal == 'Self-describe') {
           final customText = _selfDescribeController.text.trim();
           genderValue = customText.isNotEmpty
               ? 'Self-describe: $customText'
               : 'Self-describe';
         } else {
-          genderValue = _selectedGender;
+          genderValue = selectedGenderVal;
         }
       }
 
       await AuthService.to.updateUserProfileOnboarding(
-        ageGroup: _selectedAgeGroup,
+        ageGroup: _selectedAgeGroup.value,
         gender: genderValue,
       );
 
       if (mounted) {
-        Navigator.of(context).pop();
+        navigator.pop();
       }
     } catch (e) {
       Get.snackbar(
@@ -87,26 +87,23 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
+        _isSaving.value = false;
       }
     }
   }
 
   Future<void> _onSkip() async {
-    setState(() {
-      _isSaving = true;
-    });
+    _isSaving.value = true;
+    final navigator = Navigator.of(context);
 
     try {
       await AuthService.to.skipUserOnboarding();
       if (mounted) {
-        Navigator.of(context).pop();
+        navigator.pop();
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop();
+        navigator.pop();
       }
     }
   }
@@ -218,37 +215,38 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
             const SizedBox(height: 12),
 
             // Age Group selection chips
-            Wrap(
-              spacing: 8,
-              runSpacing: 10,
-              children: _ageGroupOptions.map((option) {
-                final isSelected = _selectedAgeGroup == option;
-                return ChoiceChip(
-                  label: Text(
-                    option,
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      color: isSelected
-                          ? AppColors.bgPage
-                          : AppColors.textPrimary,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+            Obx(() {
+              final selectedAge = _selectedAgeGroup.value;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 10,
+                children: _ageGroupOptions.map((option) {
+                  final isSelected = selectedAge == option;
+                  return ChoiceChip(
+                    label: Text(
+                      option,
+                      style: GoogleFonts.roboto(
+                        fontSize: 14,
+                        color: isSelected
+                            ? AppColors.bgPage
+                            : AppColors.textPrimary,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
-                  ),
-                  selected: isSelected,
-                  selectedColor: Colors.white,
-                  backgroundColor: AppColors.bgInput,
-                  side: BorderSide(
-                    color: isSelected ? Colors.white : AppColors.bgDivider,
-                  ),
-                  onSelected: (selected) {
-                    setState(() {
-                      _selectedAgeGroup = selected ? option : null;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
+                    selected: isSelected,
+                    selectedColor: Colors.white,
+                    backgroundColor: AppColors.bgInput,
+                    side: BorderSide(
+                      color: isSelected ? Colors.white : AppColors.bgDivider,
+                    ),
+                    onSelected: (selected) {
+                      _selectedAgeGroup.value = selected ? option : null;
+                    },
+                  );
+                }).toList(),
+              );
+            }),
 
             const SizedBox(height: 24),
 
@@ -293,132 +291,139 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
             const SizedBox(height: 12),
 
             // Gender selection chips
-            Wrap(
-              spacing: 8,
-              runSpacing: 10,
-              children: _genderOptions.map((option) {
-                final isSelected = _selectedGender == option;
-                return ChoiceChip(
-                  label: Text(
-                    option,
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      color: isSelected
-                          ? AppColors.bgPage
-                          : AppColors.textPrimary,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+            Obx(() {
+              final selectedGender = _selectedGender.value;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 10,
+                    children: _genderOptions.map((option) {
+                      final isSelected = selectedGender == option;
+                      return ChoiceChip(
+                        label: Text(
+                          option,
+                          style: GoogleFonts.roboto(
+                            fontSize: 14,
+                            color: isSelected
+                                ? AppColors.bgPage
+                                : AppColors.textPrimary,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        selected: isSelected,
+                        selectedColor: Colors.white,
+                        backgroundColor: AppColors.bgInput,
+                        side: BorderSide(
+                          color: isSelected ? Colors.white : AppColors.bgDivider,
+                        ),
+                        onSelected: (selected) {
+                          _selectedGender.value = selected ? option : null;
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  if (selectedGender == 'Self-describe') ...[
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _selfDescribeController,
+                      style: GoogleFonts.roboto(
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Self-describe (optional)',
+                        hintStyle: GoogleFonts.roboto(
+                          fontSize: 14,
+                          color: AppColors.textTertiary,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.bgInput,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.bgDivider),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Colors.white),
+                        ),
+                      ),
                     ),
-                  ),
-                  selected: isSelected,
-                  selectedColor: Colors.white,
-                  backgroundColor: AppColors.bgInput,
-                  side: BorderSide(
-                    color: isSelected ? Colors.white : AppColors.bgDivider,
-                  ),
-                  onSelected: (selected) {
-                    setState(() {
-                      _selectedGender = selected ? option : null;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-
-            // Optional self-describe text field if selected
-            if (_selectedGender == 'Self-describe') ...[
-              const SizedBox(height: 14),
-              TextField(
-                controller: _selfDescribeController,
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Self-describe (optional)',
-                  hintStyle: GoogleFonts.roboto(
-                    fontSize: 14,
-                    color: AppColors.textTertiary,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.bgInput,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.bgDivider),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
+                  ],
+                ],
+              );
+            }),
 
             const SizedBox(height: 32),
 
             // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isSaving ? null : _onSkip,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: AppColors.bgDivider),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+            Obx(() {
+              final saving = _isSaving.value;
+              return Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: saving ? null : _onSkip,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: AppColors.bgDivider),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      'Skip for now',
-                      style: GoogleFonts.outfit(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textSecondary,
+                      child: Text(
+                        'Skip for now',
+                        style: GoogleFonts.outfit(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _onSave,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.bgPage,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: saving ? null : _onSave,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppColors.bgPage,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.bgPage,
+                      child: saving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.bgPage,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              'Save & Continue',
+                              style: GoogleFonts.outfit(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.bgPage,
                               ),
                             ),
-                          )
-                        : Text(
-                            'Save & Continue',
-                            style: GoogleFonts.outfit(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.bgPage,
-                            ),
-                          ),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              );
+            }),
           ],
         ),
       ),

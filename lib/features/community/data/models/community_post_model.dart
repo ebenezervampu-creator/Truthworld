@@ -45,14 +45,23 @@ class CommunityPostModel {
       imageList = [map['image'] as String];
     }
 
+    var rawTitle = (map['title'] as String?)?.trim() ?? '';
+    final desc = (map['description'] as String?)?.trim() ?? '';
+    if (rawTitle.isEmpty || rawTitle.toLowerCase().startsWith('untitled')) {
+      rawTitle = desc.isNotEmpty
+          ? (desc.length > 50 ? '${desc.substring(0, 47)}...' : desc)
+          : 'Community Post';
+    }
+    final chName = (map['channelName'] as String?)?.trim() ?? '';
+
     return CommunityPostModel(
       id: map['id'] ?? '',
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
-      ownerId: map['ownerId'] ?? '',
+      title: rawTitle,
+      description: desc,
+      ownerId: map['ownerId'] ?? map['userId'] ?? '',
       channelId: map['channelId'] ?? '',
-      channelName: map['channelName'] ?? '',
-      channelImage: map['channelImage'] ?? '',
+      channelName: chName.isNotEmpty ? chName : 'Truthworld Creator',
+      channelImage: map['channelImage'] ?? map['channelAvatarUrl'] ?? '',
       selectedCategory: map['selectedCategory'] ?? 'General',
       visibility: map['visibility'] ?? 'Public',
       images: imageList,

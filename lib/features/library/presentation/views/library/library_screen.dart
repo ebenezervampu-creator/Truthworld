@@ -635,11 +635,47 @@ class LibraryScreenState extends State<LibraryScreen>
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Divider(color: AppColors.bgDivider, height: 1),
               ),
-              _buildLibraryListTile(
-                icon: Icons.workspace_premium_outlined,
-                title: 'Get Premium',
-                onTap: () => Get.toNamed('/premium'),
-              ),
+              Obx(() {
+                final isPremium = AuthService.to.isPremiumUser.value;
+                final planId = AuthService.to.premiumPlanId.value;
+                var planLabel = 'Premium Taken';
+                if (planId == 'family_monthly') {
+                  planLabel = r'Premium Taken ($5 Family)';
+                } else if (planId == '4k_factchecked_monthly') {
+                  planLabel = r'Premium Taken ($10 4K & Fact-Checked)';
+                } else if (planId == 'individual_monthly') {
+                  planLabel = r'Premium Taken ($2 Individual)';
+                }
+
+                return _buildLibraryListTile(
+                  icon: isPremium
+                      ? Icons.workspace_premium
+                      : Icons.workspace_premium_outlined,
+                  title: isPremium ? planLabel : 'Get Premium',
+                  trailing: isPremium
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.successContainer,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.success),
+                          ),
+                          child: const Text(
+                            'Active',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      : null,
+                  onTap: () => Get.toNamed('/premium'),
+                );
+              }),
               if (!hasChannel)
                 _buildLibraryListTile(
                   icon: Icons.add_circle_outline,
@@ -1056,7 +1092,7 @@ class LibraryScreenState extends State<LibraryScreen>
       children: [
         InkWell(
           onTap: () {
-            if (authService.hasChannel.value) {
+            if (authService.hasChannel.value || authService.userChannel != null) {
               StudioLauncher.openStudio();
             } else {
               Get.toNamed('/channelscreen');

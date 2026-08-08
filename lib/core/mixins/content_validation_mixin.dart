@@ -1,4 +1,3 @@
-import 'package:get/get.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:profanity_filter/profanity_filter.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -14,13 +13,19 @@ class ContentValidationResult {
 ///
 /// Provides multi-layer profanity, spam, URL, emoji, and pattern checking
 /// reusable across both video and community post upload controllers.
-mixin ContentValidationMixin on GetxController {
+mixin ContentValidationMixin {
   // ── Filters ──────────────────────────────────────────────────────────────
 
   final ProfanityFilter profanityFilter = ProfanityFilter.filterAdditionally(
     _extraOffensiveWords,
   );
-  late final BadWordFilter multiLangFilter;
+  BadWordFilter? _multiLangFilter;
+  BadWordFilter get multiLangFilter =>
+      _multiLangFilter ??= BadWordFilter(
+        languages: ['en', 'fa', 'ar', 'tr', 'de', 'fr', 'es', 'ru'],
+        includeSensitiveTopics: true,
+        matchInsideWords: true,
+      );
 
   static const int maxTitleLength = 100;
   static const int maxDescriptionLength = 5000;
@@ -28,7 +33,7 @@ mixin ContentValidationMixin on GetxController {
 
   /// Call during [onInit] to set up the filter instances.
   void initializeContentFilters() {
-    multiLangFilter = BadWordFilter(
+    _multiLangFilter = BadWordFilter(
       languages: ['en', 'fa', 'ar', 'tr', 'de', 'fr', 'es', 'ru'],
       includeSensitiveTopics: true,
       matchInsideWords: true,

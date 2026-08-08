@@ -163,6 +163,7 @@ class VideoOptionsSheet extends StatelessWidget {
                           Get.find<DownloadsController>().loadVideos();
                         }
 
+                        if (!context.mounted) return;
                         AppSnackbar.show(
                           'Download Complete',
                           "'${video.title}' downloaded successfully for offline viewing.",
@@ -175,6 +176,7 @@ class VideoOptionsSheet extends StatelessWidget {
                           borderRadius: 16,
                         );
                       } catch (e) {
+                        if (!context.mounted) return;
                         AppSnackbar.show(
                           'Download Failed',
                           'Could not download video: $e',
@@ -224,6 +226,7 @@ class VideoOptionsSheet extends StatelessWidget {
                       Get.back();
                       UserPreferencesService.to.hideVideo(video.id);
                       _removeVideoFromControllers(video.id);
+                      // ignore: use_build_context_synchronously
                       AppSnackbar.show(
                         'Not interested',
                         "We won't recommend this video anymore.",
@@ -239,6 +242,7 @@ class VideoOptionsSheet extends StatelessWidget {
                             if (Get.isRegistered<HomeController>()) {
                               Get.find<HomeController>().fetchInitialVideos();
                             }
+                            // ignore: use_build_context_synchronously
                             AppSnackbar.show(
                               'Restored',
                               'Video recommendation restored.',
@@ -274,6 +278,7 @@ class VideoOptionsSheet extends StatelessWidget {
                         video.channelId,
                         video.channelName,
                       );
+                      // ignore: use_build_context_synchronously
                       AppSnackbar.show(
                         "Don't recommend channel",
                         "We won't recommend videos from ${video.channelName} anymore.",
@@ -292,6 +297,7 @@ class VideoOptionsSheet extends StatelessWidget {
                             if (Get.isRegistered<HomeController>()) {
                               Get.find<HomeController>().fetchInitialVideos();
                             }
+                            // ignore: use_build_context_synchronously
                             AppSnackbar.show(
                               'Restored',
                               'Channel recommendations restored.',

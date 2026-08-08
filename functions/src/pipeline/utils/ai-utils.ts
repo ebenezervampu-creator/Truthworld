@@ -267,25 +267,30 @@ export async function withAiRetry<T>(
     } catch (error: any) {
       attempts++;
       
-      const status = error?.status || (error?.message?.includes("429") ? 429 : error?.message?.includes("503") ? 503 : 500);
+      const status = error?.status || (error?.message?.includes("429") ? 429 : error?.message?.includes("503") ? 503 : error?.message?.includes("404") ? 404 : 500);
       const isCapacityError = status === 429 || status === 503 || 
                              error?.message?.toLowerCase().includes("resource exhausted") ||
                              error?.message?.toLowerCase().includes("quota");
+      const isModelNotFoundError = status === 404 ||
+                                   error?.message?.toLowerCase().includes("not found") ||
+                                   error?.message?.toLowerCase().includes("publisher model");
 
-      if (isCapacityError) {
-        // Trip the circuit breaker
-        await tripCircuitBreaker(options.instanceId);
+      if (isCapacityError || isModelNotFoundError) {
+        // Trip the circuit breaker only for rate limit/capacity (429/503)
+        if (isCapacityError) {
+          await tripCircuitBreaker(options.instanceId);
+        }
         
         // Waterfall: try fallback model if available and not forcePrimary
         if (chain.fallback && !chain.forcePrimary && currentModel === chain.primary) {
-          logger.info(`[WaterfallRouting] 429 on ${chain.primary} → falling back to ${chain.fallback}`);
+          logger.info(`[WaterfallRouting] Error (${status}) on ${chain.primary} → falling back to ${chain.fallback}`, { error: String(error) });
           currentModel = chain.fallback;
           // No sleep — switch model immediately, don't wait
           continue;
         }
         
-        // forcePrimary or no fallback — exponential backoff on same model
-        if (attempts < options.maxAttempts) {
+        // forcePrimary or no fallback — exponential backoff on same model for capacity errors
+        if (isCapacityError && attempts < options.maxAttempts) {
            const backoffMs = Math.min(1000 * Math.pow(2, attempts), 30_000);
            logger.warn(`[WaterfallRouting] Capacity exceeded. forcePrimary=${chain.forcePrimary}. Backing off ${backoffMs}ms.`);
            await sleep(backoffMs);

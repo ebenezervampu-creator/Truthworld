@@ -43,7 +43,9 @@ class ChannelScreen extends StatelessWidget {
 
     return Obx(
       () {
-        if (AuthService.to.hasChannel.value) {
+        if (AuthService.to.hasChannel.value ||
+            AuthService.to.userChannel != null ||
+            controller.channels.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Get.offAllNamed('/studio');
           });
@@ -272,21 +274,26 @@ class ChannelScreen extends StatelessWidget {
   // DESKTOP SPLIT VIEW
   // ========================================================================
   Widget _buildDesktopSplitView(bool isDarkMode) {
-    return Row(
-      children: [
-        // Left: Form (60%)
-        Expanded(flex: 6, child: _buildStepContent(isDarkMode)),
-        // Right: Live Preview (40%)
-        Expanded(
-          flex: 4,
-          child: Container(
-            color: isDarkMode ? AppColors.bgInput : const Color(0xFFF7FAFC),
-            padding: const EdgeInsets.all(32),
-            child: _buildLivePreviewCard(isDarkMode),
+    return Obx(() {
+      if (currentStep.value == 0) {
+        return _buildStepContent(isDarkMode);
+      }
+      return Row(
+        children: [
+          // Left: Form (60%)
+          Expanded(flex: 6, child: _buildStepContent(isDarkMode)),
+          // Right: Live Preview (40%)
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: isDarkMode ? AppColors.bgInput : const Color(0xFFF7FAFC),
+              padding: const EdgeInsets.all(32),
+              child: _buildLivePreviewCard(isDarkMode),
+            ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    });
   }
 
   // ========================================================================
@@ -521,10 +528,23 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 24),
         _buildModernTextField(
           controller: controller.tags,
-          labelText: 'Tags',
-          hintText: 'gaming, tutorial (comma-separated)',
+          labelText: 'Tags (Max 5)',
+          hintText: 'gaming, tutorial (comma-separated, max 5 tags)',
           icon: Icons.tag_rounded,
           isDarkMode: isDarkMode,
+          validator: (value) {
+            if (value != null && value.trim().isNotEmpty) {
+              final count = value
+                  .split(',')
+                  .map((t) => t.trim())
+                  .where((t) => t.isNotEmpty)
+                  .length;
+              if (count > 5) {
+                return 'Maximum 5 tags allowed (currently $count)';
+              }
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 24),
         _buildCategorySelection(isDarkMode),
@@ -866,8 +886,10 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 12),
         _buildBannerPicker(controller, isDarkMode),
         Obx(() {
-          if (controller.bannerStatus.value == 'PENDING' &&
-              controller.bannerUrl.value.isNotEmpty) {
+          final hasFile = controller.bannerFileId.value.isNotEmpty;
+          if (!hasFile) return const SizedBox.shrink();
+
+          if (controller.bannerStatus.value == 'PENDING') {
             return const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Row(
@@ -957,8 +979,10 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 12),
         _buildAvatarPicker(controller, isDarkMode),
         Obx(() {
-          if (controller.avatarStatus.value == 'PENDING' &&
-              controller.avatarUrl.value.isNotEmpty) {
+          final hasFile = controller.avatarFileId.value.isNotEmpty;
+          if (!hasFile) return const SizedBox.shrink();
+
+          if (controller.avatarStatus.value == 'PENDING') {
             return const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Row(
@@ -1990,53 +2014,18 @@ class ChannelScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Obx(() {
-                final isAll = controller.isAllCategoriesSelected;
                 final count = controller.selectedCategories.length;
                 final total = controller.categories.length;
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '$count of $total Selected',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: count > 0
-                            ? const Color(0xFF6B46C1)
-                            : const Color(0xFFE53E3E),
-                      ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        if (isAll) {
-                          controller.deselectAllCategories();
-                        } else {
-                          controller.selectAllCategories();
-                        }
-                        forceValidationUpdate.toggle();
-                      },
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6B46C1).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          isAll ? 'Deselect All' : 'Select All',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6B46C1),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                return Text(
+                  '$count of $total Selected',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: count > 0
+                        ? const Color(0xFF6B46C1)
+                        : const Color(0xFFE53E3E),
+                  ),
                 );
               }),
               const SizedBox(height: 12),
@@ -2049,6 +2038,7 @@ class ChannelScreen extends StatelessWidget {
                       children: controller.categories.map((category) {
                         final isSelected = controller.isCategorySelected(category);
                         return FilterChip(
+                          showCheckmark: false,
                           avatar: Icon(
                             _getCategoryIcon(category),
                             size: 16,
@@ -2134,13 +2124,19 @@ class ChannelScreen extends StatelessWidget {
         return true; // Validated by default option selection
 
       case 1: // Basic Info & Branding
+        final tagCount = controller.tags.text
+            .split(',')
+            .map((t) => t.trim())
+            .where((t) => t.isNotEmpty)
+            .length;
         return controller.channelName.text.trim().length >= 3 &&
             controller.customUrl.text.trim().length >=
                 ChannelController.minCustomUrlLength &&
             controller.description.text.trim().isNotEmpty &&
             controller.selectedCategories.isNotEmpty &&
             controller.avatarFileId.value.isNotEmpty &&
-            controller.bannerFileId.value.isNotEmpty;
+            controller.bannerFileId.value.isNotEmpty &&
+            tagCount <= 5;
 
       case 2: // Social Links & Contact
         return true; // Optional

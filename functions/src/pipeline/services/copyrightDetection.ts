@@ -71,7 +71,7 @@ export class CopyrightDetectionService {
       // RETRIEVAL STAGE 1: MD5 Exact Match (0ms, free)
       // ═══════════════════════════════════════════════════════════════════════
       const md5Start = Date.now();
-      const md5Hits = await this.checkMd5(params.md5Hash, params.videoId);
+      const md5Hits = await this.checkMd5(params.md5Hash, params.videoId, params.ownerId);
       result.pipelineStages.md5 = {
         ran: true,
         hitCount: md5Hits.length,
@@ -208,7 +208,8 @@ export class CopyrightDetectionService {
 
   private async checkMd5(
     md5Hash: string | null,
-    excludeVideoId: string
+    excludeVideoId: string,
+    excludeOwnerId: string
   ): Promise<CandidateAsset[]> {
     if (!md5Hash) return [];
 
@@ -219,13 +220,64 @@ export class CopyrightDetectionService {
         .limit(5)
         .get();
 
-      return snap.docs
+      const results = snap.docs
         .filter((doc) => doc.id !== excludeVideoId)
         .map((doc) => ({
           assetId: doc.id,
           ...doc.data(),
           similarity: 1.0,
         } as CandidateAsset));
+
+      if (results.length > 0) {
+        return results;
+      }
+
+      // ── Fallback: check video_hashes for in-progress pipeline videos ──
+      const hashDoc = await db()
+        .collection("video_hashes")
+        .doc(md5Hash)
+        .get();
+
+      if (!hashDoc.exists) return [];
+
+      const hashData = hashDoc.data();
+      const jobId = hashData?.jobId as string | undefined;
+      if (!jobId) return [];
+
+      // Look up the original job/video to get ownership info
+      const jobDoc = await db()
+        .collection("videos")
+        .doc(jobId)
+        .get();
+
+      if (!jobDoc.exists) return [];
+
+      const jobData = jobDoc.data();
+      const originalOwnerId = (jobData?.ownerId ?? jobData?.userId ?? "") as string;
+
+      // Filter out self-matches (same owner uploading again)
+      if (originalOwnerId === excludeOwnerId || jobId === excludeVideoId) {
+        return [];
+      }
+
+      // Synthesize a CandidateAsset from the in-progress video
+      logger.info("[CopyrightDetection] MD5 match found in video_hashes (in-progress)", {
+        md5Hash,
+        matchedJobId: jobId,
+        matchedOwnerId: originalOwnerId,
+      });
+
+      return [
+        {
+          assetId: jobId,
+          ownerId: originalOwnerId,
+          channelId: (jobData?.channelId ?? "") as string,
+          videoTitle: (jobData?.title ?? "Unknown") as string,
+          duration: (jobData?.duration ?? 0) as number,
+          originalVideoId: jobId,
+          similarity: 1.0,
+        } as CandidateAsset,
+      ];
     } catch (err) {
       logger.warn("[CopyrightDetection] MD5 scan failed", { err });
       return [];

@@ -65,17 +65,19 @@ class PlaylistModel {
        updatedAt = TimestampUtils.parse(updatedAt);
 
   factory PlaylistModel.fromMap(Map<String, dynamic> data, String docId) {
+    var rawName = (data['name'] as String?)?.trim() ?? (data['playlistName'] as String?)?.trim() ?? (data['title'] as String?)?.trim() ?? '';
+    if (rawName.isEmpty || rawName.toLowerCase().startsWith('untitled')) {
+      rawName = 'Truthworld Playlist';
+    }
+
     return PlaylistModel(
       id: docId,
-      name:
-          data['name'] ??
-          data['playlistName'] ??
-          '', // Handle both old and new field names
+      name: rawName,
       description: data['description'] ?? '',
-      ownerId: data['ownerId'] ?? '',
+      ownerId: data['ownerId'] ?? data['userId'] ?? '',
       channelId: data['channelId'] ?? '',
       thumbnailUrl: data['thumbnailUrl'] ?? '',
-      videoCount: data['videoCount'] ?? 0,
+      videoCount: (data['videoCount'] as num?)?.toInt() ?? (data['videoIds'] as List?)?.length ?? 0,
       videoIds: List<String>.from(data['videoIds'] ?? []),
       visibility: PlaylistVisibility.values.firstWhere(
         (e) => e.name == data['visibility'],
@@ -87,7 +89,7 @@ class PlaylistModel {
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
       sortIndex: data['sortIndex'] ?? 0,
       geminiApproved: data['geminiApproved'],
-      status: data['status'] ?? 'underReview',
+      status: data['status'] ?? 'active',
       moderationReason: data['moderationReason'],
     );
   }

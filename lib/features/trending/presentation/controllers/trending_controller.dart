@@ -3,6 +3,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/trending_videos_service.dart';
 
@@ -25,9 +26,10 @@ class TrendingController extends BaseController {
 
       final rawData = await _trendingService.getTrendingVideos();
 
-      final parsedVideos = rawData.map((videoData) {
-        return Video.fromMap(videoData, (videoData['id'] as String?) ?? '');
-      }).toList();
+      final parsedVideos = rawData
+          .map((videoData) => Video.fromMap(videoData, (videoData['id'] as String?) ?? ''))
+          .where(VideoVisibilityPolicy.isValidVideo)
+          .toList();
 
       if (Get.isRegistered<TruthworldAlgorithm>()) {
         final algorithm = Get.find<TruthworldAlgorithm>();
