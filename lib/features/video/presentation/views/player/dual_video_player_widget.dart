@@ -22,18 +22,6 @@ class DualVideoPlayerWidget extends StatefulWidget {
 
   @override
   State<DualVideoPlayerWidget> createState() => _DualVideoPlayerWidgetState();
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is DualVideoPlayerWidget &&
-          runtimeType == other.runtimeType &&
-          key == other.key &&
-          videoA == other.videoA &&
-          videoB == other.videoB;
-
-  @override
-  int get hashCode => Object.hash(key, videoA, videoB);
 }
 
 class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {

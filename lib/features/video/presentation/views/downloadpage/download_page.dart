@@ -1,5 +1,3 @@
-// ignore_for_file: invalid_use_of_protected_member, use_build_context_synchronously
-
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
