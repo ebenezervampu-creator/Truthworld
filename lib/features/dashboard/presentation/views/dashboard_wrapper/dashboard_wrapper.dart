@@ -9,10 +9,12 @@ import 'package:truthworld/features/subscriptions/presentation/views/Subscriptio
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
+import 'package:truthworld/core/base/base_controller.dart';
+
 // ==========================================================================
 // DASHBOARD WRAPPER CONTROLLER
 // ==========================================================================
-class DashboardWrapperController extends GetxController {
+class DashboardWrapperController extends BaseController {
   DashboardWrapperController({
     required this.dashboardType,
     this.initialTabIndex = 0,

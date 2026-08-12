@@ -14,6 +14,7 @@ export 'package:truthworld/components/ui/layout_container.dart';
 export 'package:truthworld/components/ui/loading_state.dart';
 export 'package:truthworld/components/ui/primary_button.dart';
 export 'package:truthworld/components/ui/responsive_grid.dart';
+export 'package:truthworld/components/ui/rive/rive_interaction_widgets.dart';
 export 'package:truthworld/components/ui/video_card.dart';
 // Core Design System
 export 'package:truthworld/theme/app_theme.dart';

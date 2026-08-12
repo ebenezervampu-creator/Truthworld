@@ -63,9 +63,11 @@ service cloud.firestore {
       // Allow anyone to read channels (needed for discovery and collection listing)
       allow read: if true;
       
-      // Allow authenticated users to create channels
+      // Allow authenticated users to create a channel ONLY if they do not already have one
       allow create: if isAuthenticated() && 
-                       request.resource.data.ownerId == request.auth.uid;
+                       request.resource.data.ownerId == request.auth.uid &&
+                       (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.hasChannel != true);
       
       // Allow owners or admins to update their channels, or any authenticated user to toggle subscription
       allow update: if isAuthenticated() && 
@@ -773,13 +775,15 @@ service cloud.firestore {
     // Copyright Claims Collection
     match /copyright_claims/{claimId} {
       allow read: if isAuthenticated();
-      allow write: if false; // Only backend can write
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Only backend can update or delete claims
     }
 
     // Copyright Appeals Collection
     match /copyright_appeals/{appealId} {
       allow read: if isAuthenticated();
-      allow write: if false; // Only backend can write
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Only backend can update or delete appeals
     }
 
     // Content Verifications Collection

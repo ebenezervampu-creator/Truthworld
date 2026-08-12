@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
@@ -46,9 +44,6 @@ class AudienceController extends BaseController {
   final RxDouble urbanPercentage = 0.0.obs;
   final RxDouble ruralPercentage = 0.0.obs;
 
-  // Real-time Firestore listeners
-  StreamSubscription<QuerySnapshot>? _channelStatsListener;
-  StreamSubscription<QuerySnapshot>? _videoStatsListener;
 
   // Comprehensive Indian states & union territories map — all 36 entries
   // ensures we NEVER show an empty geography list
@@ -103,13 +98,6 @@ class AudienceController extends BaseController {
     }
   }
 
-  @override
-  void onClose() {
-    _channelStatsListener?.cancel();
-    _videoStatsListener?.cancel();
-    super.onClose();
-  }
-
   // ---------------------------------------------------------------------------
   // REAL-TIME FIRESTORE LISTENERS
   // ---------------------------------------------------------------------------
@@ -129,7 +117,7 @@ class AudienceController extends BaseController {
     final cutoffKey =
         '${cutoff.year}_${cutoff.month.toString().padLeft(2, '0')}_${cutoff.day.toString().padLeft(2, '0')}';
 
-    _channelStatsListener = _firestore
+    trackSubscription(_firestore
         .collection('channel_stats_daily')
         .where('channelId', isEqualTo: channelId)
         .snapshots()
@@ -145,11 +133,11 @@ class AudienceController extends BaseController {
               tag: 'AudienceController',
             );
           },
-        );
+        ));
 
     // Fallback: also listen to video_stats_daily for this channel
     // in case channel_stats_daily hasn't been populated yet
-    _videoStatsListener = _firestore
+    trackSubscription(_firestore
         .collection('video_stats_daily')
         .where('channelId', isEqualTo: channelId)
         .snapshots()
@@ -169,7 +157,7 @@ class AudienceController extends BaseController {
               tag: 'AudienceController',
             );
           },
-        );
+        ));
   }
 
   /// Process real-time channel_stats_daily snapshot updates

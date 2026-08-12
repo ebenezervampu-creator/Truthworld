@@ -60,6 +60,14 @@ abstract class BaseRepository {
     });
   }
 
+  /// Alias for [safeSet] to handle safe document creation/saving
+  Future<Result<void>> safeSave(
+    DocumentReference ref,
+    Map<String, dynamic> data, {
+    bool merge = true,
+  }) =>
+      safeSet(ref, data, merge: merge);
+
   /// Defensive update operation wrapped in exception handling
   Future<Result<void>> safeUpdate(
     DocumentReference ref,

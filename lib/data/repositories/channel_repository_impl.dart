@@ -161,6 +161,22 @@ class ChannelRepositoryImpl extends BaseRepository
     String? description,
   }) async {
     return safeFetch(() async {
+      // 0. Strict 1 Channel Per User Account check
+      final existingQuery = await _firestore
+          .collection(FirestoreCollections.channels)
+          .where('ownerId', isEqualTo: ownerId)
+          .limit(1)
+          .get();
+
+      if (existingQuery.docs.isNotEmpty) {
+        final status = existingQuery.docs.first.data()['status'];
+        if (status != 'deleted') {
+          throw Exception(
+            'Only one channel per Google account is allowed in Truthworld.',
+          );
+        }
+      }
+
       final ref = _firestore.collection(FirestoreCollections.channels).doc();
       final now = FieldValue.serverTimestamp();
 
@@ -178,6 +194,17 @@ class ChannelRepositoryImpl extends BaseRepository
       };
 
       await ref.set(data);
+
+      // Update user doc with hasChannel flag
+      await _firestore
+          .collection(FirestoreCollections.users)
+          .doc(ownerId)
+          .set({
+            'channelId': ref.id,
+            'hasChannel': true,
+            'channelsCount': 1,
+            'updatedAt': now,
+          }, SetOptions(merge: true));
 
       // Fetch immediately to get parsed dates properly
       final doc = await ref.get();

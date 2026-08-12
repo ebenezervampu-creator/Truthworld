@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Helper utility for opening Truthworld Studio externally as a standalone app or separate browser tab,
-/// matching YouTube's exact behavior.
+/// matching Truthworld's exact behavior.
 class StudioLauncher {
   StudioLauncher._();
 

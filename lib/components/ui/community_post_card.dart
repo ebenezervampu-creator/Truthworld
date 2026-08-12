@@ -330,11 +330,11 @@ class _CommunityPostCardState extends State<CommunityPostCard>
       if (!widget.isFullWidth) {
         return _buildCompactGridCard(context);
       }
-      return _buildFullYoutubeCard(context);
+      return _buildFullTruthworldCard(context);
     });
   }
 
-  Widget _buildFullYoutubeCard(BuildContext context) {
+  Widget _buildFullTruthworldCard(BuildContext context) {
     final hasImages = widget.post.images.isNotEmpty;
     final timeStr = timeago.format(widget.post.uploadedAt);
 

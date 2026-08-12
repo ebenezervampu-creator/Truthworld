@@ -260,11 +260,17 @@ class _VideoCardState extends State<VideoCard> {
     _isLoadingVideo.value = true;
 
     var previewUrl = widget.video.animatedPreviewUrl;
-    if (previewUrl.isEmpty || previewUrl.startsWith('gs://')) {
+    if (previewUrl.isEmpty ||
+        previewUrl.startsWith('gs://') ||
+        (kIsWeb && previewUrl.contains('.m3u8'))) {
       if (widget.video.adaptiveResolutions.isNotEmpty) {
         // Cost-effective: find lowest bitrate resolution
         final playable = widget.video.adaptiveResolutions
-            .where((r) => r.url.isNotEmpty)
+            .where(
+              (r) =>
+                  r.url.isNotEmpty &&
+                  (!kIsWeb || !r.url.contains('.m3u8')),
+            )
             .toList();
         if (playable.isNotEmpty) {
           final lowest = playable.reduce(
@@ -273,8 +279,11 @@ class _VideoCardState extends State<VideoCard> {
           previewUrl = lowest.url;
         }
       }
-      if (previewUrl.isEmpty || previewUrl.startsWith('gs://')) {
-        if (widget.video.originalUrl.isNotEmpty) {
+      if (previewUrl.isEmpty ||
+          previewUrl.startsWith('gs://') ||
+          (kIsWeb && previewUrl.contains('.m3u8'))) {
+        if (widget.video.originalUrl.isNotEmpty &&
+            (!kIsWeb || !widget.video.originalUrl.contains('.m3u8'))) {
           previewUrl = widget.video.originalUrl;
         }
       }
@@ -672,7 +681,7 @@ class _VideoCardState extends State<VideoCard> {
                       ),
                     ),
                   ),
-                // Sound / Mute toggle overlay button (YouTube style)
+                // Sound / Mute toggle overlay button (Truthworld style)
                 if (isInitialized)
                   Positioned(
                     bottom: 8,
@@ -697,7 +706,7 @@ class _VideoCardState extends State<VideoCard> {
                       ),
                     ),
                   ),
-                // Watch Later and Add to Queue overlay icons when hovered (YouTube style)
+                // Watch Later and Add to Queue overlay icons when hovered (Truthworld style)
                 if (hovered)
                   Positioned(
                     top: 8,
@@ -752,7 +761,7 @@ class _VideoCardState extends State<VideoCard> {
                       ],
                     ),
                   ),
-                // Watch progress bar (YouTube style)
+                // Watch progress bar (Truthworld style)
                 Positioned(
                   bottom: 0,
                   left: 0,

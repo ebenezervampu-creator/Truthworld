@@ -36,7 +36,7 @@ export const createStripeCheckoutSession = onCall(
         throw new HttpsError("not-found", "User not found.");
       }
 
-      // Determine pricing, title and description exactly like YouTube Premium plans
+      // Determine pricing, title and description for Truthworld Premium plans
       let amount = 12900; // default ₹129.00 INR (Stripe amounts are in paise)
       let planName = "Truthworld Premium Individual (Monthly)";
       let planDescription = "Ad-free playback, offline downloads, background play, and 1080p Premium resolution.";

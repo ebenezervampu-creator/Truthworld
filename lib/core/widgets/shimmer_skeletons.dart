@@ -3,7 +3,7 @@
 /// Drop-in loading skeletons that match the shape of real content.
 /// Use these instead of bare CircularProgressIndicator.
 ///
-/// YouTube-style: content-shaped skeletons that feel alive before data arrives.
+/// Truthworld-style: content-shaped skeletons that feel alive before data arrives.
 library;
 
 import 'package:flutter/material.dart';

@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -20,6 +19,7 @@ import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
+import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/routes/app_pages.dart';
@@ -49,93 +49,39 @@ void main() {
         setupGlobalErrorHandlers();
 
         try {
-          // Initialize Firebase with error handling
-          try {
-            await Firebase.initializeApp(
+          // Low-latency parallel initialization of Firebase and Storage
+          await Future.wait([
+            Firebase.initializeApp(
               options: DefaultFirebaseOptions.currentPlatform,
-            );
-            logger.info('Firebase initialized successfully', tag: 'Startup');
-
-            // Enable Firestore offline cache/persistence bounded to 100 MB (only on non-web)
-            FirebaseFirestore.instance.settings = const Settings(
-              persistenceEnabled: !kIsWeb,
-              cacheSizeBytes: 100 * 1024 * 1024,
-            );
-            // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
-            try {
-              await FirebaseAppCheck.instance.activate(
-                webProvider: ReCaptchaEnterpriseProvider(
-                  '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
-                ),
-                androidProvider: AndroidProvider.debug,
-                appleProvider: kDebugMode
-                    ? AppleProvider.debug
-                    : AppleProvider.deviceCheck,
+            ).then((_) {
+              logger.info('Firebase initialized successfully', tag: 'Startup');
+              FirebaseFirestore.instance.settings = const Settings(
+                persistenceEnabled: !kIsWeb,
+                cacheSizeBytes: 100 * 1024 * 1024,
               );
-              await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
-              if (kDebugMode) {
-                try {
-                  final token = await FirebaseAppCheck.instance.getToken();
-                  logger.info(
-                    'Firebase App Check Debug Token: $token',
-                    tag: 'Startup',
-                  );
-                } catch (e) {
-                  logger.warning(
-                    'Could not retrieve App Check debug token: $e',
-                    tag: 'Startup',
-                  );
-                }
-              }
-              logger.info(
-                'Firebase App Check initialized successfully',
-                tag: 'Startup',
-              );
-            } catch (e) {
-              logger.error(
-                'Firebase App Check initialization error: $e',
-                tag: 'Startup',
-              );
-            }
-          } on FirebaseException catch (e) {
-            logger.error(
-              'Firebase initialization error: ${e.code} - ${e.message}',
-              tag: 'Firebase',
-              error: e,
-            );
-            rethrow;
-          } catch (e) {
-            logger.error(
-              'Firebase initialization unknown error',
-              tag: 'Firebase',
-              error: e,
-            );
-            rethrow;
-          }
+            }),
+            GetStorage.init().catchError((e) {
+              logger.warning('GetStorage error: $e');
+              return false;
+            }),
+          ]);
 
-          // Initialize Crashlytics (disabled in debug to avoid noise)
-          if (!kIsWeb) {
-            await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
-              !kDebugMode,
-            );
-            FirebaseCrashlytics.instance.setCustomKey(
-              'platform',
-              defaultTargetPlatform.name,
-            );
-          }
-
-          // Initialize Firebase Performance Monitoring
-          if (!kIsWeb) {
-            await FirebasePerformance.instance.setPerformanceCollectionEnabled(
-              !kDebugMode,
-            );
-          }
-
-          // Initialize critical services BEFORE running the app
-          await GetStorage.init().catchError((e) {
-            logger.warning('GetStorage error: $e');
-            return false;
-          });
+          // Non-blocking Firebase AppCheck
+          unawaited(
+            FirebaseAppCheck.instance.activate(
+              webProvider: ReCaptchaEnterpriseProvider(
+                '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
+              ),
+              androidProvider: AndroidProvider.debug,
+              appleProvider: kDebugMode
+                  ? AppleProvider.debug
+                  : AppleProvider.deviceCheck,
+            ).then((_) {
+              FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
+            }).catchError((e) {
+              logger.error('Firebase App Check error: $e', tag: 'Startup');
+            }),
+          );
 
           final authService = Get.put(AuthService(), permanent: true);
           Get.put(AppService(), permanent: true);
@@ -317,11 +263,13 @@ class Truthworld extends StatelessWidget {
 
         return MediaQuery(
           data: mediaQueryData.copyWith(textScaler: clampedTextScaler),
-          child: Stack(
-            children: [
-              child!,
-              const MiniplayerOverlayManager(),
-            ],
+          child: TruthworldSplashScreen(
+            child: Stack(
+              children: [
+                child!,
+                const MiniplayerOverlayManager(),
+              ],
+            ),
           ),
         );
       },

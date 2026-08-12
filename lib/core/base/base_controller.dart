@@ -56,19 +56,28 @@ abstract class BaseController extends GetxController {
   final List<ScrollController> _trackedScrollControllers = <ScrollController>[];
 
   /// Track a [StreamSubscription] for automatic cancellation in [onClose].
-  void trackSubscription(StreamSubscription sub) =>
-      _trackedSubscriptions.add(sub);
+  T trackSubscription<T extends StreamSubscription>(T sub) {
+    _trackedSubscriptions.add(sub);
+    return sub;
+  }
 
   /// Track a [Timer] for automatic cancellation in [onClose].
-  void trackTimer(Timer timer) => _trackedTimers.add(timer);
+  T trackTimer<T extends Timer>(T timer) {
+    _trackedTimers.add(timer);
+    return timer;
+  }
 
   /// Track a [TextEditingController] for automatic disposal in [onClose].
-  void trackTextController(TextEditingController ctrl) =>
-      _trackedTextControllers.add(ctrl);
+  T trackTextController<T extends TextEditingController>(T ctrl) {
+    _trackedTextControllers.add(ctrl);
+    return ctrl;
+  }
 
   /// Track a [ScrollController] for automatic disposal in [onClose].
-  void trackScrollController(ScrollController ctrl) =>
-      _trackedScrollControllers.add(ctrl);
+  T trackScrollController<T extends ScrollController>(T ctrl) {
+    _trackedScrollControllers.add(ctrl);
+    return ctrl;
+  }
 
   @override
   @mustCallSuper

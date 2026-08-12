@@ -6,7 +6,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 /// Optimized Firestore Service
 ///
 /// Implements efficient querying strategies, pagination, caching,
-/// and offline persistence for YouTube-scale video platform.
+/// and offline persistence for Truthworld-scale video platform.
 class FirestoreService extends GetxService {
   late FirebaseFirestore _firestore;
   static const int pageSize = 12; // Videos per page

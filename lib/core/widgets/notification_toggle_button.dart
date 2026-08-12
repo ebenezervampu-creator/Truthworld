@@ -25,7 +25,7 @@ class NotificationToggleButton extends StatelessWidget {
     void toggleNotification() {
       isNotified.value = !isNotified.value;
 
-      // Provide a premium feedback toast similar to YouTube
+      // Provide a premium feedback toast similar to Truthworld
       ScaffoldMessenger.of(context).clearSnackBars();
       AppSnackbar.show(
         isNotified.value ? 'Notification on' : 'Notification off',

@@ -487,7 +487,7 @@ Return JSON:
       const batch = db().batch();
       batch.set(db().collection("copyright_owner_notifications").doc(notificationId), notification);
 
-      // Pause Video and Job at Step 4 (copyright_hold) with YouTube Escrow holding
+      // Pause Video and Job at Step 4 (copyright_hold) with Truthworld Escrow holding
       batch.set(db().collection("videos").doc(videoId), {
         copyrightStatus: "copyright_hold",
         escrowStatus: "holding",
@@ -624,7 +624,7 @@ Return JSON:
           });
         }
 
-        logger.info(`[CopyrightClaims] Pipeline resumed post-copyright resolution (${action}) with YouTube Escrow Payout`, { videoId });
+        logger.info(`[CopyrightClaims] Pipeline resumed post-copyright resolution (${action}) with Truthworld Escrow Payout`, { videoId });
         return {
           success: true,
           message: isRedirect

@@ -21,7 +21,7 @@ class CustomizationController extends BaseController {
 
   final RxString status = 'active'.obs;
   final RxString moderationReason = ''.obs;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _channelSub;
+
 
   // Image Verification Statuses (Reactive)
   final RxString avatarStatus = 'APPROVED'.obs;
@@ -36,19 +36,19 @@ class CustomizationController extends BaseController {
   final RxBool isSaving = false.obs;
 
   // Controllers
-  final channelNameController = TextEditingController();
-  final descriptionController = TextEditingController();
-  final customUrlController = TextEditingController();
-  final contactEmailController = TextEditingController();
-  final websiteUrlController = TextEditingController();
-  final categoryController = TextEditingController();
-  final languageController = TextEditingController();
-  final tagsController = TextEditingController();
+  late final channelNameController = trackTextController(TextEditingController());
+  late final descriptionController = trackTextController(TextEditingController());
+  late final customUrlController = trackTextController(TextEditingController());
+  late final contactEmailController = trackTextController(TextEditingController());
+  late final websiteUrlController = trackTextController(TextEditingController());
+  late final categoryController = trackTextController(TextEditingController());
+  late final languageController = trackTextController(TextEditingController());
+  late final tagsController = trackTextController(TextEditingController());
 
   // Social links
-  final twitterController = TextEditingController();
-  final instagramController = TextEditingController();
-  final facebookController = TextEditingController();
+  late final twitterController = trackTextController(TextEditingController());
+  late final instagramController = trackTextController(TextEditingController());
+  late final facebookController = trackTextController(TextEditingController());
 
   // Settings (Reactive)
   final RxBool isPublic = true.obs;
@@ -71,7 +71,7 @@ class CustomizationController extends BaseController {
   }
 
   void _listenToChannelChanges() {
-    _channelSub = _firestore
+    trackSubscription(_firestore
         .collection(FirestoreCollections.channels)
         .doc(channelId)
         .snapshots()
@@ -106,24 +106,7 @@ class CustomizationController extends BaseController {
                 '';
             if (aUrl.isNotEmpty) avatarUrl.value = aUrl;
           }
-        });
-  }
-
-  @override
-  void onClose() {
-    _channelSub?.cancel();
-    channelNameController.dispose();
-    descriptionController.dispose();
-    customUrlController.dispose();
-    contactEmailController.dispose();
-    websiteUrlController.dispose();
-    categoryController.dispose();
-    languageController.dispose();
-    tagsController.dispose();
-    twitterController.dispose();
-    instagramController.dispose();
-    facebookController.dispose();
-    super.onClose();
+        }));
   }
 
   Future<void> loadChannelData() async {

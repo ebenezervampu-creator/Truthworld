@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
@@ -20,19 +21,7 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
 /// Production-grade miniplayer controller.
-///
-/// Design principles:
-///  1. **Granular Rx variables** — each observable holds the smallest possible
-///     unit of state. Widgets only rebuild when the exact field they depend on
-///     changes (no monolithic `Rx<BigState>` triggering global rebuilds).
-///  2. **Single listener cleanup** — video position listener is tracked and
-///     removed before attaching a new one to prevent memory leaks.
-///  3. **Throttled position updates** — position is sampled at ~4 Hz via a
-///     periodic timer instead of every vsync frame (~60 Hz) to reduce reactive
-///     overhead without visible UX impact.
-///  4. **Safe disposal** — every async gap checks `_isClosed` before touching
-///     state to avoid "controller already disposed" errors.
-class MiniplayerController extends GetxController
+class MiniplayerController extends BaseController
     with GetTickerProviderStateMixin {
   // ═══════════════════════════════════════════════════════════════════════════
   // SINGLETON ACCESSOR
@@ -138,17 +127,19 @@ class MiniplayerController extends GetxController
   }
 
   void _setupConnectivityListener() {
-    _connectivitySubscription = Get.find<ConnectivityService>()
-        .onConnectivityChanged
-        .listen((results) {
-          final isConnected = results.any((r) => r != ConnectivityResult.none);
-          if (isConnected && error.value.isNotEmpty) {
-            debugPrint(
-              '[MiniplayerController] 🌐 Internet restored. Attempting recovery...',
-            );
-            attemptRecovery();
-          }
-        });
+    trackSubscription(
+      _connectivitySubscription = Get.find<ConnectivityService>()
+          .onConnectivityChanged
+          .listen((results) {
+            final isConnected = results.any((r) => r != ConnectivityResult.none);
+            if (isConnected && error.value.isNotEmpty) {
+              debugPrint(
+                '[MiniplayerController] 🌐 Internet restored. Attempting recovery...',
+              );
+              attemptRecovery();
+            }
+          }),
+    );
   }
 
   @override

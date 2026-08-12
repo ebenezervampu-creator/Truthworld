@@ -23,18 +23,12 @@ class CreatorIntelligenceController extends BaseController {
   final RxString searchQuery = ''.obs;
   final RxInt unreadCount = 0.obs;
 
-  StreamSubscription? _notificationsSub;
+
 
   @override
   void onInit() {
     super.onInit();
     listenToNotifications();
-  }
-
-  @override
-  void onClose() {
-    _notificationsSub?.cancel();
-    super.onClose();
   }
 
   void listenToNotifications() {
@@ -46,7 +40,7 @@ class CreatorIntelligenceController extends BaseController {
     rxIsLoading.value = true;
 
     // Listen to users/{creatorId}/notifications_active collection
-    _notificationsSub = _firestore
+    trackSubscription(_firestore
         .collection(FirestoreCollections.users)
         .doc(creatorId)
         .collection('notifications_active')
@@ -71,7 +65,7 @@ class CreatorIntelligenceController extends BaseController {
             debugPrint('[CreatorIntelligence] Firestore Stream Error: $err');
             _listenToLegacyNotifications();
           },
-        );
+        ));
   }
 
   void _listenToLegacyNotifications() {

@@ -1039,7 +1039,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                         ),
                 ),
               ),
-              // YouTube-style playlist right side overlay bar
+              // Truthworld-style playlist right side overlay bar
               Positioned(
                 top: 0,
                 right: 0,

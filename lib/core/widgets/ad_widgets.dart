@@ -533,7 +533,7 @@ class HomepageAdCard extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Text Block - Full Width (No Avatar as per YouTube Spec)
+                          // Text Block - Full Width (No Avatar as per Truthworld Spec)
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

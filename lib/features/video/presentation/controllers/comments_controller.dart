@@ -174,7 +174,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
     _loadUserInteractions();
 
     // Stream comments
-    _commentService
+    trackSubscription(_commentService
         .getCommentsStream(
           videoId: video!.id,
         )
@@ -210,7 +210,7 @@ class CommentsController extends BaseController with ContentValidationMixin {
             commentsError.value = e.toString();
             isLoadingComments.value = false;
           },
-        );
+        ));
   }
 
   // ============================================================================

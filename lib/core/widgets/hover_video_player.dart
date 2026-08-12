@@ -9,12 +9,12 @@ import 'package:truthworld/features/video/presentation/controllers/video_playbac
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
 
-/// A premium, YouTube-style hover-to-play video preview card.
+/// A premium, Truthworld-style hover-to-play video preview card.
 ///
 /// Features:
 /// - 600ms hover debounce to optimize bandwidth and maintain sub-150ms scrolling.
 /// - Loop-playback muted, perfectly fitted (cover fit) within the thumbnail area.
-/// - YouTube-style muted volume indicator overlay.
+/// - Truthworld-style muted volume indicator overlay.
 /// - Seamless zero-latency warm-handover on tap.
 class HoverVideoPlayer extends StatefulWidget {
   // Previews start muted by default

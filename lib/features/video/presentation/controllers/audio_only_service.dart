@@ -336,7 +336,6 @@ class AudioOnlyService extends GetxService {
 
   @override
   void onClose() {
-    _stopPositionTracking();
     _audioElement?.pause();
     _audioElement?.remove();
     super.onClose();
