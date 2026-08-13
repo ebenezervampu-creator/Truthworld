@@ -38,8 +38,10 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/features/video/data/repositories/firestore_video_repository.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
+import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -54,8 +56,6 @@ import 'package:truthworld/features/video/presentation/widgets/fact_check_report
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
-import 'package:truthworld/features/video/data/repositories/firestore_video_repository.dart';
-import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
 
 class VideoController extends BaseController with GetTickerProviderStateMixin {
   VideoController({VideoRepository? videoRepository})

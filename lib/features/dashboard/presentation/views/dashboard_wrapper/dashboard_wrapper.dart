@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart';
@@ -8,8 +9,6 @@ import 'package:truthworld/features/playlist/presentation/views/playlist/playlis
 import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart';
 import 'package:truthworld/theme/app_theme.dart';
-
-import 'package:truthworld/core/base/base_controller.dart';
 
 // ==========================================================================
 // DASHBOARD WRAPPER CONTROLLER

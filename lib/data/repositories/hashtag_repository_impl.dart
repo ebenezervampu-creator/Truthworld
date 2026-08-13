@@ -57,7 +57,7 @@ class HashtagRepositoryImpl extends BaseRepository implements HashtagRepository 
           .get();
 
       return snapshot.docs
-          .map((doc) => (doc.data()['name'] as String? ?? doc.id))
+          .map((doc) => doc.data()['name'] as String? ?? doc.id)
           .toList();
     });
   }

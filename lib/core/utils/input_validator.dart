@@ -71,25 +71,25 @@ class InputValidator {
   static String validateUsername(String username) {
     username = username.trim();
     if (username.isEmpty) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'username',
         message: 'Username cannot be empty',
       );
     }
     if (username.length < 3) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'username',
         message: 'Username must be at least 3 characters',
       );
     }
     if (username.length > 30) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'username',
         message: 'Username cannot exceed 30 characters',
       );
     }
     if (!_alphanumeric.hasMatch(username)) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'username',
         message:
             'Username can only contain letters, numbers, hyphens, and underscores',
@@ -102,7 +102,7 @@ class InputValidator {
   static String validateComment(String text, {int maxLength = 5000}) {
     text = text.trim();
     if (text.isEmpty) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'comment',
         message: 'Comment cannot be empty',
       );
@@ -152,25 +152,25 @@ class InputValidator {
   static String validateTag(String tag) {
     tag = tag.trim().toLowerCase();
     if (tag.isEmpty) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'tag',
         message: 'Tag cannot be empty',
       );
     }
     if (tag.length < 2) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'tag',
         message: 'Tag must be at least 2 characters',
       );
     }
     if (tag.length > 50) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'tag',
         message: 'Tag cannot exceed 50 characters',
       );
     }
     if (!RegExp(r'^[a-z0-9_-]+$').hasMatch(tag)) {
-      throw ValidationException(
+      throw const ValidationException(
         fieldName: 'tag',
         message:
             'Tag can only contain lowercase letters, numbers, hyphens, and underscores',

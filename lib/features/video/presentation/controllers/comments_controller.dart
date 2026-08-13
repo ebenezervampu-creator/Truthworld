@@ -11,11 +11,10 @@ import 'package:truthworld/features/notifications/data/models/user_notification.
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/services/comment_service.dart';
-
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
 import 'package:truthworld/features/video/data/repositories/firestore_comments_repository.dart';
+import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/features/video/domain/repositories/video_comments_repository.dart';
 
 class CommentsController extends BaseController with ContentValidationMixin {

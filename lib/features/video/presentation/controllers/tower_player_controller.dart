@@ -38,6 +38,7 @@ import 'package:video_player/video_player.dart';
 
 class TowerPlayerController extends BaseController {
   bool _isClosed = false;
+  @override
   bool get isClosed => _isClosed;
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {

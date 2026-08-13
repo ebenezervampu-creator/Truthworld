@@ -6011,7 +6011,6 @@ class RecommendationFeed extends StatelessWidget {
                     if (item is Topic) {
                       return TopicCardWidget(
                         topic: item,
-                        isHero: false,
                       );
                     }
                     if (item is CommunityPostModel) {
@@ -6045,7 +6044,6 @@ class RecommendationFeed extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: TopicCardWidget(
                       topic: item,
-                      isHero: false,
                     ),
                   );
                 }

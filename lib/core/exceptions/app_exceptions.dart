@@ -81,7 +81,6 @@ abstract class AppException implements Exception {
         message: errorStr,
         userMessage: 'You appear to be offline. Please check your internet connection and try again.',
         code: 'NETWORK_OFFLINE',
-        isRetryable: true,
         originalException: error,
         stackTrace: stackTrace,
       );
@@ -94,7 +93,6 @@ abstract class AppException implements Exception {
         message: errorStr,
         userMessage: 'The request took too long to complete. Please check your connection and try again.',
         code: 'NETWORK_TIMEOUT',
-        isRetryable: true,
         originalException: error,
         stackTrace: stackTrace,
       );
@@ -144,7 +142,6 @@ abstract class AppException implements Exception {
         return PermissionException(
           message: e.message ?? 'Permission denied to access this resource.',
           userMessage: 'You do not have permission to perform this action.',
-          code: 'PERMISSION_DENIED',
           originalException: e,
           stackTrace: stackTrace,
         );
@@ -161,7 +158,6 @@ abstract class AppException implements Exception {
           message: e.message ?? 'Firebase service is currently unavailable.',
           userMessage: 'The server is temporarily unavailable. Please try again in a moment.',
           code: 'SERVICE_UNAVAILABLE',
-          isRetryable: true,
           originalException: e,
           stackTrace: stackTrace,
         );
@@ -179,7 +175,6 @@ abstract class AppException implements Exception {
           message: e.message ?? 'Quota exceeded or resource exhausted.',
           userMessage: 'Server limit reached. Please try again shortly.',
           code: 'QUOTA_EXHAUSTED',
-          isRetryable: true,
           originalException: e,
           stackTrace: stackTrace,
         );
@@ -197,14 +192,12 @@ abstract class AppException implements Exception {
             message: e.message ?? 'Storage error: ${e.code}',
             userMessage: 'Failed to upload or download file. Please try again.',
             code: 'STORAGE_${e.code.toUpperCase()}',
-            isRetryable: true,
             originalException: e,
             stackTrace: stackTrace,
           );
         }
         return FirestoreException(
           message: e.message ?? 'Firestore error [${e.code}]',
-          userMessage: 'Database operation failed. Please try again.',
           code: 'FIRESTORE_${e.code.toUpperCase()}',
           originalException: e,
           stackTrace: stackTrace,

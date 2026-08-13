@@ -1293,7 +1293,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                             final pickedFile = await picker.pickImage(
                               source: ImageSource.gallery,
                             );
-                            if (pickedFile != null) {
+                            if (pickedFile != null && context.mounted) {
                               final croppedFile =
                                   await ImageCropperService.cropTopicThumbnail(
                                 imagePath: pickedFile.path,

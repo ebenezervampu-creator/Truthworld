@@ -72,7 +72,6 @@ class ImageCropperService {
             toolbarColor: AppColors.bgSurface,
             toolbarWidgetColor: Colors.white, // Rule: Icons must be white
             activeControlsWidgetColor: Colors.white,
-            cropStyle: CropStyle.rectangle,
             initAspectRatio: initAspectRatio,
             lockAspectRatio: lockAspectRatio,
             aspectRatioPresets: aspectRatioPresets,
@@ -80,15 +79,12 @@ class ImageCropperService {
           ),
           IOSUiSettings(
             title: title,
-            cropStyle: CropStyle.rectangle,
             aspectRatioLockEnabled: lockAspectRatio,
-            resetAspectRatioEnabled: true,
             aspectRatioPresets: aspectRatioPresets,
           ),
           if (context != null)
             WebUiSettings(
               context: context,
-              presentStyle: WebPresentStyle.dialog,
             ),
         ],
       );
@@ -109,7 +105,6 @@ class ImageCropperService {
         maxWidth: AvatarCropConfig.maxWidth,
         maxHeight: AvatarCropConfig.maxHeight,
         aspectRatio: AvatarCropConfig.aspectRatio,
-        compressFormat: AvatarCropConfig.compressFormat,
         compressQuality: AvatarCropConfig.compressQuality,
         uiSettings: [
           AndroidUiSettings(
@@ -131,7 +126,6 @@ class ImageCropperService {
           if (context != null)
             WebUiSettings(
               context: context,
-              presentStyle: WebPresentStyle.dialog,
             ),
         ],
       );
@@ -152,7 +146,6 @@ class ImageCropperService {
         maxWidth: BannerCropConfig.maxWidth,
         maxHeight: BannerCropConfig.maxHeight,
         aspectRatio: BannerCropConfig.aspectRatio,
-        compressFormat: BannerCropConfig.compressFormat,
         compressQuality: BannerCropConfig.compressQuality,
         uiSettings: [
           AndroidUiSettings(
@@ -160,21 +153,18 @@ class ImageCropperService {
             toolbarColor: AppColors.bgSurface,
             toolbarWidgetColor: Colors.white, // Rule: Icons must be white
             activeControlsWidgetColor: Colors.white,
-            cropStyle: CropStyle.rectangle,
             initAspectRatio: CropAspectRatioPreset.ratio16x9,
             lockAspectRatio: true,
             hideBottomControls: false,
           ),
           IOSUiSettings(
             title: 'Crop Channel Banner (16:9 Canvas)',
-            cropStyle: CropStyle.rectangle,
             aspectRatioLockEnabled: true,
             resetAspectRatioEnabled: false,
           ),
           if (context != null)
             WebUiSettings(
               context: context,
-              presentStyle: WebPresentStyle.dialog,
             ),
         ],
       );
@@ -193,8 +183,6 @@ class ImageCropperService {
       imagePath: imagePath,
       title: 'Crop Topic Artwork',
       context: context,
-      initAspectRatio: CropAspectRatioPreset.square,
-      lockAspectRatio: false,
     );
   }
 
@@ -208,7 +196,6 @@ class ImageCropperService {
       title: 'Crop Playlist Artwork',
       context: context,
       initAspectRatio: CropAspectRatioPreset.ratio16x9, // Default 16:9 for playlist cover
-      lockAspectRatio: false, // Allows creators to choose 1:1, 4:5, 16:9, 3:2, original
     );
   }
 
@@ -223,7 +210,6 @@ class ImageCropperService {
       title: 'Crop Post Image',
       context: context,
       initAspectRatio: CropAspectRatioPreset.original, // Default Original so infographics/screenshots are preserved
-      lockAspectRatio: false,
       aspectRatioPresets: const [
         CropAspectRatioPreset.original,
         CropAspectRatioPreset.square,
@@ -244,7 +230,6 @@ class ImageCropperService {
       title: 'Crop Video Thumbnail',
       context: context,
       initAspectRatio: CropAspectRatioPreset.original,
-      lockAspectRatio: false,
       aspectRatioPresets: const [
         CropAspectRatioPreset.original,
         CropAspectRatioPreset.ratio16x9,

@@ -135,8 +135,6 @@ class ErrorHandler {
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         duration: const Duration(seconds: 4),
-        isDismissible: true,
-        snackPosition: SnackPosition.BOTTOM,
         mainButton: (onRetry != null || appException.isRetryable)
             ? TextButton(
                 onPressed: () {

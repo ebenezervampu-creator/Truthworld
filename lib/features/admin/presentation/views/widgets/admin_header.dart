@@ -49,7 +49,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh, color: Colors.white),
-          onPressed: () => controller.refreshData(),
+          onPressed: controller.refreshData,
           tooltip: 'Refresh Data',
         ),
         const SizedBox(width: 8),

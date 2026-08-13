@@ -44,7 +44,7 @@ class WatchTimeRepositoryImpl extends BaseRepository implements WatchTimeReposit
           .where('watchedAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
           .get();
 
-      int totalSeconds = 0;
+      var totalSeconds = 0;
       for (final doc in snapshot.docs) {
         totalSeconds += (doc.data()['watchedSeconds'] as num? ?? 0).toInt();
       }
@@ -73,7 +73,7 @@ class WatchTimeRepositoryImpl extends BaseRepository implements WatchTimeReposit
           .where('watchedAt', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
           .get();
 
-      int totalSeconds = 0;
+      var totalSeconds = 0;
       for (final doc in snapshot.docs) {
         totalSeconds += (doc.data()['watchedSeconds'] as num? ?? 0).toInt();
       }
@@ -100,7 +100,7 @@ class WatchTimeRepositoryImpl extends BaseRepository implements WatchTimeReposit
           .limit(100)
           .get();
 
-      final Map<String, List<int>> videoDurations = {};
+      final videoDurations = <String, List<int>>{};
       for (final doc in snapshot.docs) {
         final vId = doc.data()['videoId'] as String? ?? '';
         final secs = (doc.data()['watchedSeconds'] as num? ?? 0).toInt();
@@ -109,7 +109,7 @@ class WatchTimeRepositoryImpl extends BaseRepository implements WatchTimeReposit
         }
       }
 
-      final Map<String, double> result = {};
+      final result = <String, double>{};
       videoDurations.forEach((vId, list) {
         final avg = list.reduce((a, b) => a + b) / list.length;
         result[vId] = avg;

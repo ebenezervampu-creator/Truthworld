@@ -690,7 +690,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final text = channel.description.isEmpty
         ? 'No description available'
         : channel.description;
-    final bool isLongText = text.length > 50 || text.contains('\n');
+    final isLongText = text.length > 50 || text.contains('\n');
 
     return Container(
       constraints: BoxConstraints(maxWidth: isDesktop ? 600 : double.infinity),

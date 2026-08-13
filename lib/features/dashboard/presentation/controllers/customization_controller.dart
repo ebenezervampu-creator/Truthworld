@@ -38,19 +38,19 @@ class CustomizationController extends BaseController {
   final RxBool isSaving = false.obs;
 
   // Controllers
-  late final channelNameController = trackTextController(TextEditingController());
-  late final descriptionController = trackTextController(TextEditingController());
-  late final customUrlController = trackTextController(TextEditingController());
-  late final contactEmailController = trackTextController(TextEditingController());
-  late final websiteUrlController = trackTextController(TextEditingController());
-  late final categoryController = trackTextController(TextEditingController());
-  late final languageController = trackTextController(TextEditingController());
-  late final tagsController = trackTextController(TextEditingController());
+  late final TextEditingController channelNameController = trackTextController(TextEditingController());
+  late final TextEditingController descriptionController = trackTextController(TextEditingController());
+  late final TextEditingController customUrlController = trackTextController(TextEditingController());
+  late final TextEditingController contactEmailController = trackTextController(TextEditingController());
+  late final TextEditingController websiteUrlController = trackTextController(TextEditingController());
+  late final TextEditingController categoryController = trackTextController(TextEditingController());
+  late final TextEditingController languageController = trackTextController(TextEditingController());
+  late final TextEditingController tagsController = trackTextController(TextEditingController());
 
   // Social links
-  late final twitterController = trackTextController(TextEditingController());
-  late final instagramController = trackTextController(TextEditingController());
-  late final facebookController = trackTextController(TextEditingController());
+  late final TextEditingController twitterController = trackTextController(TextEditingController());
+  late final TextEditingController instagramController = trackTextController(TextEditingController());
+  late final TextEditingController facebookController = trackTextController(TextEditingController());
 
   // Settings (Reactive)
   final RxBool isPublic = true.obs;

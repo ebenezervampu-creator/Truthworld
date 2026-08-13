@@ -56,7 +56,7 @@ class FeedbackRepositoryImpl extends BaseRepository implements FeedbackRepositor
       }
 
       final snapshot = await query.limit(limit).get();
-      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>}).toList();
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()! as Map<String, dynamic>}).toList();
     });
   }
 
@@ -70,7 +70,7 @@ class FeedbackRepositoryImpl extends BaseRepository implements FeedbackRepositor
       _firestore.collection(FirestoreCollections.feedback).doc(feedbackId),
       {
         'status': status,
-        if (adminNote != null) 'adminNote': adminNote,
+        'adminNote': ?adminNote,
         'updatedAt': FieldValue.serverTimestamp(),
       },
     );

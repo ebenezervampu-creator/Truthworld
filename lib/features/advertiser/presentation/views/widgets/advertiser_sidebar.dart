@@ -97,12 +97,12 @@ class AdvertiserSidebar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
           child: ListTile(
             leading: Icon(
-              item['icon'] as IconData,
+              item['icon']! as IconData,
               color: Colors.white,
               size: 20,
             ),
             title: Text(
-              item['title'] as String,
+              item['title']! as String,
               style: TextStyle(
                 color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,

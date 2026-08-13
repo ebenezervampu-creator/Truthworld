@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/ui_event.dart';
@@ -128,8 +129,10 @@ class BaseController extends GetxController {
     super.onClose();
   }
 
+  String get _controllerName => objectRuntimeType(this, 'BaseController');
+
   void logInit() {
-    debugPrint('🟢 [Controller Init] $runtimeType initialized');
+    debugPrint('🟢 [Controller Init] $_controllerName initialized');
   }
 
   void logDispose() {
@@ -138,31 +141,31 @@ class BaseController extends GetxController {
         _trackedTextControllers.length +
         _trackedScrollControllers.length;
     debugPrint(
-      '⚫ [Controller Dispose] $runtimeType disposed '
+      '⚫ [Controller Dispose] $_controllerName disposed '
       '(${workers.length} workers, $resourceCount tracked resources cleaned)',
     );
   }
 
   void logApi(String endpoint) {
-    debugPrint('🟡 [API Request] $runtimeType -> $endpoint');
+    debugPrint('🟡 [API Request] $_controllerName -> $endpoint');
   }
 
   void logCacheHit(String key) {
-    debugPrint('🔵 [Cache Hit] $runtimeType -> $key');
+    debugPrint('🔵 [Cache Hit] $_controllerName -> $key');
   }
 
   void logPagination(int page) {
-    debugPrint('🟠 [Pagination] $runtimeType -> page $page');
+    debugPrint('🟠 [Pagination] $_controllerName -> page $page');
   }
 
   void logException(dynamic error) {
-    debugPrint('🔴 [Exception] $runtimeType -> $error');
+    debugPrint('🔴 [Exception] $_controllerName -> $error');
   }
 
   void setViewState(ViewState state) {
     if (rxState.value != state) {
       debugPrint(
-        '🔄 [ViewState Transition] $runtimeType: ${rxState.value.name} -> ${state.name}',
+        '🔄 [ViewState Transition] $_controllerName: ${rxState.value.name} -> ${state.name}',
       );
       rxState.value = state;
     }

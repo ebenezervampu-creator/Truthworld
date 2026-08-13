@@ -29,7 +29,7 @@ class TrendingRepositoryImpl extends BaseRepository implements TrendingRepositor
       query = query.orderBy('viewCount', descending: true).limit(limit);
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>}).toList();
+      return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()! as Map<String, dynamic>}).toList();
     });
   }
 

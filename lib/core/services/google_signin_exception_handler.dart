@@ -147,7 +147,7 @@ final class GoogleSignInExceptionHandler {
   static GoogleSignInException _fromGoogleSignInFailed(
     GoogleSignInFailedException e,
   ) {
-    final message = e.message?.toLowerCase() ?? '';
+    final message = e.message.toLowerCase();
 
     if (message.contains('network')) {
       return GoogleSignInException(
@@ -168,7 +168,7 @@ final class GoogleSignInExceptionHandler {
     }
 
     return GoogleSignInException(
-      message: e.message ?? 'Google Sign-In failed.',
+      message: e.message,
       code: 'sign-in-failed',
       isRetryable: true,
       originalException: e,

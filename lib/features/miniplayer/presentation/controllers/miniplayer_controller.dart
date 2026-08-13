@@ -737,6 +737,7 @@ class MiniplayerController extends BaseController
   }
 
   /// Clear any existing error state.
+  @override
   void clearError() {
     error.value = '';
   }

@@ -20,7 +20,7 @@ class FirestoreCommentsRepository implements VideoCommentsRepository {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snap) => snap.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList());
   }
 
