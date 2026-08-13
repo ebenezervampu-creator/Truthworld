@@ -158,9 +158,10 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
 
   Widget _buildModerationBanner() {
     final channelStatus = controller.status.value;
+    final isGeminiApproved = controller.geminiApproved.value;
     final reason = controller.moderationReason.value;
 
-    if (channelStatus == 'active') {
+    if (channelStatus == 'active' || isGeminiApproved) {
       return const SizedBox.shrink();
     }
 

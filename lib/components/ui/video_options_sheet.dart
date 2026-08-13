@@ -22,17 +22,44 @@ class VideoOptionsSheet extends StatelessWidget {
     required this.video,
     super.key,
     this.onRemoveFromHistory,
+    this.onSaveToWatchLater,
+    this.onSaveToPlaylist,
+    this.onDownloadVideo,
+    this.onNotInterested,
+    this.onBlockChannel,
+    this.onReport,
   });
   final Video video;
   final VoidCallback? onRemoveFromHistory;
+  final VoidCallback? onSaveToWatchLater;
+  final VoidCallback? onSaveToPlaylist;
+  final VoidCallback? onDownloadVideo;
+  final VoidCallback? onNotInterested;
+  final VoidCallback? onBlockChannel;
+  final VoidCallback? onReport;
 
   static void show(
     BuildContext context,
     Video video, {
     VoidCallback? onRemoveFromHistory,
+    VoidCallback? onSaveToWatchLater,
+    VoidCallback? onSaveToPlaylist,
+    VoidCallback? onDownloadVideo,
+    VoidCallback? onNotInterested,
+    VoidCallback? onBlockChannel,
+    VoidCallback? onReport,
   }) {
     Get.bottomSheet(
-      VideoOptionsSheet(video: video, onRemoveFromHistory: onRemoveFromHistory),
+      VideoOptionsSheet(
+        video: video,
+        onRemoveFromHistory: onRemoveFromHistory,
+        onSaveToWatchLater: onSaveToWatchLater,
+        onSaveToPlaylist: onSaveToPlaylist,
+        onDownloadVideo: onDownloadVideo,
+        onNotInterested: onNotInterested,
+        onBlockChannel: onBlockChannel,
+        onReport: onReport,
+      ),
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       enterBottomSheetDuration: const Duration(milliseconds: 250),

@@ -664,7 +664,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                 ),
 
                 // Fact Checked Badge (if applicable)
-                if (video.factCheckUrl.isNotEmpty)
+                if (video.isFactChecked)
                   Positioned(
                     top: 36,
                     left: 8,

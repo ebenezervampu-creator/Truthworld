@@ -1,4 +1,4 @@
-import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
+import type { VertexAI } from "@google-cloud/vertexai";
 import { PIPELINE_CONFIG } from "../config";
 import { telemetryService } from "./telemetry";
 import { getVertexAI } from "../utils/ai-client";
@@ -23,6 +23,17 @@ import { logger } from "../utils/logger";
 import { sourceTrustService } from "./sourceTrustService";
 import { tier0KnowledgeService } from "./tier0Knowledge";
 import { claimCacheService } from "./claimCacheService";
+
+const HarmCategory = {
+  HARM_CATEGORY_HARASSMENT: "HARM_CATEGORY_HARASSMENT",
+  HARM_CATEGORY_HATE_SPEECH: "HARM_CATEGORY_HATE_SPEECH",
+  HARM_CATEGORY_SEXUALLY_EXPLICIT: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+  HARM_CATEGORY_DANGEROUS_CONTENT: "HARM_CATEGORY_DANGEROUS_CONTENT",
+} as const;
+
+const HarmBlockThreshold = {
+  BLOCK_NONE: "BLOCK_NONE",
+} as const;
 
 /**
  * v10.6: Dynamic batch timeout calculation.
@@ -562,7 +573,7 @@ RETURN JSON:
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        ];
+        ] as any;
 
         const activeModel = this.genAI.getGenerativeModel({
           model: modelId,
@@ -1464,7 +1475,7 @@ Return ONLY JSON.`;
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        ],
+        ] as any,
       });
       const res = await activeModel.generateContent(prompt);
       const text = res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -1690,7 +1701,7 @@ Output JSON format:
             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          ],
+          ] as any,
         });
 
         const res = await activeModel.generateContent(prompt);

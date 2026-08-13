@@ -7,6 +7,16 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function isOwnerOrUnassigned() {
+      return isSignedIn() && (
+        resource == null ||
+        resource.metadata == null ||
+        !('uploaderId' in resource.metadata) ||
+        resource.metadata['uploaderId'] == null ||
+        resource.metadata['uploaderId'] == request.auth.uid
+      );
+    }
+
     // Validate extension
     function isValidImage() {
       return request.resource.contentType.matches('image/.*');
@@ -30,7 +40,7 @@ service firebase.storage {
     match /channel_avatars/{fileName} {
       allow read: if true; // public avatars
       allow write: if isSignedIn() && isValidImage();
-      allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
+      allow delete: if isOwnerOrUnassigned();
     }
 
     // ================================
@@ -39,7 +49,7 @@ service firebase.storage {
     match /channel_banners/{fileName} {
       allow read: if true;
       allow write: if isSignedIn() && isValidImage();
-      allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
+      allow delete: if isOwnerOrUnassigned();
     }
 
     // ================================
@@ -48,7 +58,7 @@ service firebase.storage {
     match /community_images/{fileName} {
       allow read: if true;
       allow write: if isSignedIn() && isValidImage();
-      allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
+      allow delete: if isOwnerOrUnassigned();
     }
 
     // ================================
@@ -57,7 +67,7 @@ service firebase.storage {
     match /thumbnails/{fileName} {
       allow read: if true; // or restrict to signed in users
       allow write: if isSignedIn() && isValidImage();
-      allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
+      allow delete: if isOwnerOrUnassigned();
     }
 
     // ================================
@@ -72,7 +82,7 @@ service firebase.storage {
         request.resource.metadata['uploaderId'] == request.auth.uid ||
         resource.metadata['uploaderId'] == request.auth.uid
       );
-      allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
+      allow delete: if isOwnerOrUnassigned();
     }
 
     // ================================
@@ -112,7 +122,7 @@ service firebase.storage {
     match /videos/{videoName} {
       allow read: if true;
       allow write: if isSignedIn() && isValidVideo();
-      allow delete: if isSignedIn() && resource.metadata['uploaderId'] == request.auth.uid;
+      allow delete: if isOwnerOrUnassigned();
     }
 
     // ================================

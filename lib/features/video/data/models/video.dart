@@ -96,7 +96,6 @@ class Video {
     this.showLikeCount = true,
     this.showDislikeCount = true,
     this.trustScore = 0.0,
-    this.truthScore = 0.0,
     this.videoRating = 0.0,
     this.sourceLinks = const [],
     this.isFactChecked = false,
@@ -245,7 +244,7 @@ class Video {
         ? (data['media']['factCheckUrl'] as String)
         : ((data['factCheckUrl'] as String?)?.isNotEmpty == true
             ? (data['factCheckUrl'] as String)
-            : (finalId.isNotEmpty ? 'https://truthworld.app/factcheck/$finalId' : ''));
+            : '');
 
     final parsedTranscriptUrl = (data['media'] != null && data['media']['transcriptionUrl'] != null && (data['media']['transcriptionUrl'] as String).isNotEmpty)
         ? (data['media']['transcriptionUrl'] as String)
@@ -307,10 +306,29 @@ class Video {
       createdAt: data['createdAt'],
       uploadedAt: data['uploadedAt'] ?? data['publishedAt'],
       updatedAt: data['updatedAt'],
-      status: VideoStatus.values.firstWhere(
-        (e) => e.name == data['status'],
-        orElse: () => VideoStatus.ready,
-      ),
+      status: () {
+        final rawStatus = (data['status'] as String?)?.toLowerCase() ?? '';
+        final pipelineStage = ((data['aiFeatures'] is Map
+                    ? data['aiFeatures']['pipelineStage']
+                    : null) ??
+                data['pipelineStage'])
+            ?.toString()
+            .toLowerCase();
+        if (rawStatus == 'draft' || pipelineStage == 'draft') {
+          return VideoStatus.draft;
+        }
+        if (rawStatus == 'uploaded' || rawStatus == 'uploading') {
+          return VideoStatus.uploading;
+        }
+        return VideoStatus.values.firstWhere(
+          (e) => e.name == data['status'],
+          orElse: () => (rawStatus == 'uploaded' ||
+                  rawStatus == 'uploading' ||
+                  rawStatus == 'processing')
+              ? VideoStatus.draft
+              : VideoStatus.ready,
+        );
+      }(),
       visibility: data['visibility'] ?? 'public',
       category: data['category'] ?? '',
       tags: List<String>.from(data['tags'] ?? []),
@@ -351,10 +369,9 @@ class Video {
           data['showDislikes'] ??
           true,
       trustScore: (data['trustScore'] ?? 0).toDouble(),
-      truthScore: (data['truthScore'] ?? data['trustScore'] ?? 0).toDouble(),
       videoRating: (data['videoRating'] ?? 0).toDouble(),
       sourceLinks: List<String>.from(data['sourceLinks'] ?? []),
-      isFactChecked: data['isFactChecked'] ?? false,
+      isFactChecked: (data['isFactChecked'] as bool?) ?? parsedFactCheckUrl.isNotEmpty,
       isVerified: data['isVerified'] ?? false,
       chapters: (data['chapters'] as List? ?? [])
           .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
@@ -500,7 +517,6 @@ class Video {
   final bool showLikeCount;
   final bool showDislikeCount;
   final double trustScore;
-  final double truthScore;
   final double videoRating;
   final List<String>? sourceLinks;
   final bool isFactChecked;
@@ -559,7 +575,7 @@ class Video {
   String get factCheckUrl {
     final cached = VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
     if (cached.isNotEmpty) return cached;
-    return id.isNotEmpty ? 'https://storage.googleapis.com/truthworld-app.appspot.com/factchecks/$id/report.json' : '';
+    return '';
   }
   String get transcriptionUrl {
     final cached = VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
@@ -570,6 +586,7 @@ class Video {
   // Compatibility Getters
   int get likes => likeCount;
   int get views => viewCount;
+  double get truthScore => trustScore;
   double get trustIndex => trustScore;
   Timestamp get uploadedAt => createdAt;
   String get videoUrl => originalUrl;
@@ -599,6 +616,22 @@ class Video {
     return false;
   }
 
+  bool get isDraft {
+    if (status == VideoStatus.draft || status == VideoStatus.uploading) return true;
+    final vis = visibility.trim().toLowerCase();
+    if (vis == 'draft' || vis == 'private_draft') return true;
+    final t = title.trim().toLowerCase();
+    if (t.isEmpty ||
+        t == 'uploading...' ||
+        t.startsWith('uploading') ||
+        t == 'untitled' ||
+        t == 'untitled draft' ||
+        t.startsWith('untitled')) {
+      return true;
+    }
+    return false;
+  }
+
   bool get isUntitled {
     final t = title.trim().toLowerCase();
     if (t.isEmpty) return true;
@@ -608,13 +641,16 @@ class Video {
         t == 'untitled campaign' ||
         t == 'untitled playlist' ||
         t == 'untitled topic' ||
-        t.startsWith('untitled')) {
+        t.startsWith('untitled') ||
+        t == 'uploading...' ||
+        t.startsWith('uploading')) {
       return true;
     }
     return false;
   }
 
   bool get isUploadingOrProcessing {
+    if (isDraft) return true;
     if (status == VideoStatus.uploading ||
         status == VideoStatus.processing ||
         status == VideoStatus.draft ||
@@ -623,6 +659,7 @@ class Video {
     }
     final statusName = status.name.toLowerCase();
     if (statusName == 'uploading' ||
+        statusName == 'uploaded' ||
         statusName == 'processing' ||
         statusName == 'draft' ||
         statusName == 'pending_review' ||
@@ -729,7 +766,6 @@ class Video {
       'showLikeCount': showLikeCount,
       'showDislikeCount': showDislikeCount,
       'trustScore': trustScore,
-      'truthScore': truthScore,
       'videoRating': videoRating,
       'sourceLinks': sourceLinks,
       'isFactChecked': isFactChecked,
@@ -785,7 +821,6 @@ class Video {
     bool? showLikeCount,
     bool? showDislikeCount,
     double? trustScore,
-    double? truthScore,
     double? videoRating,
     List<String>? sourceLinks,
     bool? isFactChecked,
@@ -839,7 +874,6 @@ class Video {
       showLikeCount: showLikeCount ?? this.showLikeCount,
       showDislikeCount: showDislikeCount ?? this.showDislikeCount,
       trustScore: trustScore ?? this.trustScore,
-      truthScore: truthScore ?? this.truthScore,
       videoRating: videoRating ?? this.videoRating,
       sourceLinks: sourceLinks ?? this.sourceLinks,
       isFactChecked: isFactChecked ?? this.isFactChecked,

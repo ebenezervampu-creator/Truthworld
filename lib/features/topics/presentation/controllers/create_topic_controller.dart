@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/cloud_vision_service.dart';
+import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 
@@ -90,26 +91,30 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
     obscureAccessCode.toggle();
   }
 
-  /// Pick custom thumbnail image and run Google Cloud Vision verification.
+  /// Pick custom thumbnail image, crop to 16:9 widescreen format, and run Google Cloud Vision verification.
   Future<void> pickCustomThumbnail() async {
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-      );
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile != null) {
-        final bytes = await pickedFile.readAsBytes();
-        final fileName = pickedFile.name.isNotEmpty
-            ? pickedFile.name
-            : 'topic_thumb_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final croppedFile = await ImageCropperService.cropTopicThumbnail(
+          imagePath: pickedFile.path,
+          context: Get.context,
+        );
 
-        pickedCustomImageBytes.value = bytes;
-        pickedCustomImageName.value = fileName;
+        if (croppedFile != null) {
+          final bytes = await croppedFile.readAsBytes();
+          final fileName = pickedFile.name.isNotEmpty
+              ? pickedFile.name
+              : 'topic_thumb_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-        // Run Google Cloud Vision AI Verification
-        await verifyCustomThumbnail(bytes, fileName);
+          pickedCustomImageBytes.value = bytes;
+          pickedCustomImageName.value = fileName;
+
+          // Run Google Cloud Vision AI Verification on cropped image
+          await verifyCustomThumbnail(bytes, fileName);
+        }
       }
     } catch (e, stack) {
       logger.error(

@@ -547,6 +547,7 @@ export const handleResolution = onMessagePublished(
         const bucketName = jobData?.sourceBucket || "truthworld-1.firebasestorage.app";
         
         const playbackVariants: Record<string, string> = {};
+        const adaptiveResolutions: Array<{ label: string; url: string; width: number; height: number; bitrate: number }> = [];
         let topLabel = "";
         let maxHeight = 0;
 
@@ -555,6 +556,13 @@ export const handleResolution = onMessagePublished(
             const filePath = v.outputPath;
             const directUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
             playbackVariants[label] = directUrl;
+            adaptiveResolutions.push({
+              label,
+              url: directUrl,
+              width: v.width || 1280,
+              height: v.height || 720,
+              bitrate: (v.bitrateKbps || 2500) * 1000,
+            });
             if (v.height > maxHeight) {
               maxHeight = v.height;
               topLabel = label;
@@ -563,13 +571,20 @@ export const handleResolution = onMessagePublished(
         }
 
         if (Object.keys(playbackVariants).length > 0) {
-          await db.collection("videos").doc(videoId).update({
-            "media.variants":    playbackVariants,
-            "media.maxQuality":  topLabel,
-            "status":            "ready", // Signals the UI that the video is playable
-            "updatedAt":         admin.firestore.FieldValue.serverTimestamp(),
-          });
-          console.log(`[Resolution Service] UI Exposure successful: ${videoId}`, { variants: Object.keys(playbackVariants) });
+          const updatePayload: Record<string, any> = {
+            "media.variants": playbackVariants,
+            "media.maxQuality": topLabel,
+            "status": "ready", // Signals the UI that the video is playable
+            "updatedAt": admin.firestore.FieldValue.serverTimestamp(),
+          };
+
+          if (adaptiveResolutions.length > 0) {
+            updatePayload.adaptiveResolutions = adaptiveResolutions;
+            updatePayload["media.adaptiveResolutions"] = adaptiveResolutions;
+          }
+
+          await db.collection("videos").doc(videoId).update(updatePayload);
+          console.log(`[Resolution Service] UI Exposure successful: ${videoId}`, { variants: Object.keys(playbackVariants), adaptiveResolutionsCount: adaptiveResolutions.length });
         }
       } catch (exposeErr) {
         console.warn(`[Resolution Service] UI Exposure failed for ${videoId} (non-fatal)`, exposeErr);

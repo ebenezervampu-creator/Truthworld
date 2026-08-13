@@ -10,8 +10,8 @@
  * ✅ FALLBACK: If v3 client fails to initialize, falls back to v2 Basic API
  */
 
-import { v3, v2 } from "@google-cloud/translate";
-import { VertexAI } from "@google-cloud/vertexai";
+import type { v3, v2 } from "@google-cloud/translate";
+import type { VertexAI } from "@google-cloud/vertexai";
 import { TranslationResult, TranslatedSegment, CreatorDNA } from "../types";
 import { SpeakerProfile } from "./speaker-profiling";
 import { costEngine } from "./cost-engine";
@@ -30,42 +30,59 @@ const TRANSLATION_LOCATION = process.env.TRANSLATION_LOCATION || "global";
 const V3_BATCH_SIZE = 100;
 
 export class TranslationService {
-  private v3Client: v3.TranslationServiceClient | null = null;
-  private v2Client: v2.Translate | null = null;
-  private gemini:   VertexAI | null = null;
+  private _v3Client: v3.TranslationServiceClient | null | undefined = undefined;
+  private _v2Client: v2.Translate | null | undefined = undefined;
+  private _gemini:   VertexAI | null = null;
+
+  private get v3Client(): v3.TranslationServiceClient | null {
+    if (this._v3Client === undefined) {
+      const key = PIPELINE_CONFIG.GOOGLE_TRANSLATION_API_KEY;
+      if (key) {
+        try {
+          const { v3 } = require("@google-cloud/translate");
+          this._v3Client = new v3.TranslationServiceClient({ key });
+        } catch (err) {
+          console.warn("[Translation] v3 client init failed — falling back to v2", err);
+          this._v3Client = null;
+        }
+      } else {
+        this._v3Client = null;
+      }
+    }
+    return this._v3Client ?? null;
+  }
+
+  private get v2Client(): v2.Translate | null {
+    if (this._v2Client === undefined) {
+      const key = PIPELINE_CONFIG.GOOGLE_TRANSLATION_API_KEY;
+      if (key) {
+        try {
+          const { v2 } = require("@google-cloud/translate");
+          this._v2Client = new v2.Translate({ projectId, key });
+        } catch (err) {
+          console.warn("[Translation] v2 client init failed", err);
+          this._v2Client = null;
+        }
+      } else {
+        this._v2Client = null;
+      }
+    }
+    return this._v2Client ?? null;
+  }
+
+  private get gemini(): VertexAI | null {
+    if (!this._gemini) {
+      this._gemini = getVertexAI();
+    }
+    return this._gemini;
+  }
 
   /** v3 parent path: projects/{project}/locations/{location} */
   private get parent(): string {
     return `projects/${projectId}/locations/${TRANSLATION_LOCATION}`;
   }
 
-  constructor() {
-    const key = PIPELINE_CONFIG.GOOGLE_TRANSLATION_API_KEY;
-
-    try {
-      // ── Primary: v3 Advanced client ────────────────────────────────────────
-      if (key) {
-        this.v3Client = new v3.TranslationServiceClient({ key });
-      }
-    } catch (err) {
-      console.warn("[Translation] v3 client init failed — falling back to v2", err);
-    }
-
-    try {
-      // ── Fallback: v2 Basic client ──────────────────────────────────────────
-      if (key) {
-        this.v2Client = new v2.Translate({ 
-          projectId, 
-          key 
-        });
-      }
-    } catch (err) {
-      console.warn("[Translation] v2 client init failed", err);
-    }
-
-    // ── Premium: Gemini 2.0 Flash ───────────────────────────────────────────
-    this.gemini = getVertexAI();
-  }
+  constructor() {}
 
   // ─── Single text translation ───────────────────────────────────────────────
 

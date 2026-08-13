@@ -27,6 +27,7 @@ class AdminController extends BaseController {
   final RxBool isAuthChecking = false.obs;
   final RxBool isAdmin = true.obs;
   final RxString currentTab = 'dashboard'.obs;
+  final RxInt selectedTabIndex = 0.obs;
   final RxBool isActionSubmitting = false.obs;
 
   // Real-time Lists
@@ -167,6 +168,9 @@ class AdminController extends BaseController {
       _startSubscriptions();
     }
   }
+
+  /// Alias for [refreshAllData] to maintain compatibility with AdminHeader UI widget.
+  Future<void> refreshData() => refreshAllData();
 
   Future<void> refreshAllData() async {
     try {

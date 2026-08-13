@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -20,6 +21,7 @@ class CustomizationController extends BaseController {
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
   final RxString status = 'active'.obs;
+  final RxBool geminiApproved = false.obs;
   final RxString moderationReason = ''.obs;
 
 
@@ -78,7 +80,11 @@ class CustomizationController extends BaseController {
         .listen((snapshot) {
           if (snapshot.exists) {
             final data = snapshot.data()!;
+            geminiApproved.value = (data['geminiApproved'] as bool?) ?? false;
             status.value = (data['status'] as String?) ?? 'active';
+            if (geminiApproved.value) {
+              status.value = 'active';
+            }
             moderationReason.value =
                 (data['moderationReason'] as String?) ?? '';
             avatarStatus.value =
@@ -282,15 +288,27 @@ class CustomizationController extends BaseController {
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile != null) {
-        final pickedImage = await pickedFile.readAsBytes();
-        if (isAvatar) {
-          newAvatarBytes.value = pickedImage;
-          newAvatarName.value =
-              'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        } else {
-          newBannerBytes.value = pickedImage;
-          newBannerName.value =
-              'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final croppedFile = isAvatar
+            ? await ImageCropperService.cropChannelAvatar(
+                imagePath: pickedFile.path,
+                context: Get.context,
+              )
+            : await ImageCropperService.cropChannelBanner(
+                imagePath: pickedFile.path,
+                context: Get.context,
+              );
+
+        if (croppedFile != null) {
+          final croppedBytes = await croppedFile.readAsBytes();
+          if (isAvatar) {
+            newAvatarBytes.value = croppedBytes;
+            newAvatarName.value =
+                'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          } else {
+            newBannerBytes.value = croppedBytes;
+            newBannerName.value =
+                'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          }
         }
       }
     } catch (e) {

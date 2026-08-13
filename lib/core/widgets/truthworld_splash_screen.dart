@@ -47,7 +47,7 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
   late final Animation<double> _exitScale;
   late final Animation<double> _exitFade;
 
-  final RxBool _done = false.obs;
+  bool _done = false;
 
   @override
   void initState() {
@@ -72,7 +72,11 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
 
     _controller.addStatusListener((s) {
       if (s == AnimationStatus.completed) {
-        _done.value = true;
+        if (mounted) {
+          setState(() {
+            _done = true;
+          });
+        }
         widget.onCompleted?.call();
       }
     });
@@ -87,8 +91,7 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      if (kIsWeb || _done.value) return widget.child;
+    if (kIsWeb || _done) return widget.child;
 
       final shortest = MediaQuery.sizeOf(context).shortestSide;
       final logoSize = (shortest * 0.24).clamp(72.0, 110.0);
@@ -97,7 +100,7 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
       return Stack(
         fit: StackFit.expand,
         children: [
-          TickerMode(enabled: _done.value, child: widget.child),
+          TickerMode(enabled: _done, child: widget.child),
           AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
@@ -157,7 +160,6 @@ class _TruthworldSplashScreenState extends State<TruthworldSplashScreen>
           ),
         ],
       );
-    });
   }
 }
 

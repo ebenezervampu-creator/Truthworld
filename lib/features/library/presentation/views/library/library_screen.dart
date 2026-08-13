@@ -379,9 +379,13 @@ class LibraryScreenState extends State<LibraryScreen>
     return ElevatedButton.icon(
       onPressed: () {
         HapticFeedback.lightImpact();
-        Get.toNamed('/auth');
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().signInWithGoogle();
+        } else {
+          AuthService.to.signInWithGoogle();
+        }
       },
-      icon: const Icon(Icons.login_rounded, color: AppColors.bgPage),
+      icon: const Icon(Icons.login_rounded, color: Colors.white),
       label: const Text(
         'Sign In to Continue',
         style: TextStyle(

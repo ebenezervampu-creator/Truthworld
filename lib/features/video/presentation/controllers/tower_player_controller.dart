@@ -37,6 +37,9 @@ import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
 class TowerPlayerController extends BaseController {
+  bool _isClosed = false;
+  bool get isClosed => _isClosed;
+
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     try {
       _rxValue = videoPlayerController.value.obs;
@@ -382,7 +385,17 @@ class TowerPlayerController extends BaseController {
         _audioPlaybackSource != null) {
       return _audioPlaybackSource!;
     }
-    return _videoPlaybackSource ?? VideoPlaybackSource(videoPlayerController);
+    // Auto-heal if videoController has a newer or updated controller
+    try {
+      final vc = videoController;
+      if (vc != null &&
+          vc.videoPlayerController != null &&
+          vc.videoPlayerController != videoPlayerController) {
+        sync(vc.videoPlayerController!);
+      }
+    } catch (_) {}
+
+    return _videoPlaybackSource ??= VideoPlaybackSource(videoPlayerController);
   }
 
   // ── Subtitles ─────────────────────────────────────────────
@@ -937,6 +950,7 @@ class TowerPlayerController extends BaseController {
 
   @override
   void onClose() {
+    _isClosed = true;
     _stopCommentsAutoPlay();
     try {
       chewieController?.removeListener(_onInternalChewieChanged);
@@ -1000,11 +1014,18 @@ class TowerPlayerController extends BaseController {
   // ── Controller sync ──────────────────────────────────────
 
   void sync(VideoPlayerController vpc) {
-    if (videoPlayerController == vpc) return;
+    if (videoPlayerController == vpc && _videoPlaybackSource != null) return;
     try {
       videoPlayerController.removeListener(_onVpcUpdate);
     } catch (_) {}
+    try {
+      _videoPlaybackSource?.dispose();
+    } catch (_) {}
+
     videoPlayerController = vpc;
+    _videoPlaybackSource = VideoPlaybackSource(vpc);
+    sleepTimerService.setActivePlayback(activePlayback);
+
     try {
       _rxValue.value = vpc.value;
       isInitialized.value = vpc.value.isInitialized;
@@ -1024,6 +1045,7 @@ class TowerPlayerController extends BaseController {
     _preRollPlayed = false;
     _midRollPlayed = false;
     _sponsorMidRollPlayed = false;
+    update();
   }
 
   void _syncTracksWithVideoController() {
@@ -1283,8 +1305,8 @@ class TowerPlayerController extends BaseController {
 
   void playNext() {
     _trackAnalytics(PlayerEvent('next'));
-    if (!Get.isRegistered<VideoController>(tag: tag)) return;
-    final vc = Get.find<VideoController>(tag: tag);
+    final vc = videoController;
+    if (vc == null) return;
 
     if (vc.playlistVideos.isNotEmpty &&
         vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
@@ -1310,8 +1332,8 @@ class TowerPlayerController extends BaseController {
 
   void playPrevious() {
     _trackAnalytics(PlayerEvent('previous'));
-    if (!Get.isRegistered<VideoController>(tag: tag)) return;
-    final vc = Get.find<VideoController>(tag: tag);
+    final vc = videoController;
+    if (vc == null) return;
 
     if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
       _navigateToVideo(
@@ -1338,7 +1360,9 @@ class TowerPlayerController extends BaseController {
     // Navigation lock — prevent concurrent switches that cause stuck state
     if (isNavigatingToVideo.value) return;
     isNavigatingToVideo.value = true;
-    videoPlayerController.pause();
+    try {
+      activePlayback.pause();
+    } catch (_) {}
     Get.offNamed(
       '/watch?v=${video.id}',
       arguments: {
@@ -1415,7 +1439,7 @@ class TowerPlayerController extends BaseController {
     isEndScreenOverlayHidden.value = false;
     _hasEnded = false;
     seekTo(Duration.zero);
-    videoPlayerController.play();
+    activePlayback.play();
   }
 
   // ─── Volume ──────────────────────────────────────────────
@@ -1423,12 +1447,14 @@ class TowerPlayerController extends BaseController {
   void setVolume(double vol) {
     volume.value = vol.clamp(0.0, 1.0);
     isMuted.value = vol == 0;
-    if (_audioTrackController != null) {
-      videoPlayerController.setVolume(0);
-      _audioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
-    } else {
-      videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
-    }
+    try {
+      if (_audioTrackController != null) {
+        videoPlayerController.setVolume(0);
+        _audioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
+      } else {
+        videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
+      }
+    } catch (_) {}
     if (isAudioOnly.value) _audioService?.setVolume(volume.value);
     onInteraction();
   }
@@ -1451,8 +1477,12 @@ class TowerPlayerController extends BaseController {
   // ─── Speed ───────────────────────────────────────────────
 
   void setSpeed(double speed) {
-    videoPlayerController.setPlaybackSpeed(speed);
-    _audioTrackController?.setPlaybackSpeed(speed);
+    try {
+      videoPlayerController.setPlaybackSpeed(speed);
+    } catch (_) {}
+    try {
+      _audioTrackController?.setPlaybackSpeed(speed);
+    } catch (_) {}
     playbackSpeed.value = speed;
     TowerPlayerController.globalPlaybackSpeed = speed; // Persist speed
     activePanel.value = '';
@@ -2216,7 +2246,9 @@ class TowerPlayerController extends BaseController {
 
   void toggleLoop() {
     isLooping.value = !isLooping.value;
-    videoPlayerController.setLooping(isLooping.value);
+    try {
+      videoPlayerController.setLooping(isLooping.value);
+    } catch (_) {}
   }
 
   // ─── Language request dialog ─────────────────────────────

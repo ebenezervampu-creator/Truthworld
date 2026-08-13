@@ -2,7 +2,7 @@
  * 👁️ LAYER 08 — AUXILIARY LAYER
  */
 
-import { ImageAnnotatorClient } from "@google-cloud/vision";
+import type { ImageAnnotatorClient } from "@google-cloud/vision";
 import { PIPELINE_CONFIG } from "../config";
 import * as admin from "firebase-admin";
 import {
@@ -29,11 +29,17 @@ const SCENE_CHANGE_THRESHOLD = 0.30;
 const MIN_OCR_LENGTH = 3;
 
 export class AuxiliaryLayer {
-  private readonly visionClient: ImageAnnotatorClient;
+  private _visionClient?: ImageAnnotatorClient;
 
-  constructor() {
-    this.visionClient = new ImageAnnotatorClient();
+  private get visionClient(): ImageAnnotatorClient {
+    if (!this._visionClient) {
+      const { ImageAnnotatorClient } = require("@google-cloud/vision");
+      this._visionClient = new ImageAnnotatorClient();
+    }
+    return this._visionClient!;
   }
+
+  constructor() {}
 
   async extractVisualContext(
     jobId:         string,

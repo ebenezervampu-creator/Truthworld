@@ -270,6 +270,39 @@ class AuthService extends GetxService {
               debugPrint('AuthService: fallback channel check by user doc error: $e');
             }
 
+            // Fallback 3: Check channels by email to ensure channel is never lost
+            if (user.email != null && user.email!.isNotEmpty) {
+              try {
+                final emailSnap = await FirebaseFirestore.instance
+                    .collection(FirestoreCollections.channels)
+                    .where('email', isEqualTo: user.email)
+                    .get();
+                final emailChannels = emailSnap.docs
+                    .map(Channel.fromDocumentSnapshot)
+                    .where((c) => c.status != ChannelStatus.deleted)
+                    .toList();
+                if (emailChannels.isNotEmpty) {
+                  final ch = emailChannels.first;
+                  _hasChannel.value = true;
+                  _userChannel.value = ch;
+                  // Update channel ownerId and userId to current active uid
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection(FirestoreCollections.channels)
+                        .doc(ch.id)
+                        .update({
+                      'ownerId': user.uid,
+                      'userId': user.uid,
+                      'updatedAt': FieldValue.serverTimestamp(),
+                    });
+                  } catch (_) {}
+                  return;
+                }
+              } catch (e) {
+                debugPrint('AuthService: fallback channel check by email error: $e');
+              }
+            }
+
             _hasChannel.value = false;
             _userChannel.value = null;
           },
@@ -617,8 +650,30 @@ class AuthService extends GetxService {
   Future<void> deleteAccount() async {
     final currentUser = _auth.currentUser;
     if (currentUser != null) {
-      // 1. Delete user data from Firestore (if needed, here we just delete the auth user)
-      // Note: In production, you'd likely want a Cloud Function to clean up all user-related collections.
+      final uidToDelete = currentUser.uid;
+
+      // 1. Clean up user data & channel from Firestore
+      try {
+        final userDocRef = FirebaseFirestore.instance
+            .collection(FirestoreCollections.users)
+            .doc(uidToDelete);
+        final userSnap = await userDocRef.get();
+        if (userSnap.exists) {
+          final channelId = userSnap.data()?['channelId'] as String?;
+          if (channelId != null && channelId.isNotEmpty) {
+            await FirebaseFirestore.instance
+                .collection(FirestoreCollections.channels)
+                .doc(channelId)
+                .update({
+              'status': 'deleted',
+              'updatedAt': FieldValue.serverTimestamp(),
+            }).catchError((_) {});
+          }
+          await userDocRef.delete();
+        }
+      } catch (e) {
+        debugPrint('AuthService: Error deleting user Firestore record: $e');
+      }
 
       // 2. Delete the Firebase Auth user
       await currentUser.delete();
@@ -659,27 +714,87 @@ class AuthService extends GetxService {
 
       if (!docSnapshot.exists) {
         debugPrint(
-          'AuthService: [SYNC] No document found. Initializing NEW user record...',
+          'AuthService: [SYNC] No document found by UID. Checking for legacy account with email: ${user.email}...',
         );
-        needsOnboarding.value = true;
+
+        String? restoredChannelId;
+        Map<String, dynamic>? legacyData;
+
+        if (user.email != null && user.email!.isNotEmpty) {
+          try {
+            final emailQuery = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.users)
+                .where('email', isEqualTo: user.email)
+                .limit(5)
+                .get();
+
+            final legacyDocs = emailQuery.docs.where((d) => d.id != user.uid).toList();
+            if (legacyDocs.isNotEmpty) {
+              debugPrint(
+                'AuthService: [SYNC] ⚠️ Found ${legacyDocs.length} legacy user doc(s) for email ${user.email}. Consolidating...',
+              );
+              for (final oldDoc in legacyDocs) {
+                final oldData = oldDoc.data();
+                legacyData ??= oldData;
+                final oldChannelId = oldData['channelId'] as String?;
+                if (oldChannelId != null && oldChannelId.isNotEmpty) {
+                  restoredChannelId = oldChannelId;
+                  // Re-assign channel ownership to active UID
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection(FirestoreCollections.channels)
+                        .doc(oldChannelId)
+                        .update({
+                      'ownerId': user.uid,
+                      'userId': user.uid,
+                      'updatedAt': FieldValue.serverTimestamp(),
+                    });
+                    debugPrint('AuthService: [SYNC] Re-linked channel $oldChannelId to new UID ${user.uid}');
+                  } catch (chErr) {
+                    debugPrint('AuthService: [SYNC] Error re-linking channel $oldChannelId: $chErr');
+                  }
+                }
+
+                // Remove stale legacy user document
+                try {
+                  await oldDoc.reference.delete();
+                  debugPrint('AuthService: [SYNC] Cleaned up legacy user doc ${oldDoc.id}');
+                } catch (delErr) {
+                  debugPrint('AuthService: [SYNC] Error deleting legacy user doc ${oldDoc.id}: $delErr');
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint('AuthService: [SYNC] Error during email consolidation query: $e');
+          }
+        }
+
+        final hasCompletedOnboarding = legacyData?['hasCompletedOnboarding'] as bool? ?? false;
+        needsOnboarding.value = !hasCompletedOnboarding;
+
         final newUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
-          age: _lastGooglePeopleData?['age'],
-          birthdate: _lastGooglePeopleData?['birthdate'],
-          location: _lastGooglePeopleData?['location'],
-          city: _lastGooglePeopleData?['city'],
-          state: _lastGooglePeopleData?['state'],
-          country: _lastGooglePeopleData?['country'],
-          hasCompletedOnboarding: false,
+          channelId: restoredChannelId ?? legacyData?['channelId'] as String?,
+          gender: legacyData?['gender'] as String?,
+          age: (legacyData?['age'] as num?)?.toInt() ?? _lastGooglePeopleData?['age'],
+          ageGroup: legacyData?['ageGroup'] as String?,
+          birthdate: legacyData?['birthdate'] as String? ?? _lastGooglePeopleData?['birthdate'],
+          location: legacyData?['location'] as String? ?? _lastGooglePeopleData?['location'],
+          city: legacyData?['city'] as String? ?? _lastGooglePeopleData?['city'],
+          state: legacyData?['state'] as String? ?? _lastGooglePeopleData?['state'],
+          country: legacyData?['country'] as String? ?? _lastGooglePeopleData?['country'],
+          hasCompletedOnboarding: hasCompletedOnboarding,
         );
 
         await userDoc.set(newUser.toFirestoreCreate());
         debugPrint(
-          'AuthService: [SYNC] ✅ NEW user record created successfully',
+          'AuthService: [SYNC] ✅ NEW user record created successfully (legacy data consolidated if present)',
         );
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          checkAndPromptOnboarding();
-        });
+        if (!hasCompletedOnboarding) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            checkAndPromptOnboarding();
+          });
+        }
       } else {
         debugPrint(
           'AuthService: [SYNC] Document exists. Updating lifecycle timestamps...',

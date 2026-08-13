@@ -15,6 +15,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
@@ -40,8 +41,18 @@ class VideoManagementController extends BaseController {
     isLoadingChannelVideos.value = true;
     channelVideosError.value = '';
     _videosSub?.cancel();
-    trackSubscription(_videosSub = fetchChannelVideos(channelId).listen(
-      (videos) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final targetId = channelId.isNotEmpty ? channelId : currentUid;
+
+    _videosSub = _firestore.collection('videos').snapshots().listen(
+      (snapshot) {
+        final videos = snapshot.docs
+            .map(Video.fromDocumentSnapshot)
+            .where((v) =>
+                v.channelId == targetId ||
+                v.ownerId == targetId ||
+                (v.channelId.isEmpty && currentUid.isNotEmpty && v.ownerId == currentUid))
+            .toList();
         channelVideos.assignAll(videos);
         isLoadingChannelVideos.value = false;
       },
@@ -49,7 +60,8 @@ class VideoManagementController extends BaseController {
         channelVideosError.value = e.toString();
         isLoadingChannelVideos.value = false;
       },
-    ));
+    );
+    trackSubscription(_videosSub!);
   }
 
   void listenToCommunityPosts(String channelId) {
@@ -108,15 +120,25 @@ class VideoManagementController extends BaseController {
     required bool allowRatings,
   }) async {
     if (videoFile.bytes == null || imageFile.bytes == null) {
-      Get.snackbar('Error', 'Video or thumbnail data is missing.');
+      Get.snackbar(
+        'Error',
+        'Video or thumbnail data is missing.',
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.error_outline, color: Colors.white),
+      );
       return;
     }
 
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
     uploadProgress.value = 0.0;
     Get.snackbar(
       'Upload Started',
       'Your video upload is in progress.',
       showProgressIndicator: true,
+      backgroundColor: AppColors.bgSurface,
+      colorText: AppColors.textPrimary,
+      icon: const Icon(Icons.cloud_upload_outlined, color: Colors.white),
     );
 
     try {
@@ -130,8 +152,17 @@ class VideoManagementController extends BaseController {
       final videoRef = _firebaseStorage.ref().child(videoFileName);
       final imageRef = _firebaseStorage.ref().child(imageFileName);
 
-      final videoUploadTask = videoRef.putData(videoFile.bytes!);
-      final imageUploadTask = imageRef.putData(imageFile.bytes!);
+      final videoMetadata = SettableMetadata(
+        contentType: 'video/mp4',
+        customMetadata: {'uploaderId': currentUserId},
+      );
+      final imageMetadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {'uploaderId': currentUserId},
+      );
+
+      final videoUploadTask = videoRef.putData(videoFile.bytes!, videoMetadata);
+      final imageUploadTask = imageRef.putData(imageFile.bytes!, imageMetadata);
 
       videoUploadTask.snapshotEvents.listen((event) {
         uploadProgress.value =
@@ -165,7 +196,7 @@ class VideoManagementController extends BaseController {
         channelId: channelId,
         channelName: channelName,
         channelImage: channelImage,
-        ownerId: FirebaseAuth.instance.currentUser!.uid,
+        ownerId: currentUserId,
         likeCount: 0,
         viewCount: 0,
         uploadedAt: Timestamp.now(),
@@ -183,10 +214,22 @@ class VideoManagementController extends BaseController {
 
       uploadProgress.value = 0.0;
       Get.offAllNamed('/studio');
-      Get.snackbar('Success', 'Video uploaded successfully!');
+      Get.snackbar(
+        'Success',
+        'Video uploaded successfully!',
+        backgroundColor: const Color(0xFF10B981),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+      );
     } catch (e) {
       uploadProgress.value = 0.0;
-      Get.snackbar('Error', 'Failed to upload video: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to upload video: $e',
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.error_outline, color: Colors.white),
+      );
       debugPrint('Error uploading video: $e');
     }
   }
@@ -201,33 +244,167 @@ class VideoManagementController extends BaseController {
           return snapshot.docs.map(Video.fromDocumentSnapshot).toList();
         })
         .handleError((error) {
-          Get.snackbar('Error', 'Failed to fetch videos: $error');
+          Get.snackbar(
+            'Error',
+            'Failed to fetch videos: $error',
+            backgroundColor: const Color(0xFFEF4444),
+            colorText: AppColors.textPrimary,
+            icon: const Icon(Icons.error_outline, color: Colors.white),
+          );
           return [];
         });
   }
 
   Future<void> deleteVideo(Video video) async {
     try {
-      await _firestore.collection('videos').doc(video.id).delete();
-      if (video.videoUrl.isNotEmpty) {
-        await _firebaseStorage.refFromURL(video.videoUrl).delete();
+      // 1. Delete Firestore document from videos collection
+      await _firestore.collection(FirestoreCollections.videos).doc(video.id).delete();
+
+      // If video is also present in 'shorts', clean it up
+      if (video.isShort) {
+        try {
+          await _firestore.collection('shorts').doc(video.id).delete();
+        } catch (_) {}
       }
-      if (video.thumbnailUrl.isNotEmpty) {
-        await _firebaseStorage.refFromURL(video.thumbnailUrl).delete();
+
+      // Immediately remove from local list for snappy UI feedback
+      channelVideos.removeWhere((v) => v.id == video.id);
+
+      // 2. Perform safe storage cleanup
+      // Note: Backend Cloud Function onVideoDeleted also performs automatic cascade deletion.
+      // We attempt client storage deletion gracefully without throwing on non-existent or external files.
+      await _safeDeleteStorageUrl(video.videoUrl);
+      await _safeDeleteStorageUrl(video.thumbnailUrl);
+      if (video.originalUrl.isNotEmpty && video.originalUrl != video.videoUrl) {
+        await _safeDeleteStorageUrl(video.originalUrl);
       }
-      Get.snackbar('Success', "Video '${video.title}' deleted successfully.");
+
+      Get.snackbar(
+        'Success',
+        "Video '${video.title.isNotEmpty ? video.title : 'Selected video'}' deleted successfully.",
+        backgroundColor: const Color(0xFF10B981),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete video: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to delete video: $e',
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.error_outline, color: Colors.white),
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
       debugPrint('Error deleting video: $e');
+    }
+  }
+
+  Future<void> _safeDeleteStorageUrl(String urlOrPath) async {
+    final clean = urlOrPath.trim();
+    if (clean.isEmpty) return;
+    try {
+      if (clean.startsWith('gs://') || clean.contains('firebasestorage.googleapis.com')) {
+        await _firebaseStorage.refFromURL(clean).delete();
+      } else if (!clean.startsWith('http://') &&
+          !clean.startsWith('https://') &&
+          !clean.startsWith('blob:') &&
+          !clean.startsWith('assets/')) {
+        await _firebaseStorage.ref(clean).delete();
+      }
+    } catch (e) {
+      // Storage deletion error is safely ignored on client (already handled or cleaned up)
+      debugPrint('Safe storage delete note for $clean: $e');
+    }
+  }
+
+  Future<void> changeVideoVisibility(String videoId, String visibility) async {
+    try {
+      final normalizedVisibility = visibility.trim().toLowerCase();
+      await _firestore.collection('videos').doc(videoId).update({
+        'visibility': normalizedVisibility,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      // Also update shorts collection if exists
+      try {
+        await _firestore.collection('shorts').doc(videoId).update({
+          'visibility': normalizedVisibility,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
+
+      // Update local list for instant UI feedback
+      final index = channelVideos.indexWhere((v) => v.id == videoId);
+      if (index != -1) {
+        final current = channelVideos[index];
+        channelVideos[index] = current.copyWith(visibility: normalizedVisibility);
+      }
+
+      String displayName;
+      switch (normalizedVisibility) {
+        case 'public':
+          displayName = 'Public';
+        case 'private':
+          displayName = 'Private';
+        case 'members':
+        case 'members_only':
+          displayName = 'Members Only';
+        case 'subscribers':
+        case 'subscribers_only':
+          displayName = 'Subscribers Only';
+        case 'unlisted':
+          displayName = 'Unlisted';
+        default:
+          displayName = visibility;
+      }
+
+      Get.snackbar(
+        'Visibility Updated',
+        'Video access is now set to "$displayName".',
+        backgroundColor: const Color(0xFF10B981),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update visibility: $e',
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.error_outline, color: Colors.white),
+        snackPosition: SnackPosition.TOP,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+      debugPrint('Error updating visibility: $e');
     }
   }
 
   Future<void> updateVideo(String videoId, Map<String, dynamic> data) async {
     try {
       await _firestore.collection('videos').doc(videoId).update(data);
-      Get.snackbar('Success', 'Video updated successfully.');
+      Get.snackbar(
+        'Success',
+        'Video updated successfully.',
+        backgroundColor: const Color(0xFF10B981),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+      );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update video: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to update video: $e',
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: AppColors.textPrimary,
+        icon: const Icon(Icons.error_outline, color: Colors.white),
+      );
       debugPrint('Error updating video: $e');
     }
   }

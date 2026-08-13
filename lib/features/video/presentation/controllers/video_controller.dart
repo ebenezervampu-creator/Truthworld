@@ -54,8 +54,23 @@ import 'package:truthworld/features/video/presentation/widgets/fact_check_report
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
+import 'package:truthworld/features/video/data/repositories/firestore_video_repository.dart';
+import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
 
 class VideoController extends BaseController with GetTickerProviderStateMixin {
+  VideoController({VideoRepository? videoRepository})
+      : _videoRepository = videoRepository ?? FirestoreVideoRepository();
+
+  final VideoRepository _videoRepository;
+
+  Future<void> fetchVideoById(String id) async {
+    final result = await _videoRepository.getVideoById(id);
+    result.when(
+      success: (data) => _video.value = data,
+      failure: (err) => setError(err.displayMessage),
+    );
+  }
+
   final Rx<Video> _video = Video.empty().obs;
   Video get video => _video.value;
   Rx<Video> get rxVideo => _video;
@@ -183,12 +198,17 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     final mixed = <dynamic>[];
     var videoIndex = 0;
     var postIndex = 0;
+    var topicIndex = 0;
     final displayVideos = filteredRecommendedVideos;
 
     while (videoIndex < displayVideos.length ||
-        postIndex < communityPosts.length) {
-      for (var i = 0; i < 4 && videoIndex < displayVideos.length; i++) {
+        postIndex < communityPosts.length ||
+        topicIndex < videoTopicsList.length) {
+      for (var i = 0; i < 3 && videoIndex < displayVideos.length; i++) {
         mixed.add(displayVideos[videoIndex++]);
+      }
+      if (topicIndex < videoTopicsList.length) {
+        mixed.add(videoTopicsList[topicIndex++]);
       }
       if (postIndex < communityPosts.length) {
         mixed.add(communityPosts[postIndex++]);
@@ -529,6 +549,16 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
 
     if (hasInternet) {
+      // Pre-fetch localization (subtitles, audio), credibility (summary, trust, claims), and streaming (chapters)
+      final mediaService = VideoMediaService();
+      Future.wait([
+        mediaService.getLocalization(video.id),
+        mediaService.getCredibility(video.id),
+        mediaService.getStreaming(video.id),
+      ]).then((_) {
+        rxVideo.refresh();
+      });
+
       channelController.listenSubscription(video.channelId);
       if (isAuthenticated) {
         checkUserInteractions();
@@ -661,26 +691,15 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       ]);
     }();
 
-    // 2. Identify initial playback URL immediately from video model to prevent startup latency
-    //    On web, skip HLS (.m3u8) because non-Safari browsers don't support it natively
-    //    and there's no HLS.js polyfill. Prefer direct MP4 URLs instead.
-    //    Always skip gs:// URLs — they are storage references, not playable URLs.
-    String? initialUrl;
+    // 2. YouTube-style playback strategy:
+    //    - On native (iOS/Android/Desktop): Use HLS adaptive streaming for instant start
+    //    - On web: NEVER use raw original.mp4 — always wait for transcoded MP4 resolutions
     if (!kIsWeb &&
         video.hlsUrl.isNotEmpty &&
         !video.hlsUrl.startsWith('gs://')) {
-      initialUrl = video.hlsUrl;
-    } else if (video.originalUrl.isNotEmpty &&
-        !video.originalUrl.startsWith('gs://')) {
-      initialUrl = video.originalUrl;
-    } else if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
-      // Fallback: use HLS even on web if it's the only option
-      initialUrl = video.hlsUrl;
-    }
-
-    // 3. If we have a direct url on the model, initialize player instantly while metadata loads
-    if (initialUrl != null && initialUrl.isNotEmpty) {
-      await initializeVideoPlayer(overrideUrl: initialUrl);
+      // Native: HLS adaptive streaming for instant zero-latency start
+      debugPrint('[VideoController] 🎬 Native playback: Using HLS adaptive stream');
+      await initializeVideoPlayer(overrideUrl: video.hlsUrl);
 
       // Once metadata finishes, update the quality/resolution menu reactively
       metadataFuture.then((_) {
@@ -692,21 +711,40 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         }
       });
     } else {
-      // Fallback: if no direct URL is present on the model, wait for resolution metadata
+      // Web: Wait for transcoded resolutions — never serve raw original.mp4
+      debugPrint('[VideoController] 🌐 Web playback: Waiting for transcoded resolutions...');
       await metadataFuture;
-      if (availableResolutions.isEmpty) {
-        debugPrint(
-          '[VideoController] ❌ No transcoded resolutions found. Blocking playback.',
+
+      if (availableResolutions.isNotEmpty) {
+        // Pick the best transcoded MP4 (non-HLS) for web browsers
+        final mp4Res = availableResolutions.firstWhereOrNull(
+          (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
         );
-        videoError.value = true;
-        rxErrorMessage.value =
-            'Video is still processing. Please check back later.';
-        rxIsLoading.value = false;
-        return;
+        final best = mp4Res ?? availableResolutions.first;
+        currentResolution.value = best;
+        debugPrint(
+          '[VideoController] ✅ Web: Playing ${best.label} (${best.width}x${best.height})',
+        );
+        await initializeVideoPlayer(overrideUrl: best.url);
+      } else {
+        // Last resort: try originalUrl only if no transcoded variants exist
+        if (video.originalUrl.isNotEmpty &&
+            !video.originalUrl.startsWith('gs://')) {
+          debugPrint(
+            '[VideoController] ⚠️ No transcoded resolutions. Falling back to originalUrl.',
+          );
+          await initializeVideoPlayer(overrideUrl: video.originalUrl);
+        } else {
+          debugPrint(
+            '[VideoController] ❌ No playable URL found. Video may still be processing.',
+          );
+          videoError.value = true;
+          rxErrorMessage.value =
+              'Video is still processing. Please check back later.';
+          rxIsLoading.value = false;
+          return;
+        }
       }
-      final best = availableResolutions.first;
-      currentResolution.value = best;
-      await initializeVideoPlayer(overrideUrl: best.url);
     }
 
     // If starting with a clip, seek to start time
@@ -1785,8 +1823,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       playlistVideosCache.clear();
 
       // --- 1. Topics ---
+      final foundTopics = <Topic>[];
       if (video.topics.isNotEmpty) {
-        final foundTopics = <Topic>[];
         for (var i = 0; i < video.topics.length; i += 10) {
           final chunk = video.topics.sublist(
             i,
@@ -1801,6 +1839,21 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             topicsSnapshot.docs.map(Topic.fromDocumentSnapshot),
           );
         }
+      }
+
+      if (foundTopics.length < 3) {
+        try {
+          final publicTopicsSnapshot = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.topics)
+              .limit(5)
+              .get();
+          final publicTopics = publicTopicsSnapshot.docs
+              .map(Topic.fromDocumentSnapshot)
+              .where((t) => !foundTopics.any((ft) => ft.id == t.id))
+              .toList();
+          foundTopics.addAll(publicTopics);
+        } catch (_) {}
+      }
 
         videoTopicsList.assignAll(foundTopics);
 
@@ -1829,7 +1882,6 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         for (final entry in topicResults) {
           topicVideosCache[entry.key] = entry.value;
         }
-      }
 
       // --- 2. Playlists ---
       final foundPlaylists = <PlaylistModel>[];
@@ -1981,9 +2033,12 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
 
     try {
-      // Validate video URL
-      //    On web, skip HLS (.m3u8) because non-Safari browsers don't support it natively.
-      //    Always skip gs:// URLs — they are storage references, not playable URLs.
+      // YouTube-style URL resolution:
+      //   1. Use the override URL if provided (already transcoded or HLS)
+      //   2. Use the currently selected transcoded resolution
+      //   3. On native: use HLS adaptive stream
+      //   4. On web: pick a non-HLS transcoded MP4 from availableResolutions
+      //   5. Last resort: originalUrl (may not work on web for raw uploads)
       var targetUrl = overrideUrl;
       if (targetUrl == null || targetUrl.isEmpty) {
         if (currentResolution.value != null &&
@@ -1993,12 +2048,24 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             video.hlsUrl.isNotEmpty &&
             !video.hlsUrl.startsWith('gs://')) {
           targetUrl = video.hlsUrl;
-        } else if (video.originalUrl.isNotEmpty &&
-            !video.originalUrl.startsWith('gs://')) {
-          targetUrl = video.originalUrl;
-        } else if (video.hlsUrl.isNotEmpty &&
-            !video.hlsUrl.startsWith('gs://')) {
-          targetUrl = video.hlsUrl;
+        } else if (kIsWeb && availableResolutions.isNotEmpty) {
+          // On web, pick the best transcoded MP4 resolution
+          final mp4Res = availableResolutions.firstWhereOrNull(
+            (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
+          );
+          if (mp4Res != null) {
+            targetUrl = mp4Res.url;
+          }
+        }
+        // Absolute last fallback
+        if (targetUrl == null || targetUrl.isEmpty) {
+          if (video.originalUrl.isNotEmpty &&
+              !video.originalUrl.startsWith('gs://')) {
+            targetUrl = video.originalUrl;
+          } else if (video.hlsUrl.isNotEmpty &&
+              !video.hlsUrl.startsWith('gs://')) {
+            targetUrl = video.hlsUrl;
+          }
         }
       }
 
@@ -2091,6 +2158,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       newVpc.addListener(_videoErrorListener);
       newVpc.addListener(videoListener);
 
+      if (newVpc.value.hasError) {
+        _videoErrorListener();
+      }
+
       HoverPreviewCoordinator.globalMute.value = true;
 
       if (!newVpc.value.isInitialized) {
@@ -2162,6 +2233,16 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
 
       _videoPlayerController = newVpc;
+
+      // Sync active TowerPlayerController immediately before disposing old controller
+      try {
+        if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+          Get.find<TowerPlayerController>(tag: video.id).sync(newVpc);
+        } else if (Get.isRegistered<TowerPlayerController>()) {
+          Get.find<TowerPlayerController>().sync(newVpc);
+        }
+      } catch (_) {}
+
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController!,
         autoPlay: true,
@@ -2230,7 +2311,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       // Listen for fullscreen changes from Chewie
       _chewieController!.addListener(_onChewieEvent);
 
-      // Warm handoff: dispose old ones now that new ones are ready
+      // Warm handoff: dispose old ones now that new ones are ready and synced
       if (oldVpc != null && oldVpc != newVpc) {
         try {
           oldVpc.removeListener(_videoErrorListener);

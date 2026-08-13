@@ -134,6 +134,7 @@ class Channel {
     this.videoCount = 0,
     ChannelMetricsV2? metrics,
     this.status = ChannelStatus.active,
+    this.geminiApproved,
     this.isVerified = false,
     this.category = 'other',
     this.categories = const [],
@@ -161,6 +162,17 @@ class Channel {
       handleVal = '@${nameVal.toLowerCase().replaceAll(RegExp(r'\s+'), '')}';
     }
 
+    final parsedGeminiApproved = data['geminiApproved'] as bool?;
+    var statusVal = ChannelStatus.values.firstWhere(
+      (e) => e.name == (data['status'] ?? 'active'),
+      orElse: () => ChannelStatus.active,
+    );
+    if (parsedGeminiApproved == true) {
+      statusVal = ChannelStatus.active;
+    } else if (parsedGeminiApproved == false && (statusVal == ChannelStatus.underReview || statusVal == ChannelStatus.active)) {
+      statusVal = ChannelStatus.verificationRejected;
+    }
+
     return Channel(
       id: docId,
       name: nameVal,
@@ -183,10 +195,8 @@ class Channel {
       metrics: data['metrics'] != null
           ? ChannelMetricsV2.fromMap(Map<String, dynamic>.from(data['metrics']))
           : ChannelMetricsV2(),
-      status: ChannelStatus.values.firstWhere(
-        (e) => e.name == (data['status'] ?? 'active'),
-        orElse: () => ChannelStatus.active,
-      ),
+      status: statusVal,
+      geminiApproved: parsedGeminiApproved,
       isVerified: data['isVerified'] ?? false,
       category: data['category'] ?? 'other',
       categories: data['categories'] != null
@@ -267,6 +277,7 @@ class Channel {
 
   // Status & Settings
   final ChannelStatus status;
+  final bool? geminiApproved;
   final bool isVerified;
   final String category;
   final List<String> categories;
@@ -342,6 +353,7 @@ class Channel {
       'videoCount': videoCount,
       'metrics': metrics.toMap(),
       'status': status.name,
+      'geminiApproved': geminiApproved,
       'isVerified': isVerified,
       'category': category,
       'categories': categories,

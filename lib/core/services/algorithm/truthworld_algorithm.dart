@@ -324,7 +324,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   /// Credibility Gate: Returns 0.0 if video fails credibility check
   /// This is an ELIGIBILITY GATE, not a small bonus
   double _computeCredibilityGate(Video video) {
-    final score = video.truthScore;
+    final score = video.trustScore;
     if (score >= 4.0) return 1.2; // High credibility → 20% boost
     if (score >= 3.0) return 1.1; // Good credibility → 10% boost
     if (score >= 2.0) return 1.0; // Medium → neutral
@@ -346,19 +346,19 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     // 2. Source diversity: sources from different domains
     score += min(0.1, sourceCount * 0.02);
 
-    // 3. Fact-check confidence: truthScore normalized
-    final factCheckConfidence = video.truthScore / 5.0;
+    // 3. Fact-check confidence: trustScore normalized
+    final factCheckConfidence = video.trustScore / 5.0;
     score += factCheckConfidence * 0.20;
 
     // 4. Primary sources: has the video been fact-checked at all?
     if (video.isFactChecked) score += 0.15;
 
-    // 5. Expert consensus: verified channel + high truth score
-    if (video.isVerified && video.truthScore >= 3.5) score += 0.10;
+    // 5. Expert consensus: verified channel + high trust score
+    if (video.isVerified && video.trustScore >= 3.5) score += 0.10;
 
     // 6. Recency of verification
-    // Use truthScore as proxy — higher = more recently verified
-    score += min(0.05, video.truthScore * 0.01);
+    // Use trustScore as proxy — higher = more recently verified
+    score += min(0.05, video.trustScore * 0.01);
 
     // 7. Counter-arguments available (coin battle pair)
     if (video.coinBattlePairVideoId != null &&

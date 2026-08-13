@@ -251,7 +251,11 @@ export class AggregationLayer {
           if (url) {
             const directUrl = getDownloadUrl(url);
             subtitlesMap[sourceLang] = {
+              ...data,
               url: directUrl,
+              srtPath: data?.srtPath ? getDownloadUrl(data.srtPath) : directUrl,
+              vttPath: data?.vttPath ? getDownloadUrl(data.vttPath) : directUrl.replace(/\.srt$/, ".vtt"),
+              jsonPath: data?.jsonPath ? getDownloadUrl(data.jsonPath) : directUrl.replace(/\.srt$/, ".json"),
               format: data?.subtitleFormat || "srt",
               language: sourceLang,
               updatedAt: data?.createdAt || Date.now(),
@@ -268,7 +272,11 @@ export class AggregationLayer {
             if (lang && url) {
               const directUrl = getDownloadUrl(url);
               subtitlesMap[lang] = {
+                ...data,
                 url: directUrl,
+                srtPath: data?.srtPath ? getDownloadUrl(data.srtPath) : directUrl,
+                vttPath: data?.vttPath ? getDownloadUrl(data.vttPath) : directUrl.replace(/\.srt$/, ".vtt"),
+                jsonPath: data?.jsonPath ? getDownloadUrl(data.jsonPath) : directUrl.replace(/\.srt$/, ".json"),
                 format: data?.subtitleFormat || "srt",
                 language: lang,
                 updatedAt: data?.createdAt || Date.now(),
@@ -319,7 +327,7 @@ export class AggregationLayer {
           status: "running", progress: 50, startedAt: Date.now() 
         });
 
-        const directFactCheckUrl = getDownloadUrl(jobOutputs.factCheckUrl || "");
+        const directFactCheckUrl = jobOutputs.factCheckUrl ? getDownloadUrl(jobOutputs.factCheckUrl) : "";
         const bucket = admin.storage().bucket();
         const transcriptUrl = `gs://${bucket.name}/transcripts/${jobId}/full.json`;
         const directTranscriptUrl = getDownloadUrl(transcriptUrl);
@@ -499,7 +507,7 @@ export class AggregationLayer {
               transcriptionUrl: directTranscriptUrl,
             },
             trustLabel: null,
-            credibilityVerified: !!cred, // v12.0: Flag for recommendations
+            isVerified: !!cred, // v12.0: Flag for recommendations
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 

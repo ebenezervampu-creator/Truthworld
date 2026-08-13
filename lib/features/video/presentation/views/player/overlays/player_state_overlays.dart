@@ -262,7 +262,7 @@ class StateOverlay extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline_rounded, color: PT.primary, size: 52),
+          const Icon(Icons.error_outline_rounded, color: AppColors.textPrimary, size: 52),
           const SizedBox(height: 16),
           Text('Playback Error', style: TS.title.copyWith(fontSize: 18)),
           const SizedBox(height: 8),

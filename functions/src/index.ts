@@ -1241,12 +1241,12 @@ export const onVideoPublished = onDocumentUpdated(
 
       // ── Map ALL aiFeatures → ExecutionPlan ──────────────────────────────────
       const requestedLanguages: string[] = getTranslationLangs(afterData);
+      const hasTargetLanguages = requestedLanguages.length > 0;
       const enableFactChecking = aiFeatures.factChecking ?? false;
-      const enableGenLangSubs = aiFeatures.genLangSubs ?? false;
+      const enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
       const enableDubbing = aiFeatures.generateDubbing ?? false;
       const enableSummary = aiFeatures.summary ?? false;
       const enableDiarization = aiFeatures.diarization ?? false;
-      const hasTargetLanguages = requestedLanguages.length > 0;
       const enablePath2 = enableDubbing || enableGenLangSubs || hasTargetLanguages;
 
       // TTS config mapping

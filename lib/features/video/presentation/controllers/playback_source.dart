@@ -33,7 +33,9 @@ abstract class PlaybackSource {
 /// Video playback authority wrapping [VideoPlayerController].
 class VideoPlaybackSource implements PlaybackSource {
   VideoPlaybackSource(this._controller) {
-    _controller.addListener(_onControllerChanged);
+    try {
+      _controller.addListener(_onControllerChanged);
+    } catch (_) {}
   }
   final VideoPlayerController _controller;
   final ValueNotifier<Duration> _positionNotifier = ValueNotifier(
@@ -41,38 +43,84 @@ class VideoPlaybackSource implements PlaybackSource {
   );
 
   void _onControllerChanged() {
-    if (_controller.value.isInitialized) {
-      _positionNotifier.value = _controller.value.position;
+    try {
+      if (_controller.value.isInitialized) {
+        _positionNotifier.value = _controller.value.position;
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Duration get position {
+    try {
+      return _controller.value.position;
+    } catch (_) {
+      return Duration.zero;
     }
   }
 
   @override
-  Duration get position => _controller.value.position;
+  Duration get duration {
+    try {
+      return _controller.value.duration;
+    } catch (_) {
+      return Duration.zero;
+    }
+  }
 
   @override
-  Duration get duration => _controller.value.duration;
-
-  @override
-  bool get isPlaying => _controller.value.isPlaying;
+  bool get isPlaying {
+    try {
+      return _controller.value.isPlaying;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   ValueListenable<Duration> get positionListenable => _positionNotifier;
 
   @override
-  Future<void> play() => _controller.play();
+  Future<void> play() async {
+    try {
+      await _controller.play();
+    } catch (e) {
+      debugPrint('[VideoPlaybackSource] play error: $e');
+    }
+  }
 
   @override
-  Future<void> pause() => _controller.pause();
+  Future<void> pause() async {
+    try {
+      await _controller.pause();
+    } catch (e) {
+      debugPrint('[VideoPlaybackSource] pause error: $e');
+    }
+  }
 
   @override
-  Future<void> seek(Duration position) => _controller.seekTo(position);
+  Future<void> seek(Duration position) async {
+    try {
+      await _controller.seekTo(position);
+    } catch (e) {
+      debugPrint('[VideoPlaybackSource] seek error: $e');
+    }
+  }
 
   @override
-  Future<void> setVolume(double volume) => _controller.setVolume(volume);
+  Future<void> setVolume(double volume) async {
+    try {
+      await _controller.setVolume(volume);
+    } catch (e) {
+      debugPrint('[VideoPlaybackSource] setVolume error: $e');
+    }
+  }
 
   @override
   Future<void> dispose() async {
-    _controller.removeListener(_onControllerChanged);
+    try {
+      _controller.removeListener(_onControllerChanged);
+    } catch (_) {}
     _positionNotifier.dispose();
   }
 }

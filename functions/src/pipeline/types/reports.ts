@@ -68,7 +68,6 @@ export interface TraceabilityMap {
 export interface UIReport {
   summary: {
     rating: number | null;
-    truthScore?: number | null;
     honestyScore?: number | null;
     rationalityScore?: number | null;
     label: string;
@@ -190,7 +189,6 @@ export interface FactCheckResult {
   uiReport?: UIReport;
 
   trustScore: number | null;
-  truthScore?: number | null;
   honestyScore?: number | null;
   rationalityScore?: number | null;
   structuralReliabilityScore?: number | null;

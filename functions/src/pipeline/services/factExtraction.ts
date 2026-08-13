@@ -1,4 +1,4 @@
-import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
+import type { VertexAI } from "@google-cloud/vertexai";
 import * as admin from "firebase-admin";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
@@ -15,6 +15,17 @@ import { isSubjectiveClaim, containsVerifiablePredicate } from "./contentIntentD
 import { logger } from "../utils/logger";
 import { withAiRetry } from "../utils/ai-utils";
 
+const HarmCategory = {
+  HARM_CATEGORY_HARASSMENT: "HARM_CATEGORY_HARASSMENT",
+  HARM_CATEGORY_HATE_SPEECH: "HARM_CATEGORY_HATE_SPEECH",
+  HARM_CATEGORY_SEXUALLY_EXPLICIT: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+  HARM_CATEGORY_DANGEROUS_CONTENT: "HARM_CATEGORY_DANGEROUS_CONTENT",
+} as const;
+
+const HarmBlockThreshold = {
+  BLOCK_NONE: "BLOCK_NONE",
+} as const;
+
 // v14.0: Safety settings for fact-checking engine.
 // TruthWorld must process content about violence, politics, assassination, etc.
 const FACT_CHECK_SAFETY_SETTINGS = [
@@ -22,7 +33,7 @@ const FACT_CHECK_SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-];
+] as any;
 
 /**
  * 🔹 A. Fact Extraction Service

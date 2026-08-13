@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -108,6 +109,77 @@ class MyVideosController extends BaseController {
     HapticFeedback.mediumImpact();
   }
 
+  Future<void> changeVideoVisibility(String videoId, String visibility) async {
+    try {
+      final normalizedVisibility = visibility.trim().toLowerCase();
+      await FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .doc(videoId)
+          .update({
+        'visibility': normalizedVisibility,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      try {
+        await FirebaseFirestore.instance
+            .collection('shorts')
+            .doc(videoId)
+            .update({
+          'visibility': normalizedVisibility,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
+
+      // Update local state if present
+      final index = videos.indexWhere((v) => v.id == videoId);
+      if (index != -1) {
+        videos[index] = videos[index].copyWith(visibility: normalizedVisibility);
+      }
+
+      String displayName;
+      switch (normalizedVisibility) {
+        case 'public':
+          displayName = 'Public';
+        case 'private':
+          displayName = 'Private';
+        case 'members':
+        case 'members_only':
+          displayName = 'Members Only';
+        case 'subscribers':
+        case 'subscribers_only':
+          displayName = 'Subscribers Only';
+        case 'unlisted':
+          displayName = 'Unlisted';
+        default:
+          displayName = visibility;
+      }
+
+      Get.snackbar(
+        'Visibility Updated',
+        'Video access is now set to "$displayName".',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFF10B981),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        icon: const Icon(
+          Icons.check_circle_outline,
+          color: Colors.white,
+        ),
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update video visibility: $e',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        icon: const Icon(Icons.error_outline, color: Colors.white),
+      );
+    }
+  }
+
   Future<void> toggleVideoVisibility(Video video) async {
     try {
       final newVisibility = video.visibility == 'public' ? 'private' : 'public';
@@ -126,7 +198,7 @@ class MyVideosController extends BaseController {
         borderRadius: 12,
         icon: const Icon(
           Icons.check_circle_outline,
-          color: AppColors.textPrimary,
+          color: Colors.white,
         ),
       );
     } catch (e) {
@@ -138,29 +210,49 @@ class MyVideosController extends BaseController {
         colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
-        icon: const Icon(Icons.error_outline, color: AppColors.textPrimary),
+        icon: const Icon(Icons.error_outline, color: Colors.white),
       );
     }
   }
 
-  /// Deletes a video from Firestore.
+  /// Deletes a video from Firestore with safe storage cleanup.
   Future<void> deleteVideo(Video video) async {
     try {
       await FirebaseFirestore.instance
           .collection(FirestoreCollections.videos)
           .doc(video.id)
           .delete();
+
+      if (video.isShort) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('shorts')
+              .doc(video.id)
+              .delete();
+        } catch (_) {}
+      }
+
+      // Immediately remove from local list for snappy UI
+      videos.removeWhere((v) => v.id == video.id);
+
+      // Safe storage cleanup (errors ignored, handled by cascade trigger on backend)
+      await _safeDeleteStorageUrl(video.videoUrl);
+      await _safeDeleteStorageUrl(video.thumbnailUrl);
+      if (video.originalUrl.isNotEmpty && video.originalUrl != video.videoUrl) {
+        await _safeDeleteStorageUrl(video.originalUrl);
+      }
+
       Get.snackbar(
         'Video Deleted',
         '"${video.title}" was successfully deleted.',
         snackPosition: SnackPosition.TOP,
-        backgroundColor: const Color(0xFF6366F1),
+        backgroundColor: const Color(0xFF10B981),
         colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
         icon: const Icon(
-          Icons.delete_sweep_rounded,
-          color: AppColors.textPrimary,
+          Icons.check_circle_outline,
+          color: Colors.white,
         ),
       );
     } catch (e) {
@@ -172,8 +264,25 @@ class MyVideosController extends BaseController {
         colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
-        icon: const Icon(Icons.error_outline, color: AppColors.textPrimary),
+        icon: const Icon(Icons.error_outline, color: Colors.white),
       );
+    }
+  }
+
+  Future<void> _safeDeleteStorageUrl(String urlOrPath) async {
+    final clean = urlOrPath.trim();
+    if (clean.isEmpty) return;
+    try {
+      if (clean.startsWith('gs://') || clean.contains('firebasestorage.googleapis.com')) {
+        await FirebaseStorage.instance.refFromURL(clean).delete();
+      } else if (!clean.startsWith('http://') &&
+          !clean.startsWith('https://') &&
+          !clean.startsWith('blob:') &&
+          !clean.startsWith('assets/')) {
+        await FirebaseStorage.instance.ref(clean).delete();
+      }
+    } catch (e) {
+      debugPrint('Safe storage delete note for $clean: $e');
     }
   }
 

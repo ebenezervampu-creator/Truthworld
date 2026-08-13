@@ -13,7 +13,6 @@
 
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
-import { PubSub } from "@google-cloud/pubsub";
 import { logger } from "../pipeline/utils/logger";
 
 const db = admin.firestore();
@@ -67,6 +66,7 @@ export const manualTriggerPublishing = onRequest(
         `Triggered by admin ${uid}`
       );
 
+      const { PubSub } = require("@google-cloud/pubsub");
       const pubsub = new PubSub();
       const topic = pubsub.topic("scheduled-publishing");
 

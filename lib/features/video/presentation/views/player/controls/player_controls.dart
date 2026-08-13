@@ -344,9 +344,9 @@ class PlayerTopBar extends StatelessWidget {
               return Column(
                 children: [
                   ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.notifications_active,
-                      color: isAll ? PT.primary : AppColors.textPrimary,
+                      color: AppColors.textPrimary,
                     ),
                     title: Text(
                       'All',
@@ -363,7 +363,7 @@ class PlayerTopBar extends StatelessWidget {
                       ),
                     ),
                     trailing: isAll
-                        ? const Icon(Icons.check, color: PT.primary)
+                        ? const Icon(Icons.check, color: AppColors.textPrimary)
                         : null,
                     onTap: () {
                       Navigator.pop(context);
@@ -374,11 +374,9 @@ class PlayerTopBar extends StatelessWidget {
                     },
                   ),
                   ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.notifications_outlined,
-                      color: isPersonalized
-                          ? PT.primary
-                          : AppColors.textPrimary,
+                      color: AppColors.textPrimary,
                     ),
                     title: Text(
                       'Personalized',
@@ -399,7 +397,7 @@ class PlayerTopBar extends StatelessWidget {
                       ),
                     ),
                     trailing: isPersonalized
-                        ? const Icon(Icons.check, color: PT.primary)
+                        ? const Icon(Icons.check, color: AppColors.textPrimary)
                         : null,
                     onTap: () {
                       Navigator.pop(context);
@@ -410,9 +408,9 @@ class PlayerTopBar extends StatelessWidget {
                     },
                   ),
                   ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.notifications_off_outlined,
-                      color: isNone ? PT.primary : AppColors.textPrimary,
+                      color: AppColors.textPrimary,
                     ),
                     title: Text(
                       'None',
@@ -431,7 +429,7 @@ class PlayerTopBar extends StatelessWidget {
                       ),
                     ),
                     trailing: isNone
-                        ? const Icon(Icons.check, color: PT.primary)
+                        ? const Icon(Icons.check, color: AppColors.textPrimary)
                         : null,
                     onTap: () {
                       Navigator.pop(context);

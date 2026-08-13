@@ -135,7 +135,9 @@ class SearchResult {
         t == 'untitled' ||
         t == 'untitled video' ||
         t == 'untitled draft' ||
-        t.startsWith('untitled')) {
+        t == 'uploading...' ||
+        t.startsWith('untitled') ||
+        t.startsWith('uploading')) {
       return false;
     }
     return true;

@@ -679,7 +679,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                 ),
 
                 // Fact Checked Badge (if applicable)
-                if (video.factCheckUrl.isNotEmpty)
+                if (video.isFactChecked)
                   Positioned(
                     top: 8,
                     left: 8,
@@ -1090,7 +1090,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           ),
                           CachedNetworkImage(
                             imageUrl: bgUrl,
-                            fit: BoxFit.contain,
+                            fit: BoxFit.cover,
                             errorWidget: (context, url, error) =>
                                 _buildGradientBackground(),
                           ),

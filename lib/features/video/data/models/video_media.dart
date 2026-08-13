@@ -96,6 +96,7 @@ class VideoMediaCredibility {
     this.trustScore = 0.0,
     this.videoRating = 0.0,
     this.trustLabel,
+    this.summary = '',
     this.scoringFactors,
     this.deductions = const [],
     this.contextualFlags = const [],
@@ -121,6 +122,7 @@ class VideoMediaCredibility {
       trustScore: (data['trustScore'] ?? 0).toDouble(),
       videoRating: (data['videoRating'] ?? 0).toDouble(),
       trustLabel: data['trustLabel'],
+      summary: data['summary'] ?? data['uiReport']?['narrative'] ?? '',
       scoringFactors: data['scoringFactors'] != null
           ? ScoringFactors.fromMap(
               Map<String, dynamic>.from(data['scoringFactors']),
@@ -173,6 +175,7 @@ class VideoMediaCredibility {
   final double trustScore;
   final double videoRating;
   final String? trustLabel;
+  final String summary;
 
   // v8.0 Epistemic Scoring
   final ScoringFactors? scoringFactors;

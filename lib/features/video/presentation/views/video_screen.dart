@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
@@ -23,6 +24,7 @@ import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -31,9 +33,11 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/clip_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -603,7 +607,7 @@ class VideoScreen extends GetView<VideoController> {
               );
             }),
             const SizedBox(height: 12),
-            if (ctrl.video.factCheckUrl.isNotEmpty) const SizedBox.shrink(),
+            if (ctrl.video.isFactChecked) const SizedBox.shrink(),
             _buildModernActionButtons(context),
             const SizedBox(height: 16),
             _buildDescriptionBox(context),
@@ -4445,65 +4449,127 @@ class VideoScreen extends GetView<VideoController> {
     }
 
     final segments = playerCtrl?.subtitleSegments ?? [];
-    if (segments.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(
-          'No transcript available for this video.',
-          style: GoogleFonts.roboto(
-            color: Colors.white70,
-            fontSize: 13,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      );
-    }
+    final credibility = VideoMediaService.credibilityCache[controller.video.id];
+    final summaryText = (credibility?.summary.isNotEmpty == true)
+        ? credibility!.summary
+        : ((credibility?.uiReport?.narrative.isNotEmpty == true)
+            ? credibility!.uiReport!.narrative
+            : '');
 
-    final pos = playerCtrl?.vv.position ?? Duration.zero;
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: segments.length,
-      itemBuilder: (context, index) {
-        final seg = segments[index];
-        final isActive = pos >= seg.start && pos <= seg.end;
-        return InkWell(
-          onTap: () {
-            playerCtrl?.seekTo(seg.start);
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (summaryText.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
+            ),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _formatTranscriptDuration(seg.start),
-                  style: GoogleFonts.roboto(
-                    color: isActive ? primary : Colors.white54,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    seg.text,
-                    style: GoogleFonts.roboto(
-                      color: isActive ? Colors.white : Colors.white70,
-                      fontSize: 13,
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      height: 1.3,
+                Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 16, color: AppColors.textPrimary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'AI EXECUTIVE SUMMARY',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.brand,
+                        letterSpacing: 1.1,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  summaryText,
+                  style: GoogleFonts.roboto(
+                    color: Colors.white,
+                    fontSize: 13,
+                    height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
-        );
-      },
+          const Divider(color: Colors.white12, height: 16),
+        ],
+        if (segments.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'No timestamped transcript lines available for this video.',
+              style: GoogleFonts.roboto(
+                color: Colors.white70,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          )
+        else ...[
+          Text(
+            'TIMESTAMPED TRANSCRIPT',
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.white54,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: segments.length,
+            itemBuilder: (context, index) {
+              final seg = segments[index];
+              final pos = playerCtrl?.vv.position ?? Duration.zero;
+              final isActive = pos >= seg.start && pos <= seg.end;
+              return InkWell(
+                onTap: () {
+                  playerCtrl?.seekTo(seg.start);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatTranscriptDuration(seg.start),
+                        style: GoogleFonts.roboto(
+                          color: isActive ? primary : Colors.white54,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          seg.text,
+                          style: GoogleFonts.roboto(
+                            color: isActive ? Colors.white : Colors.white70,
+                            fontSize: 13,
+                            fontWeight: isActive
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 
@@ -5908,6 +5974,9 @@ class RecommendationFeed extends StatelessWidget {
         ),
       );
 
+      final isAllTab = selectedFilter == 'All' && videos == null;
+      final displayItems = isAllTab ? controller.recommendedItems : displayVideos;
+
       final videoList = isGrid
           ? LayoutBuilder(
               builder: (context, constraints) {
@@ -5936,13 +6005,31 @@ class RecommendationFeed extends StatelessWidget {
                     mainAxisSpacing: 16,
                     childAspectRatio: aspectRatio,
                   ),
-                  itemCount: displayVideos.length,
-                  itemBuilder: (context, index) => VideoCard(
-                    video: displayVideos[index],
-                    isGrid: true,
-                    heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
-                    disableHoverPreview: true,
-                  ),
+                  itemCount: displayItems.length,
+                  itemBuilder: (context, index) {
+                    final item = displayItems[index];
+                    if (item is Topic) {
+                      return TopicCardWidget(
+                        topic: item,
+                        isHero: false,
+                      );
+                    }
+                    if (item is CommunityPostModel) {
+                      return CommunityPostCard(
+                        post: item,
+                        isFullWidth: false,
+                      );
+                    }
+                    if (item is Video) {
+                      return VideoCard(
+                        video: item,
+                        isGrid: true,
+                        heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
+                        disableHoverPreview: true,
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
                 );
               },
             )
@@ -5950,12 +6037,36 @@ class RecommendationFeed extends StatelessWidget {
               shrinkWrap: shrinkWrap,
               physics: physics,
               padding: const EdgeInsets.all(16),
-              itemCount: displayVideos.length,
-              itemBuilder: (context, index) => VideoCard(
-                video: displayVideos[index],
-                heroPrefix: 'rec_list_${videoTag ?? 'global'}',
-                disableHoverPreview: true,
-              ),
+              itemCount: displayItems.length,
+              itemBuilder: (context, index) {
+                final item = displayItems[index];
+                if (item is Topic) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: TopicCardWidget(
+                      topic: item,
+                      isHero: false,
+                    ),
+                  );
+                }
+                if (item is CommunityPostModel) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: CommunityPostCard(
+                      post: item,
+                      isFullWidth: false,
+                    ),
+                  );
+                }
+                if (item is Video) {
+                  return VideoCard(
+                    video: item,
+                    heroPrefix: 'rec_list_${videoTag ?? 'global'}',
+                    disableHoverPreview: true,
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             );
 
       return Column(
@@ -5975,7 +6086,7 @@ class RecommendationFeed extends StatelessWidget {
                 child: ScrollAdCard(ad: displayAd),
               );
             }),
-          if (displayVideos.isEmpty)
+          if (displayItems.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -6580,11 +6691,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
         return list;
       case 'Fact checked':
         final factChecked = _allVideos
-            .where(
-              (v) =>
-                  v.category.toLowerCase().contains('fact') ||
-                  v.tags.any((t) => t.toLowerCase().contains('fact')),
-            )
+            .where((v) => v.isFactChecked)
             .toList();
         return factChecked.isNotEmpty ? factChecked : _allVideos;
       case 'All':

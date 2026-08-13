@@ -366,8 +366,6 @@ class CredibilityLabelWidget extends StatelessWidget {
               letterSpacing: 1.5,
             ),
           ),
-          const SizedBox(height: 20),
-          _buildPath1Row('TRUTH', report.truthScore, AppColors.success),
           _buildPath1Row('HONESTY', report.honestyScore, AppColors.info),
           _buildPath1Row(
             'RATIONALITY',

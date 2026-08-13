@@ -200,7 +200,6 @@ export class ScoringEngine {
       language: "en",
       riskDomain: domain,
       domainRiskMultiplier: 1.0,
-      truthScore: null,
       honestyScore: null,
       rationalityScore: null,
       compositeRating: undefined,
@@ -253,7 +252,6 @@ export class ScoringEngine {
     return {
       summary: {
         rating: null,
-        truthScore: null,
         honestyScore: null,
         rationalityScore: null,
         label: data.trustLabel,

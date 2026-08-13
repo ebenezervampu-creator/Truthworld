@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -282,27 +284,17 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                       ? (isMobile ? 24 : 64)
                       : (isMobile ? 16.0 : 20.0),
                   vertical: isHero
-                      ? (isMobile ? 24 : 40)
-                      : (isMobile ? 16.0 : 20.0),
+                      ? (isMobile ? 20 : 36)
+                      : (isMobile ? 14.0 : 18.0),
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: IntrinsicHeight(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              // Top Row (Purple TOPIC Badge and Followers Badge)
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Top Row (Purple TOPIC Badge and Followers Badge)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
                                   // Purple TOPIC Badge
                                   Container(
                                     padding: EdgeInsets.symmetric(
@@ -633,11 +625,6 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-            ),
 
             // Carousel arrows (only for Hero layout)
             if (isHero) ...[
@@ -761,7 +748,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
       return Stack(
         fit: StackFit.expand,
         children: [
-          // Background ambient backdrop fill
+          // Background ambient backdrop fill with blur
           CachedNetworkImage(
             imageUrl: bgUrl,
             fit: BoxFit.cover,
@@ -769,13 +756,16 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
               return _buildGradientBackground();
             },
           ),
-          Container(
-            color: Colors.black.withValues(alpha: 0.65),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.6),
+            ),
           ),
-          // 100% preserved topic thumbnail without cropping any part
+          // Dynamic topic artwork full-bleed cover fill
           CachedNetworkImage(
             imageUrl: bgUrl,
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
             errorWidget: (context, error, stackTrace) {
               return _buildGradientBackground();
             },

@@ -146,3 +146,101 @@ export const moderateUser = onRequest(
     }
   }
 );
+
+export const consolidateUserAccounts = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
+      const { email, primaryUid } = req.body;
+      if (!email) {
+        res.status(400).json({ error: "Missing required field: email" });
+        return;
+      }
+
+      const db = admin.firestore();
+      const usersSnap = await db.collection("users").where("email", "==", email).get();
+
+      if (usersSnap.empty || usersSnap.docs.length < 2) {
+        res.status(200).json({ message: "No duplicate user documents found for this email.", count: usersSnap.docs.length });
+        return;
+      }
+
+      let primaryDoc = primaryUid 
+        ? usersSnap.docs.find(d => d.id === primaryUid)
+        : usersSnap.docs.reduce((latest, current) => {
+            const latestTime = (latest.data().updatedAt as number) || 0;
+            const currentTime = (current.data().updatedAt as number) || 0;
+            return currentTime > latestTime ? current : latest;
+          });
+
+      if (!primaryDoc) {
+        primaryDoc = usersSnap.docs[0];
+      }
+
+      const primaryId = primaryDoc.id;
+      const legacyDocs = usersSnap.docs.filter(d => d.id !== primaryId);
+
+      let channelRestored = null;
+
+      for (const legacyDoc of legacyDocs) {
+        const legacyData = legacyDoc.data();
+        const legacyChannelId = legacyData.channelId;
+
+        if (legacyChannelId) {
+          channelRestored = legacyChannelId;
+          await db.collection("channels").doc(legacyChannelId).update({
+            ownerId: primaryId,
+            userId: primaryId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        const updateObj: Record<string, any> = {};
+        if (!primaryDoc.data().channelId && legacyChannelId) {
+          updateObj.channelId = legacyChannelId;
+        }
+        if (!primaryDoc.data().ageGroup && legacyData.ageGroup) {
+          updateObj.ageGroup = legacyData.ageGroup;
+        }
+        if (!primaryDoc.data().gender && legacyData.gender) {
+          updateObj.gender = legacyData.gender;
+        }
+
+        if (Object.keys(updateObj).length > 0) {
+          await primaryDoc.ref.update(updateObj);
+        }
+
+        await legacyDoc.ref.delete();
+      }
+
+      await db.collection("admin_actions_log").add({
+        adminId: adminUser.uid,
+        action: "consolidate_duplicate_users",
+        email,
+        primaryUid: primaryId,
+        mergedUids: legacyDocs.map(d => d.id),
+        channelRestored,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      res.status(200).json({
+        success: true,
+        primaryUid: primaryId,
+        mergedCount: legacyDocs.length,
+        channelRestored
+      });
+    } catch (error) {
+      logger.error("[consolidateUserAccounts] Error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Internal error" });
+    }
+  }
+);
+

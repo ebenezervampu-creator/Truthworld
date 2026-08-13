@@ -1,4 +1,4 @@
-import { SchemaType, ResponseSchema } from "@google-cloud/vertexai";
+import type { ResponseSchema } from "@google-cloud/vertexai";
 
 export const COMMUNITY_GUIDELINES_TEXT = `Review the provided content details for violations of the Truthworld Community Guidelines and Standards.
 
@@ -12,14 +12,14 @@ COMMUNITY GUIDELINES & STANDARDS:
 7. Content must not be misleading or make false claims.`;
 
 export const MODERATION_RESPONSE_SCHEMA: ResponseSchema = {
-  type: SchemaType.OBJECT,
+  type: "OBJECT" as any,
   properties: {
     approved: {
-      type: SchemaType.BOOLEAN,
+      type: "BOOLEAN" as any,
       description: "True if content passes all community guidelines, false otherwise.",
     },
     reason: {
-      type: SchemaType.STRING,
+      type: "STRING" as any,
       description: "Explanation of the moderation decision. If rejected, specify which guideline was violated.",
     },
   },

@@ -363,7 +363,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                       children: [
                                         const Icon(
                                           Icons.fast_forward_rounded,
-                                          color: AppColors.brand,
+                                          color: AppColors.textPrimary,
                                           size: 16,
                                         ),
                                         const SizedBox(width: 8),

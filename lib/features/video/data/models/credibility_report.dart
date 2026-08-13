@@ -474,7 +474,6 @@ class UISummary {
     required this.label,
     required this.confidence,
     this.rating,
-    this.truthScore,
     this.honestyScore,
     this.rationalityScore,
     this.confidenceInterpretation,
@@ -484,9 +483,6 @@ class UISummary {
   factory UISummary.fromMap(Map<String, dynamic> map) {
     return UISummary(
       rating: map['rating'] != null ? (map['rating'] as num).toDouble() : null,
-      truthScore: map['truthScore'] != null
-          ? (map['truthScore'] as num).toDouble()
-          : null,
       honestyScore: map['honestyScore'] != null
           ? (map['honestyScore'] as num).toDouble()
           : null,
@@ -500,7 +496,6 @@ class UISummary {
     );
   }
   final double? rating;
-  final double? truthScore;
   final double? honestyScore;
   final double? rationalityScore;
   final String label;
@@ -510,7 +505,6 @@ class UISummary {
 
   Map<String, dynamic> toMap() => {
     'rating': rating,
-    'truthScore': truthScore,
     'honestyScore': honestyScore,
     'rationalityScore': rationalityScore,
     'label': label,
@@ -587,7 +581,7 @@ class UIReport {
   }
 
   double? get rating => summary.rating;
-  double? get truthScore => summary.truthScore;
+  double? get truthScore => summary.honestyScore;
   double? get honestyScore => summary.honestyScore;
   double? get rationalityScore => summary.rationalityScore;
   String get label => summary.label;

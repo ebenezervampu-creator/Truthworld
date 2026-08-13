@@ -8,10 +8,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -205,6 +207,7 @@ class ChannelController extends BaseController
 
   // State for Channel Details Page
   final RxBool isAppBarExpanded = false.obs;
+  final RxBool isDescriptionExpanded = false.obs;
   final RxBool isLoadingVideos = false.obs;
   final RxList<Video> videos = <Video>[].obs;
   final lastVideoDocument = Rx<DocumentSnapshot?>(null);
@@ -924,15 +927,8 @@ class ChannelController extends BaseController
       if (result == null || result.files.isEmpty) return;
 
       final file = result.files.first;
-      if (file.bytes == null) {
+      if (file.bytes == null && file.path == null) {
         return _showErrorSnackbar('Unable to read image file.');
-      }
-
-      final maxSize = isBanner ? maxBannerSize : maxAvatarSize;
-      if (file.size > maxSize) {
-        return _showErrorSnackbar(
-          'Image exceeds ${(maxSize / (1024 * 1024)).toStringAsFixed(1)}MB.',
-        );
       }
 
       final extension = file.extension?.toLowerCase();
@@ -943,19 +939,55 @@ class ChannelController extends BaseController
         );
       }
 
+      // Crop image according to YouTube standard
+      CroppedFile? croppedFile;
+      if (file.path != null && file.path!.isNotEmpty) {
+        croppedFile = isBanner
+            ? await ImageCropperService.cropChannelBanner(
+                imagePath: file.path!,
+                context: Get.context,
+              )
+            : await ImageCropperService.cropChannelAvatar(
+                imagePath: file.path!,
+                context: Get.context,
+              );
+      }
+
+      // If user cancels cropping, abort gracefully
+      if (croppedFile == null && file.path != null) return;
+
+      final croppedBytes = croppedFile != null
+          ? await croppedFile.readAsBytes()
+          : file.bytes!;
+      final croppedPath = croppedFile?.path ?? file.path;
+
+      final maxSize = isBanner ? maxBannerSize : maxAvatarSize;
+      if (croppedBytes.length > maxSize) {
+        return _showErrorSnackbar(
+          'Image exceeds ${(maxSize / (1024 * 1024)).toStringAsFixed(1)}MB.',
+        );
+      }
+
       dynamic image;
       try {
-        image = await decodeImageFromList(file.bytes!);
+        image = await decodeImageFromList(croppedBytes);
       } catch (e) {
         return _showErrorSnackbar('Invalid image: $e');
       }
       if (image == null) return _showErrorSnackbar('Unable to decode image.');
 
       final imageData = ImageData(
-        bytes: file.bytes!,
+        bytes: croppedBytes,
         name: file.name,
-        size: file.size,
+        size: croppedBytes.length,
         aspectRatio: image.width / image.height,
+      );
+
+      final uploadFile = PlatformFile(
+        name: file.name,
+        path: croppedPath,
+        bytes: croppedBytes,
+        size: croppedBytes.length,
       );
 
       if (isBanner) {
@@ -980,7 +1012,7 @@ class ChannelController extends BaseController
       if (user == null) return _showErrorSnackbar('Login required.');
 
       final uploadData = await uploadImage(
-        file,
+        uploadFile,
         isBanner ? 'banners' : 'avatars',
         user.uid,
         onProgress: (progress) {
@@ -2054,6 +2086,7 @@ class ChannelController extends BaseController
       scrollController.jumpTo(0);
     }
     isAppBarExpanded.value = false;
+    isDescriptionExpanded.value = false;
     videos.clear();
     lastVideoDocument.value = null;
     isLoadingMore.value = false;

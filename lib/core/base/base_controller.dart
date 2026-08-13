@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/base/ui_event.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/network/result.dart';
 
@@ -18,8 +20,8 @@ enum ViewState {
 }
 
 /// Base controller for all feature controllers to standardize state management,
-/// worker lifecycle disposal, cancellation support, and low-latency UI updates.
-abstract class BaseController extends GetxController {
+/// worker lifecycle disposal, event-driven UI side-effects, cancellation support, and low-latency UI updates.
+class BaseController extends GetxController {
   final Rx<ViewState> rxState = ViewState.idle.obs;
   ViewState get state => rxState.value;
 
@@ -34,6 +36,18 @@ abstract class BaseController extends GetxController {
   bool get isSuccess => state == ViewState.success;
   bool get isOffline => state == ViewState.offline;
   bool get isCancelled => state == ViewState.cancelled;
+
+  /// Pure event stream for UI side-effects (snackbars, dialogs, navigation)
+  final StreamController<UiEvent> _uiEventController =
+      StreamController<UiEvent>.broadcast();
+  Stream<UiEvent> get uiEvents => _uiEventController.stream;
+
+  /// Emit an immutable [UiEvent] to listeners in presentation layer.
+  void emitUiEvent(UiEvent event) {
+    if (!_uiEventController.isClosed) {
+      _uiEventController.add(event);
+    }
+  }
 
   /// Workers registered with this controller that will be automatically disposed on [onClose].
   final List<Worker> workers = <Worker>[];
@@ -56,25 +70,25 @@ abstract class BaseController extends GetxController {
   final List<ScrollController> _trackedScrollControllers = <ScrollController>[];
 
   /// Track a [StreamSubscription] for automatic cancellation in [onClose].
-  T trackSubscription<T extends StreamSubscription>(T sub) {
+  S trackSubscription<S extends StreamSubscription>(S sub) {
     _trackedSubscriptions.add(sub);
     return sub;
   }
 
   /// Track a [Timer] for automatic cancellation in [onClose].
-  T trackTimer<T extends Timer>(T timer) {
+  S trackTimer<S extends Timer>(S timer) {
     _trackedTimers.add(timer);
     return timer;
   }
 
   /// Track a [TextEditingController] for automatic disposal in [onClose].
-  T trackTextController<T extends TextEditingController>(T ctrl) {
+  S trackTextController<S extends TextEditingController>(S ctrl) {
     _trackedTextControllers.add(ctrl);
     return ctrl;
   }
 
   /// Track a [ScrollController] for automatic disposal in [onClose].
-  T trackScrollController<T extends ScrollController>(T ctrl) {
+  S trackScrollController<S extends ScrollController>(S ctrl) {
     _trackedScrollControllers.add(ctrl);
     return ctrl;
   }
@@ -90,6 +104,7 @@ abstract class BaseController extends GetxController {
   @mustCallSuper
   void onClose() {
     logDispose();
+    _uiEventController.close();
     for (final worker in workers) {
       worker.dispose();
     }
@@ -159,7 +174,7 @@ abstract class BaseController extends GetxController {
     setViewState(ViewState.error);
   }
 
-  /// Pagination support
+  /// Generic pagination support
   final RxInt _page = 1.obs;
   int get page => _page.value;
 
@@ -194,6 +209,15 @@ abstract class BaseController extends GetxController {
     bool isError = false,
     bool isWarning = false,
   }) {
+    emitUiEvent(
+      UiEventShowSnackbar(
+        title: title,
+        message: message,
+        isError: isError,
+        isWarning: isWarning,
+      ),
+    );
+
     if (Get.context == null) return;
     try {
       final theme = Get.theme;
@@ -222,13 +246,27 @@ abstract class BaseController extends GetxController {
     }
   }
 
-  void handleError(dynamic error) {
-    var message = error.toString();
-    if (error is AppException) {
-      message = error.message;
+  void handleError(dynamic error, {VoidCallback? onRetry}) {
+    final appException = AppException.from(error);
+    logException(appException.message);
+    _errorMessage.value = appException.displayMessage;
+
+    if (appException is NetworkException) {
+      setViewState(ViewState.offline);
+    } else {
+      setViewState(ViewState.error);
     }
-    setError(message);
-    _presentSnackbar('Error', message, isError: true);
+
+    emitUiEvent(
+      UiEventShowSnackbar(
+        title: 'Error',
+        message: appException.displayMessage,
+        isError: true,
+        onAction: onRetry,
+      ),
+    );
+
+    ErrorHandler.showSnackbar(appException, onRetry: onRetry);
   }
 
   void showSuccess(String message) {
@@ -236,16 +274,21 @@ abstract class BaseController extends GetxController {
   }
 
   void showError(String message) {
-    _presentSnackbar('Error', message, isError: true);
+    emitUiEvent(
+      UiEventShowSnackbar(title: 'Error', message: message, isError: true),
+    );
+    ErrorHandler.showSnackbar(
+      GenericAppException(message: message, userMessage: message),
+    );
   }
 
   void showWarning(String message) {
     _presentSnackbar('Warning', message, isWarning: true);
   }
 
-  /// Execute an async function returning a `Result<T>` with automatic UI state transitions
-  Future<Result<T>> safeExecuteResult<T>(
-    Future<Result<T>> Function() task, {
+  /// Execute an async function returning a `Result<S>` with automatic UI state transitions
+  Future<Result<S>> safeExecuteResult<S>(
+    Future<Result<S>> Function() task, {
     bool showLoading = true,
   }) async {
     try {
@@ -310,3 +353,4 @@ abstract class BaseController extends GetxController {
     );
   }
 }
+

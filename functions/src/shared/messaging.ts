@@ -4,10 +4,19 @@
  * Scalable, service-agnostic Event Bus using Google Cloud Pub/Sub.
  */
 
-import { PubSub, Topic } from "@google-cloud/pubsub";
+import type { PubSub, Topic } from "@google-cloud/pubsub";
 import { logger } from "./logger";
 
-const pubsub = new PubSub();
+let _pubsubInstance: PubSub | null = null;
+
+function getPubSub(): PubSub {
+  if (!_pubsubInstance) {
+    const { PubSub } = require("@google-cloud/pubsub");
+    _pubsubInstance = new PubSub();
+  }
+  return _pubsubInstance!;
+}
+
 const topicCache = new Map<string, Topic>();
 
 export class MessagingService {
@@ -33,7 +42,7 @@ export class MessagingService {
   private static getOrInitializeTopic(name: string): Topic {
     if (topicCache.has(name)) return topicCache.get(name)!;
     
-    const topic = pubsub.topic(name);
+    const topic = getPubSub().topic(name);
     topicCache.set(name, topic);
     return topic;
   }

@@ -93,7 +93,7 @@ class TopicCategoriesConfig {
       id: 'comedy',
       title: 'Comedy',
       imageUrl:
-          'https://images.unsplash.com/photo-1516280440614-37939bbacd6a?auto=format&fit=crop&w=1200&q=90',
+          'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=90',
     ),
     TopicCategory(
       id: 'science',

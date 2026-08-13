@@ -89,7 +89,7 @@ class TopicController extends BaseController {
   bool get rxIsEmpty => filteredVideos.isEmpty && !rxIsLoading.value;
 
   bool get hasFactCheckedVideos {
-    return videos.any((v) => v.factCheckUrl.isNotEmpty);
+    return videos.any((v) => v.isFactChecked);
   }
 
   List<Video> get filteredVideos {
@@ -113,7 +113,7 @@ class TopicController extends BaseController {
           .where((v) => subscribedChannelIds.contains(v.channelId))
           .toList();
     } else if (selectedTab.value == 'Fact checked') {
-      list = list.where((v) => v.factCheckUrl.isNotEmpty).toList();
+      list = list.where((v) => v.isFactChecked).toList();
     }
 
     return list;

@@ -13,20 +13,27 @@ class VideoPlaybackHandoff {
 
   /// Pre-warm/pre-buffer a video stream from CDN as soon as user taps a card
   /// or initiates navigation to achieve zero-latency instant playback.
+  ///
+  /// On web: Skip pre-warming entirely. Web playback waits for transcoded
+  /// MP4 resolutions from Firestore, so pre-warming the raw original.mp4
+  /// is wasteful and causes MEDIA_ERR_SRC_NOT_SUPPORTED errors.
+  ///
+  /// On native: Pre-warm using HLS adaptive stream for instant playback.
   static Future<void> prewarmVideo(Video video) async {
     if (video.id.isEmpty) return;
+
+    // Skip pre-warming on web — VideoController will wait for transcoded
+    // resolutions from Firestore instead of using raw original.mp4
+    if (kIsWeb) return;
 
     // Skip if already pre-warming or active for this video
     if (_activeVideoId == video.id && _activeController != null) {
       return;
     }
 
+    // On native, only pre-warm if HLS is available
     String? targetUrl;
-    if (!kIsWeb && video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
-      targetUrl = video.hlsUrl;
-    } else if (video.originalUrl.isNotEmpty && !video.originalUrl.startsWith('gs://')) {
-      targetUrl = video.originalUrl;
-    } else if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+    if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
       targetUrl = video.hlsUrl;
     }
 
@@ -50,6 +57,8 @@ class VideoPlaybackHandoff {
         debugPrint('[VideoPlaybackHandoff] ✅ Pre-warmed player initialized for: ${video.id}');
       }).catchError((dynamic e) {
         debugPrint('[VideoPlaybackHandoff] ⚠️ Pre-warm initialization error: $e');
+        // Clean up failed pre-warm controller so VideoController doesn't inherit the error
+        clear(video.id);
       });
     } catch (e) {
       debugPrint('[VideoPlaybackHandoff] Error initiating pre-warm: $e');
@@ -84,12 +93,24 @@ class VideoPlaybackHandoff {
   /// This transfers ownership of the controller to the caller.
   static VideoPlayerController? retrieveController(String videoId) {
     if (_activeVideoId == videoId && _activeController != null) {
+      final controller = _activeController!;
+      _activeController = null;
+      _activeVideoId = null;
+
+      // If pre-warmed controller threw an error (e.g. format error), discard it
+      if (controller.value.hasError) {
+        debugPrint(
+          '[VideoPlaybackHandoff] ⚠️ Handed-over controller has error: ${controller.value.errorDescription}. Discarding for clean initialization.',
+        );
+        try {
+          controller.dispose();
+        } catch (_) {}
+        return null;
+      }
+
       debugPrint(
         '[VideoPlaybackHandoff] Retrieved controller for video: $videoId (Handing over!)',
       );
-      final controller = _activeController;
-      _activeController = null;
-      _activeVideoId = null;
       return controller;
     }
     return null;

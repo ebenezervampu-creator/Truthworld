@@ -304,7 +304,10 @@ export class TranscriptionLayer {
 
       const bucketName = admin.storage().bucket().name;
       const directTranscriptUrl = `https://storage.googleapis.com/${bucketName}/transcripts/${jobId}/full.json`;
-      const directFactCheckUrl = `https://storage.googleapis.com/${bucketName}/factchecks/${jobId}/report.json`;
+      const isFactCheckingEnabled = !!(executionPlan.enablePath1 || executionPlan.enableTruthEngine);
+      const directFactCheckUrl = isFactCheckingEnabled
+        ? `https://storage.googleapis.com/${bucketName}/factchecks/${jobId}/report.json`
+        : "";
       const durationMs = Math.round((enhanced.duration || existingVideoData.duration || 60) * 1000);
       const httpVideoUrl = videoUrl.startsWith("gs://")
         ? `https://storage.googleapis.com/${bucketName}/${videoUrl.replace(`gs://${bucketName}/`, "")}`
@@ -337,7 +340,6 @@ export class TranscriptionLayer {
         description: finalDescription,
         summary: gatewayDecision.summary || existingVideoData.summary || "",
         category: finalCategory,
-        videoCategory: finalCategory,
         tags: finalTags,
         topics: finalTopics,
         language: enhanced.detectedLanguage || existingVideoData.language || "en",
@@ -360,20 +362,16 @@ export class TranscriptionLayer {
         transcriptionUrl: directTranscriptUrl,
         gatewayDecision,
         gatewayStatus: "APPROVED",
-        credibilityVerified: true,
-        isFactChecked: true,
+        isFactChecked: isFactCheckingEnabled,
         isVerified: true,
         trustScore: 100,
-        truthScore: 100,
         trustLabel: "Verified Content",
         status: "published",
         visibility: existingVideoData.visibility || (executionPlan as any).visibility || "public",
         isPublished: true,
         metadataComplete: true,
-        views: existingVideoData.views || 0,
-        viewCount: existingVideoData.viewCount || 0,
-        likes: existingVideoData.likes || 0,
-        likeCount: existingVideoData.likeCount || 0,
+        viewCount: existingVideoData.viewCount || existingVideoData.views || 0,
+        likeCount: existingVideoData.likeCount || existingVideoData.likes || 0,
         dislikeCount: existingVideoData.dislikeCount || 0,
         commentCount: existingVideoData.commentCount || 0,
         shareCount: existingVideoData.shareCount || 0,
@@ -588,12 +586,15 @@ export class TranscriptionLayer {
         metadata: { contentType: "text/vtt; charset=utf-8" },
       });
 
+      const jsonPath = `subtitles/${jobId}/${language}.json`;
+
       // Update job outputs doc (separate collections for scale check)
       await db().collection("job_outputs").doc(jobId).set({
         subtitles: {
           [language]: {
             srtPath: `gs://${bucket.name}/${srtPath}`,
             vttPath: `gs://${bucket.name}/${vttPath}`,
+            jsonPath: `gs://${bucket.name}/${jsonPath}`,
             format: "native",
             provider: "assemblyai-universal-multi",
             createdAt: Date.now(),
@@ -606,6 +607,7 @@ export class TranscriptionLayer {
         // ✅ NEW SCHEMA: Consolidated Artifact Registry
         "artifacts.transcription.srtUrl": `gs://${bucket.name}/${srtPath}`,
         "artifacts.transcription.vttUrl": `gs://${bucket.name}/${vttPath}`,
+        "artifacts.transcription.jsonUrl": `gs://${bucket.name}/${jsonPath}`,
         "artifacts.transcription.sourceLanguage": language,
       });
 

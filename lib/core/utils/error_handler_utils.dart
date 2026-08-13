@@ -1,13 +1,19 @@
-import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/widgets/global_error_boundary.dart';
 
 /// Global centralized error handler setup for Truthworld apps.
 void setupGlobalErrorHandlers() {
-  // 1. Flutter framework error handler
+  // 1. Custom UI Error Boundary (replaces default red/grey screen)
+  ErrorWidget.builder = (details) {
+    return GlobalErrorBoundary(details: details);
+  };
+
+  // 2. Flutter framework error handler
   FlutterError.onError = (details) {
     if (kDebugMode) {
       FlutterError.dumpErrorToConsole(details);
@@ -17,27 +23,20 @@ void setupGlobalErrorHandlers() {
         stackTrace: details.stack,
         tag: 'FlutterFramework',
       );
-    } else if (!kIsWeb) {
+    } else {
       final errorStr = details.exception.toString();
       final isTransient = _isTransientError(details.exception, errorStr);
 
-      if (isTransient) {
-        unawaited(
-          FirebaseCrashlytics.instance.recordError(
-            details.exception,
-            details.stack,
-            reason: 'Transient framework error: ${details.summary}',
-          ),
-        );
-      } else {
-        unawaited(
-          FirebaseCrashlytics.instance.recordFlutterFatalError(details),
-        );
-      }
+      ErrorHandler.log(
+        details.exception,
+        stackTrace: details.stack,
+        tag: 'FlutterFramework',
+        isFatal: !isTransient,
+      );
     }
   };
 
-  // 2. Uncaught async error handler across all Dart zones & isolates
+  // 3. Uncaught async error handler across all Dart zones & isolates
   PlatformDispatcher.instance.onError = (error, stack) {
     final errorStr = error.toString();
     final isTransient = _isTransientError(error, errorStr);
@@ -45,14 +44,12 @@ void setupGlobalErrorHandlers() {
     if (kDebugMode) {
       debugPrint('[GlobalErrorHandler] ${isTransient ? "Handled transient" : "Caught uncaught"} error: $error');
       if (!isTransient) debugPrintStack(stackTrace: stack);
-    } else if (!kIsWeb) {
-      unawaited(
-        FirebaseCrashlytics.instance.recordError(
-          error,
-          stack,
-          reason: isTransient ? 'Transient async error' : 'Uncaught async error',
-          fatal: !isTransient,
-        ),
+    } else {
+      ErrorHandler.log(
+        error,
+        stackTrace: stack,
+        tag: 'AsyncZone',
+        isFatal: !isTransient,
       );
     }
 

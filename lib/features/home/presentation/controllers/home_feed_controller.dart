@@ -356,7 +356,10 @@ class HomeFeedController extends BaseController {
   Future<void> fetchCommunityPosts() async {
     try {
       final snapshot = await _firestore.collection('Community').where('visibility', isEqualTo: 'Public').limit(50).get();
-      final posts = snapshot.docs.map((doc) => CommunityPostModel.fromMap(doc.data())).toList();
+      final posts = snapshot.docs
+          .map((doc) => CommunityPostModel.fromMap(doc.data()))
+          .where((p) => p.isValid && !p.isDraft)
+          .toList();
       posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
       communityPosts.assignAll(posts.take(10));
     } catch (e) {
@@ -441,7 +444,10 @@ class HomeFeedController extends BaseController {
 
       try {
         final postDocs = await _firestore.collection('Community').where('visibility', isEqualTo: 'Public').limit(20).get();
-        final posts = postDocs.docs.map((doc) => CommunityPostModel.fromMap(doc.data())).where((p) => p.selectedCategory == category || category == 'All').toList();
+        final posts = postDocs.docs
+            .map((doc) => CommunityPostModel.fromMap(doc.data()))
+            .where((p) => p.isValid && !p.isDraft && (p.selectedCategory == category || category == 'All'))
+            .toList();
         communityPosts.assignAll(posts.take(5));
       } catch (e) {
         debugPrint('Error fetching category posts: $e');

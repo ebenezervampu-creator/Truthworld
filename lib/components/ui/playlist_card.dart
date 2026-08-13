@@ -104,7 +104,7 @@ class PlaylistCard extends StatelessWidget {
                                       child: Icon(
                                         Icons.playlist_play_rounded,
                                         size: 40,
-                                        color: AppColors.brand,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
@@ -116,7 +116,7 @@ class PlaylistCard extends StatelessWidget {
                                 child: Icon(
                                   Icons.playlist_play_rounded,
                                   size: 40,
-                                  color: AppColors.brand,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),

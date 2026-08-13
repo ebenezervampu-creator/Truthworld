@@ -139,12 +139,12 @@ class _ContentScreenState extends State<ContentScreen> {
       var videos = controller.channelVideos
           .where(
             (v) =>
+                !v.isDraft &&
+                !v.isUploadingOrProcessing &&
                 v.status != VideoStatus.draft &&
                 v.status != VideoStatus.scheduled &&
-                v.visibility != 'draft' &&
-                v.visibility != 'scheduled' &&
-                v.status.name != 'draft' &&
-                v.status.name != 'scheduled',
+                v.visibility.toLowerCase() != 'draft' &&
+                v.visibility.toLowerCase() != 'scheduled',
           )
           .toList();
 
@@ -309,15 +309,18 @@ class _ContentScreenState extends State<ContentScreen> {
       final draftVideos = controller.channelVideos
           .where(
             (v) =>
+                v.isDraft ||
+                v.isUploadingOrProcessing ||
                 v.status == VideoStatus.draft ||
-                v.visibility == 'draft' ||
-                v.status.name == 'draft',
+                v.visibility.toLowerCase() == 'draft' ||
+                v.status.name.toLowerCase() == 'draft',
           )
           .toList();
 
       final draftPosts = controller.communityPosts
           .where(
             (p) =>
+                p.isDraft ||
                 p.visibility.toLowerCase() == 'draft' ||
                 p.selectedCategory.toLowerCase() == 'draft',
           )
@@ -866,12 +869,13 @@ class _ContentScreenState extends State<ContentScreen> {
                       ),
                     ],
                     const SizedBox(height: 6),
-                    // Metadata wrap row with flexible text - resolves right overflow
+                    // Metadata wrap row with visibility badge and flexible text
                     Wrap(
-                      spacing: 10,
-                      runSpacing: 4,
+                      spacing: 8,
+                      runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        _buildVisibilityBadge(context, video, controller),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -936,6 +940,8 @@ class _ContentScreenState extends State<ContentScreen> {
                         isDarkMode: widget.isDarkMode,
                       ),
                     );
+                  } else if (value == 'visibility') {
+                    _showChangeVisibilityDialog(context, video, controller);
                   } else if (value == 'edit') {
                     Get.to<dynamic>(() => EditVideoScreen(video: video));
                   } else if (value == 'reactions_settings') {
@@ -984,6 +990,26 @@ class _ContentScreenState extends State<ContentScreen> {
                         Text(
                           'Video Content Details',
                           style: AppTextStyles.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'visibility',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.lock_open_rounded,
+                          size: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Visibility / Access',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ],
                     ),
@@ -1046,7 +1072,7 @@ class _ContentScreenState extends State<ContentScreen> {
                         const Icon(
                           Icons.delete_outline_rounded,
                           size: 18,
-                          color: AppColors.error,
+                          color: AppColors.textPrimary,
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -1061,7 +1087,7 @@ class _ContentScreenState extends State<ContentScreen> {
                 ],
                 icon: const Icon(
                   Icons.more_vert,
-                  color: AppColors.textSecondary,
+                  color: Colors.white,
                   size: 20,
                 ),
               ),
@@ -1110,7 +1136,7 @@ class _ContentScreenState extends State<ContentScreen> {
                         child: Icon(
                           Icons.movie_outlined,
                           size: 16,
-                          color: AppColors.textTertiary,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -1167,12 +1193,44 @@ class _ContentScreenState extends State<ContentScreen> {
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_open_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              title: Text(
+                'Change Visibility / Access',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                'Convert to Public, Private, Members Only, Subscribers Only, or Unlisted',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              onTap: () {
+                Get.back<void>();
+                _showChangeVisibilityDialog(context, video, controller);
+              },
+            ),
+            const Divider(height: 16, color: AppColors.bgDivider),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
                   color: AppColors.info.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.tune_rounded,
-                  color: AppColors.info,
+                  color: Colors.white,
                   size: 22,
                 ),
               ),
@@ -1318,6 +1376,332 @@ class _ContentScreenState extends State<ContentScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVisibilityBadge(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller,
+  ) {
+    final info = _getVisibilityBadgeInfo(video.visibility);
+    final label = info.$1;
+    final icon = info.$2;
+    final color = info.$3;
+    final bg = info.$4;
+
+    return InkWell(
+      onTap: () => _showChangeVisibilityDialog(context, video, controller),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 10, color: Colors.white),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 9.5,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(Icons.arrow_drop_down_rounded, size: 12, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+
+  (String, IconData, Color, Color) _getVisibilityBadgeInfo(String visibility) {
+    switch (visibility.toLowerCase()) {
+      case 'public':
+        return (
+          'PUBLIC',
+          Icons.public_rounded,
+          const Color(0xFF10B981),
+          const Color(0xFF10B981).withValues(alpha: 0.15),
+        );
+      case 'private':
+        return (
+          'PRIVATE',
+          Icons.lock_outline_rounded,
+          const Color(0xFFEF4444),
+          const Color(0xFFEF4444).withValues(alpha: 0.15),
+        );
+      case 'members':
+      case 'members_only':
+        return (
+          'MEMBERS ONLY',
+          Icons.card_membership_rounded,
+          const Color(0xFF8B5CF6),
+          const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+        );
+      case 'subscribers':
+      case 'subscribers_only':
+        return (
+          'SUBSCRIBERS ONLY',
+          Icons.subscriptions_rounded,
+          const Color(0xFF3B82F6),
+          const Color(0xFF3B82F6).withValues(alpha: 0.15),
+        );
+      case 'unlisted':
+        return (
+          'UNLISTED',
+          Icons.link_rounded,
+          const Color(0xFF94A3B8),
+          const Color(0xFF94A3B8).withValues(alpha: 0.15),
+        );
+      default:
+        return (
+          visibility.toUpperCase(),
+          Icons.visibility_rounded,
+          const Color(0xFF10B981),
+          const Color(0xFF10B981).withValues(alpha: 0.15),
+        );
+    }
+  }
+
+  void _showChangeVisibilityDialog(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller,
+  ) {
+    var initial = video.visibility.toLowerCase();
+    if (initial == 'members') initial = 'members_only';
+    if (initial == 'subscribers') initial = 'subscribers_only';
+    final selected = initial.obs;
+
+    final options = <({String value, String title, String subtitle, IconData icon, Color color})>[
+      (
+        value: 'public',
+        title: 'Public',
+        subtitle: 'Everyone can search for and watch this video on Truthworld',
+        icon: Icons.public_rounded,
+        color: const Color(0xFF10B981),
+      ),
+      (
+        value: 'private',
+        title: 'Private',
+        subtitle: 'Only you can view this video in your channel studio',
+        icon: Icons.lock_outline_rounded,
+        color: const Color(0xFFEF4444),
+      ),
+      (
+        value: 'members_only',
+        title: 'Members Only',
+        subtitle: 'Exclusive access for paid channel members with an active tier',
+        icon: Icons.card_membership_rounded,
+        color: const Color(0xFF8B5CF6),
+      ),
+      (
+        value: 'subscribers_only',
+        title: 'Subscribers Only',
+        subtitle: 'Exclusive access for users subscribed to your channel',
+        icon: Icons.subscriptions_rounded,
+        color: const Color(0xFF3B82F6),
+      ),
+      (
+        value: 'unlisted',
+        title: 'Unlisted',
+        subtitle: 'Anyone with the video link can watch (hidden from search & feed)',
+        icon: Icons.link_rounded,
+        color: const Color(0xFF94A3B8),
+      ),
+    ];
+
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.lock_open_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Change Visibility & Access',
+                          style: AppTextStyles.titleLarge.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          video.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: AppColors.bgDivider, height: 1),
+              const SizedBox(height: 12),
+              ...options.map((opt) {
+                final val = opt.value;
+                final title = opt.title;
+                final subtitle = opt.subtitle;
+                final icon = opt.icon;
+                final color = opt.color;
+
+                return Obx(() {
+                  final isSelected = selected.value == val;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: () {
+                        selected.value = val;
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? color.withValues(alpha: 0.12)
+                              : AppColors.bgInput.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? color
+                                : AppColors.bgDivider.withValues(alpha: 0.5),
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                icon,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: AppTextStyles.bodyMedium.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    subtitle,
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Radio<String>(
+                              value: val,
+                              groupValue: selected.value,
+                              onChanged: (v) {
+                                if (v != null) selected.value = v;
+                              },
+                              activeColor: color,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                });
+              }),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: Get.back<void>,
+                    child: Text(
+                      'Cancel',
+                      style: AppTextStyles.buttonText.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.textPrimary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () {
+                      controller.changeVideoVisibility(video.id, selected.value);
+                      Get.back<void>();
+                    },
+                    child: const Text('Save Visibility'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -1754,7 +2138,7 @@ class _ContentScreenState extends State<ContentScreen> {
       contentPadding: EdgeInsets.zero,
       secondary: Icon(
         icon,
-        color: value ? Colors.white : AppColors.textTertiary,
+        color: Colors.white,
         size: 22,
       ),
       title: Text(

@@ -1,4 +1,4 @@
-import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai";
+import type { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { withAiRetry } from "../utils/ai-utils";
 import { PIPELINE_CONFIG } from "../config";
@@ -10,12 +10,28 @@ import {
   TimedSegment
 } from "../types";
 
-export class VideoGatewayService {
-  private genAI: VertexAI;
+const HarmCategory = {
+  HARM_CATEGORY_HARASSMENT: "HARM_CATEGORY_HARASSMENT",
+  HARM_CATEGORY_HATE_SPEECH: "HARM_CATEGORY_HATE_SPEECH",
+  HARM_CATEGORY_SEXUALLY_EXPLICIT: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+  HARM_CATEGORY_DANGEROUS_CONTENT: "HARM_CATEGORY_DANGEROUS_CONTENT",
+} as const;
 
-  constructor() {
-    this.genAI = getVertexAI();
+const HarmBlockThreshold = {
+  BLOCK_NONE: "BLOCK_NONE",
+} as const;
+
+export class VideoGatewayService {
+  private _genAI?: VertexAI;
+
+  private get genAI(): VertexAI {
+    if (!this._genAI) {
+      this._genAI = getVertexAI();
+    }
+    return this._genAI;
   }
+
+  constructor() {}
 
   /**
    * Evaluates a video transcript after AssemblyAI transcription completes.
@@ -118,7 +134,7 @@ RETURN STRICT JSON FORMAT ONLY:
             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          ]
+          ] as any
         });
 
         const res = await model.generateContent(prompt);

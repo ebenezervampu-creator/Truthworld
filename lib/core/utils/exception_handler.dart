@@ -1,8 +1,12 @@
-/// Enhanced exception handling utilities for consistent error reporting
-/// Implements industry standards for exception handling and logging
+/// Enhanced exception handling utilities for consistent error reporting.
+/// Implements industry standards for exception handling and logging.
 library;
 
+import 'package:truthworld/core/errors/error_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+
+export 'package:truthworld/core/errors/error_handler.dart';
+export 'package:truthworld/core/exceptions/app_exceptions.dart';
 
 /// Exception handler mixin for controllers and services
 mixin ExceptionHandlerMixin {
@@ -22,13 +26,13 @@ mixin ExceptionHandlerMixin {
       }
       return result;
     } catch (e, stackTrace) {
-      logger.error(
-        'Error in ${name ?? 'operation'}',
-        tag: tag,
-        error: e,
+      final appException = ErrorHandler.handle(
+        e,
         stackTrace: stackTrace,
+        tag: tag,
+        showFeedback: false,
       );
-      onError?.call(e, stackTrace);
+      onError?.call(appException, stackTrace);
       if (shouldRethrow) rethrow;
       return null;
     }
@@ -48,11 +52,11 @@ mixin ExceptionHandlerMixin {
       }
       return result;
     } catch (e, stackTrace) {
-      logger.error(
-        'Error in ${name ?? 'operation'}',
-        tag: tag,
-        error: e,
+      ErrorHandler.handle(
+        e,
         stackTrace: stackTrace,
+        tag: tag,
+        showFeedback: false,
       );
       if (shouldRethrow) rethrow;
       return null;
@@ -66,42 +70,13 @@ mixin ExceptionHandlerMixin {
     String context = 'Operation',
     String? tag,
   }) {
-    logger.error(
-      '$context failed',
-      tag: tag,
-      error: error,
+    ErrorHandler.handle(
+      error,
       stackTrace: stackTrace,
+      tag: tag,
+      showFeedback: false,
     );
   }
-}
-
-/// Validate input and return cleaned value or throw structured exception
-class ValidationException implements Exception {
-  ValidationException({
-    required this.fieldName,
-    required this.message,
-  });
-  final String fieldName;
-  final String message;
-
-  @override
-  String toString() => 'Validation Error on $fieldName: $message';
-}
-
-class AppException implements Exception {
-  AppException({
-    required this.message,
-    this.code,
-    this.originalException,
-    this.stackTrace,
-  });
-  final String message;
-  final String? code;
-  final Object? originalException;
-  final StackTrace? stackTrace;
-
-  @override
-  String toString() => message;
 }
 
 /// Time an operation and log the duration

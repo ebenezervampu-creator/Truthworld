@@ -487,7 +487,6 @@ export interface TraceabilityMap {
 export interface UIReport {
   summary: {
     rating: number | null;
-    truthScore?: number | null;      // v10.0
     honestyScore?: number | null;    // v10.0
     rationalityScore?: number | null; // v10.0
     label: string;
@@ -583,7 +582,6 @@ export interface FactCheckResult {
   
   trustScore: number | null;         // 0-100 institutional score (null = not evaluated)
   videoRating?: number;              // v4.2 Public score mapping (0-10)
-  truthScore?: number | null;        // v8.5 Public Truth score (0-100)
   honestyScore?: number | null;      // v8.5 Public Honesty score (0-100)
   rationalityScore?: number | null;  // v8.5 Public Rationality score (0-100)
   structuralReliabilityScore?: number | null; // v10.0: Structural-only composite

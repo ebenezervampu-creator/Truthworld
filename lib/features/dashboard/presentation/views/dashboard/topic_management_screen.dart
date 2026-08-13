@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
+import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -1293,11 +1294,18 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                               source: ImageSource.gallery,
                             );
                             if (pickedFile != null) {
-                              final pickedImage = await pickedFile
-                                  .readAsBytes();
-                              pickedCustomImageBytes.value = pickedImage;
-                              pickedCustomImageName.value =
-                                  'topic_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                              final croppedFile =
+                                  await ImageCropperService.cropTopicThumbnail(
+                                imagePath: pickedFile.path,
+                                context: context,
+                              );
+                              if (croppedFile != null) {
+                                final croppedBytes =
+                                    await croppedFile.readAsBytes();
+                                pickedCustomImageBytes.value = croppedBytes;
+                                pickedCustomImageName.value =
+                                    'topic_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                              }
                             }
                           } catch (e) {
                             AppSnackbar.show(

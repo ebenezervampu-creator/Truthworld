@@ -25,7 +25,7 @@
  *   - Timeout protection with graceful degradation
  */
 
-import { VertexAI } from "@google-cloud/vertexai";
+import type { VertexAI } from "@google-cloud/vertexai";
 import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
@@ -502,11 +502,16 @@ export function normalizeContentCategory(rawCategory?: string, topic?: string, i
 // ─── Service Implementation ──────────────────────────────────────────────────
 
 export class VideoModerationService {
-  private readonly vertexAI: VertexAI;
+  private _vertexAI?: VertexAI;
 
-  constructor() {
-    this.vertexAI = getVertexAI();
+  private get vertexAI(): VertexAI {
+    if (!this._vertexAI) {
+      this._vertexAI = getVertexAI();
+    }
+    return this._vertexAI;
   }
+
+  constructor() {}
 
   /**
    * Moderate a video by analyzing its content via GCS URI.

@@ -129,7 +129,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                     return SliverGrid(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: _getCrossAxisCount(context),
-                        childAspectRatio: 0.8,
+                        childAspectRatio: context.isMobile ? 0.72 : 0.78,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
                       ),
@@ -240,7 +240,7 @@ class DiscoverChannelsPage extends StatelessWidget {
       case 'lifestyle':
         return 'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?q=80&w=1000&auto=format&fit=crop';
       case 'comedy':
-        return 'https://images.unsplash.com/photo-1516280440614-37939bbacd6a?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1000&auto=format&fit=crop';
       case 'documentary':
         return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1000&auto=format&fit=crop';
       case 'movies':
@@ -589,7 +589,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               // Channel Info & Action
               Expanded(
                 child: Padding(
@@ -635,7 +635,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Obx(() {
                         final subscriberCount = controller.getSubscriberCount(channel);
                         return Text(
@@ -698,7 +698,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                           );
                         }),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ),

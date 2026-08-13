@@ -27,7 +27,23 @@ import 'package:universal_html/html.dart' as html;
 import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 
+import 'package:truthworld/features/video/data/repositories/storage_video_upload_repository.dart';
+import 'package:truthworld/features/video/domain/repositories/video_upload_repository.dart';
+
 class UploadController extends BaseController with ContentValidationMixin {
+  UploadController({VideoUploadRepository? uploadRepository})
+      : _uploadRepository = uploadRepository ?? StorageVideoUploadRepository();
+
+  final VideoUploadRepository _uploadRepository;
+
+  Future<String?> uploadThumbnailWithRepo(Uint8List bytes, String fileName) async {
+    final result = await _uploadRepository.uploadThumbnailBytes(imageBytes: bytes, fileName: fileName);
+    return result.when(
+      success: (url) => url,
+      failure: (err) => null,
+    );
+  }
+
   final _imageVerificationService = ImageVerificationService();
   final _cacheService = VerificationCacheService();
   StreamSubscription? _thumbnailModerationSubscription;
@@ -788,6 +804,7 @@ class UploadController extends BaseController with ContentValidationMixin {
         'id': uniqueId,
         'ownerId': userId,
         'userId': userId,
+        'channelId': selectedChannel.value?.channelId ?? userId,
         'status': 'uploading', // Will change via Cloud Function
         'uploadedAt': Timestamp.now(),
         'title': 'Uploading...',
@@ -2166,8 +2183,8 @@ class UploadController extends BaseController with ContentValidationMixin {
 // VIDEO REPOSITORY WITH REPORT SYSTEM
 // ==========================================================================
 
-class VideoRepository {
-  VideoRepository() {
+class VideoReportRepository {
+  VideoReportRepository() {
     _initializeFilters();
   }
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

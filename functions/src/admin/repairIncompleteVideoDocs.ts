@@ -112,7 +112,6 @@ export const repairIncompleteVideoDocs = onRequest(
             if (!canonicalData.subtitles && strayData.subtitles) mergedPayload.subtitles = strayData.subtitles;
             if (!canonicalData.audioTracks && strayData.audioTracks) mergedPayload.audioTracks = strayData.audioTracks;
             if (!canonicalData.dubbedVideos && strayData.dubbedVideos) mergedPayload.dubbedVideos = strayData.dubbedVideos;
-            if (canonicalData.truthScore === undefined && strayData.truthScore !== undefined) mergedPayload.truthScore = strayData.truthScore;
             if (canonicalData.trustScore === undefined && strayData.trustScore !== undefined) mergedPayload.trustScore = strayData.trustScore;
             if (!canonicalData.trustLabel && strayData.trustLabel) mergedPayload.trustLabel = strayData.trustLabel;
             if (canonicalData.credibilityVerified === undefined && strayData.credibilityVerified !== undefined) mergedPayload.credibilityVerified = strayData.credibilityVerified;
@@ -197,7 +196,37 @@ export const repairIncompleteVideoDocs = onRequest(
         }
 
         // 3. Adaptive Resolutions
-        if (!data.adaptiveResolutions || !Array.isArray(data.adaptiveResolutions) || data.adaptiveResolutions.length === 0) {
+        const existingVariants = data.media?.variants || data.variants || {};
+        const hasRealVariants = Object.keys(existingVariants).length > 0;
+        const allOriginalUrls = Array.isArray(data.adaptiveResolutions) &&
+          data.adaptiveResolutions.length > 0 &&
+          data.adaptiveResolutions.every((r: any) => typeof r.url === "string" && r.url.endsWith("original.mp4"));
+
+        if (hasRealVariants && (allOriginalUrls || !data.adaptiveResolutions || data.adaptiveResolutions.length === 0)) {
+          const resMap: Record<string, { width: number; height: number; bitrate: number }> = {
+            "1040p": { width: 1848, height: 1040, bitrate: 5500000 },
+            "1080p": { width: 1920, height: 1080, bitrate: 4500000 },
+            "720p": { width: 1280, height: 720, bitrate: 2500000 },
+            "480p": { width: 854, height: 480, bitrate: 1200000 },
+            "360p": { width: 640, height: 360, bitrate: 800000 },
+            "240p": { width: 426, height: 240, bitrate: 500000 },
+            "144p": { width: 256, height: 144, bitrate: 200000 },
+          };
+          const builtResolutions = Object.entries(existingVariants).map(([label, url]) => {
+            const spec = resMap[label] || { width: 1280, height: 720, bitrate: 2500000 };
+            return {
+              label,
+              url: url as string,
+              width: spec.width,
+              height: spec.height,
+              bitrate: spec.bitrate,
+            };
+          });
+          if (builtResolutions.length > 0) {
+            updatePayload.adaptiveResolutions = builtResolutions;
+            needsUpdate = true;
+          }
+        } else if (!data.adaptiveResolutions || !Array.isArray(data.adaptiveResolutions) || data.adaptiveResolutions.length === 0) {
           if (httpVideoUrl) {
             updatePayload.adaptiveResolutions = [
               { label: "1080p", url: httpVideoUrl, width: 1920, height: 1080, bitrate: 4500000 },
@@ -217,7 +246,7 @@ export const repairIncompleteVideoDocs = onRequest(
           updatePayload.transcriptionUrl = directTranscriptUrl;
           needsUpdate = true;
         }
-        if (!data.factCheckUrl) {
+        if (!data.factCheckUrl && data.isFactChecked === true) {
           updatePayload.factCheckUrl = directFactCheckUrl;
           needsUpdate = true;
         }
@@ -294,15 +323,51 @@ export const repairIncompleteVideoDocs = onRequest(
         };
         needsUpdate = true;
 
-        // 6. Metrics & Status
-        if (data.views === undefined || data.viewCount === undefined) {
-          updatePayload.views = data.views ?? 0;
-          updatePayload.viewCount = data.viewCount ?? data.views ?? 0;
+        // 6. Metrics & Canonical Counts
+        if (data.viewCount === undefined && data.views !== undefined) {
+          updatePayload.viewCount = data.views;
           needsUpdate = true;
         }
-        if (data.likeCount === undefined) {
-          updatePayload.likes = data.likes ?? 0;
-          updatePayload.likeCount = data.likeCount ?? data.likes ?? 0;
+        if (data.likeCount === undefined && data.likes !== undefined) {
+          updatePayload.likeCount = data.likes;
+          needsUpdate = true;
+        }
+        if (data.dislikeCount === undefined && data.dislikes !== undefined) {
+          updatePayload.dislikeCount = data.dislikes;
+          needsUpdate = true;
+        }
+
+        // 7. Schema Cleanup: Delete redundant duplicate fields
+        if (data.views !== undefined) {
+          updatePayload.views = admin.firestore.FieldValue.delete();
+          needsUpdate = true;
+        }
+        if (data.likes !== undefined) {
+          updatePayload.likes = admin.firestore.FieldValue.delete();
+          needsUpdate = true;
+        }
+        if (data.dislikes !== undefined) {
+          updatePayload.dislikes = admin.firestore.FieldValue.delete();
+          needsUpdate = true;
+        }
+        if (data.channelImage !== undefined) {
+          updatePayload.channelImage = admin.firestore.FieldValue.delete();
+          if (!data.channelAvatarUrl) updatePayload.channelAvatarUrl = data.channelImage;
+          needsUpdate = true;
+        }
+        if (data.videoCategory !== undefined) {
+          updatePayload.videoCategory = admin.firestore.FieldValue.delete();
+          if (!data.category) updatePayload.category = data.videoCategory;
+          needsUpdate = true;
+        }
+        if (data.truthScore !== undefined) {
+          updatePayload.truthScore = admin.firestore.FieldValue.delete();
+          if (data.trustScore === undefined) updatePayload.trustScore = data.truthScore;
+          needsUpdate = true;
+        }
+        if (data.credibilityVerified !== undefined) {
+          updatePayload.credibilityVerified = admin.firestore.FieldValue.delete();
+          if (data.isVerified === undefined) updatePayload.isVerified = data.credibilityVerified;
           needsUpdate = true;
         }
 

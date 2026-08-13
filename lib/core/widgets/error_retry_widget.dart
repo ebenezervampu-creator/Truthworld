@@ -41,7 +41,7 @@ class ErrorRetryWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.textTertiary, size: 20),
+          Icon(icon, color: Colors.white, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -85,7 +85,7 @@ class ErrorRetryWidget extends StatelessWidget {
                 color: AppColors.bgSurfaceHover,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.textTertiary, size: 32),
+              child: Icon(icon, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
             Text(
@@ -112,11 +112,11 @@ class ErrorRetryWidget extends StatelessWidget {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
                 label: const Text('Try Again'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.black,
+                  foregroundColor: AppColors.textPrimary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 12,
@@ -165,7 +165,7 @@ class EmptyStateWidget extends StatelessWidget {
                 color: AppColors.bgSurfaceHover,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppColors.textTertiary, size: 36),
+              child: Icon(icon, color: Colors.white, size: 36),
             ),
             const SizedBox(height: 16),
             Text(

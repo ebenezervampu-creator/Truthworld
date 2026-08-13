@@ -239,8 +239,7 @@ class _TruthVerificationDashboardPageState
             final videoTitle = data['title'] as String? ?? 'Untitled Video';
 
             // Extract truth / trust score
-            final score = ((data['truthScore'] ??
-                    data['trustScore'] ??
+            final score = ((data['trustScore'] ??
                     data['credibilityScore'] ??
                     data['rating'] ??
                     0.0) as num)

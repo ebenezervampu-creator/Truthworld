@@ -172,35 +172,56 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
   }
 
   Widget _buildDropdownField() {
+    final options = [
+      {'value': 'public', 'label': 'Public (Everyone can watch)'},
+      {'value': 'private', 'label': 'Private (Only you can watch)'},
+      {'value': 'members_only', 'label': 'Members Only (Channel members)'},
+      {'value': 'subscribers_only', 'label': 'Subscribers Only (Subscribers)'},
+      {'value': 'unlisted', 'label': 'Unlisted (Anyone with link)'},
+    ];
+
     return Obx(
-      () => DropdownButtonFormField<String>(
-        initialValue: _selectedVisibility.value,
-        onChanged: (value) {
-          if (value != null) {
-            _selectedVisibility.value = value;
-          }
-        },
-        items: ['Public', 'Private', 'Unlisted']
-            .map(
-              (label) => DropdownMenuItem(
-                value: label,
-                child: Text(label, style: AppTextStyles.bodyMedium),
-              ),
-            )
-            .toList(),
-        decoration: InputDecoration(
-          labelText: 'Visibility',
-          labelStyle: AppTextStyles.inputHint,
-          filled: true,
-          fillColor: AppColors.bgInput,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+      () {
+        var current = _selectedVisibility.value.toLowerCase().replaceAll(' ', '_');
+        if (current == 'members') current = 'members_only';
+        if (current == 'subscribers') current = 'subscribers_only';
+        if (!options.any((o) => o['value'] == current)) {
+          current = 'public';
+        }
+
+        return DropdownButtonFormField<String>(
+          initialValue: current,
+          onChanged: (value) {
+            if (value != null) {
+              _selectedVisibility.value = value;
+            }
+          },
+          items: options
+              .map(
+                (opt) => DropdownMenuItem(
+                  value: opt['value'],
+                  child: Text(opt['label']!, style: AppTextStyles.bodyMedium),
+                ),
+              )
+              .toList(),
+          decoration: InputDecoration(
+            labelText: 'Visibility & Access',
+            labelStyle: AppTextStyles.inputHint,
+            filled: true,
+            fillColor: AppColors.bgInput,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.brand, width: 2),
+            ),
           ),
-        ),
-        dropdownColor: AppColors.bgSurface,
-        style: AppTextStyles.inputText,
-      ),
+          dropdownColor: AppColors.bgSurface,
+          style: AppTextStyles.inputText,
+        );
+      },
     );
   }
 

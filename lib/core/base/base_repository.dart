@@ -23,26 +23,22 @@ abstract class BaseRepository {
       try {
         final data = await fetchTask().timeout(
           timeout,
-          onTimeout: () => throw TimeoutException(
+          onTimeout: () => throw AppTimeoutException(
             message: 'Operation timed out after ${timeout.inSeconds} seconds',
           ),
         );
         return Result.success(data);
-      } on AppException catch (e) {
-        if (attempts <= maxRetries && _isRetryable(e)) {
+      } catch (e, stackTrace) {
+        final appException = AppException.from(e, stackTrace);
+        if (attempts <= maxRetries && appException.isRetryable) {
           debugPrint(
-            '🟡 [Repository Retry] Attempt $attempts/$maxRetries for ${e.runtimeType}',
+            '🟡 [Repository Retry] Attempt $attempts/$maxRetries for [${appException.code}]',
           );
           await Future.delayed(retryDelay * attempts);
           continue;
         }
-        debugPrint('🔴 [Repository Exception] ${e.runtimeType}: ${e.message}');
-        return Result.failure(e);
-      } catch (e, stackTrace) {
-        debugPrint('🔴 [Repository Unhandled Exception] $e\n$stackTrace');
-        final appException = GenericAppException(
-          message: e.toString(),
-          originalException: e,
+        debugPrint(
+          '🔴 [Repository Exception] [${appException.code}]: ${appException.message}',
         );
         return Result.failure(appException);
       }

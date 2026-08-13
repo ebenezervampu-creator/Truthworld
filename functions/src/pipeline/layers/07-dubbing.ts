@@ -351,23 +351,11 @@ export class DubbingEngine {
       });
     }
 
-    // B. Generate subtitles (only if requested)
+    // B. Generate subtitles (.json, .vtt, and .srt formats for every language)
     let subtitleUrl = "";
-    if (executionPlan.genLangSubs) {
-      // ✅ For source language: check if native AssemblyAI subtitles already exist
-      if (targetLang === sourceLang) {
-        const nativeUrl = await this.checkNativeSubtitles(jobId, targetLang);
-        if (nativeUrl) {
-          subtitleUrl = nativeUrl;
-          logger.info("[Dubbing] Using native AssemblyAI subtitles for source lang", { jobId, targetLang });
-        } else {
-          subtitleUrl = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
-        }
-      } else {
-        // Translated subtitles always use our own alignment pipeline
-        subtitleUrl = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
-      }
-    }
+    let srtUrl = "";
+    let vttUrl = "";
+    let jsonUrl = "";
 
     const bucket = admin.storage().bucket();
     const transPath = `subtitles/${jobId}/${targetLang}.json`;
@@ -376,13 +364,50 @@ export class DubbingEngine {
     });
     const translationUrl = `gs://${bucket.name}/${transPath}`;
 
+    if (executionPlan.genLangSubs) {
+      // ✅ For source language: check if native AssemblyAI subtitles already exist
+      if (targetLang === sourceLang) {
+        const nativeUrl = await this.checkNativeSubtitles(jobId, targetLang);
+        if (nativeUrl) {
+          subtitleUrl = nativeUrl;
+          srtUrl = nativeUrl;
+          vttUrl = `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`;
+          jsonUrl = translationUrl;
+          logger.info("[Dubbing] Using native AssemblyAI subtitles for source lang", { jobId, targetLang });
+        } else {
+          const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
+          subtitleUrl = subRes.srtUrl;
+          srtUrl = subRes.srtUrl;
+          vttUrl = subRes.vttUrl;
+          jsonUrl = subRes.jsonUrl;
+        }
+      } else {
+        // Translated subtitles always use our own alignment pipeline — generating .json, .vtt, and .srt
+        const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
+        subtitleUrl = subRes.srtUrl;
+        srtUrl = subRes.srtUrl;
+        vttUrl = subRes.vttUrl;
+        jsonUrl = subRes.jsonUrl;
+      }
+    } else {
+      // Ensure all 3 subtitle formats (.json, .vtt, .srt) exist for every language subtitle
+      const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
+      subtitleUrl = subRes.srtUrl;
+      srtUrl = subRes.srtUrl;
+      vttUrl = subRes.vttUrl;
+      jsonUrl = subRes.jsonUrl;
+    }
+
     // D. Persist results (Separated for Industry Standards)
     // 🚀 Move persistence UP so subtitles are available even if dubbing fails/is slow
-    if (executionPlan.genLangSubs) {
+    if (executionPlan.genLangSubs || dubbingSegs.length > 0) {
       await db().collection("subtitle_results").doc(`${jobId}_${targetLang}`).set({
         jobId,
         language:     targetLang,
         subtitleUrl,
+        srtPath:      srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
+        vttPath:      vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
+        jsonPath:     jsonUrl || translationUrl,
         subtitleFormat: "srt",
         createdAt:    Date.now(),
       });
@@ -428,6 +453,9 @@ export class DubbingEngine {
           subtitles: {
             [targetLang]: {
               url: subtitleUrl,
+              srtPath: srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
+              vttPath: vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
+              jsonPath: jsonUrl || translationUrl,
               format: "srt",
               language: targetLang,
               updatedAt: Date.now(),
@@ -718,12 +746,11 @@ export class DubbingEngine {
     jobId:    string,
     segments: DubbingSegment[],
     language: string
-  ): Promise<string> {
-    return mediaService.generateSubtitles(
+  ): Promise<{ srtUrl: string; vttUrl: string; jsonUrl: string }> {
+    return mediaService.generateAllSubtitles(
       jobId,
       segments.map((s) => ({ start: s.start, end: s.end, text: s.translatedText })),
-      language,
-      "srt"
+      language
     );
   }
 

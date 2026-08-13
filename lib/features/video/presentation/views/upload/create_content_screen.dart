@@ -11,6 +11,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -3978,59 +3979,62 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           final hasImage = _uploadController.pickedImage.value != null;
           final isUploading = _uploadController.isUploading.value;
 
-          return InkWell(
-            onTap: isUploading
-                ? null
-                : () {
-                    _uploadController.pickImage(forCommunity: false);
-                    HapticFeedback.mediumImpact();
-                  },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: isMobile ? 140 : 160,
-              decoration: BoxDecoration(
-                gradient: hasImage
-                    ? null
-                    : LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          if (isDark)
-                            const Color(0xFF1F2937)
-                          else
-                            const Color(0xFFF9FAFB),
-                          if (isDark)
-                            const Color(0xFF161B22)
-                          else
-                            AppColors.textPrimary,
-                        ],
+          return Center(
+            child: SizedBox(
+              height: isMobile ? 320 : 360,
+              child: AspectRatio(
+                aspectRatio: 9 / 16,
+                child: InkWell(
+                  onTap: isUploading
+                      ? null
+                      : () {
+                          _uploadController.pickImage(forCommunity: false);
+                          HapticFeedback.mediumImpact();
+                        },
+                  borderRadius: BorderRadius.circular(16),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    decoration: BoxDecoration(
+                      gradient: hasImage
+                          ? null
+                          : LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                if (isDark)
+                                  const Color(0xFF1F2937)
+                                else
+                                  const Color(0xFFF9FAFB),
+                                if (isDark)
+                                  const Color(0xFF161B22)
+                                else
+                                  AppColors.textPrimary,
+                              ],
+                            ),
+                      color: hasImage
+                          ? (isDark ? const Color(0xFF161B22) : AppColors.textPrimary)
+                          : null,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF30363D)
+                            : const Color(0xFFE5E7EB),
+                        width: 1.5,
                       ),
-                color: hasImage
-                    ? (isDark ? const Color(0xFF161B22) : AppColors.textPrimary)
-                    : null,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: hasImage
-                      ? const Color(0xFF10B981).withValues(alpha: 0.5)
-                      : isDark
-                      ? const Color(0xFF30363D)
-                      : const Color(0xFFE5E7EB),
-                  width: hasImage ? 3 : 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: hasImage
-                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                        : AppColors.bgPage.withValues(alpha: 0.05),
-                    blurRadius: hasImage ? 24 : 16,
-                    offset: const Offset(0, 6),
-                    spreadRadius: hasImage ? 2 : 0,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.bgPage.withValues(alpha: 0.12),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: hasImage
+                        ? _buildThumbnailPreview(isDark)
+                        : _buildThumbnailPlaceholder(isDark),
                   ),
-                ],
+                ),
               ),
-              child: hasImage
-                  ? _buildThumbnailPreview(isDark)
-                  : _buildThumbnailPlaceholder(isDark),
             ),
           );
         }),
@@ -4042,55 +4046,144 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     return Obx(() {
       final file = _uploadController.pickedImage.value!;
 
-      // Fixed width container
-      const double containerWidth = 200;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Full-bleed responsive 9:16 Thumbnail Image
+          ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: kIsWeb
+                ? Image.memory(
+                    file.bytes!,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                  )
+                : Image.file(
+                    io.File(file.path!),
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                  ),
+          ),
 
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          return FutureBuilder<Size>(
-            future: _getImageSize(file),
-            builder: (context, snapshot) {
-              double containerHeight = 120; // default fallback
+          // Gradient overlay for action button contrast
+          ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.6),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.5),
+                  ],
+                  stops: const [0.0, 0.35, 1.0],
+                ),
+              ),
+            ),
+          ),
 
-              if (snapshot.hasData) {
-                final imageSize = snapshot.data!;
-                containerHeight =
-                    containerWidth * imageSize.height / imageSize.width;
-              }
+          // Top Left: Moderation Status Indicator
+          Positioned(
+            top: 12,
+            left: 12,
+            child: _buildModerationStatusChip(),
+          ),
 
-              return Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      width: containerWidth,
-                      height: containerHeight,
-                      color: Colors.black12,
-                      child: kIsWeb
-                          ? Image.memory(
-                              file.bytes!,
-                              fit: BoxFit
-                                  .cover, // fills container, no empty space
-                              filterQuality: FilterQuality.high,
-                            )
-                          : Image.file(
-                              io.File(file.path!),
-                              fit: BoxFit.cover,
-                              filterQuality: FilterQuality.high,
-                            ),
+          // Top Right: Quick Action Controls (Re-crop, Change, Remove)
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Crop / Re-crop Button
+                if (!kIsWeb && file.path != null)
+                  Material(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () async {
+                        try {
+                          final cropped =
+                              await ImageCropperService.cropVideoThumbnail(
+                            imagePath: file.path!,
+                            context: context,
+                          );
+                          if (cropped != null) {
+                            final bytes = await cropped.readAsBytes();
+                            _uploadController.pickedImage.value = PlatformFile(
+                              name: file.name,
+                              size: bytes.length,
+                              path: cropped.path,
+                              bytes: bytes,
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint('Crop error: $e');
+                        }
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.crop_rounded,
+                          color: Colors.white, // Rule: Icons must be white
+                          size: 16,
+                        ),
+                      ),
                     ),
                   ),
-                  // Moderation Status Indicator
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: _buildModerationStatusChip(),
+
+                if (!kIsWeb && file.path != null) const SizedBox(width: 6),
+
+                // Change Image Button
+                Material(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      _uploadController.pickImage(forCommunity: false);
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        color: Colors.white, // Rule: Icons must be white
+                        size: 16,
+                      ),
+                    ),
                   ),
-                ],
-              );
-            },
-          );
-        },
+                ),
+
+                const SizedBox(width: 6),
+
+                // Remove Image Button
+                Material(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () {
+                      _uploadController.pickedImage.value = null;
+                      _uploadController.thumbnailUrl.value = '';
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white, // Rule: Icons must be white
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       );
     });
   }
@@ -4120,13 +4213,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF10B981).withValues(alpha: 0.1),
+            color: isDark
+                ? const Color(0xFF262C36)
+                : const Color(0xFFE5E7EB),
             shape: BoxShape.circle,
           ),
           child: const Icon(
-            Icons.image_rounded,
+            Icons.add_photo_alternate_rounded,
             size: 32,
-            color: Color(0xFF10B981),
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 12),
@@ -4137,10 +4232,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          'JPEG, PNG • 16:9 ratio recommended',
-          style: context.themeTypography.bodySmall.copyWith(
-            color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            'JPEG, PNG • 9:16 ratio recommended',
+            textAlign: TextAlign.center,
+            style: context.themeTypography.bodySmall.copyWith(
+              color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+              fontSize: 11,
+            ),
           ),
         ),
       ],

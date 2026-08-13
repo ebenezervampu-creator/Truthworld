@@ -534,13 +534,15 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
       }
 
-      if (resolvedChannel is Channel) {
-        controller.currentChannel.value = resolvedChannel;
-      } else if (resolvedChannel is Map) {
-        controller.currentChannel.value = Channel.fromMap(
-          Map<String, dynamic>.from(resolvedChannel),
-          (resolvedChannel['id'] ?? channelId).toString(),
-        );
+      if (controller.currentChannel.value == null) {
+        if (resolvedChannel is Channel) {
+          controller.currentChannel.value = resolvedChannel;
+        } else if (resolvedChannel is Map) {
+          controller.currentChannel.value = Channel.fromMap(
+            Map<String, dynamic>.from(resolvedChannel),
+            (resolvedChannel['id'] ?? channelId).toString(),
+          );
+        }
       }
 
       final args = Get.arguments;
@@ -1739,7 +1741,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           Obx(() {
             final ch = controller.currentChannel.value;
             if (ch == null) return const SizedBox.shrink();
-            if (ch.status == ChannelStatus.active) {
+            if (ch.status == ChannelStatus.active || ch.geminiApproved == true) {
               if (controller.showApprovalBanner.value) {
                 return _buildApprovalBanner(isDarkMode);
               }
@@ -2356,7 +2358,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildModerationStatusBanner(bool isDarkMode, Channel channel) {
-    if (channel.status == ChannelStatus.active) {
+    if (channel.status == ChannelStatus.active || channel.geminiApproved == true) {
       return const SizedBox.shrink();
     }
 

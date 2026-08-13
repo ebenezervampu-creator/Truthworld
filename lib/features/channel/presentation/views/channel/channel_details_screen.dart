@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -273,7 +275,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    final bannerHeight = isDesktop ? 200.0 : (isTablet ? 180.0 : 120.0);
+    final bannerHeight = isDesktop ? 220.0 : (isTablet ? 170.0 : 130.0);
 
     return Container(
       margin: EdgeInsets.symmetric(
@@ -288,30 +290,59 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           child: Builder(
             builder: (context) => Stack(
               children: [
-                Positioned.fill(
-                  child: CachedNetworkImage(
-                    imageUrl: channel.bannerImageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => const ColoredBox(
-                      color: ytSurface,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: ytTextSecondary,
-                          strokeWidth: 2,
+                if (channel.bannerImageUrl.isNotEmpty) ...[
+                  // Ambient background backdrop with blur for dynamic banner aspect ratios
+                  Positioned.fill(
+                    child: CachedNetworkImage(
+                      imageUrl: channel.bannerImageUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => const ColoredBox(color: ytSurface),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(color: Colors.black.withValues(alpha: 0.4)),
+                    ),
+                  ),
+                  // Primary full-bleed banner cover
+                  Positioned.fill(
+                    child: CachedNetworkImage(
+                      imageUrl: channel.bannerImageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const ColoredBox(
+                        color: ytSurface,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: ytTextSecondary,
+                            strokeWidth: 2,
+                          ),
                         ),
                       ),
-                    ),
-                    errorWidget: (context, url, error) => const ColoredBox(
-                      color: ytSurface,
-                      child: Center(
-                        child: Icon(
-                          Icons.image_not_supported,
-                          color: ytTextTertiary,
+                      errorWidget: (context, url, error) => const ColoredBox(
+                        color: ytSurface,
+                        child: Center(
+                          child: Icon(
+                            Icons.image_not_supported,
+                            color: ytTextTertiary,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ] else
+                  const Positioned.fill(
+                    child: ColoredBox(
+                      color: ytSurface,
+                      child: Center(
+                        child: Icon(
+                          Icons.image_rounded,
+                          color: ytTextTertiary,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (isDashboard || Navigator.of(context).canPop())
                   Positioned(
                     top: 12,
@@ -659,15 +690,45 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final text = channel.description.isEmpty
         ? 'No description available'
         : channel.description;
+    final bool isLongText = text.length > 50 || text.contains('\n');
 
     return Container(
       constraints: BoxConstraints(maxWidth: isDesktop ? 600 : double.infinity),
-      child: ClickableUrlText(
-        text: text,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12, color: ytTextSecondary),
-      ),
+      child: Obx(() {
+        final isExpanded = controller.isDescriptionExpanded.value;
+
+        return InkWell(
+          onTap: isLongText
+              ? () => controller.isDescriptionExpanded.toggle()
+              : null,
+          borderRadius: BorderRadius.circular(4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClickableUrlText(
+                text: text,
+                maxLines: isExpanded ? null : 2,
+                overflow: isExpanded
+                    ? TextOverflow.visible
+                    : TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: ytTextSecondary),
+              ),
+              if (isLongText) ...[
+                const SizedBox(height: 2),
+                Text(
+                  isExpanded ? '...less' : '...more',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: ytTextPrimary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      }),
     );
   }
 
@@ -1515,7 +1576,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     ),
                   ),
                 ),
-                if (video.factCheckUrl.isNotEmpty)
+                if (video.isFactChecked)
                   Positioned(
                     top: 36,
                     left: 8,

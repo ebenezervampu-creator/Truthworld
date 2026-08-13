@@ -1,11 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
@@ -87,53 +89,34 @@ class SubscriptionsPage extends StatelessWidget {
                     }
 
                     final isMobile = context.isMobile;
-                    if (isMobile) {
-                      return SliverPadding(
-                        padding: EdgeInsets.symmetric(horizontal: spacing),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final item = controller.filteredContent[index];
-                              if (item.type == ContentType.communityPost) {
-                                return CommunityPostCard(
-                                  post: item.communityPost!,
-                                );
-                              } else if (item.type == ContentType.video) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: VideoCard(
-                                    video: item.video!,
-                                    heroPrefix: 'subs',
-                                  ),
-                                );
-                              }
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: _buildContentCard(item),
-                              );
-                            },
-                            childCount: controller.filteredContent.length,
-                          ),
-                        ),
-                      );
-                    }
+                    final isTablet = ResponsiveContext(context).isTablet;
+                    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
 
                     return SliverPadding(
-                      padding: EdgeInsets.all(spacing),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: _getCrossAxisCount(context),
-                          childAspectRatio: _getChildAspectRatio(context),
-                          crossAxisSpacing: spacing,
-                          mainAxisSpacing: spacing,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final item = controller.filteredContent[index];
-                            return _buildContentCard(item);
-                          },
-                          childCount: controller.filteredContent.length,
-                        ),
+                      padding: EdgeInsets.symmetric(horizontal: spacing),
+                      sliver: SliverMasonryGrid.count(
+                        crossAxisCount: crossAxisCount,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childCount: controller.filteredContent.length,
+                        itemBuilder: (context, index) {
+                          final item = controller.filteredContent[index];
+                          if (index + 2 < controller.filteredContent.length) {
+                            final nextItem =
+                                controller.filteredContent[index + 2];
+                            if (nextItem.type == ContentType.video &&
+                                nextItem.video != null &&
+                                nextItem.video!.thumbnailUrl.isNotEmpty) {
+                              precacheImage(
+                                CachedNetworkImageProvider(
+                                  nextItem.video!.thumbnailUrl,
+                                ),
+                                context,
+                              );
+                            }
+                          }
+                          return _buildContentCard(item);
+                        },
                       ),
                     );
                   }),
@@ -346,31 +329,32 @@ class SubscriptionsPage extends StatelessWidget {
     }
   }
 
-  // ── Helper: Grid Parameters ──
-  int _getCrossAxisCount(BuildContext context) {
-    if (context.isMobile) return 1;
-    if (ResponsiveContext(context).isTablet) return 2;
-    return 3;
-  }
-
-  double _getChildAspectRatio(BuildContext context) {
-    if (context.isMobile) return 0.85;
-    return 0.8;
-  }
-
   // ── States: Loading, Error, Empty ──
   Widget _buildLoadingState(BuildContext context) {
+    final isMobile = context.isMobile;
+    final isTablet = ResponsiveContext(context).isTablet;
+    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+
     return SliverPadding(
-      padding: EdgeInsets.all(context.layoutSpacing),
+      padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
       sliver: SliverGrid(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _getCrossAxisCount(context),
-          childAspectRatio: _getChildAspectRatio(context),
-          crossAxisSpacing: context.layoutSpacing,
-          mainAxisSpacing: context.layoutSpacing,
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: isMobile ? 1.2 : 0.8,
         ),
         delegate: SliverChildBuilderDelegate(
-          (context, index) => const ShimmerVideoGridCard(),
+          (context, index) => Shimmer.fromColors(
+            baseColor: AppColors.bgInput.withValues(alpha: 0.3),
+            highlightColor: AppColors.bgInput.withValues(alpha: 0.1),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgInput,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
           childCount: 6,
         ),
       ),

@@ -1,4 +1,4 @@
-import { VertexAI } from "@google-cloud/vertexai";
+import type { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { z } from "zod";
 import { PIPELINE_CONFIG } from "../config";
@@ -24,11 +24,16 @@ export interface ModerationResult {
  * admin CLI tools, or external endpoints.
  */
 export class ModerationService {
-  private readonly genAI: VertexAI;
+  private _genAI?: VertexAI;
 
-  constructor(apiKey: string) {
-    this.genAI = getVertexAI();
+  private get genAI(): VertexAI {
+    if (!this._genAI) {
+      this._genAI = getVertexAI();
+    }
+    return this._genAI;
   }
+
+  constructor(apiKey?: string) {}
 
   async checkAndSummarize(text: string): Promise<ModerationResult> {
     const t0 = Date.now();

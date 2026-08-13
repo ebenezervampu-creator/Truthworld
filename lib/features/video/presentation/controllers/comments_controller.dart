@@ -15,8 +15,21 @@ import 'package:truthworld/features/video/data/services/comment_service.dart';
 
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
+import 'package:truthworld/features/video/data/repositories/firestore_comments_repository.dart';
+import 'package:truthworld/features/video/domain/repositories/video_comments_repository.dart';
+
 class CommentsController extends BaseController with ContentValidationMixin {
-  CommentsController({this.video, this.isOffline = false});
+  CommentsController({
+    this.video,
+    this.isOffline = false,
+    VideoCommentsRepository? commentsRepository,
+  }) : _commentsRepository = commentsRepository ?? FirestoreCommentsRepository();
+
+  final VideoCommentsRepository _commentsRepository;
+
+  Stream<List<Comment>> streamCommentsRepo(String videoId) {
+    return _commentsRepository.streamComments(videoId);
+  }
   final CommentService _commentService = CommentService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 

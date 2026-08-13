@@ -125,6 +125,18 @@ class CommunityPostModel {
   final bool showDislikeCount;
   final bool isCommentsEnabled;
 
+  bool get isDraft {
+    final vis = visibility.trim().toLowerCase();
+    final cat = selectedCategory.trim().toLowerCase();
+    final t = title.trim().toLowerCase();
+    if (vis == 'draft' || cat == 'draft' || t.startsWith('uploading') || t == 'uploading...') {
+      return true;
+    }
+    return false;
+  }
+
+  bool get isValid => !isDraft;
+
   Map<String, dynamic> toMap() => {
     'id': id,
     'title': title,

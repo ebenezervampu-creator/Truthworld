@@ -27,8 +27,10 @@ class VideoVisibilityPolicy {
 
   /// Primary validity check: video must not be untitled, uploading, processing, draft, deleted, unapproved, or missing media.
   static bool isValidVideo(Video video) {
+    if (video.isDraft) return false;
     if (video.isUntitled) return false;
     if (video.isUploadingOrProcessing) return false;
+    if (video.visibility.toLowerCase() == 'draft') return false;
     if (video.status == VideoStatus.deleted ||
         video.status == VideoStatus.rejected) {
       return false;
@@ -39,6 +41,7 @@ class VideoVisibilityPolicy {
         statusName == 'rejected' ||
         statusName == 'draft' ||
         statusName == 'uploading' ||
+        statusName == 'uploaded' ||
         statusName == 'processing') {
       return false;
     }
@@ -59,19 +62,32 @@ class VideoVisibilityPolicy {
         titleLower == 'untitled' ||
         titleLower == 'untitled video' ||
         titleLower == 'untitled draft' ||
-        titleLower.startsWith('untitled')) {
+        titleLower == 'uploading...' ||
+        titleLower.startsWith('untitled') ||
+        titleLower.startsWith('uploading')) {
       return false;
     }
 
     final statusStr = (data['status'] as String?)?.toLowerCase() ?? '';
+    final pipelineStage = ((data['aiFeatures'] is Map
+                ? data['aiFeatures']['pipelineStage']
+                : null) ??
+            data['pipelineStage'])
+        ?.toString()
+        .toLowerCase();
+    final visibilityStr = (data['visibility'] as String?)?.toLowerCase() ?? '';
+
     if (statusStr == 'uploading' ||
+        statusStr == 'uploaded' ||
         statusStr == 'processing' ||
         statusStr == 'draft' ||
         statusStr == 'pending_review' ||
         statusStr == 'deleted' ||
         statusStr == 'deletion_pending' ||
         statusStr == 'rejected' ||
-        statusStr == 'pending') {
+        statusStr == 'pending' ||
+        pipelineStage == 'draft' ||
+        visibilityStr == 'draft') {
       return false;
     }
 

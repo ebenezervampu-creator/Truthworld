@@ -62,6 +62,45 @@ export class MediaService {
     return `gs://${bucket.name}/${outputPath}`;
   }
 
+  /**
+   * Generates and uploads ALL THREE subtitle formats (.json, .vtt, .srt) for a language.
+   * e.g., for Telugu 'te': te.json, te.vtt, and te.srt.
+   */
+  async generateAllSubtitles(
+    jobId: string,
+    segments: any[],
+    language: string
+  ): Promise<{ srtUrl: string; vttUrl: string; jsonUrl: string }> {
+    const srtContent = this.generateSrt(segments);
+    const vttContent = "WEBVTT\n\n" + srtContent.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
+    const jsonContent = JSON.stringify(segments, null, 2);
+
+    const bucket = storage().bucket();
+
+    const srtPath = `subtitles/${jobId}/${language}.srt`;
+    const vttPath = `subtitles/${jobId}/${language}.vtt`;
+    const jsonPath = `subtitles/${jobId}/${language}.json`;
+
+    await Promise.all([
+      bucket.file(srtPath).save("\uFEFF" + srtContent, {
+        metadata: { contentType: "text/plain; charset=utf-8" },
+      }),
+      bucket.file(vttPath).save("\uFEFF" + vttContent, {
+        metadata: { contentType: "text/vtt; charset=utf-8" },
+      }),
+      bucket.file(jsonPath).save(jsonContent, {
+        metadata: { contentType: "application/json" },
+      }),
+    ]);
+
+    return {
+      srtUrl: `gs://${bucket.name}/${srtPath}`,
+      vttUrl: `gs://${bucket.name}/${vttPath}`,
+      jsonUrl: `gs://${bucket.name}/${jsonPath}`,
+    };
+  }
+
+
   private generateSrt(segments: any[]): string {
     return segments
       .map((s, i) => {

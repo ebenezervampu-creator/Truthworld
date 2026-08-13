@@ -15,7 +15,7 @@
  *   - ~30% cost reduction in distribution layer
  */
 
-import { PubSub, Topic } from "@google-cloud/pubsub";
+import type { PubSub, Topic } from "@google-cloud/pubsub";
 import { v4 as uuidv4 } from "uuid";
 import { PipelineEvent, EventType } from "../types";
 import {
@@ -50,7 +50,7 @@ const CIRCUIT_RESET_MS = 30_000; // 30 s
 // ─── DistributionLayer ────────────────────────────────────────────────────────
 
 export class DistributionLayer {
-  private readonly pubsub: PubSub;
+  private _pubsub?: PubSub;
   private readonly topicCache: Map<string, Topic> = new Map();
   private readonly topicInitCache: Map<string, Promise<Topic>> = new Map();
 
@@ -59,9 +59,15 @@ export class DistributionLayer {
   private circuitOpen = false;
   private circuitOpenAt = 0;
 
-  constructor() {
-    this.pubsub = new PubSub();
+  private get pubsub(): PubSub {
+    if (!this._pubsub) {
+      const { PubSub } = require("@google-cloud/pubsub");
+      this._pubsub = new PubSub();
+    }
+    return this._pubsub!;
   }
+
+  constructor() {}
 
   // ─── Consumer-side idempotency (FIRESTORE TRANSACTION VERSION) ──────────────
 

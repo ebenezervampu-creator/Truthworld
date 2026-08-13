@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/search/data/models/search_cache.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
@@ -96,8 +97,9 @@ class SearchService {
     final foundIds = <String>{};
     final results = <SearchResult>[];
 
-    void addResult(SearchResult item) {
+    void addResult(SearchResult item, [Map<String, dynamic>? data]) {
       if (!item.isValid) return;
+      if (data != null && !VideoVisibilityPolicy.isMapValid(data)) return;
       if (foundIds.add(item.id)) {
         results.add(item);
       }
@@ -111,7 +113,7 @@ class SearchService {
           .limit(20)
           .get();
       for (final doc in s.docs) {
-        addResult(SearchResult.fromFirestore(doc));
+        addResult(SearchResult.fromFirestore(doc), doc.data());
       }
     } catch (e) {
       debugPrint('⚠️ [Search] Keyword video query error: $e');
@@ -392,16 +394,26 @@ class SearchService {
           .collection('videos')
           .where('status', whereIn: const ['processed', 'published'])
           .orderBy('views', descending: true)
-          .limit(12)
+          .limit(20)
           .get();
 
-      return snapshot.docs.map(SearchResult.fromFirestore).toList();
+      return snapshot.docs
+          .where((doc) => VideoVisibilityPolicy.isMapValid(doc.data()))
+          .map(SearchResult.fromFirestore)
+          .where((item) => item.isValid)
+          .take(12)
+          .toList();
     } catch (e) {
       debugPrint('⚠️ [Search] Recommended fetch failed: $e');
       // Secondary fallback: query without ordering if index is missing
       try {
-        final snapshot = await _firestore.collection('videos').limit(12).get();
-        return snapshot.docs.map(SearchResult.fromFirestore).toList();
+        final snapshot = await _firestore.collection('videos').limit(30).get();
+        return snapshot.docs
+            .where((doc) => VideoVisibilityPolicy.isMapValid(doc.data()))
+            .map(SearchResult.fromFirestore)
+            .where((item) => item.isValid)
+            .take(12)
+            .toList();
       } catch (err) {
         debugPrint('⚠️ [Search] Fallback recommended fetch failed: $err');
         return [];

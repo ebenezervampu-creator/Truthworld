@@ -192,7 +192,7 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
         if (!isAtHome) Get.offAllNamed<dynamic>('/');
       case 3:
         if (!_authService.isAuthenticated.value) {
-          showSignInSnackbar();
+          _authService.signInWithGoogle();
         }
         sideNavSelectedIndex.value = indexLibrary;
         if (!isAtHome) Get.offAllNamed<dynamic>('/');
