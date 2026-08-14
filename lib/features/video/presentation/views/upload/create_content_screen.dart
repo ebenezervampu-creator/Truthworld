@@ -3983,7 +3983,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             child: SizedBox(
               height: isMobile ? 320 : 360,
               child: AspectRatio(
-                aspectRatio: 9 / 16,
+                aspectRatio: 16 / 9,
                 child: InkWell(
                   onTap: isUploading
                       ? null
