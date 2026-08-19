@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/percent_indicator.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_plan_selection_screen.dart';
 import 'package:truthworld/features/channel/presentation/views/channel_monetization_dashboard_view.dart';
@@ -224,7 +227,7 @@ class MonetizationScreen extends StatelessWidget {
           Text(
             isCustom
                 ? 'Your channel operates on the Custom Channel Tier with full infrastructure control, 100% gross revenue share (minus infrastructure usage), unlimited uploads, and instant cash withdrawals.'
-                : 'Your channel is currently on the Standard Channel Tier with zero hosting fees, 55% net revenue share, up to 5 videos upload limit (10 minutes total duration), and a 10-hour watch time threshold for cash withdrawals.',
+                : 'Your channel is currently on the Standard Channel Tier with zero hosting fees, 70% net revenue share, 20 min/day video upload limit, and a 10-hour watch time threshold for cash withdrawals.',
             style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
@@ -238,7 +241,7 @@ class MonetizationScreen extends StatelessWidget {
                 child: _buildChannelTypeDetailTile(
                   icon: Icons.video_collection_outlined,
                   label: 'Upload Limit',
-                  value: isCustom ? 'Unlimited Videos' : 'Up to 5 Videos',
+                  value: isCustom ? 'Unlimited Videos' : '20 Mins / Day',
                 ),
               ),
               const SizedBox(width: 10),
@@ -248,7 +251,7 @@ class MonetizationScreen extends StatelessWidget {
                   label: 'Video Duration',
                   value: isCustom
                       ? 'Up to 24 Hours'
-                      : '2 to 10 Mins (10m Total)',
+                      : 'Up to 20 Mins / Day',
                 ),
               ),
             ],
@@ -979,6 +982,29 @@ class MonetizationScreen extends StatelessWidget {
     DashboardController controller, [
     Video? targetVideo,
   ]) {
+    final walletService = ChannelWalletService();
+    final ch = controller.currentChannel.value ??
+        Channel(
+          id: controller.channelId,
+          name: 'My Channel',
+          nameLowercase: 'my channel',
+          handle: '@channel',
+          handleLowercase: '@channel',
+          description: '',
+          avatarUrl: '',
+          bannerUrl: '',
+          ownerId: controller.channelId,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        );
+
+    final spendable = walletService.getSpendableBalance(
+      channel: ch,
+      rawTotalRevenue: 35.0,
+      withdrawableRevenue: 20.0,
+      lockedRevenue: 15.0,
+    );
+
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(24),
@@ -997,13 +1023,13 @@ class MonetizationScreen extends StatelessWidget {
                   const Row(
                     children: [
                       Icon(
-                        Icons.auto_awesome_rounded,
+                        Icons.account_balance_wallet_rounded,
                         color: Colors.white,
                         size: 24,
                       ),
                       SizedBox(width: 8),
                       Text(
-                        'Spend Revenue on AI Features',
+                        'Spend Revenue & Balances',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1023,65 +1049,226 @@ class MonetizationScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                targetVideo != null
-                    ? 'Use accumulated channel revenue for: ${targetVideo.title}'
-                    : 'Use accumulated channel revenue for AI tools even before 10 hours watch time!',
+                'Available Spendable: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.trialCreditRemaining.toStringAsFixed(2)} Free Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Unwithdrawn Revenue)',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 20),
+
+              // Section 1: AI Content Intelligence & Localization
+              const Text(
+                'AI Video Features',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+
               _buildAiFeatureOption(
-                icon: Icons.subtitles_rounded,
-                title: 'AI Subtitles & Captions',
+                icon: Icons.fact_check_rounded,
+                title: 'Fact-Checking & Credibility Report',
                 description:
-                    'Generate automatic synchronized closed-captions and subtitles.',
-                costText: 'Included with Channel Revenue',
-                onSelect: () {
+                    'AI claim verification, source citation & Truth Score badge.',
+                costText: r'$2.00 • Instant from balance',
+                onSelect: () async {
                   Get.back();
+                  final uid = AuthService.to.uid.isNotEmpty
+                      ? AuthService.to.uid
+                      : ch.ownerId;
+                  final videoId = targetVideo?.id ?? 'demo_video_001';
+                  final videoTitle = targetVideo?.title ?? 'Latest Upload';
+
+                  await walletService.spendForVideoAIFeatures(
+                    channel: ch,
+                    userId: uid,
+                    videoId: videoId,
+                    videoTitle: videoTitle,
+                    features: {'factcheck'},
+                    targetLanguages: ['en'],
+                  );
+
                   Get.snackbar(
-                    'AI Subtitles',
-                    'Channel revenue balance applied for AI Subtitles!',
+                    'Fact-Check Enqueued!',
+                    'Channel balance applied for Fact-Checking & Credibility verification on "$videoTitle"!',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.brand,
-                    colorText: Colors.black,
+                    backgroundColor: AppColors.bgSurfaceHigh,
+                    colorText: Colors.white,
                   );
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+
+              _buildAiFeatureOption(
+                icon: Icons.subtitles_rounded,
+                title: 'AI Subtitles & Closed Captions',
+                description:
+                    'Generate automatic synchronized closed-captions and subtitles.',
+                costText: r'$0.50 • Instant from balance',
+                onSelect: () async {
+                  Get.back();
+                  final uid = AuthService.to.uid.isNotEmpty
+                      ? AuthService.to.uid
+                      : ch.ownerId;
+                  final videoId = targetVideo?.id ?? 'demo_video_001';
+                  final videoTitle = targetVideo?.title ?? 'Latest Upload';
+
+                  await walletService.spendForVideoAIFeatures(
+                    channel: ch,
+                    userId: uid,
+                    videoId: videoId,
+                    videoTitle: videoTitle,
+                    features: {'subtitles'},
+                    targetLanguages: ['te', 'hi', 'en'],
+                  );
+
+                  Get.snackbar(
+                    'AI Subtitles Enqueued!',
+                    'Channel balance applied for AI Subtitles on "$videoTitle"!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.bgSurfaceHigh,
+                    colorText: Colors.white,
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+
               _buildAiFeatureOption(
                 icon: Icons.translate_rounded,
                 title: 'AI Multilingual Dubbing',
                 description:
-                    'Dub video voiceover into over 30 languages automatically.',
-                costText: 'Included with Channel Revenue',
-                onSelect: () {
+                    'Dub video voiceover into over 30 languages with voice match.',
+                costText: r'$1.50 • Instant from balance',
+                onSelect: () async {
                   Get.back();
+                  final uid = AuthService.to.uid.isNotEmpty
+                      ? AuthService.to.uid
+                      : ch.ownerId;
+                  final videoId = targetVideo?.id ?? 'demo_video_001';
+                  final videoTitle = targetVideo?.title ?? 'Latest Upload';
+
+                  await walletService.spendForVideoAIFeatures(
+                    channel: ch,
+                    userId: uid,
+                    videoId: videoId,
+                    videoTitle: videoTitle,
+                    features: {'dubbing'},
+                    targetLanguages: ['te', 'hi', 'en'],
+                  );
+
                   Get.snackbar(
-                    'AI Dubbing',
-                    'Channel revenue balance applied for AI Multilingual Dubbing!',
+                    'AI Dubbing Enqueued!',
+                    'Channel balance applied for AI Multilingual Dubbing on "$videoTitle"!',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.brand,
-                    colorText: Colors.black,
+                    backgroundColor: AppColors.bgSurfaceHigh,
+                    colorText: Colors.white,
                   );
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+
               _buildAiFeatureOption(
                 icon: Icons.video_library_rounded,
-                title: 'AI Chapters & Metadata',
+                title: 'AI Chapters & Key Takeaways',
                 description:
                     'Auto-generate smart video chapters, tags, and summary.',
-                costText: 'Included with Channel Revenue',
-                onSelect: () {
+                costText: r'$0.50 • Instant from balance',
+                onSelect: () async {
                   Get.back();
+                  final uid = AuthService.to.uid.isNotEmpty
+                      ? AuthService.to.uid
+                      : ch.ownerId;
+                  final videoId = targetVideo?.id ?? 'demo_video_001';
+                  final videoTitle = targetVideo?.title ?? 'Latest Upload';
+
+                  await walletService.spendForVideoAIFeatures(
+                    channel: ch,
+                    userId: uid,
+                    videoId: videoId,
+                    videoTitle: videoTitle,
+                    features: {'summary', 'chapters'},
+                    targetLanguages: ['en'],
+                  );
+
                   Get.snackbar(
-                    'AI Video Chapters',
-                    'Channel revenue balance applied for AI Chapter creation!',
+                    'AI Chapters Enqueued!',
+                    'Channel balance applied for AI Chapters & Summary!',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.brand,
-                    colorText: Colors.black,
+                    backgroundColor: AppColors.bgSurfaceHigh,
+                    colorText: Colors.white,
+                  );
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              // Section 2: Custom Channel Infrastructure & Top-Ups
+              const Text(
+                'Custom Channel Hosting & Quotas',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              _buildAiFeatureOption(
+                icon: Icons.cloud_upload_rounded,
+                title: '+50 GB Storage Top-Up',
+                description:
+                    'Expand permanent storage for unlimited high-definition uploads.',
+                costText: r'$5.00 • Instant from balance',
+                onSelect: () async {
+                  Get.back();
+                  final uid = AuthService.to.uid.isNotEmpty
+                      ? AuthService.to.uid
+                      : ch.ownerId;
+                  final pack = ChannelWalletService.storagePacks[1]; // 50GB
+                  await walletService.spendForStorageTopup(
+                    channel: ch,
+                    userId: uid,
+                    pack: pack,
+                  );
+
+                  Get.snackbar(
+                    'Storage Expanded!',
+                    '+50 GB storage added to your channel from balance!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.bgSurfaceHigh,
+                    colorText: Colors.white,
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+
+              _buildAiFeatureOption(
+                icon: Icons.speed_rounded,
+                title: '+250 GB Bandwidth Top-Up',
+                description:
+                    'High-capacity streaming CDN bandwidth for trending traffic.',
+                costText: r'$7.00 • Instant from balance',
+                onSelect: () async {
+                  Get.back();
+                  final uid = AuthService.to.uid.isNotEmpty
+                      ? AuthService.to.uid
+                      : ch.ownerId;
+                  final pack = ChannelWalletService.bandwidthPacks[1]; // 250GB
+                  await walletService.spendForBandwidthTopup(
+                    channel: ch,
+                    userId: uid,
+                    pack: pack,
+                  );
+
+                  Get.snackbar(
+                    'Bandwidth Expanded!',
+                    '+250 GB streaming bandwidth added to your channel from balance!',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.bgSurfaceHigh,
+                    colorText: Colors.white,
                   );
                 },
               ),
@@ -1111,8 +1298,9 @@ class MonetizationScreen extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppColors.brand.withValues(alpha: 0.15),
+            color: AppColors.bgSurfaceHigh,
             shape: BoxShape.circle,
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: Icon(icon, color: Colors.white, size: 22),
         ),

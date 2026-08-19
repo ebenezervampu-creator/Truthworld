@@ -43,6 +43,7 @@ import 'package:truthworld/features/video/presentation/controllers/comments_cont
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/features/video/presentation/widgets/truth_index_badge.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
@@ -2261,29 +2262,6 @@ class VideoScreen extends GetView<VideoController> {
                 _buildModernLikeDislikeGroup(),
                 const SizedBox(width: 8),
 
-                // 🪙 FLIP COIN (THE OTHER SIDE / OPPOSITE PERSPECTIVE) BUTTON
-                Builder(
-                  builder: (context) {
-                    final flipService = Get.find<FlipCoinService>();
-                    return Obx(() {
-                      final isFlipped = flipService.isVideoFlipped(
-                        controller.video.id,
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FlipCoinWidget(
-                          isFlipped: isFlipped,
-                          showLabel: true,
-                          onTap: () {
-                            flipService.toggleVideoFlip(controller.video.id);
-                            controller.reloadRecommendationsForFlip();
-                          },
-                        ),
-                      );
-                    });
-                  },
-                ),
-
                 // Insights & Media details button (icon only, before comments)
                 _buildModernCapsuleButton(
                   icon: Icons.verified_user_outlined,
@@ -3748,15 +3726,16 @@ class VideoScreen extends GetView<VideoController> {
               ],
             ),
           ),
-          subtitle: Obx(() {
-            final _ = controller.video.id;
-            final current = playerCtrl?.currentChapter.value;
-            if (current == null) return const SizedBox.shrink();
-            return Text(
-              'Current: ${current.title}',
-              style: const TextStyle(color: textSecondary, fontSize: 13),
-            );
-          }),
+          subtitle: playerCtrl == null
+              ? null
+              : Obx(() {
+                  final current = playerCtrl.currentChapter.value;
+                  if (current == null) return const SizedBox.shrink();
+                  return Text(
+                    'Current: ${current.title}',
+                    style: const TextStyle(color: textSecondary, fontSize: 13),
+                  );
+                }),
           shape: const RoundedRectangleBorder(),
           collapsedShape: const RoundedRectangleBorder(),
           childrenPadding: EdgeInsets.zero,
@@ -4353,71 +4332,130 @@ class VideoScreen extends GetView<VideoController> {
               ),
             ),
             const SizedBox(height: 12),
-            // Show Transcript button
-            InkWell(
-              onTap: () {
-                final nextVisible = !showTranscript;
-                controller.isTranscriptVisible.value = nextVisible;
-                if (nextVisible) {
-                  TowerPlayerController? playerCtrl;
-                  final tag = controller.video.id;
-                  if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
-                    playerCtrl = Get.find<TowerPlayerController>(tag: tag);
-                  } else if (Get.isRegistered<TowerPlayerController>()) {
-                    playerCtrl = Get.find<TowerPlayerController>();
-                  }
-                  if (playerCtrl != null && playerCtrl.subtitleSegments.isEmpty) {
-                    final subUrl = controller.availableSubtitles.firstOrNull?.url ??
-                        controller.video.mediaSubtitles['en'] ??
-                        controller.video.transcriptionUrl;
-                    if (subUrl.isNotEmpty) {
-                      playerCtrl.fetchAndParseSubtitles(subUrl);
+            // Action Buttons: AI Summary & Show Transcript
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                // AI Summary button
+                InkWell(
+                  onTap: () {
+                    final nextVisible = !controller.isSummaryVisible.value;
+                    controller.isSummaryVisible.value = nextVisible;
+                    if (nextVisible) {
+                      controller.fetchSummary();
                     }
-                  }
-                }
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
+                  },
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.description_outlined,
-                      size: 16,
-                      color: Colors.white,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      showTranscript ? 'Hide Transcript' : 'Show Transcript',
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                    decoration: BoxDecoration(
+                      color: controller.isSummaryVisible.value
+                          ? AppColors.brand.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: controller.isSummaryVisible.value
+                            ? AppColors.brand.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.2),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      showTranscript
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      size: 18,
-                      color: Colors.white70,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          controller.isSummaryVisible.value
+                              ? 'Hide Summary'
+                              : 'AI Summary',
+                          style: GoogleFonts.roboto(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          controller.isSummaryVisible.value
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: Colors.white70,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+
+                // Show Transcript button
+                InkWell(
+                  onTap: () {
+                    final nextVisible = !showTranscript;
+                    controller.isTranscriptVisible.value = nextVisible;
+                    if (nextVisible) {
+                      controller.loadTranscriptForVideo();
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: showTranscript
+                          ? AppColors.brand.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: showTranscript
+                            ? AppColors.brand.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.description_outlined,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          showTranscript ? 'Hide Transcript' : 'Show Transcript',
+                          style: GoogleFonts.roboto(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          showTranscript
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: Colors.white70,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (controller.isSummaryVisible.value) ...[
+              const SizedBox(height: 12),
+              _buildSummaryContent(context),
+            ],
             if (showTranscript) ...[
               const SizedBox(height: 12),
               Container(
@@ -4439,80 +4477,222 @@ class VideoScreen extends GetView<VideoController> {
     });
   }
 
-  Widget _buildTranscriptContent(BuildContext context) {
-    TowerPlayerController? playerCtrl;
-    final tag = controller.video.id;
-    if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
-      playerCtrl = Get.find<TowerPlayerController>(tag: tag);
-    } else if (Get.isRegistered<TowerPlayerController>()) {
-      playerCtrl = Get.find<TowerPlayerController>();
-    }
-
-    final segments = playerCtrl?.subtitleSegments ?? [];
-    final credibility = VideoMediaService.credibilityCache[controller.video.id];
-    final summaryText = (credibility?.summary.isNotEmpty == true)
-        ? credibility!.summary
-        : ((credibility?.uiReport?.narrative.isNotEmpty == true)
-            ? credibility!.uiReport!.narrative
-            : '');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (summaryText.isNotEmpty) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
+  Widget _buildSummaryContent(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoadingSummary.value) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.auto_awesome, size: 16, color: AppColors.textPrimary),
-                    const SizedBox(width: 6),
-                    Text(
-                      'AI EXECUTIVE SUMMARY',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.brand,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                  ],
+          ),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  summaryText,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Fetching AI video summary...',
+                style: GoogleFonts.roboto(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      final summary = controller.moderationSummary.value.isNotEmpty
+          ? controller.moderationSummary.value
+          : (controller.video.moderationSummary.isNotEmpty
+              ? controller.video.moderationSummary
+              : (VideoMediaService.credibilityCache[controller.video.id]?.summary.isNotEmpty == true
+                  ? VideoMediaService.credibilityCache[controller.video.id]!.summary
+                  : ''));
+
+      if (summary.isEmpty) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 16,
+                color: Colors.white70,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'No AI summary generated for this video yet.',
                   style: GoogleFonts.roboto(
-                    color: Colors.white,
+                    color: Colors.white70,
                     fontSize: 13,
-                    height: 1.4,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.brand.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: AppColors.brand.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.auto_awesome,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'AI SUMMARY',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.brand,
+                    letterSpacing: 1.1,
                   ),
                 ),
               ],
             ),
-          ),
-          const Divider(color: Colors.white12, height: 16),
-        ],
-        if (segments.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No timestamped transcript lines available for this video.',
+            const SizedBox(height: 8),
+            Text(
+              summary,
               style: GoogleFonts.roboto(
-                color: Colors.white70,
+                color: Colors.white,
                 fontSize: 13,
-                fontStyle: FontStyle.italic,
+                height: 1.5,
               ),
             ),
-          )
-        else ...[
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildTranscriptContent(BuildContext context) {
+    final playerCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
+
+    if (controller.transcriptSegments.isEmpty &&
+        (playerCtrl == null || playerCtrl.subtitleSegments.isEmpty) &&
+        !controller.isLoadingTranscript.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (controller.transcriptSegments.isEmpty && !controller.isLoadingTranscript.value) {
+          controller.loadTranscriptForVideo();
+        }
+      });
+    }
+
+    return Obx(() {
+      final segments = controller.transcriptSegments.isNotEmpty
+          ? controller.transcriptSegments
+          : (playerCtrl?.subtitleSegments ?? <SubtitleSegment>[]);
+      final isLoading = controller.isLoadingTranscript.value ||
+          (playerCtrl?.isLoadingSubtitles.value ?? false);
+
+      if (segments.isEmpty) {
+        if (isLoading) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Loading transcript...',
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 16,
+                color: Colors.white70,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'No timestamped transcript available for this video.',
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: () => controller.loadTranscriptForVideo(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(
+                    'Retry',
+                    style: GoogleFonts.roboto(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
             'TIMESTAMPED TRANSCRIPT',
             style: GoogleFonts.outfit(
@@ -4529,23 +4709,40 @@ class VideoScreen extends GetView<VideoController> {
             itemCount: segments.length,
             itemBuilder: (context, index) {
               final seg = segments[index];
-              final pos = playerCtrl?.vv.position ?? Duration.zero;
-              final isActive = pos >= seg.start && pos <= seg.end;
+              final currentPos = playerCtrl?.vv.position ?? Duration.zero;
+              final isActive = currentPos >= seg.start && currentPos <= seg.end;
               return InkWell(
                 onTap: () {
-                  playerCtrl?.seekTo(seg.start);
+                  final activeCtrl = TowerPlayerController.getForTagOrActive(controller.video.id);
+                  activeCtrl?.seekTo(seg.start);
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        _formatTranscriptDuration(seg.start),
-                        style: GoogleFonts.roboto(
-                          color: isActive ? primary : Colors.white54,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? AppColors.brand.withValues(alpha: 0.3)
+                              : Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          FormatUtils.formatDuration(seg.start),
+                          style: GoogleFonts.robotoMono(
+                            color: isActive
+                                ? AppColors.brand
+                                : Colors.white70,
+                            fontSize: 12,
+                            fontWeight: isActive
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -4556,7 +4753,7 @@ class VideoScreen extends GetView<VideoController> {
                             color: isActive ? Colors.white : Colors.white70,
                             fontSize: 13,
                             fontWeight: isActive
-                                ? FontWeight.bold
+                                ? FontWeight.w600
                                 : FontWeight.normal,
                             height: 1.3,
                           ),
@@ -4569,8 +4766,8 @@ class VideoScreen extends GetView<VideoController> {
             },
           ),
         ],
-      ],
-    );
+      );
+    });
   }
 
   String _formatTranscriptDuration(Duration d) {
@@ -5938,7 +6135,25 @@ class RecommendationFeed extends StatelessWidget {
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () {
-                  controller.selectedRecommendationFilter.value = filter;
+                  if (filter == 'Flip Coin') {
+                    if (Get.isRegistered<FlipCoinService>()) {
+                      final flipService = Get.find<FlipCoinService>();
+                      if (!flipService.isVideoFlipped(controller.video.id)) {
+                        flipService.toggleVideoFlip(controller.video.id);
+                      }
+                    }
+                    controller.selectedRecommendationFilter.value = 'Flip Coin';
+                    controller.reloadRecommendationsForFlip();
+                  } else {
+                    if (Get.isRegistered<FlipCoinService>()) {
+                      final flipService = Get.find<FlipCoinService>();
+                      if (flipService.isVideoFlipped(controller.video.id)) {
+                        flipService.toggleVideoFlip(controller.video.id);
+                        controller.reloadRecommendationsForFlip();
+                      }
+                    }
+                    controller.selectedRecommendationFilter.value = filter;
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -5974,7 +6189,9 @@ class RecommendationFeed extends StatelessWidget {
         ),
       );
 
-      final isAllTab = selectedFilter == 'All' && videos == null;
+      final isAllTab =
+          (selectedFilter == 'All' || selectedFilter == 'Flip Coin') &&
+              videos == null;
       final displayItems = isAllTab ? controller.recommendedItems : displayVideos;
 
       final videoList = isGrid

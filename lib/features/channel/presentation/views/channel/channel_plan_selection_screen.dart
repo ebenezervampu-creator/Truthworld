@@ -423,7 +423,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                     isDark,
                   ),
                   _buildFeatureRow(
-                    '10 minutes total video upload duration limit per day (dynamic split e.g. 2 x 5 min or 7 min + 3 min)',
+                    '20 minutes total video upload duration limit per day (dynamic split e.g. 2 x 10 min or 15 min + 5 min)',
                     isDark,
                   ),
                   _buildFeatureRow(
@@ -804,7 +804,7 @@ class _ChannelTypeSelectorModalState extends State<ChannelTypeSelectorModal> {
                               'Infrastructure: 100% Free video bandwidth, storage, HLS transcoding & CDN delivery',
                             ),
                             _buildBulletPoint(
-                              'Upload Limit: Max 1 Hour video duration per upload',
+                              'Upload Limit: 20 min daily upload limit (Up to 1080p Full HD)',
                             ),
                             _buildBulletPoint(
                               r'Payout Threshold: Revenue unlocked & cashable after reaching $100 minimum earnings',

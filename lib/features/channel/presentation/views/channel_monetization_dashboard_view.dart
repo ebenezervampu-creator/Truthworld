@@ -3,7 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/channel_payout_calculator.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/core/services/infrastructure_metering_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -28,6 +31,19 @@ class _ChannelMonetizationDashboardViewState
   bool get _isUpdating => _isUpdatingRx.value;
 
   final RxString _selectedPlanId = 'starter_15'.obs;
+  final ChannelWalletService _walletService = ChannelWalletService();
+
+  SpendableBalance get _spendableBalance => _walletService.getSpendableBalance(
+        channel: _channel,
+        rawTotalRevenue:
+            _adRevenue + _premiumSubRevenue + _tipsRevenue + _membershipsRevenue,
+        withdrawableRevenue:
+            (_adRevenue + _premiumSubRevenue + _tipsRevenue + _membershipsRevenue) *
+                0.70,
+        lockedRevenue:
+            (_adRevenue + _premiumSubRevenue + _tipsRevenue + _membershipsRevenue) *
+                0.30,
+      );
 
   // Demo revenue numbers for visualization
   final double _adRevenue = 15000.0;
@@ -182,6 +198,505 @@ class _ChannelMonetizationDashboardViewState
     }
 
     _isUpdatingRx.value = false;
+  }
+
+  Future<void> _subscribePlanWithBalance(
+    BuildContext context,
+    CustomChannelPlanTier plan,
+  ) async {
+    final auth = AuthService.to;
+    final userId = auth.uid.isNotEmpty ? auth.uid : _channel.ownerId;
+    final spendable = _spendableBalance;
+
+    if (!spendable.canAfford(plan.priceUSD)) {
+      Get.snackbar(
+        'Insufficient Balance',
+        'Your spendable balance (\$${spendable.totalSpendableBalance.toStringAsFixed(2)}) is insufficient for \$${plan.priceUSD.toStringAsFixed(2)}.',
+        backgroundColor: AppColors.bgSurfaceHigh,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    _isUpdatingRx.value = true;
+    final success = await _walletService.spendForCustomPlan(
+      channel: _channel,
+      userId: userId,
+      planTier: plan.id,
+      priceUSD: plan.priceUSD,
+    );
+
+    if (success) {
+      final existingInfra = _channel.infraConfig;
+      final newTrialRemaining = existingInfra != null
+          ? (existingInfra.trialCreditRemainingUSD - plan.priceUSD)
+              .clamp(0.0, 999999.0)
+          : 0.0;
+
+      final updatedInfra = CustomChannelInfraConfig(
+        stripeConnectAccountId:
+            existingInfra?.stripeConnectAccountId ?? 'acct_${_channel.id}',
+        subscriptionId:
+            existingInfra?.subscriptionId ?? 'sub_${_channel.id}',
+        storageUsedBytes: existingInfra?.storageUsedBytes ?? 0,
+        storageQuotaBytes: plan.storageGB * 1024 * 1024 * 1024,
+        bandwidthUsedBytesThisMonth:
+            existingInfra?.bandwidthUsedBytesThisMonth ?? 0,
+        bandwidthQuotaBytesThisMonth:
+            plan.bandwidthGB * 1024 * 1024 * 1024,
+        trialCreditRemainingUSD: newTrialRemaining,
+        planTier: plan.id,
+      );
+
+      _channelRx.value = Channel(
+        id: _channel.id,
+        name: _channel.name,
+        nameLowercase: _channel.nameLowercase,
+        handle: _channel.handle,
+        handleLowercase: _channel.handleLowercase,
+        description: _channel.description,
+        avatarUrl: _channel.avatarUrl,
+        bannerUrl: _channel.bannerUrl,
+        ownerId: _channel.ownerId,
+        createdAt: _channel.createdAt,
+        updatedAt: Timestamp.now(),
+        subscriberCount: _channel.subscriberCount,
+        videoCount: _channel.videoCount,
+        metrics: _channel.metrics,
+        status: _channel.status,
+        isVerified: _channel.isVerified,
+        category: _channel.category,
+        categories: _channel.categories,
+        language: _channel.language,
+        monetizationTier: _channel.monetizationTier,
+        channelType: ChannelType.custom,
+        infraConfig: updatedInfra,
+      );
+      _selectedPlanId.value = plan.id;
+
+      Get.snackbar(
+        'Plan Activated!',
+        'Successfully subscribed to ${plan.title} plan (\$${plan.priceUSD.toStringAsFixed(0)}/mo) using account balance.',
+        backgroundColor: AppColors.bgSurfaceHigh,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 4),
+      );
+    }
+    _isUpdatingRx.value = false;
+  }
+
+  void _showStorageTopupSheet(BuildContext context) {
+    final typography = context.twTypography;
+    final spendable = _spendableBalance;
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.storage_rounded, color: Colors.white, size: 24),
+                      SizedBox(width: 10),
+                      Text(
+                        'Buy Extra Storage with Balance',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: Get.back,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.trialCreditRemaining.toStringAsFixed(2)} Trial Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...ChannelWalletService.storagePacks.map((pack) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurfaceHigh,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: AppColors.bgSurface,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.cloud_upload_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  pack.title,
+                                  style: typography.title.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (pack.badge.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.bgElevated,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      pack.badge,
+                                      style: typography.caption.copyWith(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '+${pack.gigabytes} GB permanent add-on video storage',
+                              style: typography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Get.back();
+                          final auth = AuthService.to;
+                          final uid = auth.uid.isNotEmpty
+                              ? auth.uid
+                              : _channel.ownerId;
+                          final ok = await _walletService.spendForStorageTopup(
+                            channel: _channel,
+                            userId: uid,
+                            pack: pack,
+                          );
+                          if (ok) {
+                            final cur = _channel.infraConfig?.storageQuotaBytes ??
+                                53687091200;
+                            final updated = CustomChannelInfraConfig(
+                              stripeConnectAccountId: _channel.infraConfig
+                                      ?.stripeConnectAccountId ??
+                                  '',
+                              subscriptionId:
+                                  _channel.infraConfig?.subscriptionId ?? '',
+                              storageQuotaBytes: cur + pack.bytes,
+                              storageUsedBytes: _channel.infraConfig?.storageUsedBytes ?? 0,
+                              bandwidthQuotaBytesThisMonth: _channel.infraConfig?.bandwidthQuotaBytesThisMonth ?? 214748364800,
+                              bandwidthUsedBytesThisMonth: _channel.infraConfig?.bandwidthUsedBytesThisMonth ?? 0,
+                              trialCreditRemainingUSD: (_channel.infraConfig?.trialCreditRemainingUSD ?? 10.0) > pack.priceUSD
+                                  ? (_channel.infraConfig!.trialCreditRemainingUSD - pack.priceUSD)
+                                  : 0.0,
+                              planTier: _channel.infraConfig?.planTier ?? 'starter_15',
+                            );
+                            _channelRx.value = Channel(
+                              id: _channel.id,
+                              name: _channel.name,
+                              nameLowercase: _channel.nameLowercase,
+                              handle: _channel.handle,
+                              handleLowercase: _channel.handleLowercase,
+                              description: _channel.description,
+                              avatarUrl: _channel.avatarUrl,
+                              bannerUrl: _channel.bannerUrl,
+                              ownerId: _channel.ownerId,
+                              createdAt: _channel.createdAt,
+                              updatedAt: Timestamp.now(),
+                              subscriberCount: _channel.subscriberCount,
+                              videoCount: _channel.videoCount,
+                              metrics: _channel.metrics,
+                              status: _channel.status,
+                              isVerified: _channel.isVerified,
+                              category: _channel.category,
+                              categories: _channel.categories,
+                              language: _channel.language,
+                              monetizationTier: _channel.monetizationTier,
+                              channelType: _channel.channelType,
+                              infraConfig: updated,
+                            );
+                            Get.snackbar(
+                              'Storage Added!',
+                              'Added +${pack.gigabytes} GB storage to your channel using account balance.',
+                              backgroundColor: AppColors.bgSurfaceHigh,
+                              colorText: Colors.white,
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          '\$${pack.priceUSD.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showBandwidthTopupSheet(BuildContext context) {
+    final typography = context.twTypography;
+    final spendable = _spendableBalance;
+
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.speed_rounded, color: Colors.white, size: 24),
+                      SizedBox(width: 10),
+                      Text(
+                        'Buy Streaming Bandwidth with Balance',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: Get.back,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Available Spendable Balance: \$${spendable.totalSpendableBalance.toStringAsFixed(2)} (\$${spendable.trialCreditRemaining.toStringAsFixed(2)} Trial Credit + \$${spendable.totalRevenue.toStringAsFixed(2)} Revenue)',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...ChannelWalletService.bandwidthPacks.map((pack) {
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurfaceHigh,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: AppColors.bgSurface,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.stream_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  pack.title,
+                                  style: typography.title.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (pack.badge.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.bgElevated,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      pack.badge,
+                                      style: typography.caption.copyWith(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '+${pack.gigabytes} GB CDN streaming bandwidth for high viewer traffic',
+                              style: typography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          Get.back();
+                          final auth = AuthService.to;
+                          final uid = auth.uid.isNotEmpty
+                              ? auth.uid
+                              : _channel.ownerId;
+                          final ok = await _walletService.spendForBandwidthTopup(
+                            channel: _channel,
+                            userId: uid,
+                            pack: pack,
+                          );
+                          if (ok) {
+                            final cur = _channel.infraConfig?.bandwidthQuotaBytesThisMonth ??
+                                214748364800;
+                            final updated = CustomChannelInfraConfig(
+                              stripeConnectAccountId: _channel.infraConfig
+                                      ?.stripeConnectAccountId ??
+                                  '',
+                              subscriptionId:
+                                  _channel.infraConfig?.subscriptionId ?? '',
+                              storageQuotaBytes: _channel.infraConfig?.storageQuotaBytes ?? 53687091200,
+                              storageUsedBytes: _channel.infraConfig?.storageUsedBytes ?? 0,
+                              bandwidthQuotaBytesThisMonth: cur + pack.bytes,
+                              bandwidthUsedBytesThisMonth: _channel.infraConfig?.bandwidthUsedBytesThisMonth ?? 0,
+                              trialCreditRemainingUSD: (_channel.infraConfig?.trialCreditRemainingUSD ?? 10.0) > pack.priceUSD
+                                  ? (_channel.infraConfig!.trialCreditRemainingUSD - pack.priceUSD)
+                                  : 0.0,
+                              planTier: _channel.infraConfig?.planTier ?? 'starter_15',
+                            );
+                            _channelRx.value = Channel(
+                              id: _channel.id,
+                              name: _channel.name,
+                              nameLowercase: _channel.nameLowercase,
+                              handle: _channel.handle,
+                              handleLowercase: _channel.handleLowercase,
+                              description: _channel.description,
+                              avatarUrl: _channel.avatarUrl,
+                              bannerUrl: _channel.bannerUrl,
+                              ownerId: _channel.ownerId,
+                              createdAt: _channel.createdAt,
+                              updatedAt: Timestamp.now(),
+                              subscriberCount: _channel.subscriberCount,
+                              videoCount: _channel.videoCount,
+                              metrics: _channel.metrics,
+                              status: _channel.status,
+                              isVerified: _channel.isVerified,
+                              category: _channel.category,
+                              categories: _channel.categories,
+                              language: _channel.language,
+                              monetizationTier: _channel.monetizationTier,
+                              channelType: _channel.channelType,
+                              infraConfig: updated,
+                            );
+                            Get.snackbar(
+                              'Bandwidth Added!',
+                              'Added +${pack.gigabytes} GB CDN bandwidth to your channel using account balance.',
+                              backgroundColor: AppColors.bgSurfaceHigh,
+                              colorText: Colors.white,
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          '\$${pack.priceUSD.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -562,15 +1077,10 @@ class _ChannelMonetizationDashboardViewState
         children: [
           Row(
             children: [
-              CircleAvatar(
+              UserAvatar(
                 radius: 30,
-                backgroundColor: AppColors.bgSurfaceHigh,
-                backgroundImage: _channel.avatarUrl.isNotEmpty
-                    ? NetworkImage(_channel.avatarUrl)
-                    : null,
-                child: _channel.avatarUrl.isEmpty
-                    ? const Icon(Icons.tv, color: Colors.white, size: 30)
-                    : null,
+                photoUrl: _channel.avatarUrl,
+                displayName: _channel.name,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -784,6 +1294,39 @@ class _ChannelMonetizationDashboardViewState
                             ),
                           ),
                         ),
+                        if (plan.priceUSD > 0) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  _subscribePlanWithBalance(context, plan),
+                              icon: const Icon(
+                                Icons.account_balance_wallet_rounded,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                              label: Text(
+                                'Pay with Balance',
+                                style: typography.caption.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isSelected
+                                    ? AppColors.bgSurface
+                                    : AppColors.bgElevated,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -944,6 +1487,12 @@ class _ChannelMonetizationDashboardViewState
     final typography = context.twTypography;
     final storageGB = _storageUsedBytes / (1024 * 1024 * 1024);
     final bandwidthGB = _bandwidthUsedBytes / (1024 * 1024 * 1024);
+    final storageQuotaGB =
+        (_channel.infraConfig?.storageQuotaBytes ?? 53687091200) /
+            (1024 * 1024 * 1024);
+    final bandwidthQuotaGB =
+        (_channel.infraConfig?.bandwidthQuotaBytesThisMonth ?? 214748364800) /
+            (1024 * 1024 * 1024);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -956,12 +1505,68 @@ class _ChannelMonetizationDashboardViewState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.cloud_queue, color: Colors.white, size: 22),
-              const SizedBox(width: 10),
-              Text(
-                'Infrastructure Metering',
-                style: typography.headline.copyWith(color: Colors.white),
+              Row(
+                children: [
+                  const Icon(Icons.cloud_queue, color: Colors.white, size: 22),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Infrastructure Metering',
+                    style: typography.headline.copyWith(color: Colors.white),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _showStorageTopupSheet(context),
+                    icon: const Icon(
+                      Icons.add_circle_outline_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    label: const Text(
+                      '+ Storage',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.bgDivider),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _showBandwidthTopupSheet(context),
+                    icon: const Icon(
+                      Icons.speed_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    label: const Text(
+                      '+ Bandwidth',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.bgDivider),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -971,8 +1576,9 @@ class _ChannelMonetizationDashboardViewState
           _buildMeterBar(
             context,
             title: 'Video Storage',
-            valueText: '${storageGB.toStringAsFixed(1)} GB / 50 GB',
-            progress: (storageGB / 50.0).clamp(0.0, 1.0),
+            valueText:
+                '${storageGB.toStringAsFixed(1)} GB / ${storageQuotaGB.toStringAsFixed(0)} GB',
+            progress: (storageGB / storageQuotaGB).clamp(0.0, 1.0),
           ),
           const SizedBox(height: 12),
 
@@ -980,8 +1586,9 @@ class _ChannelMonetizationDashboardViewState
           _buildMeterBar(
             context,
             title: 'CDN Streaming Bandwidth',
-            valueText: '${bandwidthGB.toStringAsFixed(1)} GB / 200 GB',
-            progress: (bandwidthGB / 200.0).clamp(0.0, 1.0),
+            valueText:
+                '${bandwidthGB.toStringAsFixed(1)} GB / ${bandwidthQuotaGB.toStringAsFixed(0)} GB',
+            progress: (bandwidthGB / bandwidthQuotaGB).clamp(0.0, 1.0),
           ),
           const SizedBox(height: 16),
 

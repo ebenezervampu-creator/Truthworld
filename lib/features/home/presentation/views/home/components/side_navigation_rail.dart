@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
-
-import 'home_theme.dart';
 
 // Constants
 const double kSideNavWidth = 280.0;
@@ -22,12 +23,7 @@ class SideNavigationRail extends StatelessWidget {
   final HomeController homeController;
 
   const SideNavigationRail({
-    super.key,
-    required this.selectedIndex,
-    required this.onSelectItem,
-    required this.onShowSignInSnackbar,
-    required this.isCompact,
-    required this.homeController,
+    required this.selectedIndex, required this.onSelectItem, required this.onShowSignInSnackbar, required this.isCompact, required this.homeController, super.key,
     this.isDrawer = false,
   });
 
@@ -56,8 +52,6 @@ class SideNavigationRail extends StatelessWidget {
   }
 
   Widget _buildNavigationItems(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     return ListView(
       padding: EdgeInsets.zero,
       children: [
@@ -108,6 +102,8 @@ class SideNavigationRail extends StatelessWidget {
     String title,
     List<Widget> items,
   ) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
       child: Column(
@@ -140,7 +136,7 @@ class SideNavigationRail extends StatelessWidget {
         Icons.home_outlined,
         'Home',
         HomeController.indexHome,
-        route: "/home",
+        route: '/home',
       ),
       _buildNavItem(
         context,
@@ -148,7 +144,7 @@ class SideNavigationRail extends StatelessWidget {
         Icons.subscriptions_outlined,
         'Subscriptions',
         HomeController.indexSubscriptions,
-        route: "/subscriptions",
+        route: '/subscriptions',
         requiresAuth: true,
       ),
       _buildNavItem(
@@ -157,7 +153,7 @@ class SideNavigationRail extends StatelessWidget {
         Icons.explore_outlined,
         'Discover Channels',
         HomeController.indexDiscover,
-        route: "/discover",
+        route: '/discover',
       ),
       _buildNavItem(
         context,
@@ -230,8 +226,8 @@ class SideNavigationRail extends StatelessWidget {
       ),
       _buildNavItem(
         context,
-        Icons.scissors_rounded,
-        Icons.scissors_outlined,
+        Icons.content_cut_rounded,
+        Icons.content_cut_outlined,
         'Clips',
         HomeController.indexClips,
         route: '/clips',
@@ -240,22 +236,24 @@ class SideNavigationRail extends StatelessWidget {
   }
 
   List<Widget> _buildPlaylistItems(BuildContext context) {
-    return Obx(() {
-      final playlists = homeController.userPlaylists;
-      if (playlists.isEmpty) {
-        return [_buildNoPlaylistsItem()];
-      }
-      return playlists.take(5).map((playlist) {
-        return _buildNavItem(
-          context,
-          Icons.playlist_play_rounded,
-          Icons.playlist_play_outlined,
-          playlist.title,
-          HomeController.indexPlaylistDetail,
-          onTap: () => homeController.navigateToPlaylistDetail(playlist),
-        );
-      }).toList();
-    });
+    if (!Get.isRegistered<PlaylistController>()) {
+      return [_buildNoPlaylistsItem()];
+    }
+    final playlistCtrl = Get.find<PlaylistController>();
+    final playlists = playlistCtrl.playlists;
+    if (playlists.isEmpty) {
+      return [_buildNoPlaylistsItem()];
+    }
+    return playlists.take(5).map((playlist) {
+      return _buildNavItem(
+        context,
+        Icons.playlist_play_rounded,
+        Icons.playlist_play_outlined,
+        playlist.name,
+        HomeController.indexPlaylistDetail,
+        onTap: () => homeController.navigateToPlaylistDetail(playlist),
+      );
+    }).toList();
   }
 
   Widget _buildNoPlaylistsItem() {
@@ -400,21 +398,9 @@ class SideNavigationRail extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: HomeTheme.primaryAccent,
-              backgroundImage: user.photoURL != null
-                  ? NetworkImage(user.photoURL!)
-                  : null,
-              child: user.photoURL == null
-                  ? Text(
-                      user.displayName?.substring(0, 1).toUpperCase() ?? 'U',
-                      style: GoogleFonts.roboto(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    )
-                  : null,
+            UserAvatar(
+              photoUrl: user.photoURL,
+              displayName: user.displayName,
             ),
             const SizedBox(height: 8),
             Text(

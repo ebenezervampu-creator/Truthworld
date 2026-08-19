@@ -453,6 +453,14 @@ class CommunityPostController extends BaseController with ContentValidationMixin
     final uid = currentUid;
     if (uid == null) return;
 
+    if (details.trim().isNotEmpty) {
+      final detailsVal = await validateContent(details, fieldName: 'Report details');
+      if (!detailsVal.isValid) {
+        showWarning(detailsVal.message);
+        return;
+      }
+    }
+
     isHidden.value = true;
 
     try {

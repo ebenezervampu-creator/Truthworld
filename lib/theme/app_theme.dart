@@ -13,6 +13,7 @@ import 'package:truthworld/theme/tw_typography.dart';
 
 export 'app_colors.dart';
 export 'compatibility_layer.dart';
+export 'dark_professional_theme.dart';
 export 'responsive_helpers.dart';
 export 'tw_colors.dart';
 export 'tw_gradients.dart';

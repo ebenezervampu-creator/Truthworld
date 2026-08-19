@@ -163,4 +163,67 @@ class LibraryRepositoryImpl extends BaseRepository implements LibraryRepository 
       }
     });
   }
+
+  DocumentSnapshot? _lastSavedDoc;
+
+  @override
+  Future<Result<List<Map<String, dynamic>>>> getSavedVideos(
+    String userId, {
+    int page = 1,
+    int limit = 20,
+  }) async {
+    return safeFetch(() async {
+      if (page == 1) _lastSavedDoc = null;
+
+      var query = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('saved_videos')
+          .orderBy('savedAt', descending: true)
+          .limit(limit);
+
+      if (page > 1 && _lastSavedDoc != null) {
+        query = query.startAfterDocument(_lastSavedDoc!);
+      }
+
+      final snapshot = await query.get();
+      if (snapshot.docs.isNotEmpty) {
+        _lastSavedDoc = snapshot.docs.last;
+      }
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    });
+  }
+
+  @override
+  Future<Result<void>> toggleSaveVideo(
+    String userId,
+    Map<String, dynamic> videoMap,
+  ) async {
+    return safeFetch(() async {
+      final videoId = (videoMap['id'] ?? '').toString();
+      if (videoId.isEmpty) return;
+
+      final docRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('saved_videos')
+          .doc(videoId);
+
+      final doc = await docRef.get();
+      if (doc.exists) {
+        await docRef.delete();
+      } else {
+        await docRef.set({
+          'savedAt': FieldValue.serverTimestamp(),
+          'videoId': videoId,
+          'videoData': videoMap,
+        });
+      }
+    });
+  }
 }

@@ -807,6 +807,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       final isSelected =
                           controller.selectedLanguage.value == code;
                       final langName = controller.getLanguageName(code);
+                      // Show pending indicator if this language has no subtitle URL yet
+                      final subs = controller.selectedVideo.value?.mediaSubtitles ?? {};
+                      final hasSub = subs.containsKey(code) && (subs[code]?.isNotEmpty ?? false);
+                      final isPending = !hasSub;
 
                       return Padding(
                         padding: const EdgeInsets.only(
@@ -815,13 +819,26 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           bottom: 8,
                         ),
                         child: ChoiceChip(
-                          label: Text(
-                            langName,
-                            style: AppTextStyles.labelMedium.copyWith(
-                              color: isSelected ? Colors.black : textColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                langName,
+                                style: AppTextStyles.labelMedium.copyWith(
+                                  color: isSelected ? Colors.black : textColor,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (isPending && !isSelected) ...[
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.hourglass_empty_rounded,
+                                  size: 11,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ],
+                            ],
                           ),
                           selected: isSelected,
                           onSelected: (selected) {
@@ -832,7 +849,11 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                             side: BorderSide(
-                              color: isSelected ? AppColors.brand : borderColor,
+                              color: isSelected
+                                  ? AppColors.brand
+                                  : isPending
+                                      ? AppColors.textTertiary.withValues(alpha: 0.5)
+                                      : borderColor,
                             ),
                           ),
                           showCheckmark: false,

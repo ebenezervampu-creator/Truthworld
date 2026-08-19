@@ -24,7 +24,6 @@ class FactCheckReportWidget extends StatelessWidget {
     final trustScore =
         ((data['trustScore'] ??
                     data['compositeRating'] ??
-                    data['videoRating'] ??
                     0.0)
                 as num)
             .toDouble();

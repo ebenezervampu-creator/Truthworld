@@ -9,16 +9,16 @@ import 'package:truthworld/theme/app_theme.dart';
 
 class HomeTheme {
   // Color Palette
-  static final Color darkBackground = AppColors.bgPage;
-  static final Color darkSurface = AppColors.bgInput;
-  static final Color darkSurfaceVariant = const Color(0xFF1E1E1E);
-  static final Color darkOnSurface = const Color(0xFFE8E8E8);
-  static final Color darkOnSurfaceVariant = const Color(0xFFB8B8B8);
+  static const Color darkBackground = AppColors.bgPage;
+  static const Color darkSurface = AppColors.bgInput;
+  static const Color darkSurfaceVariant = Color(0xFF1E1E1E);
+  static const Color darkOnSurface = Color(0xFFE8E8E8);
+  static const Color darkOnSurfaceVariant = Color(0xFFB8B8B8);
   
   // Accent Colors
-  static final Color primaryAccent = const Color(0xFF1976D2);
-  static final Color secondaryAccent = const Color(0xFF42A5F5);
-  static final Color tertiaryAccent = const Color(0xFF90CAF9);
+  static const Color primaryAccent = Color(0xFF1976D2);
+  static const Color secondaryAccent = Color(0xFF42A5F5);
+  static const Color tertiaryAccent = Color(0xFF90CAF9);
 
   static ThemeData get darkProfessionalTheme {
     return ThemeData(
@@ -57,7 +57,6 @@ class HomeTheme {
       onTertiary: Colors.white,
       tertiaryContainer: tertiaryAccent.withValues(alpha: 0.12),
       onTertiaryContainer: tertiaryAccent,
-      surface: darkSurface,
       onSurface: darkOnSurface,
       surfaceContainerHighest: darkSurfaceVariant,
       onSurfaceVariant: darkOnSurfaceVariant,
@@ -163,7 +162,7 @@ class HomeTheme {
     );
   }
 
-  static CardTheme _buildCardTheme() {
+  static CardThemeData _buildCardTheme() {
     return CardThemeData(
       color: darkSurface,
       elevation: 2,
@@ -237,7 +236,7 @@ class HomeTheme {
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return const IconThemeData(color: primaryAccent, size: 24);
+          return const IconThemeData(color: Colors.white, size: 24);
         }
         return const IconThemeData(color: darkOnSurfaceVariant, size: 24);
       }),
@@ -274,7 +273,7 @@ class HomeTheme {
         fontWeight: FontWeight.w500,
         letterSpacing: 0.5,
       ),
-      selectedIconTheme: const IconThemeData(color: primaryAccent, size: 24),
+      selectedIconTheme: const IconThemeData(color: Colors.white, size: 24),
       unselectedIconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
     );
   }
@@ -366,5 +365,14 @@ class HomeTheme {
         fontWeight: FontWeight.w500,
       ),
     );
+  }
+}
+
+extension StringExtension on String {
+  String safeSubstring(int start, int end) {
+    if (isEmpty) return this;
+    var actualEnd = end;
+    if (actualEnd > length) actualEnd = length;
+    return substring(start, actualEnd);
   }
 }

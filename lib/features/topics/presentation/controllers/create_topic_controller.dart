@@ -7,6 +7,7 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/cloud_vision_service.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 
 /// Industry-standard controller for topic creation, form validation, profanity checking,
@@ -17,16 +18,19 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
   // Text Controllers
+  final TextEditingController nameController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController handleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController accessCodeController = TextEditingController();
   final TextEditingController tagsController = TextEditingController();
+  final TextEditingController tagInputController = TextEditingController();
   final TextEditingController categoryController = TextEditingController(
-    text: 'Technology',
+    text: 'Science & Technology',
   );
 
   // Form State
+  final RxList<String> tagsList = <String>['Space', 'Astronomy', 'Science', 'Exploration'].obs;
   final Rx<TopicVisibilityType> selectedVisibility =
       TopicVisibilityType.public.obs;
   final RxBool obscureAccessCode = true.obs;
@@ -52,25 +56,37 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
   void onInit() {
     super.onInit();
     initializeContentFilters();
+    nameController.addListener(_onNameChanged);
     titleController.addListener(_onTitleChanged);
   }
 
   @override
   void onClose() {
+    nameController.removeListener(_onNameChanged);
     titleController.removeListener(_onTitleChanged);
+    nameController.dispose();
     titleController.dispose();
     handleController.dispose();
     descriptionController.dispose();
     accessCodeController.dispose();
     tagsController.dispose();
+    tagInputController.dispose();
     categoryController.dispose();
     super.onClose();
   }
 
+  void _onNameChanged() {
+    if (titleController.text.isEmpty || titleController.text == nameController.text) {
+      titleController.text = nameController.text;
+    }
+    _onTitleChanged();
+  }
+
   /// Automatically updates handle slug as the user types title unless manually modified.
   void _onTitleChanged() {
-    if (!autoHandleTouched.value && titleController.text.isNotEmpty) {
-      final slug = titleController.text
+    final activeText = nameController.text.isNotEmpty ? nameController.text : titleController.text;
+    if (!autoHandleTouched.value && activeText.isNotEmpty) {
+      final slug = activeText
           .trim()
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9\s_-]'), '')
@@ -78,6 +94,27 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
       handleController.text = slug;
     }
     validateProfanityRealtime();
+  }
+
+  Future<void> addTag(String rawTag) async {
+    final clean = rawTag.replaceAll(',', '').replaceAll('#', '').trim();
+    if (clean.isNotEmpty && !tagsList.contains(clean) && tagsList.length < 5) {
+      final tagVal = await validateContent(clean, fieldName: 'Tag');
+      if (!tagVal.isValid) {
+        profanityError.value = tagVal.message;
+        return;
+      }
+      tagsList.add(clean);
+      tagsController.text = tagsList.join(', ');
+      tagInputController.clear();
+      profanityError.value = '';
+    }
+  }
+
+  void removeTag(String tag) {
+    tagsList.remove(tag);
+    tagsController.text = tagsList.join(', ');
+    profanityError.value = '';
   }
 
   /// Mark handle as manually edited by user.
@@ -231,6 +268,23 @@ class CreateTopicController extends BaseController with ContentValidationMixin {
         .toList();
     if (tags.length > 5) {
       profanityError.value = 'Maximum 5 tags allowed per topic.';
+      return false;
+    }
+    if (tags.isNotEmpty) {
+      final tagsVal = await validateTags(tags);
+      if (!tagsVal.isValid) {
+        profanityError.value = tagsVal.message;
+        return false;
+      }
+    }
+
+    // Mandatory: Topic must contain at least 1 video
+    if (selectedVideoIds.isEmpty) {
+      profanityError.value = 'At least 1 video is required to create a topic. Please select a video.';
+      AppSnackbar.show(
+        'Video Required',
+        'At least 1 video is required to create a topic. Please select a video.',
+      );
       return false;
     }
 

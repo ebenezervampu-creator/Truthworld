@@ -2,8 +2,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:truthworld/core/bindings/app_bindings.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
-// import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
-
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -27,6 +25,8 @@ import 'package:truthworld/features/channel/presentation/views/channel/channel_d
     deferred as channel_details;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channelloader_screen.dart';
+import 'package:truthworld/features/community/community_post_upload_binding.dart';
+import 'package:truthworld/features/community/community_post_upload_screen.dart';
 import 'package:truthworld/features/community/presentation/bindings/saved_comments_binding.dart';
 import 'package:truthworld/features/community/presentation/bindings/saved_community_posts_binding.dart';
 import 'package:truthworld/features/community/presentation/views/saved_comments_screen.dart';
@@ -50,6 +50,7 @@ import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_vide
 import 'package:truthworld/features/notifications/presentation/bindings/notifications_binding.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_loader_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
@@ -87,6 +88,8 @@ import 'package:truthworld/features/video/presentation/views/videoloader_screen.
 import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
+import 'package:truthworld/features/watchlater/presentation/bindings/watchlater_binding.dart';
+import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
 
 class AppPages {
@@ -96,8 +99,10 @@ class AppPages {
       page: () {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
+          final uriStr = Uri.base.toString().toLowerCase();
           if (host.startsWith('admin') ||
               host.contains('admin') ||
+              uriStr.contains('admin') ||
               Uri.base.queryParameters.containsKey('admin')) {
             return DeferredWidget(
               loader: admin_dashboard.loadLibrary,
@@ -106,6 +111,7 @@ class AppPages {
           }
           if (host.startsWith('studio') ||
               host.contains('studio') ||
+              uriStr.contains('studio') ||
               Uri.base.queryParameters.containsKey('studio')) {
             return DeferredWidget(
               loader: dashboard.loadLibrary,
@@ -118,14 +124,17 @@ class AppPages {
       binding: BindingsBuilder(() {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
+          final uriStr = Uri.base.toString().toLowerCase();
           if (host.startsWith('admin') ||
               host.contains('admin') ||
+              uriStr.contains('admin') ||
               Uri.base.queryParameters.containsKey('admin')) {
             AdminBinding().dependencies();
             return;
           }
           if (host.startsWith('studio') ||
               host.contains('studio') ||
+              uriStr.contains('studio') ||
               Uri.base.queryParameters.containsKey('studio')) {
             DashboardBinding().dependencies();
             return;
@@ -140,7 +149,7 @@ class AppPages {
         loader: dashboard.loadLibrary,
         builder: () => dashboard.DashboardScreen(),
       ),
-      middlewares: [StudioRedirectMiddleware(), AuthGuard()],
+      middlewares: [StudioRedirectMiddleware(), StudioAccessGuard()],
       binding: DashboardBinding(),
     ),
     GetPage(
@@ -160,7 +169,7 @@ class AppPages {
         loader: dashboard.loadLibrary,
         builder: () => dashboard.DashboardScreen(),
       ),
-      middlewares: [AuthGuard()],
+      middlewares: [DashboardRedirectMiddleware(), StudioAccessGuard()],
       binding: DashboardBinding(),
     ),
     GetPage(
@@ -178,6 +187,12 @@ class AppPages {
         builder: () => liked_video.LikedVideoScreen(),
       ),
       binding: LikedVideosBinding(),
+    ),
+    GetPage(
+      name: '/watchlater',
+      page: () => const WatchLaterScreen(),
+      binding: WatchLaterBinding(),
+      middlewares: [AuthGuard()],
     ),
     GetPage(
       name: '/playlistscreen',
@@ -270,18 +285,20 @@ class AppPages {
     ),
     GetPage(
       name: '/upload/community',
-      page: () => const CreateContentScreen(
-        uploadType: UploadType.communityPost,
-      ),
-      binding: VideoFeatureBinding(),
+      page: () => const CommunityPostUploadScreen(),
+      binding: CommunityPostUploadBinding(),
       middlewares: [AuthGuard()],
     ),
     GetPage(
       name: '/create-post',
-      page: () => const CreateContentScreen(
-        uploadType: UploadType.communityPost,
-      ),
-      binding: VideoFeatureBinding(),
+      page: () => const CommunityPostUploadScreen(),
+      binding: CommunityPostUploadBinding(),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/create-playlist',
+      page: () => const CreatePlaylistScreen(),
+      binding: PlaylistBinding(),
       middlewares: [AuthGuard()],
     ),
     // Backward compatibility - redirect old route to selection screen

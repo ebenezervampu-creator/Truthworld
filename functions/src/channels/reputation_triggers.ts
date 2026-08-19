@@ -7,8 +7,16 @@ const db = admin.firestore();
 /**
  * 📊 Update channel rolling reputation and propagate ratings to linked videos
  */
-export async function updateChannelReputationAndVideos(jobId: string, videoRating: number): Promise<void> {
-  const trustIndex = videoRating;
+export async function updateChannelReputationAndVideos(jobId: string, trustScore: number): Promise<void> {
+  // v12.1 FIX: Guard against unscored videos poisoning channel reputation.
+  // When scoring is disabled (v12.0 decoupled mode), trustScore arrives as 0 or null.
+  // A genuine "all claims false" rating of 0.0 is extremely rare; the guard uses
+  // null/undefined/NaN checks. The caller in 06-credibility.ts now also guards
+  // against calling this function when scoring is unavailable.
+  if (trustScore === null || trustScore === undefined || isNaN(trustScore)) {
+    logger.warn(`[Reputation] Skipping reputation update for job ${jobId} — trustScore is null/undefined/NaN (unscored)`);
+    return;
+  }
 
   try {
     // 1. Find the channel(s) associated with this video/job
@@ -40,11 +48,11 @@ export async function updateChannelReputationAndVideos(jobId: string, videoRatin
       const totalVideos = (reputation.totalVideos || 0) + 1;
       const alpha = 0.2; // 20% weight to new video
       const oldRating = reputation.channelRating ?? reputation.avgTrustIndex ?? 5.0;
-      const newAvg = (oldRating * (1 - alpha)) + (videoRating * alpha);
+      const newAvg = (oldRating * (1 - alpha)) + (trustScore * alpha);
 
       // B. Update Recovery Streak
       let recoveryStreak = reputation.recoveryStreak || 0;
-      if (trustIndex >= 9.0) {
+      if (trustScore >= 9.0) {
         recoveryStreak += 1;
       } else {
         recoveryStreak = 0; // Streak broken!
@@ -75,8 +83,7 @@ export async function updateChannelReputationAndVideos(jobId: string, videoRatin
 
       for (const vid of linkedVideoIds) {
         tx.update(db.collection("videos").doc(vid), {
-          videoRating: videoRating,
-          trustIndex: videoRating,
+          trustIndex: trustScore,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
@@ -103,8 +110,8 @@ export const onFactCheckCompleted = onDocumentCreated(
     if (!data || data.status === "failed") return;
 
     const jobId = event.params.jobId;
-    const videoRating = data.videoRating ?? data.trustIndex ?? 0;
+    const trustScore = data.trustScore ?? data.trustIndex ?? 0;
 
-    await updateChannelReputationAndVideos(jobId, videoRating);
+    await updateChannelReputationAndVideos(jobId, trustScore);
   }
 );

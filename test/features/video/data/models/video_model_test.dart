@@ -52,7 +52,6 @@ void main() {
         'isMonetized': false,
         'allowRatings': true,
         'trustScore': 85.0,
-        'videoRating': 4.5,
       };
     });
 

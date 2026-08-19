@@ -314,15 +314,15 @@ class Channel {
   bool get isArchived => status == ChannelStatus.deleted;
   String get websiteUrl => socialLinks?['website'] ?? '';
 
-  // Standard Channel Constraints (Up to 5 videos, 2 min to 10 min duration, 10 min total accumulated limit)
-  int get maxAllowedVideos => channelType == ChannelType.standard ? 5 : 999999;
-  int get minVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 120 : 0; // 2 minutes (120s)
+  // Standard Channel Constraints (20 min daily upload limit, up to 20 min duration per day)
+  int get maxAllowedVideos => 999999;
+  int get minVideoDurationSeconds => 0;
+  int get maxDailyVideoDurationSeconds =>
+      channelType == ChannelType.standard ? 1200 : 86400; // 20 minutes (1200s) per day
   int get maxVideoDurationSeconds =>
-      channelType == ChannelType.standard ? 600 : 86400; // 10 minutes (600s)
-  int get maxTotalVideoDurationSeconds => channelType == ChannelType.standard
-      ? 600
-      : 8640000; // 10 minutes total (600s)
+      channelType == ChannelType.standard ? 1200 : 86400; // 20 minutes (1200s) max per video
+  int get maxTotalVideoDurationSeconds =>
+      channelType == ChannelType.standard ? 1200 : 8640000; // 20 minutes daily total (1200s)
 
   String get channelRoute {
     if (handle.isNotEmpty) {

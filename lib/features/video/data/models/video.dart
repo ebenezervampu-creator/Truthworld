@@ -88,6 +88,7 @@ class Video {
     dynamic visibility,
     this.topics = const [],
     this.language = 'en',
+    this.languages = const [],
     this.isShort = false,
     this.isKidFriendly = false,
     this.enableComments = true,
@@ -96,7 +97,6 @@ class Video {
     this.showLikeCount = true,
     this.showDislikeCount = true,
     this.trustScore = 0.0,
-    this.videoRating = 0.0,
     this.sourceLinks = const [],
     this.isFactChecked = false,
     this.isVerified = false,
@@ -131,6 +131,7 @@ class Video {
     this.coinBattleStance,
     this.geminiApproved,
     this.isApproved,
+    this.moderationSummary = '',
   }) : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
            ? title.toLowerCase()
            : vTitleLowercase,
@@ -156,7 +157,10 @@ class Video {
        updatedAt = TimestampUtils.parse(updatedAt ?? createdAt ?? uploadedAt),
        status = status is VideoStatus ? status : VideoStatus.processing,
        visibility = visibility?.toString() ?? 'public',
-       likedBy = likedBy ?? [] {
+       likedBy = likedBy ?? [],
+       _directFactCheckUrl = factCheckUrl ?? '',
+       _directTranscriptionUrl = transcriptionUrl ?? '',
+       _directMediaSubtitles = mediaSubtitles ?? const {} {
     // Populate the VideoMediaService static caches for instant synchronous retrieval
     if ((mediaSubtitles != null && mediaSubtitles.isNotEmpty) ||
         (dubbedVideos != null && dubbedVideos.isNotEmpty) ||
@@ -175,7 +179,6 @@ class Video {
         (transcriptionUrl != null && transcriptionUrl.isNotEmpty)) {
       VideoMediaService.credibilityCache[id] = VideoMediaCredibility(
         trustScore: trustScore,
-        videoRating: videoRating,
         trustLabel: trustLabel,
         scoringFactors: scoringFactors,
         deductions: deductions ?? const [],
@@ -222,13 +225,17 @@ class Video {
         VideoResolutionV2(label: '720p', url: rawVideoUrl, width: 1280, height: 720, bitrate: 2500000),
         VideoResolutionV2(label: '480p', url: rawVideoUrl, width: 854, height: 480, bitrate: 1200000),
         VideoResolutionV2(label: '360p', url: rawVideoUrl, width: 640, height: 360, bitrate: 800000),
+        VideoResolutionV2(label: '240p', url: rawVideoUrl, width: 426, height: 240, bitrate: 400000),
+        VideoResolutionV2(label: '144p', url: rawVideoUrl, width: 256, height: 144, bitrate: 200000),
       ];
     }
 
     // 2. Infer clean title if missing or untitled
     var parsedTitle = (data['title'] as String?) ?? '';
     if (parsedTitle.trim().isEmpty || parsedTitle.toLowerCase().startsWith('untitled')) {
-      final chapters = data['autoChapters'] as List?;
+      // autoChapters can be a bool (aiFeatures flag) or a List (AI-generated chapters)
+      final rawAutoChapters = data['autoChapters'];
+      final chapters = rawAutoChapters is List ? rawAutoChapters : null;
       final summary = data['summary'] as String?;
       if (chapters != null && chapters.isNotEmpty && chapters[0] is Map && chapters[0]['title'] != null) {
         parsedTitle = chapters[0]['title'].toString();
@@ -250,7 +257,7 @@ class Video {
         ? (data['media']['transcriptionUrl'] as String)
         : ((data['transcriptionUrl'] as String?)?.isNotEmpty == true
             ? (data['transcriptionUrl'] as String)
-            : (finalId.isNotEmpty ? 'https://truthworld.app/transcription/$finalId' : ''));
+            : '');
 
     final parsedThumbnailUrl = (data['thumbnailUrl'] as String?)?.trim() ?? '';
     final thumbnailVariantsList = List<String>.from(data['thumbnailVariants'] ?? []);
@@ -272,11 +279,24 @@ class Video {
             ? data['moderation']['isApproved'] as bool?
             : null);
 
+    final parsedModerationSummary = (data['moderation'] is Map &&
+            data['moderation']['summary'] != null &&
+            (data['moderation']['summary'] as String).isNotEmpty)
+        ? (data['moderation']['summary'] as String)
+        : ((data['summary'] as String?)?.isNotEmpty == true
+            ? (data['summary'] as String)
+            : ((data['moderation'] is Map &&
+                    data['moderation']['explanation'] != null &&
+                    (data['moderation']['explanation'] as String).isNotEmpty)
+                ? (data['moderation']['explanation'] as String)
+                : ''));
+
     return Video(
       id: finalId,
       title: parsedTitle,
       vTitleLowercase: data['titleLowercase'] ?? parsedTitle.toLowerCase(),
       description: data['description'] ?? '',
+      moderationSummary: parsedModerationSummary,
       originalUrl: data['originalUrl'] ?? rawVideoUrl,
       videoUrl: data['videoUrl'] ?? rawVideoUrl,
       hlsUrl: data['hlsUrl'] ?? rawVideoUrl,
@@ -334,6 +354,14 @@ class Video {
       tags: List<String>.from(data['tags'] ?? []),
       topics: List<String>.from(data['topics'] ?? []),
       language: data['language'] ?? 'en',
+      // 'languages' holds full-name translation targets (e.g. ["Tamil"]) from Firestore
+      languages: List<String>.from(
+        data['languages'] ??
+        (data['aiFeatures'] is Map
+            ? (data['aiFeatures']['translationLanguages'] ?? [])
+            : []) ??
+        [],
+      ),
       isShort: data['isShort'] ?? false,
       isKidFriendly: data['isKidFriendly'] ?? false,
       enableComments: data['enableComments'] ?? true,
@@ -369,13 +397,26 @@ class Video {
           data['showDislikes'] ??
           true,
       trustScore: (data['trustScore'] ?? 0).toDouble(),
-      videoRating: (data['videoRating'] ?? 0).toDouble(),
       sourceLinks: List<String>.from(data['sourceLinks'] ?? []),
       isFactChecked: (data['isFactChecked'] as bool?) ?? parsedFactCheckUrl.isNotEmpty,
       isVerified: data['isVerified'] ?? false,
-      chapters: (data['chapters'] as List? ?? [])
-          .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
-          .toList(),
+      // Read chapters from 'chapters' field first; fall back to root 'autoChapters' array.
+      // 'autoChapters' at root is a List of chapter maps (from AI pipeline).
+      // Deduplicate by startMs to prevent showing the same chapter twice.
+      chapters: () {
+        final fromChapters = (data['chapters'] as List? ?? [])
+            .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
+        if (fromChapters.isNotEmpty) return fromChapters;
+        final rawAutoChapters = data['autoChapters'];
+        if (rawAutoChapters is List && rawAutoChapters.isNotEmpty) {
+          return rawAutoChapters
+              .whereType<Map>()
+              .map((e) => VideoChapter.fromMap(Map<String, dynamic>.from(e)))
+              .toList();
+        }
+        return <VideoChapter>[];
+      }(),
       totalWatchTimeSeconds: data['totalWatchTimeSeconds'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
       // v8.0
@@ -507,6 +548,7 @@ class Video {
   final List<String> tags;
   final List<String> topics;
   final String language;
+  final List<String> languages; // Requested translation/subtitle languages (full names or codes)
   final bool isShort;
   final bool isKidFriendly;
 
@@ -517,7 +559,6 @@ class Video {
   final bool showLikeCount;
   final bool showDislikeCount;
   final double trustScore;
-  final double videoRating;
   final List<String>? sourceLinks;
   final bool isFactChecked;
   final bool isVerified;
@@ -528,13 +569,28 @@ class Video {
   final String? coinBattleStance;
   final bool? geminiApproved;
   final bool? isApproved;
+  final String moderationSummary;
 
   // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
 
-  // Getters lookup from VideoMediaService static caches
+  // Direct fields (immediate availability without cache delay)
+  final String _directFactCheckUrl;
+  final String _directTranscriptionUrl;
+  final Map<String, String> _directMediaSubtitles;
+
+  // Summary getter with priority: moderation.summary -> credibility.summary -> description
+  String get summary => moderationSummary.isNotEmpty
+      ? moderationSummary
+      : (VideoMediaService.credibilityCache[id]?.summary.isNotEmpty == true
+          ? VideoMediaService.credibilityCache[id]!.summary
+          : description);
+
+  // Getters lookup direct first, then VideoMediaService static caches
   Map<String, String> get mediaSubtitles =>
-      VideoMediaService.localizationCache[id]?.subtitles ?? const {};
+      _directMediaSubtitles.isNotEmpty
+          ? _directMediaSubtitles
+          : (VideoMediaService.localizationCache[id]?.subtitles ?? const {});
   Map<String, String> get dubbedVideos =>
       VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {};
   Map<String, String> get audioTracks =>
@@ -573,14 +629,18 @@ class Video {
       VideoMediaService.credibilityCache[id]?.effectiveCategory;
   UIReport? get uiReport => VideoMediaService.credibilityCache[id]?.uiReport;
   String get factCheckUrl {
+    if (_directFactCheckUrl.isNotEmpty) return _directFactCheckUrl;
     final cached = VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
     if (cached.isNotEmpty) return cached;
     return '';
   }
+
   String get transcriptionUrl {
-    final cached = VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
+    if (_directTranscriptionUrl.isNotEmpty) return _directTranscriptionUrl;
+    final cached =
+        VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
     if (cached.isNotEmpty) return cached;
-    return id.isNotEmpty ? 'https://storage.googleapis.com/truthworld-app.appspot.com/transcripts/$id/full.json' : '';
+    return '';
   }
 
   // Compatibility Getters
@@ -758,6 +818,7 @@ class Video {
       'tags': tags,
       'topics': topics,
       'language': language,
+      'languages': languages,
       'isShort': isShort,
       'isKidFriendly': isKidFriendly,
       'enableComments': enableComments,
@@ -766,7 +827,6 @@ class Video {
       'showLikeCount': showLikeCount,
       'showDislikeCount': showDislikeCount,
       'trustScore': trustScore,
-      'videoRating': videoRating,
       'sourceLinks': sourceLinks,
       'isFactChecked': isFactChecked,
       'isVerified': isVerified,
@@ -778,6 +838,7 @@ class Video {
       'scheduledPublishAt': scheduledPublishAt?.millisecondsSinceEpoch,
       'coinBattlePairVideoId': coinBattlePairVideoId,
       'coinBattleStance': coinBattleStance,
+      'moderationSummary': moderationSummary,
     };
   }
 
@@ -813,6 +874,7 @@ class Video {
     String? visibility,
     List<String>? topics,
     String? language,
+    List<String>? languages,
     bool? isShort,
     bool? isKidFriendly,
     bool? enableComments,
@@ -821,7 +883,6 @@ class Video {
     bool? showLikeCount,
     bool? showDislikeCount,
     double? trustScore,
-    double? videoRating,
     List<String>? sourceLinks,
     bool? isFactChecked,
     bool? isVerified,
@@ -830,14 +891,16 @@ class Video {
     int? totalWatchTimeSeconds,
     String? trustLabel,
     String? channelStatus,
-    DateTime? scheduledPublishAt,
     String? coinBattlePairVideoId,
     String? coinBattleStance,
+    String? moderationSummary,
+    DateTime? scheduledPublishAt,
   }) {
     return Video(
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
+      moderationSummary: moderationSummary ?? this.moderationSummary,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       ownerId: ownerId ?? this.ownerId,
       channelId: channelId ?? this.channelId,
@@ -866,6 +929,7 @@ class Video {
       visibility: visibility ?? this.visibility,
       topics: topics ?? this.topics,
       language: language ?? this.language,
+      languages: languages ?? this.languages,
       isShort: isShort ?? this.isShort,
       isKidFriendly: isKidFriendly ?? this.isKidFriendly,
       enableComments: enableComments ?? this.enableComments,
@@ -874,7 +938,6 @@ class Video {
       showLikeCount: showLikeCount ?? this.showLikeCount,
       showDislikeCount: showDislikeCount ?? this.showDislikeCount,
       trustScore: trustScore ?? this.trustScore,
-      videoRating: videoRating ?? this.videoRating,
       sourceLinks: sourceLinks ?? this.sourceLinks,
       isFactChecked: isFactChecked ?? this.isFactChecked,
       isVerified: isVerified ?? this.isVerified,

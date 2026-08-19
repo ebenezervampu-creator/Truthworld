@@ -94,6 +94,63 @@ export const onVideoUploadedForModeration = onObjectFinalized(
     });
 
     try {
+      // ─── STEP 1.5: Check if Videos Gemini AI is bypassed (Admin Only Mode) ───
+      const { isVideosBypassed } = require("./moderationModes");
+      const bypassed = await isVideosBypassed();
+      if (bypassed) {
+        console.log("[VideoModeration] Videos moderation toggle is ON (Admin Only). Bypassing Gemini AI check and routing to Admin.", { videoId });
+        const now = Date.now();
+        await db.collection("videos").doc(videoId).update({
+          "moderation.status": "manual_review",
+          "moderation.reason": "Routed to Admin for manual review (Gemini AI bypassed).",
+          "moderation.topic": "pending_admin_review",
+          "moderation.intent": "commentary",
+          "moderation.policyAction": "manual_review",
+          "moderation.riskLevel": "medium",
+          "moderation.policyReason": "Routed to Admin for manual review (Gemini AI bypassed).",
+          "moderation.explanation": "Automatic Gemini moderation bypassed per system settings. Held for manual admin decision.",
+          "moderation.violationCategories": ["admin_manual_review_required"],
+          "moderation.confidenceScore": 0,
+          "moderation.summary": "Video held for Admin manual review.",
+          "moderation.checkedAt": now,
+          "moderation.model": "admin-manual-bypass",
+          "moderation.bypassGemini": true,
+          status: "pending_review",
+        });
+
+        // Add / ensure in admin_review_queue
+        await db.collection("admin_review_queue").doc(videoId).set({
+          jobId: videoData?.jobId || videoId,
+          videoId,
+          userId: videoData?.userId || videoData?.ownerId || videoData?.uploaderId || "unknown",
+          queuedAt: now,
+          status: "pending_review",
+          reason: "Routed to Admin for manual review (Gemini AI bypassed)."
+        }, { merge: true });
+
+        // Update video_jobs moderation stage to pending_review
+        const jobsSnap = await db.collection("video_jobs")
+          .where("videoId", "==", videoId)
+          .where("status", "in", ["accepted", "processing", "running"])
+          .limit(1)
+          .get();
+
+        if (!jobsSnap.empty) {
+          const jobDoc = jobsSnap.docs[0];
+          await jobDoc.ref.update({
+            "stages.moderation": {
+              status: "pending_review",
+              progress: 50,
+              reason: "Routed to Admin for manual review (Gemini AI bypassed).",
+              flaggedAt: now,
+            },
+            updatedAt: now,
+          });
+        }
+
+        return;
+      }
+
       // ─── STEP 2: Send GCS URI directly to Gemini (ZERO-FFmpeg) ─────────
       // Gemini reads the video file from GCS natively — no download needed.
       const videoGcsUri = `gs://${bucket}/${filePath}`;

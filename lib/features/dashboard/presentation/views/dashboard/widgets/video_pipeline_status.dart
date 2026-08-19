@@ -257,7 +257,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
 
                                     // Section 1: Video Content Moderation (Gemini Audio Analysis)
                                     _buildSectionTitle(
-                                      'Video Content Moderation (Gemini)',
+                                      'Video Content Moderation (Verification System)',
                                     ),
                                     const SizedBox(height: 6),
                                     _buildModerationPanel(
@@ -314,28 +314,28 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                       runSpacing: 8,
                                       children: [
                                         _buildResolutionChip(
-                                          '144p',
-                                          variants['144p'],
-                                        ),
-                                        _buildResolutionChip(
-                                          '240p',
-                                          variants['240p'],
-                                        ),
-                                        _buildResolutionChip(
-                                          '360p',
-                                          variants['360p'],
-                                        ),
-                                        _buildResolutionChip(
-                                          '480p',
-                                          variants['480p'],
+                                          '1080p',
+                                          variants['1080p'],
                                         ),
                                         _buildResolutionChip(
                                           '720p',
                                           variants['720p'],
                                         ),
                                         _buildResolutionChip(
-                                          '1040p',
-                                          variants['1040p'],
+                                          '480p',
+                                          variants['480p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '360p',
+                                          variants['360p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '240p',
+                                          variants['240p'],
+                                        ),
+                                        _buildResolutionChip(
+                                          '144p',
+                                          variants['144p'],
                                         ),
                                       ],
                                     ),
@@ -365,7 +365,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                         video.status.name == 'ready') ...[
                                       const SizedBox(height: 16),
                                       _buildSectionTitle(
-                                        'Gemini Video Summary',
+                                        'Video Verification Summary',
                                       ),
                                       const SizedBox(height: 8),
                                       Container(
@@ -849,10 +849,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
 
   Widget _buildPipelineTimeline(Map<String, dynamic> stages) {
     final orderedStages = [
-      {'key': 'moderation', 'label': 'Content Moderation (Gemini)'},
+      {'key': 'moderation', 'label': 'Content Moderation (Verification System)'},
       {'key': 'upload', 'label': 'Upload Source'},
       {'key': 'validation', 'label': 'Safety & Format Check'},
-      {'key': 'transcription', 'label': 'Transcription (Gemini)'},
+      {'key': 'transcription', 'label': 'Transcription (Verification System)'},
       {'key': 'credibility', 'label': 'Factcheck (Verify)'},
       {'key': 'dubbing', 'label': 'Localization (Dubbing)'},
       {'key': 'rendering', 'label': 'Rendering Output'},

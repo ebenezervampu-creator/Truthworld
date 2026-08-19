@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1168,7 +1169,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   image: video['thumbnailUrl'] != null &&
                                           video['thumbnailUrl'].toString().isNotEmpty
                                       ? DecorationImage(
-                                          image: NetworkImage(video['thumbnailUrl']),
+                                          image: CachedNetworkImageProvider(video['thumbnailUrl']),
                                           fit: BoxFit.cover,
                                         )
                                       : null,
@@ -1347,7 +1348,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Gemini Gateway Decision: ${status.toUpperCase()}',
+                                'Verification Gateway Decision: ${status.toUpperCase()}',
                                 style: TextStyle(
                                   color: status == 'approved'
                                       ? AppColors.success
@@ -1421,7 +1422,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
               // Technical Metadata
               const Text(
-                'Gemini Verification & Technical Metadata',
+                'Verification & Technical Metadata',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 14,
@@ -1434,7 +1435,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _MetadataRow('Description', selected['description'] ?? 'None'),
                 _MetadataRow('Pipeline Status', status),
                 _MetadataRow(
-                  'Gemini Gateway Decision',
+                  'Verification Gateway Decision',
                   gatewayDecision?['status'] ?? mod?['status'] ?? 'N/A',
                 ),
                 _MetadataRow(
@@ -1681,7 +1682,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       channel['avatarUrl'] != null &&
                                           channel['avatarUrl'].toString().isNotEmpty
                                       ? DecorationImage(
-                                          image: NetworkImage(channel['avatarUrl']),
+                                          image: CachedNetworkImageProvider(channel['avatarUrl']),
                                           fit: BoxFit.cover,
                                         )
                                       : null,
@@ -1741,7 +1742,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         if (selected == null) {
           return const Center(
             child: Text(
-              'Select a channel to inspect avatars, banners, and Gemini verification results',
+              'Select a channel to inspect avatars, banners, and verification results',
               style: TextStyle(color: AppColors.textPrimary),
             ),
           );
@@ -1750,8 +1751,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final avatarUrl = selected['avatarUrl'];
         final bannerUrl = selected['bannerImageUrl'] ?? selected['bannerUrl'];
         final status = selected['status'] ?? 'underReview';
-        final geminiResponse =
-            selected['moderationReason'] ?? 'Gemini Channel Verification Gateway verified.';
+        final verificationResponse =
+            selected['moderationReason'] ?? 'Channel Verification Gateway verified.';
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -1792,7 +1793,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       image: DecorationImage(
-                        image: NetworkImage(bannerUrl),
+                        image: CachedNetworkImageProvider(bannerUrl),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -1806,7 +1807,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     radius: 30,
                     backgroundImage:
                         avatarUrl != null && avatarUrl.toString().isNotEmpty
-                        ? NetworkImage(avatarUrl)
+                        ? CachedNetworkImageProvider(avatarUrl)
                         : null,
                     backgroundColor: AppColors.bgElevated,
                     child: avatarUrl == null || avatarUrl.toString().isEmpty
@@ -1891,7 +1892,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Gemini Channel Gateway: ${status == 'active' ? 'APPROVED / ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
+                            'Verification Gateway: ${status == 'active' ? 'APPROVED / ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
                             style: TextStyle(
                               color: status == 'active'
                                   ? AppColors.success
@@ -1904,7 +1905,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Verification Log: $geminiResponse',
+                            'Verification Log: $verificationResponse',
                             style: const TextStyle(
                               color: AppColors.textPrimary,
                               fontSize: 12,

@@ -148,7 +148,7 @@ const CATEGORY_MAP: Record<string, VideoCategory> = {
   'education': 'education', 'educational': 'education', 'tutorial': 'education', 'how-to': 'education', 'diy & how-to': 'education',
   'opinion': 'opinion', 'editorial': 'opinion', 'commentary': 'opinion', 'motivation': 'opinion',
   'podcast': 'podcast', 'interview': 'podcast',
-  'entertainment': 'entertainment', 'comedy': 'entertainment', 'lifestyle': 'entertainment', 'satire': 'entertainment', 'gaming': 'entertainment', 'sports': 'entertainment', 'movies': 'entertainment', 'tv shows': 'entertainment', 'vlogs': 'entertainment', 'music': 'entertainment', 'animation': 'entertainment', 'short films': 'entertainment', 'kids & family': 'entertainment', 'fashion & beauty': 'entertainment', 'food & cooking': 'entertainment', 'animals & pets': 'entertainment',
+  'entertainment': 'entertainment', 'comedy': 'entertainment', 'lifestyle': 'entertainment', 'satire': 'entertainment', 'gaming': 'entertainment', 'sports': 'entertainment', 'movies': 'entertainment', 'tv shows': 'entertainment', 'tv_shows': 'entertainment', 'vlogs': 'entertainment', 'people & blogs': 'entertainment', 'people_blogs': 'entertainment', 'music': 'entertainment', 'animation': 'entertainment', 'short films': 'entertainment', 'kids & family': 'entertainment', 'kids_family': 'entertainment', 'fashion & beauty': 'entertainment', 'food & cooking': 'entertainment', 'animals & pets': 'entertainment', 'other': 'entertainment',
 };
 
 export function mapUploadCategory(raw: string | undefined | null): VideoCategory {

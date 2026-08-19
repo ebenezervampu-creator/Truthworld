@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
@@ -1032,11 +1033,10 @@ class CommentCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
+                      UserAvatar(
                         radius: 16,
-                        backgroundImage: NetworkImage(
-                          comment.userProfilePicUrl,
-                        ),
+                        photoUrl: comment.userProfilePicUrl,
+                        displayName: comment.userName,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -1170,9 +1170,10 @@ class CommentCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    UserAvatar(
                       radius: 16,
-                      backgroundImage: NetworkImage(channelImageUrl),
+                      photoUrl: channelImageUrl,
+                      displayName: comment.creatorReply?.userName ?? 'Creator',
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1379,11 +1380,10 @@ class ReplyCard extends StatelessWidget {
           color: isCreator ? AppColors.textLink : AppColors.bgElevated,
           margin: const EdgeInsets.only(right: 12),
         ),
-        CircleAvatar(
+        UserAvatar(
           radius: 14,
-          backgroundImage: NetworkImage(
-            isCreator ? channelImageUrl : reply.userProfilePicUrl,
-          ),
+          photoUrl: isCreator ? channelImageUrl : reply.userProfilePicUrl,
+          displayName: reply.userName,
         ),
         const SizedBox(width: 10),
         Expanded(

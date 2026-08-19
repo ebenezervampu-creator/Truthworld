@@ -8,11 +8,12 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
-class CustomizationController extends BaseController {
+class CustomizationController extends BaseController with ContentValidationMixin {
   CustomizationController({required this.channelId, required this.ownerId});
   final String channelId;
   final String ownerId;
@@ -298,17 +299,17 @@ class CustomizationController extends BaseController {
                 context: Get.context,
               );
 
-        if (croppedFile != null) {
-          final croppedBytes = await croppedFile.readAsBytes();
-          if (isAvatar) {
-            newAvatarBytes.value = croppedBytes;
-            newAvatarName.value =
-                'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          } else {
-            newBannerBytes.value = croppedBytes;
-            newBannerName.value =
-                'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          }
+        if (croppedFile == null) return; // User cancelled cropping
+
+        final imageBytes = await croppedFile.readAsBytes();
+        if (isAvatar) {
+          newAvatarBytes.value = imageBytes;
+          newAvatarName.value =
+              'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        } else {
+          newBannerBytes.value = imageBytes;
+          newBannerName.value =
+              'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
         }
       }
     } catch (e) {
@@ -337,6 +338,142 @@ class CustomizationController extends BaseController {
   }
 
   Future<void> saveChanges() async {
+    final name = channelNameController.text.trim();
+    if (name.isEmpty) {
+      Get.snackbar(
+        'Required',
+        'Channel name cannot be empty',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
+
+    final nameVal = await validateContent(name, fieldName: 'Channel Name');
+    if (!nameVal.isValid) {
+      Get.snackbar(
+        'Inappropriate Content',
+        nameVal.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
+
+    if (customUrlController.text.trim().isNotEmpty) {
+      final handleVal = await validateContent(
+        customUrlController.text.trim(),
+        fieldName: 'Channel Handle',
+      );
+      if (!handleVal.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          handleVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return;
+      }
+    }
+
+    if (descriptionController.text.trim().isNotEmpty) {
+      final descVal = await validateContent(
+        descriptionController.text.trim(),
+        fieldName: 'Channel Description',
+      );
+      if (!descVal.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          descVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return;
+      }
+    }
+
+    final tags = tagsController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .take(5)
+        .toList();
+
+    if (tags.isNotEmpty) {
+      final tagsVal = await validateTags(tags);
+      if (!tagsVal.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          tagsVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return;
+      }
+    }
+
+    if (contactEmailController.text.trim().isNotEmpty) {
+      final emailVal = await validateContent(
+        contactEmailController.text.trim(),
+        fieldName: 'Contact Email',
+      );
+      if (!emailVal.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          emailVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return;
+      }
+    }
+
+    if (websiteUrlController.text.trim().isNotEmpty) {
+      final webVal = await validateContent(
+        websiteUrlController.text.trim(),
+        fieldName: 'Website URL',
+      );
+      if (!webVal.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          webVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return;
+      }
+    }
+
+    for (final entry in {
+      'Twitter': twitterController.text.trim(),
+      'Instagram': instagramController.text.trim(),
+      'Facebook': facebookController.text.trim(),
+    }.entries) {
+      if (entry.value.isNotEmpty) {
+        final linkVal = await validateContent(
+          entry.value,
+          fieldName: '${entry.key} Link',
+        );
+        if (!linkVal.isValid) {
+          Get.snackbar(
+            'Inappropriate Content',
+            linkVal.message,
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppColors.error,
+            colorText: AppColors.textPrimary,
+          );
+          return;
+        }
+      }
+    }
+
     isSaving.value = true;
     try {
       String? updatedAvatarUrl = avatarUrl.value;
@@ -363,13 +500,6 @@ class CustomizationController extends BaseController {
           'channels/banners/$ownerId/$uploadedBannerFileName',
         );
       }
-
-      final tags = tagsController.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .take(5)
-          .toList();
 
       final socialLinks = {
         if (twitterController.text.isNotEmpty)

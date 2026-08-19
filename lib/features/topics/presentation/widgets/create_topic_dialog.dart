@@ -5,7 +5,7 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Modern, responsive, overflow-free Create Topic Dialog modal.
+/// Topic Creation Component matching Create Playlist Screen Design System 1:1
 class CreateTopicDialog extends StatelessWidget {
   const CreateTopicDialog({
     required this.isDarkMode,
@@ -16,39 +16,44 @@ class CreateTopicDialog extends StatelessWidget {
 
   final bool isDarkMode;
   final Future<List<Map<String, dynamic>>> channelVideosFuture;
-  final Future<void> Function(CreateTopicController controller)
-  onCreateTopicSubmitted;
+  final Future<void> Function(CreateTopicController controller) onCreateTopicSubmitted;
 
-  /// Helper launcher method for showing the dialog anywhere in the app.
+  /// Helper launcher method for opening Topic Creation as a full-screen page route.
   static Future<void> show({
     required BuildContext context,
     required bool isDarkMode,
     required Future<List<Map<String, dynamic>>> channelVideosFuture,
-    required Future<void> Function(CreateTopicController controller)
-    onCreateTopicSubmitted,
+    required Future<void> Function(CreateTopicController controller) onCreateTopicSubmitted,
   }) async {
     final controller = Get.isRegistered<CreateTopicController>()
         ? Get.find<CreateTopicController>()
         : Get.put(CreateTopicController());
     controller.resetForm();
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => CreateTopicDialog(
-        isDarkMode: isDarkMode,
-        channelVideosFuture: channelVideosFuture,
-        onCreateTopicSubmitted: onCreateTopicSubmitted,
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (ctx) => Scaffold(
+          backgroundColor: context.colors.background,
+          body: SafeArea(
+            child: CreateTopicDialog(
+              isDarkMode: isDarkMode,
+              channelVideosFuture: channelVideosFuture,
+              onCreateTopicSubmitted: onCreateTopicSubmitted,
+            ),
+          ),
+        ),
       ),
     );
   }
 
   static const List<String> availableCategories = [
+    'Science & Technology',
+    'Technology',
     'Education',
     'Entertainment',
     'Music',
     'News',
     'Sports',
-    'Technology',
     'Science',
     'Travel',
     'Lifestyle',
@@ -67,985 +72,1379 @@ class CreateTopicDialog extends StatelessWidget {
     final controller = Get.isRegistered<CreateTopicController>()
         ? Get.find<CreateTopicController>()
         : Get.put(CreateTopicController());
-    final mediaQuery = MediaQuery.of(context);
-    final dialogBg = isDarkMode ? AppColors.bgSurface : Colors.white;
-    final textColor = isDarkMode
-        ? AppTheme.colors.textPrimary
-        : AppTheme.colors.background;
-    final subtextColor = isDarkMode
-        ? AppTheme.colors.textPrimary70
-        : AppTheme.colors.background54;
-    final borderSideColor = isDarkMode
-        ? AppColors.bgDivider
-        : const Color(0xFFE5E7EB);
-    final inputBgColor = isDarkMode
-        ? AppColors.bgInput
-        : const Color(0xFFF9FAFB);
 
-    return Dialog(
-      backgroundColor: dialogBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: borderSideColor),
-      ),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 540,
-          maxHeight: mediaQuery.size.height * 0.88,
-        ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 900;
+
+    return Scaffold(
+      backgroundColor: context.colors.background,
+      body: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header Bar
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 18, 16, 16),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: borderSideColor)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.topic_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Create New Topic',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        Text(
-                          'Build a focused discussion around key events',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: subtextColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: subtextColor,
-                      size: 20,
-                    ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-
-            // Scrollable Content Form
-            Flexible(
+            if (isDesktop) _buildDesktopTopHeader(context),
+            Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDesktop ? 48.0 : 16.0,
+                  vertical: 24.0,
                 ),
-                child: Form(
-                  key: controller.formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Profanity / Validation Error Alert Banner
-                      Obx(() {
-                        if (controller.profanityError.value.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.error.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.gavel_rounded,
-                                color: AppColors.error,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  controller.profanityError.value,
-                                  style: const TextStyle(
-                                    color: AppColors.error,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-
-                      // Topic Title Input
-                      TextFormField(
-                        controller: controller.titleController,
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        decoration: InputDecoration(
-                          labelText: 'Topic Title *',
-                          labelStyle: TextStyle(
-                            color: subtextColor,
-                            fontSize: 13,
-                          ),
-                          hintText: 'e.g. Artificial Intelligence Ethics 2026',
-                          filled: true,
-                          fillColor: inputBgColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6366F1),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Topic Title is required';
-                          }
-                          if (val.trim().length < 3) {
-                            return 'Title must be at least 3 characters';
-                          }
-                          return null;
-                        },
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: Form(
+                      key: controller.formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPageHeader(context, isDesktop),
+                          const SizedBox(height: 24),
+                          _buildProfanityErrorAlert(controller),
+                          if (isDesktop)
+                            _buildDesktopTwoColumnLayout(context, controller)
+                          else
+                            _buildMobileSingleColumnLayout(context, controller),
+                          const SizedBox(height: 24),
+                          _buildSection9TopicImage(context, controller),
+                          const SizedBox(height: 32),
+                          if (isDesktop) _buildDesktopFooterActions(context, controller),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-
-                      // Topic Handle Input
-                      TextFormField(
-                        controller: controller.handleController,
-                        onChanged: (_) => controller.onHandleManualEdit(),
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        decoration: InputDecoration(
-                          labelText: 'Topic Handle *',
-                          labelStyle: TextStyle(
-                            color: subtextColor,
-                            fontSize: 13,
-                          ),
-                          prefixText: 'T/ ',
-                          prefixStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6366F1),
-                          ),
-                          hintText: 'e.g. ai_ethics',
-                          filled: true,
-                          fillColor: inputBgColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6366F1),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Handle is required';
-                          }
-                          if (val.contains(' ')) {
-                            return 'Handle cannot contain spaces';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Description Input
-                      TextFormField(
-                        controller: controller.descriptionController,
-                        maxLines: 3,
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        decoration: InputDecoration(
-                          labelText: 'Description',
-                          labelStyle: TextStyle(
-                            color: subtextColor,
-                            fontSize: 13,
-                          ),
-                          hintText: 'Provide context for this topic...',
-                          filled: true,
-                          fillColor: inputBgColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6366F1),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Topic Tags Input (Max 5)
-                      TextFormField(
-                        controller: controller.tagsController,
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        decoration: InputDecoration(
-                          labelText: 'Topic Tags (Max 5)',
-                          labelStyle: TextStyle(
-                            color: subtextColor,
-                            fontSize: 13,
-                          ),
-                          hintText: 'e.g. ai, tech, future (comma separated, max 5)',
-                          filled: true,
-                          fillColor: inputBgColor,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF6366F1),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        validator: (val) {
-                          if (val != null && val.trim().isNotEmpty) {
-                            final count = val
-                                .split(',')
-                                .where((e) => e.trim().isNotEmpty)
-                                .length;
-                            if (count > 5) {
-                              return 'Maximum 5 tags allowed';
-                            }
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Category Dropdown
-                      Text(
-                        'Category',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue:
-                            controller.categoryController.text.isNotEmpty
-                            ? controller.categoryController.text
-                            : 'Technology',
-                        dropdownColor: isDarkMode
-                            ? const Color(0xFF1C2128)
-                            : Colors.white,
-                        style: TextStyle(color: textColor, fontSize: 14),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: inputBgColor,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderSideColor),
-                          ),
-                        ),
-                        items: availableCategories
-                            .map(
-                              (cat) => DropdownMenuItem<String>(
-                                value: cat,
-                                child: Text(
-                                  cat,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            controller.categoryController.text = val;
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Visibility Dropdown
-                      Text(
-                        'Visibility Type',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Obx(
-                        () => DropdownButtonFormField<TopicVisibilityType>(
-                          isExpanded: true,
-                          initialValue: controller.selectedVisibility.value,
-                          dropdownColor: isDarkMode
-                              ? const Color(0xFF1C2128)
-                              : Colors.white,
-                          style: TextStyle(color: textColor, fontSize: 14),
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: inputBgColor,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: borderSideColor),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: borderSideColor),
-                            ),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: TopicVisibilityType.public,
-                              child: Text(
-                                'Public (Anyone can contribute)',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: TopicVisibilityType.channelOnly,
-                              child: Text(
-                                'Channel Only (Only you can contribute)',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: TopicVisibilityType.private,
-                              child: Text(
-                                'Private (Passcode required for others)',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              controller.selectedVisibility.value = val;
-                            }
-                          },
-                        ),
-                      ),
-
-                      // Private Passcode Field
-                      Obx(() {
-                        if (controller.selectedVisibility.value !=
-                            TopicVisibilityType.private) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: TextFormField(
-                            controller: controller.accessCodeController,
-                            obscureText: controller.obscureAccessCode.value,
-                            style: TextStyle(color: textColor, fontSize: 14),
-                            decoration: InputDecoration(
-                              labelText: 'Private Passcode *',
-                              labelStyle: TextStyle(
-                                color: subtextColor,
-                                fontSize: 13,
-                              ),
-                              filled: true,
-                              fillColor: inputBgColor,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  controller.obscureAccessCode.value
-                                      ? Icons.visibility_off_rounded
-                                      : Icons.visibility_rounded,
-                                  color: subtextColor,
-                                  size: 20,
-                                ),
-                                onPressed: controller.togglePasscodeVisibility,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: borderSideColor),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: borderSideColor),
-                              ),
-                            ),
-                            validator: (val) {
-                              if (controller.selectedVisibility.value ==
-                                  TopicVisibilityType.private) {
-                                if (val == null || val.trim().isEmpty) {
-                                  return 'Passcode is required for private topic';
-                                }
-                                if (val.trim().length < 4) {
-                                  return 'Passcode must be at least 4 characters';
-                                }
-                              }
-                              return null;
-                            },
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 20),
-
-                      // Thumbnail Source Segmented Control
-                      Text(
-                        'Topic Thumbnail',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Obx(() {
-                        final isVideo =
-                            controller.thumbnailSource.value == 'video';
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: inputBgColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: borderSideColor),
-                          ),
-                          padding: const EdgeInsets.all(4),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () =>
-                                      controller.thumbnailSource.value =
-                                          'video',
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Container(
-                                    alignment: Alignment.center,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isVideo
-                                          ? const Color(0xFF6366F1)
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      'Use Video Thumbnail',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: isVideo
-                                            ? Colors.white
-                                            : subtextColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () =>
-                                      controller.thumbnailSource.value =
-                                          'custom',
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Container(
-                                    alignment: Alignment.center,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: !isVideo
-                                          ? const Color(0xFF6366F1)
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      'Upload Custom',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                        color: !isVideo
-                                            ? Colors.white
-                                            : subtextColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 12),
-
-                      // Thumbnail Content Selector / Preview
-                      Obx(() {
-                        if (controller.thumbnailSource.value == 'custom') {
-                          return _buildCustomThumbnailArea(
-                            context,
-                            controller,
-                            borderSideColor,
-                            inputBgColor,
-                            textColor,
-                            subtextColor,
-                          );
-                        } else {
-                          return _buildVideoThumbnailArea(
-                            context,
-                            controller,
-                            borderSideColor,
-                            textColor,
-                            subtextColor,
-                          );
-                        }
-                      }),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
-
-            // Footer Action Buttons
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: borderSideColor)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: subtextColor,
-                      side: BorderSide(color: borderSideColor),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  Obx(
-                    () => ElevatedButton(
-                      onPressed: controller.isSubmitting.value
-                          ? null
-                          : () async {
-                              final isValid = await controller
-                                  .validateFormBeforeSubmit();
-                              if (!isValid) return;
-
-                              controller.isSubmitting.value = true;
-                              try {
-                                await onCreateTopicSubmitted(controller);
-                                if (context.mounted) {
-                                  Navigator.of(context).pop();
-                                }
-                              } catch (e) {
-                                AppSnackbar.show(
-                                  'Error',
-                                  'Failed to create topic: $e',
-                                  backgroundColor: AppColors.error,
-                                  colorText: Colors.white,
-                                );
-                              } finally {
-                                controller.isSubmitting.value = false;
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: controller.isSubmitting.value
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Create Topic',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            if (!isDesktop) _buildMobileStickyFooter(context, controller),
           ],
         ),
       ),
     );
   }
 
-  /// Custom Thumbnail Upload Area with Cloud Vision Status Indicators
-  Widget _buildCustomThumbnailArea(
-    BuildContext context,
-    CreateTopicController controller,
-    Color borderSideColor,
-    Color inputBgColor,
-    Color textColor,
-    Color subtextColor,
-  ) {
-    final imageBytes = controller.pickedCustomImageBytes.value;
+  // ================= Top Desktop Bar (Playlist Theme Matching) =================
+  Widget _buildDesktopTopHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.colors.background,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Logo
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.black,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'TRUTHWORLD',
+                style: context.themeTypography.logo.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 48),
 
+          // Search Bar
+          Expanded(
+            child: Container(
+              height: 40,
+              constraints: const BoxConstraints(maxWidth: 540),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161618),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+              child: TextField(
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search videos, channels, topics...',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 13,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 24),
+
+          // Right Icons
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.add, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
+            onPressed: () {},
+          ),
+          const SizedBox(width: 12),
+          Row(
+            children: [
+              const CircleAvatar(
+                radius: 16,
+                backgroundColor: Color(0xFF333333),
+                child: Icon(Icons.person, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white.withValues(alpha: 0.7),
+                size: 18,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Page Header (Playlist Theme Matching) =================
+  Widget _buildPageHeader(BuildContext context, bool isDesktop) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: controller.pickCustomThumbnail,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: double.infinity,
-            height: 130,
-            decoration: BoxDecoration(
-              color: inputBgColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: borderSideColor,
-                style: imageBytes == null
-                    ? BorderStyle.solid
-                    : BorderStyle.none,
+        Row(
+          children: [
+            IconButton(
+              onPressed: Get.back,
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Create Topic',
+              style: context.themeTypography.display.copyWith(
+                fontSize: isDesktop ? 26 : 20,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: imageBytes != null
-                ? Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Image.memory(imageBytes, fit: BoxFit.cover),
-                      ),
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: GestureDetector(
-                          onTap: controller.clearCustomThumbnail,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            padding: const EdgeInsets.all(6),
-                            child: const Icon(
-                              Icons.close_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.cloud_upload_outlined,
-                        size: 32,
-                        color: Color(0xFF6366F1),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Tap to select custom thumbnail image',
-                        style: TextStyle(fontSize: 12, color: subtextColor),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Verified via Google Cloud Vision AI',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
-                  ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 36),
+          child: Text(
+            'Build a topic to organize and curate videos around a theme.',
+            style: context.themeTypography.body.copyWith(
+              color: Colors.white.withValues(alpha: 0.6),
+              fontSize: isDesktop ? 14 : 12,
+            ),
           ),
         ),
-        const SizedBox(height: 8),
-
-        // Vision AI Verification Status Bar
-        if (imageBytes != null) ...[
-          if (controller.isVisionScanning.value)
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Color(0xFF3B82F6),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Text(
-                    'Scanning image with Google Cloud Vision AI...',
-                    style: TextStyle(
-                      color: Color(0xFF3B82F6),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else if (controller.isVisionApproved.value)
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.verified_user_rounded,
-                    color: Color(0xFF10B981),
-                    size: 16,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Verified safe by Google Cloud Vision AI',
-                      style: TextStyle(
-                        color: Color(0xFF10B981),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else if (controller.visionError.value.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: AppColors.error,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      controller.visionError.value,
-                      style: const TextStyle(
-                        color: AppColors.error,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
       ],
     );
   }
 
-  /// Video Link & Thumbnail Selector
-  Widget _buildVideoThumbnailArea(
-    BuildContext context,
-    CreateTopicController controller,
-    Color borderSideColor,
-    Color textColor,
-    Color subtextColor,
-  ) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: channelVideosFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        }
+  // ================= Desktop 2-Column Layout =================
+  Widget _buildDesktopTwoColumnLayout(BuildContext context, CreateTopicController controller) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left Column (Sections 1 to 5)
+        Expanded(
+          flex: 5,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSection1TopicName(context, controller),
+              const SizedBox(height: 24),
+              _buildSection2Handle(context, controller),
+              const SizedBox(height: 24),
+              _buildSection3Title(context, controller),
+              const SizedBox(height: 24),
+              _buildSection4Description(context, controller),
+              const SizedBox(height: 24),
+              _buildSection5Tags(context, controller),
+            ],
+          ),
+        ),
+        const SizedBox(width: 32),
 
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  color: AppColors.warning,
-                  size: 18,
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'No channel videos found. Select "Upload Custom" or link a video after uploading.',
-                    style: TextStyle(color: AppColors.warning, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
+        // Right Column (Sections 6 to 8)
+        Expanded(
+          flex: 6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSection6Category(context, controller),
+              const SizedBox(height: 24),
+              _buildSection7TopicType(context, controller),
+              const SizedBox(height: 24),
+              _buildSection8AddVideos(context, controller),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-        final channelVideos = snapshot.data!;
+  // ================= Mobile Single Column Layout =================
+  Widget _buildMobileSingleColumnLayout(BuildContext context, CreateTopicController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSection1TopicName(context, controller),
+        const SizedBox(height: 20),
+        _buildSection2Handle(context, controller),
+        const SizedBox(height: 20),
+        _buildSection3Title(context, controller),
+        const SizedBox(height: 20),
+        _buildSection4Description(context, controller),
+        const SizedBox(height: 20),
+        _buildSection5Tags(context, controller),
+        const SizedBox(height: 20),
+        _buildSection6Category(context, controller),
+        const SizedBox(height: 20),
+        _buildSection7TopicType(context, controller),
+        const SizedBox(height: 20),
+        _buildSection8AddVideos(context, controller),
+      ],
+    );
+  }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  /// Error Banner Alert
+  Widget _buildProfanityErrorAlert(CreateTopicController controller) {
+    return Obx(() {
+      if (controller.profanityError.value.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+        ),
+        child: Row(
           children: [
-            Text(
-              'Link Videos (At least 1 required for video thumbnail):',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: textColor,
+            const Icon(Icons.gavel_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                controller.profanityError.value,
+                style: const TextStyle(
+                  color: AppColors.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Obx(() {
-              final _ = controller.selectedVideoIds.length;
-              return Container(
-                constraints: const BoxConstraints(maxHeight: 180),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderSideColor),
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: channelVideos.length,
-                  separatorBuilder: (c, i) =>
-                      Divider(height: 1, color: borderSideColor),
-                  itemBuilder: (context, index) {
-                    final video = channelVideos[index];
-                    final videoId = (video['id'] as String?) ?? '';
-                    final videoTitle =
-                        (video['title'] as String?) ?? 'Untitled Video';
-                    final thumbUrl = (video['thumbnailUrl'] as String?) ?? '';
-                    final isSelected = controller.selectedVideoIds.contains(
-                      videoId,
-                    );
+          ],
+        ),
+      );
+    });
+  }
 
-                    return CheckboxListTile(
-                      value: isSelected,
-                      onChanged: (val) {
-                        controller.toggleVideoSelection(videoId, thumbUrl);
-                      },
-                      dense: true,
-                      activeColor: const Color(0xFF6366F1),
-                      title: Text(
-                        videoTitle,
-                        style: TextStyle(fontSize: 13, color: textColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      secondary: Container(
-                        width: 44,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(4),
-                          color: Colors.grey.shade800,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: thumbUrl.isNotEmpty
-                            ? Image.network(
-                                thumbUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) =>
-                                    const Icon(Icons.movie, size: 16),
-                              )
-                            : const Icon(Icons.movie, size: 16),
-                      ),
-                    );
-                  },
+  // ================= Section 1: Topic Name =================
+  Widget _buildSection1TopicName(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '1. Topic Name'),
+          const SizedBox(height: 12),
+          Stack(
+            alignment: Alignment.centerRight,
+            children: [
+              TextFormField(
+                controller: controller.nameController,
+                maxLength: 60,
+                onChanged: (_) => controller.formKey.currentState?.validate(),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _buildInputDecoration(hintText: 'Enter topic name'),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Topic Name is required';
+                  if (val.trim().length < 3) return 'Name must be at least 3 characters';
+                  return null;
+                },
+              ),
+              Positioned(
+                right: 14,
+                child: Text(
+                  '${controller.nameController.text.length}/60',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 12,
+                  ),
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Choose a clear and simple name.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 2: Handle =================
+  Widget _buildSection2Handle(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '2. Handle'),
+          const SizedBox(height: 12),
+          Stack(
+            alignment: Alignment.centerRight,
+            children: [
+              TextFormField(
+                controller: controller.handleController,
+                maxLength: 30,
+                onChanged: (_) => controller.onHandleManualEdit(),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _buildInputDecoration(
+                  hintText: 'topic-handle',
+                  prefixIcon: const Icon(Icons.alternate_email_rounded, color: Colors.white, size: 18),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Handle is required';
+                  if (val.contains(' ')) return 'Handle cannot contain spaces';
+                  return null;
+                },
+              ),
+              Positioned(
+                right: 14,
+                child: Text(
+                  '${controller.handleController.text.length}/30',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your unique topic handle. Example: @spaceexploration',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 3: Title =================
+  Widget _buildSection3Title(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '3. Title'),
+          const SizedBox(height: 12),
+          Stack(
+            alignment: Alignment.centerRight,
+            children: [
+              TextFormField(
+                controller: controller.titleController,
+                maxLength: 100,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _buildInputDecoration(hintText: 'Enter a catchy title for your topic'),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'Title is required';
+                  return null;
+                },
+              ),
+              Positioned(
+                right: 14,
+                child: Text(
+                  '${controller.titleController.text.length}/100',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'This title will be shown on your topic page.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 4: Description =================
+  Widget _buildSection4Description(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '4. Description'),
+          const SizedBox(height: 12),
+          Stack(
+            children: [
+              TextFormField(
+                controller: controller.descriptionController,
+                maxLines: 4,
+                maxLength: 500,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: _buildInputDecoration(
+                  hintText: 'Describe your topic. What is it about?',
+                  contentPadding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
+                ),
+              ),
+              Positioned(
+                right: 14,
+                bottom: 10,
+                child: Text(
+                  '${controller.descriptionController.text.length}/500',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Share more details about this topic.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 5: Tags =================
+  Widget _buildSection5Tags(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '5. Tags'),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: controller.tagInputController,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: _buildInputDecoration(hintText: 'Add tags and press Enter'),
+            onFieldSubmitted: (val) {
+              if (val.trim().isNotEmpty) {
+                controller.addTag(val);
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          // Interactive Tag Chips
+          Obx(() {
+            final tags = controller.tagsList.toList();
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: tags.map((tag) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E24),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$tag ',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      InkWell(
+                        onTap: () => controller.removeTag(tag),
+                        child: const Icon(Icons.close_rounded, size: 14, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            );
+          }),
+          const SizedBox(height: 8),
+          Text(
+            'Add relevant tags to help others find your topic.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 6: Topic Category =================
+  Widget _buildSection6Category(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '6. Topic Category'),
+          const SizedBox(height: 4),
+          Text(
+            'Choose the category that best fits your topic.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: controller.categoryController.text.isNotEmpty
+                ? controller.categoryController.text
+                : 'Science & Technology',
+            dropdownColor: const Color(0xFF161618),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            decoration: _buildInputDecoration(
+              hintText: 'Select category',
+              prefixIcon: const Icon(Icons.science_outlined, color: Colors.white, size: 20),
+            ),
+            items: availableCategories
+                .map((cat) => DropdownMenuItem<String>(value: cat, child: Text(cat)))
+                .toList(),
+            onChanged: (val) {
+              if (val != null) {
+                controller.categoryController.text = val;
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 7: Topic Type (Visibility) =================
+  Widget _buildSection7TopicType(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '7. Topic Type'),
+          const SizedBox(height: 4),
+          Text(
+            'Choose who can view this topic',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Obx(() {
+            final isPublic = controller.selectedVisibility.value == TopicVisibilityType.public;
+            return InkWell(
+              onTap: () => controller.selectedVisibility.value = TopicVisibilityType.public,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isPublic ? const Color(0xFF1F1F24) : const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isPublic ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                    width: isPublic ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.public_rounded, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Public', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text(
+                            'Anyone can view this topic',
+                            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Radio<TopicVisibilityType>(
+                      value: TopicVisibilityType.public,
+                      groupValue: controller.selectedVisibility.value,
+                      onChanged: (val) => controller.selectedVisibility.value = val!,
+                      activeColor: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 10),
+          Obx(() {
+            final isPrivate = controller.selectedVisibility.value == TopicVisibilityType.private;
+            return Column(
+              children: [
+                InkWell(
+                  onTap: () => controller.selectedVisibility.value = TopicVisibilityType.private,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isPrivate ? const Color(0xFF1F1F24) : const Color(0xFF0F0F11),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isPrivate ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                        width: isPrivate ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock_rounded, color: Colors.white, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Private', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                              Text(
+                                'Only you can view this topic',
+                                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Radio<TopicVisibilityType>(
+                          value: TopicVisibilityType.private,
+                          groupValue: controller.selectedVisibility.value,
+                          onChanged: (val) => controller.selectedVisibility.value = val!,
+                          activeColor: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (isPrivate) ...[
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: controller.accessCodeController,
+                    obscureText: controller.obscureAccessCode.value,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: _buildInputDecoration(
+                      hintText: 'Enter Private Passcode',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.visibility_off_rounded, color: Colors.white, size: 18),
+                        onPressed: controller.togglePasscodeVisibility,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 8: Add Videos =================
+  Widget _buildSection8AddVideos(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildSectionTitle(context, '8. Add Videos'),
+              const SizedBox(width: 6),
+              const Text(
+                '* (Required)',
+                style: TextStyle(
+                  color: Color(0xFFF59E0B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'At least 1 video is required to create a topic.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Select Videos Button
+          OutlinedButton.icon(
+            onPressed: () => _openVideoSelectorModal(context, controller),
+            icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+            label: Obx(() {
+              final count = controller.selectedVideoIds.length;
+              return Text(
+                count > 0 ? '+ Select videos ($count)' : '+ Select videos',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               );
             }),
-          ],
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Selected Video Cards List
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: channelVideosFuture,
+            builder: (context, snapshot) {
+              final videos = snapshot.data ?? [];
+              return Obx(() {
+                final selectedIds = controller.selectedVideoIds.toList();
+                final selectedVideos = videos.where((v) => selectedIds.contains(v['id'])).toList();
+
+                if (selectedVideos.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F0F11),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'No videos selected yet. (At least 1 video required)',
+                        style: TextStyle(color: const Color(0xFFF59E0B).withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: selectedVideos.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final v = selectedVideos[index];
+                        final thumb = v['thumbnailUrl'] ?? '';
+                        final title = v['title'] ?? 'Untitled Video';
+
+                        return Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F0F11),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.drag_indicator_rounded, color: Colors.white, size: 18),
+                              const SizedBox(width: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  width: 56,
+                                  height: 38,
+                                  color: const Color(0xFF1E1E24),
+                                  child: thumb.isNotEmpty
+                                      ? Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.movie, size: 16, color: Colors.white))
+                                      : const Icon(Icons.movie, size: 16, color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                                onPressed: () {
+                                  controller.selectedVideoIds.remove(v['id']);
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '${selectedVideos.length} videos selected',
+                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45)),
+                      ),
+                    ),
+                  ],
+                );
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Section 9: Topic Image =================
+  Widget _buildSection9TopicImage(BuildContext context, CreateTopicController controller) {
+    return _buildCardContainer(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(context, '9. Topic Image'),
+          const SizedBox(height: 4),
+          Text(
+            'Choose a thumbnail for your topic',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+
+              final optionA = Obx(() {
+                final isVideoThumb = controller.thumbnailSource.value == 'video';
+                return InkWell(
+                  onTap: () => controller.thumbnailSource.value = 'video',
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isVideoThumb ? const Color(0xFF1F1F24) : const Color(0xFF0F0F11),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isVideoThumb ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                        width: isVideoThumb ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Radio<String>(
+                              value: 'video',
+                              groupValue: controller.thumbnailSource.value,
+                              onChanged: (val) => controller.thumbnailSource.value = val!,
+                              activeColor: Colors.white,
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Use thumbnail from selected video', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  Text(
+                                    'Choose from your selected videos',
+                                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Video Thumbnail Row Picker
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: channelVideosFuture,
+                          builder: (context, snapshot) {
+                            final videos = snapshot.data ?? [];
+                            return Obx(() {
+                              final selectedIds = controller.selectedVideoIds.toList();
+                              final selectedVideos = videos.where((v) => selectedIds.contains(v['id'])).toList();
+
+                              if (selectedVideos.isEmpty) {
+                                return Text(
+                                  'Select videos in section 8 first.',
+                                  style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+                                );
+                              }
+
+                              return SizedBox(
+                                height: 60,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: selectedVideos.length,
+                                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                                  itemBuilder: (context, index) {
+                                    final v = selectedVideos[index];
+                                    final thumb = v['thumbnailUrl'] ?? '';
+                                    final isChosen = controller.chosenVideoThumbnailUrl.value == thumb;
+
+                                    return InkWell(
+                                      onTap: () => controller.chosenVideoThumbnailUrl.value = thumb,
+                                      child: Container(
+                                        width: 90,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: isChosen ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                                            width: isChosen ? 2.0 : 1.0,
+                                          ),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: thumb.isNotEmpty
+                                              ? Image.network(thumb, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.movie, size: 20, color: Colors.white))
+                                              : const Icon(Icons.movie, size: 20, color: Colors.white),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              });
+
+              final optionB = Obx(() {
+                final isCustom = controller.thumbnailSource.value == 'custom';
+                return InkWell(
+                  onTap: () => controller.thumbnailSource.value = 'custom',
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isCustom ? const Color(0xFF1F1F24) : const Color(0xFF0F0F11),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCustom ? Colors.white : Colors.white.withValues(alpha: 0.12),
+                        width: isCustom ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Radio<String>(
+                              value: 'custom',
+                              groupValue: controller.thumbnailSource.value,
+                              onChanged: (val) => controller.thumbnailSource.value = val!,
+                              activeColor: Colors.white,
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Upload custom image', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+                                  Text(
+                                    'Pick an image from your device',
+                                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Upload Box
+                        InkWell(
+                          onTap: controller.pickCustomThumbnail,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF161618),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                            ),
+                            child: Column(
+                              children: [
+                                if (controller.pickedCustomImageBytes.value != null) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.memory(controller.pickedCustomImageBytes.value!, height: 80, fit: BoxFit.cover),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ] else ...[
+                                  const Icon(Icons.upload_rounded, color: Colors.white, size: 24),
+                                  const SizedBox(height: 6),
+                                ],
+                                const Text('Upload image', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                                Text(
+                                  'PNG, JPG or WEBP. Max 5MB.',
+                                  style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.4)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              });
+
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: optionA),
+                    const SizedBox(width: 16),
+                    Expanded(child: optionB),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  optionA,
+                  const SizedBox(height: 14),
+                  optionB,
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 10),
+          Text(
+            'Recommended size: 1280x720 (16:9). Max size: 5MB.',
+            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.45)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= Card Container (Playlist Theme Matching) =================
+  Widget _buildCardContainer({required BuildContext context, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  // ================= Section Title (Playlist Theme Matching) =================
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: context.themeTypography.title.copyWith(
+        fontWeight: FontWeight.bold,
+        fontSize: 15,
+      ),
+    );
+  }
+
+  // ================= Input Decoration (Playlist Theme Matching) =================
+  InputDecoration _buildInputDecoration({
+    required String hintText,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+    EdgeInsetsGeometry? contentPadding,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(
+        color: Colors.white.withValues(alpha: 0.35),
+        fontSize: 14,
+      ),
+      counterText: '',
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      fillColor: const Color(0xFF0F0F11),
+      filled: true,
+      contentPadding: contentPadding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: Colors.white.withValues(alpha: 0.12),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.white),
+      ),
+    );
+  }
+
+  // ================= Desktop Footer Actions (Playlist Theme Matching) =================
+  Widget _buildDesktopFooterActions(BuildContext context, CreateTopicController controller) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        OutlinedButton(
+          onPressed: Get.back,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.white,
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: const Text('Cancel'),
+        ),
+        const SizedBox(width: 16),
+        Obx(() {
+          return ElevatedButton(
+            onPressed: controller.isSubmitting.value
+                ? null
+                : () async {
+                    final isValid = await controller.validateFormBeforeSubmit();
+                    if (!isValid) return;
+                    controller.isSubmitting.value = true;
+                    try {
+                      await onCreateTopicSubmitted(controller);
+                      if (context.mounted) {
+                        Get.back();
+                      }
+                    } catch (e) {
+                      AppSnackbar.show('Error', e.toString());
+                    } finally {
+                      controller.isSubmitting.value = false;
+                    }
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: controller.isSubmitting.value
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.black,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    'Create Topic',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+          );
+        }),
+      ],
+    );
+  }
+
+  // ================= Mobile Sticky Footer (Playlist Theme Matching) =================
+  Widget _buildMobileStickyFooter(BuildContext context, CreateTopicController controller) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: Obx(() {
+          return ElevatedButton(
+            onPressed: controller.isSubmitting.value
+                ? null
+                : () async {
+                    final isValid = await controller.validateFormBeforeSubmit();
+                    if (!isValid) return;
+                    controller.isSubmitting.value = true;
+                    try {
+                      await onCreateTopicSubmitted(controller);
+                      if (context.mounted) {
+                        Get.back();
+                      }
+                    } catch (e) {
+                      AppSnackbar.show('Error', e.toString());
+                    } finally {
+                      controller.isSubmitting.value = false;
+                    }
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: controller.isSubmitting.value
+                ? const CircularProgressIndicator(color: Colors.black)
+                : const Text(
+                    'Create Topic',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // ================= Video Selector Modal =================
+  void _openVideoSelectorModal(BuildContext context, CreateTopicController controller) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Color(0xFF161618),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select Videos for Topic',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: channelVideosFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Colors.white));
+                  }
+                  final videos = snapshot.data ?? [];
+                  if (videos.isEmpty) {
+                    return const Text('No channel videos available.', style: TextStyle(color: Colors.white54));
+                  }
+                  return Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: videos.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final v = videos[index];
+                        final id = v['id'] as String;
+                        final thumb = v['thumbnailUrl'] as String? ?? '';
+                        final title = v['title'] as String? ?? 'Untitled Video';
+
+                        return Obx(() {
+                          final isSelected = controller.selectedVideoIds.contains(id);
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: (_) {
+                              controller.toggleVideoSelection(id, thumb);
+                            },
+                            title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                            secondary: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: thumb.isNotEmpty
+                                  ? Image.network(thumb, width: 48, height: 32, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.movie, color: Colors.white))
+                                  : const Icon(Icons.movie, color: Colors.white),
+                            ),
+                            activeColor: Colors.white,
+                            checkColor: Colors.black,
+                          );
+                        });
+                      },
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
         );
       },
     );

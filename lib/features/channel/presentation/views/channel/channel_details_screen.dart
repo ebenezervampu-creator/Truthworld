@@ -2256,7 +2256,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         child: Icon(
           Icons.playlist_play_rounded,
           size: 36,
-          color: AppColors.brand,
+          color: Colors.white,
         ),
       ),
     );
@@ -2621,7 +2621,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   ListTile(
                     leading: const Icon(
                       Icons.person_remove_outlined,
-                      color: AppColors.brand,
+                      color: Colors.white,
                     ),
                     title: const Text(
                       'Unsubscribe',

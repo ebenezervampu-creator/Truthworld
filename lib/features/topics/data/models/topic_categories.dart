@@ -167,5 +167,41 @@ class TopicCategoriesConfig {
       imageUrl:
           'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=1200&q=90',
     ),
+    TopicCategory(
+      id: 'people_blogs',
+      title: 'People & Blogs',
+      imageUrl:
+          'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=90',
+    ),
+    TopicCategory(
+      id: 'kids_family',
+      title: 'Kids & Family',
+      imageUrl:
+          'https://images.unsplash.com/photo-1536640712-4d4c36ff0e4e?auto=format&fit=crop&w=1200&q=90',
+    ),
+    TopicCategory(
+      id: 'movies',
+      title: 'Movies',
+      imageUrl:
+          'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1200&q=90',
+    ),
+    TopicCategory(
+      id: 'tv_shows',
+      title: 'TV Shows',
+      imageUrl:
+          'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=1200&q=90',
+    ),
+    TopicCategory(
+      id: 'vlogs',
+      title: 'Vlogs',
+      imageUrl:
+          'https://images.unsplash.com/photo-1601506521793-dc748fc80b67?auto=format&fit=crop&w=1200&q=90',
+    ),
+    TopicCategory(
+      id: 'other',
+      title: 'Other',
+      imageUrl:
+          'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1200&q=90',
+    ),
   ];
 }

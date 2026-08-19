@@ -39,7 +39,7 @@ export class ReputationService {
         rep = {
           userId,
           channelId,
-          channelRating: report.videoRating || reportScore,
+          channelRating: reportScore,
           trustScore: reportScore,
           trustLevel: this.calculateTrustLevel(reportScore),
           lifetimeClaims: report.factCheckStats.totalClaims,

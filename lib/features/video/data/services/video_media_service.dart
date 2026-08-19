@@ -187,6 +187,18 @@ class VideoMediaService {
       final subtitles = _extractStringMap(
         media['subtitles'] ?? data['subtitles'],
       );
+      if (subtitles.isEmpty) {
+        final directTranscript = (media['transcriptionUrl'] as String?)?.isNotEmpty == true
+            ? (media['transcriptionUrl'] as String)
+            : ((data['transcriptionUrl'] as String?)?.isNotEmpty == true
+                ? (data['transcriptionUrl'] as String)
+                : ((data['transcriptUrl'] as String?)?.isNotEmpty == true
+                    ? (data['transcriptUrl'] as String)
+                    : null));
+        if (directTranscript != null && directTranscript.isNotEmpty) {
+          subtitles['en'] = directTranscript;
+        }
+      }
       final dubbedVideos = _extractStringMap(
         media['dubbedVideos'] ?? data['dubbedVideos'],
       );

@@ -43,6 +43,16 @@ class AuthService extends GetxService {
   Channel? get userChannel => _userChannel.value;
   Rxn<Channel> get rxUserChannel => _userChannel;
 
+  void setUserChannel(Channel? channel) {
+    _userChannel.value = channel;
+    _hasChannel.value = channel != null && channel.status != ChannelStatus.deleted;
+  }
+
+  void clearUserChannel() {
+    _userChannel.value = null;
+    _hasChannel.value = false;
+  }
+
   StreamSubscription? _channelSubscription;
   final RxBool isPremiumUser = false.obs;
   final RxnString premiumPlanId = RxnString();
@@ -305,6 +315,22 @@ class AuthService extends GetxService {
 
             _hasChannel.value = false;
             _userChannel.value = null;
+            // Clean up any stale user doc flags if orphaned
+            try {
+              final uDoc = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.users)
+                  .doc(user.uid)
+                  .get();
+              if (uDoc.exists && (uDoc.data()?['hasChannel'] == true || uDoc.data()?['channelId'] != null)) {
+                await FirebaseFirestore.instance
+                    .collection(FirestoreCollections.users)
+                    .doc(user.uid)
+                    .set({
+                  'hasChannel': false,
+                  'channelId': null,
+                }, SetOptions(merge: true));
+              }
+            } catch (_) {}
           },
           onError: (error) {
             debugPrint('AuthService Firestore error: $error');
@@ -684,8 +710,27 @@ class AuthService extends GetxService {
     }
   }
 
+  bool _isSyncingUser = false;
+  String? _lastSyncedUid;
+  DateTime? _lastSyncTime;
+
   /// ✅ Synchronizes user data to Firestore 'users' collection
   Future<void> _syncUserToFirestore(User user) async {
+    // Avoid duplicate simultaneous/rapid syncs during auth state startup bursts
+    if (_isSyncingUser && _lastSyncedUid == user.uid) {
+      debugPrint('AuthService: [SYNC] Sync already in progress for UID: ${user.uid}. Skipping duplicate.');
+      return;
+    }
+    if (_lastSyncedUid == user.uid &&
+        _lastSyncTime != null &&
+        DateTime.now().difference(_lastSyncTime!).inSeconds < 10) {
+      debugPrint('AuthService: [SYNC] User ${user.uid} already synced recently. Skipping duplicate.');
+      return;
+    }
+
+    _isSyncingUser = true;
+    _lastSyncedUid = user.uid;
+
     debugPrint(
       'AuthService: [SYNC] Starting synchronization for UID: ${user.uid}',
     );
@@ -861,6 +906,9 @@ class AuthService extends GetxService {
           'AuthService: [SYNC] ❌ CRITICAL: Fallback also failed: $fallbackError',
         );
       }
+    } finally {
+      _isSyncingUser = false;
+      _lastSyncTime = DateTime.now();
     }
   }
 

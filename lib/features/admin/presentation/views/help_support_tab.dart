@@ -102,7 +102,7 @@ class HelpSupportTab extends StatelessWidget {
                     icon: Icons.video_library_outlined,
                     title: 'Video Moderation',
                     description:
-                        'Review AI-analyzed videos. Use the embedded player and Gemini analysis to approve or reject content.',
+                        'Review AI-analyzed videos. Use the embedded player and our verification system analysis to approve or reject content.',
                     color: const Color(0xFF2196F3),
                   ),
                   _buildQuickGuideCard(
@@ -116,7 +116,7 @@ class HelpSupportTab extends StatelessWidget {
                     icon: Icons.account_circle_outlined,
                     title: 'Channel Verification',
                     description:
-                        'Review channel registrations analyzed by Gemini AI for policy compliance on names, descriptions, and tags.',
+                        'Review channel registrations analyzed by our Verification System for policy compliance on names, descriptions, and tags.',
                     color: const Color(0xFF9C27B0),
                   ),
                   _buildQuickGuideCard(
@@ -152,7 +152,7 @@ class HelpSupportTab extends StatelessWidget {
               _buildStep(
                 '2',
                 'AI Pre-Screening',
-                'Google Cloud Vision (images) or Gemini 2.5 Flash (videos/channels) automatically analyzes the content.',
+                'Our Verification System automatically analyzes videos, channels, and images for policy compliance.',
               ),
               _buildStep(
                 '3',

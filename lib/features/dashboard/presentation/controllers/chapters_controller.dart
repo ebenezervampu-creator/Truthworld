@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -13,7 +14,7 @@ import 'package:truthworld/features/video/data/models/video_media.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 /// Professional Chapters Management Controller
-class ChaptersController extends BaseController {
+class ChaptersController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   static const String _tag = 'ChaptersController';
@@ -299,6 +300,18 @@ class ChaptersController extends BaseController {
   Future<void> saveChapters() async {
     final video = selectedVideo.value;
     if (video == null) return;
+
+    for (var i = 0; i < currentChapters.length; i++) {
+      final ch = currentChapters[i];
+      final titleVal = await validateContent(
+        ch.title,
+        fieldName: 'Chapter ${i + 1} Title',
+      );
+      if (!titleVal.isValid) {
+        showWarning(titleVal.message);
+        return;
+      }
+    }
 
     isSaving.value = true;
     try {

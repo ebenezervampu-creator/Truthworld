@@ -109,12 +109,27 @@ export function buildExplainability(verified: VerifiedClaim[]): ExplainabilityRe
 
     const clinicalLabels: Record<string, { label: string; icon: string }> = {
       correct:                    { label: "Correct", icon: "✅" },
+      verified_true:              { label: "Verified True", icon: "✅" },
       mostly_correct:             { label: "Mostly Correct", icon: "🟢" },
+      mostly_true:                { label: "Mostly True", icon: "🟢" },
+      partially_true:             { label: "Partially True", icon: "🟢" },
       incorrect:                  { label: "Incorrect", icon: "❌" },
+      false_claim:                { label: "False", icon: "❌" },
+      verified_false:             { label: "False", icon: "❌" },
+      misleading:                 { label: "Misleading", icon: "📎" },
       outdated:                   { label: "Outdated", icon: "⏳" },
       unsupported:                { label: "Unsupported", icon: "🔍" },
+      unproven:                   { label: "Unproven", icon: "🔍" },
+      inconclusive:               { label: "Inconclusive", icon: "🔍" },
+      limited_support:            { label: "Limited Support", icon: "🔍" },
       needs_context:              { label: "Needs Context", icon: "📎" },
       opinion:                    { label: "Opinion", icon: "💭" },
+      opinion_claim:              { label: "Opinion", icon: "💭" },
+      satire:                     { label: "Satire", icon: "🎭" },
+      satire_claim:               { label: "Satire", icon: "🎭" },
+      religious_belief:           { label: "Faith / Belief", icon: "🕊" },
+      faith_based_claim:          { label: "Faith-Based Claim", icon: "🕊" },
+      faith_context:              { label: "Faith Context", icon: "🕊" },
       anecdotal_experience:       { label: "Personal Experience", icon: "👤" },
       value_judgment:             { label: "Value Judgment", icon: "⚖️" },
       preference_statement:        { label: "Preference", icon: "❤️" },
@@ -124,6 +139,7 @@ export function buildExplainability(verified: VerifiedClaim[]): ExplainabilityRe
       historical_consensus_denial: { label: "Historical Reality Failure", icon: "❌" },
       incorrect_citation:         { label: "Incorrect Source Citation", icon: "📜" },
       contested_interpretation:    { label: "Contested Interpretation", icon: "⚖️" },
+      verification_timeout:       { label: "Timed Out", icon: "⏳" },
       unverifiable:               { label: "Unverifiable", icon: "❔" }
     };
 
@@ -139,8 +155,8 @@ export function buildExplainability(verified: VerifiedClaim[]): ExplainabilityRe
       ontology:       claim.nature as any,
       severity:       claim.severity,
       severityLabel:  claim.severity ? severityLabels[claim.severity] : undefined,
-      whyWrong:       ['incorrect', 'historical_consensus_denial', 'incorrect_citation'].includes(claim.status) ? claim.reasoning : undefined,
-      correction:     ['incorrect', 'historical_consensus_denial', 'incorrect_citation'].includes(claim.status)
+      whyWrong:       ['incorrect', 'false_claim', 'verified_false', 'historical_consensus_denial', 'incorrect_citation', 'misleading'].includes(claim.status) ? claim.reasoning : undefined,
+      correction:     ['incorrect', 'false_claim', 'verified_false', 'historical_consensus_denial', 'incorrect_citation', 'misleading'].includes(claim.status)
         ? `Correction: ${claim.reasoning}`
         : undefined,
       sources:        claim.richSources && claim.richSources.length > 0

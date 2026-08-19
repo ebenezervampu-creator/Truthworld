@@ -11,11 +11,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SendFeedbackController extends BaseController {
+class SendFeedbackController extends BaseController with ContentValidationMixin {
   final formKey = GlobalKey<FormState>();
   final feedbackController = TextEditingController();
   final RxString feedbackType = 'General'.obs;
@@ -88,6 +88,23 @@ class SendFeedbackController extends BaseController {
 
   Future<void> submitFeedback() async {
     if (!formKey.currentState!.validate() || isSubmitting.value) return;
+
+    final text = feedbackController.text.trim();
+    final validation = await validateContent(
+      text,
+      fieldName: 'Feedback',
+      minLength: 5,
+    );
+    if (!validation.isValid) {
+      Get.snackbar(
+        'Inappropriate Content',
+        validation.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
 
     isSubmitting.value = true;
 
@@ -210,7 +227,7 @@ ThemeData _getTheme(BuildContext context) {
     overline: parentTypography.overline,
   );
 
-  return modernDarkProfessionalTheme.copyWith(
+  return darkProfessionalTheme.copyWith(
     extensions: [
       homeColors,
       homeTypography,
@@ -487,15 +504,10 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
             ),
             contentPadding: const EdgeInsets.all(20),
           ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Please enter your message';
-            }
-            if (value.trim().length < 5) {
-              return 'Message is too short';
-            }
-            return null;
-          },
+          validator: ContentValidator.formValidator(
+            'Feedback',
+            minLength: 5,
+          ),
         ),
       ],
     );

@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -15,7 +15,7 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class PlaylistController extends BaseController {
+class PlaylistController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   StreamSubscription<QuerySnapshot>? _channelsSubscription;
   StreamSubscription<QuerySnapshot>? _playlistsSubscription;
@@ -240,7 +240,38 @@ class PlaylistController extends BaseController {
     String playlistName, {
     bool isPublic = false,
     List<String> videoIds = const [],
+    String description = '',
+    String customThumbnailUrl = '',
   }) async {
+    final nameVal = await validateContent(playlistName, fieldName: 'Playlist Name');
+    if (!nameVal.isValid) {
+      Get.snackbar(
+        'Inappropriate Content',
+        nameVal.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return null;
+    }
+
+    if (description.trim().isNotEmpty) {
+      final descVal = await validateContent(
+        description,
+        fieldName: 'Playlist Description',
+      );
+      if (!descVal.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          descVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return null;
+      }
+    }
+
     try {
       final playlistRef = isPublic
           ? _firestore.collection('public_playlists').doc()
@@ -250,8 +281,8 @@ class PlaylistController extends BaseController {
                 .collection(FirestoreCollections.playlists)
                 .doc();
 
-      String? thumbnailUrl;
-      if (videoIds.isNotEmpty) {
+      var thumbnailUrl = customThumbnailUrl.isNotEmpty ? customThumbnailUrl : null;
+      if ((thumbnailUrl == null || thumbnailUrl.isEmpty) && videoIds.isNotEmpty) {
         final videoDoc = await _firestore
             .collection(FirestoreCollections.videos)
             .doc(videoIds.first)
@@ -280,6 +311,7 @@ class PlaylistController extends BaseController {
       final playlist = PlaylistModel(
         id: playlistRef.id,
         playlistName: playlistName,
+        description: description,
         videoIds: videoIds.take(10).toList(),
         videoCount: videoIds.length,
         isPublic: isPublic,
@@ -1005,21 +1037,40 @@ class PlaylistController extends BaseController {
         .where('ownerId', isEqualTo: user)
         .snapshots()
         .listen(
-          (snapshot) {
-            channels.value = snapshot.docs
+          (snapshot) async {
+            var loaded = snapshot.docs
                 .map(Channel.fromDocumentSnapshot)
+                .where((c) => c.status != ChannelStatus.deleted)
                 .toList();
+
+            if (loaded.isEmpty) {
+              try {
+                final userSnap = await _firestore
+                    .collection(FirestoreCollections.channels)
+                    .where('userId', isEqualTo: user)
+                    .get();
+                loaded = userSnap.docs
+                    .map(Channel.fromDocumentSnapshot)
+                    .where((c) => c.status != ChannelStatus.deleted)
+                    .toList();
+              } catch (_) {}
+            }
+
+            if (loaded.isEmpty && AuthService.to.userChannel != null) {
+              final authCh = AuthService.to.userChannel!;
+              if (authCh.status != ChannelStatus.deleted) {
+                loaded = [authCh];
+              }
+            }
+
+            channels.value = loaded;
             logger.debug('✅ Channels loaded: ${channels.length}');
           },
           onError: (error) {
-            if (error.toString().contains('permission-denied')) {
-              logger.debug(
-                '📋 PlaylistController: Permission denied listening to channels. This is expected if the user has no channel yet.',
-              );
+            if (AuthService.to.userChannel != null) {
+              channels.value = [AuthService.to.userChannel!];
             } else {
-              logger.debug(
-                '❌ PlaylistController: Error listening to channels: $error',
-              );
+              logger.debug('❌ PlaylistController: Error listening to channels: $error');
             }
           },
         );

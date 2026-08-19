@@ -98,7 +98,7 @@ class AIFeaturesSelector extends StatelessWidget {
                 _buildFeatureToggle(
                   icon: Icons.auto_awesome_rounded,
                   title: 'AI Summary',
-                  subtitle: 'Generate key points & short summary (Gemini)',
+                  subtitle: 'Generate key points & short summary',
                   value: summaryEnabled,
                   gradient: [const Color(0xFFF59E0B), const Color(0xFFEF4444)],
                 ),
@@ -722,7 +722,7 @@ class AIFeaturesSelector extends StatelessWidget {
             title: 'Fact-Check',
             subtitle: isNoFactCheckNeeded
                 ? 'No fact checking needed for $category'
-                : 'Verify claims and ensure accuracy (Gemini)',
+                : 'Verify claims and ensure accuracy',
             value: isNoFactCheckNeeded ? false.obs : factCheckEnabled,
             gradient: isNoFactCheckNeeded
                 ? [const Color(0xFF6B7280), const Color(0xFF4B5563)]

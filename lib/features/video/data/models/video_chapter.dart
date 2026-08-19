@@ -6,9 +6,11 @@ class VideoChapter {
   });
 
   factory VideoChapter.fromMap(Map<String, dynamic> map) {
+    // Support both 'startMs' (AI pipeline autoChapters) and 'startTimeMs' (manual chapters)
+    final startMs = (map['startMs'] ?? map['startTimeMs'] ?? 0) as num;
     return VideoChapter(
       title: map['title'] ?? '',
-      startTime: Duration(milliseconds: map['startTimeMs'] ?? 0),
+      startTime: Duration(milliseconds: startMs.toInt()),
       thumbnailUrl: map['thumbnailUrl'],
     );
   }

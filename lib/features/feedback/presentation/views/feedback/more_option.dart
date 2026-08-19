@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/saved_videos_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 void showMoreOptionsBottomSheet(
   BuildContext context,
   String videoId,
-  Function(bool) rotateCallback,
-) {
+  Function(bool) rotateCallback, {
+  Video? video,
+}) {
+  final savedVideosController = Get.isRegistered<SavedVideosController>()
+      ? Get.find<SavedVideosController>()
+      : Get.put(SavedVideosController(), permanent: true);
+
   showModalBottomSheet(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
@@ -53,17 +60,37 @@ void showMoreOptionsBottomSheet(
               );
             },
           ),
-          ListTile(
-            leading: const Icon(
-              Icons.download_outlined,
-              color: AppColors.textPrimary,
-            ),
-            title: const Text('Save video'),
-            onTap: () {
-              Navigator.pop(context);
-              Get.snackbar('Save Video', 'Video save not implemented.');
-            },
-          ),
+          Obx(() {
+            final isSaved = savedVideosController.isSaved(videoId);
+            return ListTile(
+              leading: Icon(
+                isSaved
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_outline_rounded,
+                color: AppColors.textPrimary,
+              ),
+              title: Text(isSaved ? 'Remove from saved' : 'Save video'),
+              onTap: () {
+                Navigator.pop(context);
+                final targetVideo = video ??
+                    savedVideosController.savedVideos.firstWhere(
+                      (v) => v.id == videoId,
+                      orElse: () => Video(
+                        id: videoId,
+                        title: 'Video $videoId',
+                        description: '',
+                        thumbnailUrl: '',
+                        ownerId: '',
+                        channelId: '',
+                        channelName: '',
+                        category: '',
+                        tags: const [],
+                      ),
+                    );
+                savedVideosController.toggleSaveVideo(targetVideo);
+              },
+            );
+          }),
           const Divider(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

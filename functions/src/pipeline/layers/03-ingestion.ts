@@ -153,7 +153,6 @@ export class IngestionLayer {
 
           await db().collection("videos").doc(videoId).update({
             ...videoUpdate,
-            videoRating: 0,
           });
 
           // Reverse Mapping: Track that this job now serves multiple videos
@@ -193,16 +192,24 @@ export class IngestionLayer {
     //    with complete metadata (title, description, aiFeatures.pipelineStage === 'published')
     const videoUrl = `gs://${bucket}/${filePath}`;
 
+    // Check existing video document for duration if GCS meta doesn't have it
+    const videoDoc = await db().collection("videos").doc(videoId).get();
+    const existingData = videoDoc.data() || {};
+    const existingDuration =
+      existingData.duration ||
+      (existingData.durationMs ? Math.round(existingData.durationMs / 1000) : 0);
+    const finalDuration = meta.duration > 0 ? meta.duration : (existingDuration || 0);
+
     // Update the video document with upload metadata — do NOT trigger pipeline
     await db().collection("videos").doc(videoId).update({
-      status: "uploaded",  // Not 'processing' — waiting for publish
+      status: "uploaded", // Not 'processing' — waiting for publish
       videoUrl,
       videoHash: meta.md5Hash ?? null,
-      duration: meta.duration,
+      duration: finalDuration,
+      ...(finalDuration > 0 ? { durationMs: finalDuration * 1000 } : {}),
       resolution: meta.resolution,
       codec: meta.codec,
       fileSize: meta.fileSize,
-      videoRating: 0,
       updatedAt: Date.now(),
     });
 
@@ -213,7 +220,10 @@ export class IngestionLayer {
     }
 
     logger.info("[Ingestion] Upload tracked — awaiting publish with metadata", {
-      videoId, fileName, md5: meta.md5Hash,
+      videoId,
+      fileName,
+      md5: meta.md5Hash,
+      duration: finalDuration,
     });
     return videoId;
   }
@@ -221,7 +231,10 @@ export class IngestionLayer {
   // ─── Private helpers ─────────────────────────────────────────────────────────
 
   /** Fetch real GCS object metadata including MD5 hash */
-  private async fetchGCSMetadata(bucketName: string, filePath: string): Promise<{
+  private async fetchGCSMetadata(
+    bucketName: string,
+    filePath: string
+  ): Promise<{
     md5Hash: string | null;
     duration: number;
     resolution: string;
@@ -233,17 +246,26 @@ export class IngestionLayer {
       // GCS returns MD5 as base64 string. We convert to hex for safe Firestore document IDs.
       const md5Base64 = meta.md5Hash as string | undefined;
       const md5Hex = md5Base64 ? Buffer.from(md5Base64, "base64").toString("hex") : null;
+      const rawDur = meta.metadata?.duration
+        ? parseInt(String(meta.metadata.duration), 10)
+        : 0;
 
       return {
         md5Hash: md5Hex,
-        duration: parseInt(String(meta.metadata?.duration ?? "600"), 10),
+        duration: isNaN(rawDur) ? 0 : rawDur,
         resolution: String(meta.metadata?.resolution ?? "unknown"),
         codec: String(meta.metadata?.codec ?? "unknown"),
         fileSize: parseInt(String(meta.size ?? "0"), 10),
       };
     } catch (err) {
       logger.warn("[Ingestion] GCS metadata fetch failed — using defaults", { err });
-      return { md5Hash: null, duration: 600, resolution: "unknown", codec: "unknown", fileSize: 0 };
+      return {
+        md5Hash: null,
+        duration: 0,
+        resolution: "unknown",
+        codec: "unknown",
+        fileSize: 0,
+      };
     }
   }
 

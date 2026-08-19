@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelMembershipTier {
@@ -688,6 +689,19 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
           ElevatedButton(
             onPressed: () async {
               final name = nameController.text.trim();
+              if (name.isEmpty) return;
+
+              final nameVal = ContentValidator.validate(name, fieldName: 'Tier Name');
+              if (!nameVal.isValid) {
+                Get.snackbar(
+                  'Inappropriate Content',
+                  nameVal.message,
+                  backgroundColor: AppColors.error,
+                  colorText: AppColors.textPrimary,
+                );
+                return;
+              }
+
               final price =
                   double.tryParse(priceController.text.trim()) ?? 4.99;
               final perks = perksController.text
@@ -696,7 +710,18 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                   .where((e) => e.isNotEmpty)
                   .toList();
 
-              if (name.isEmpty) return;
+              for (final p in perks) {
+                final perkVal = ContentValidator.validate(p, fieldName: 'Perk');
+                if (!perkVal.isValid) {
+                  Get.snackbar(
+                    'Inappropriate Content',
+                    perkVal.message,
+                    backgroundColor: AppColors.error,
+                    colorText: AppColors.textPrimary,
+                  );
+                  return;
+                }
+              }
 
               final docRef = _firestore
                   .collection(FirestoreCollections.channels)
@@ -800,6 +825,19 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
           ElevatedButton(
             onPressed: () async {
               final name = nameController.text.trim();
+              if (name.isEmpty) return;
+
+              final nameVal = ContentValidator.validate(name, fieldName: 'Tier Name');
+              if (!nameVal.isValid) {
+                Get.snackbar(
+                  'Inappropriate Content',
+                  nameVal.message,
+                  backgroundColor: AppColors.error,
+                  colorText: AppColors.textPrimary,
+                );
+                return;
+              }
+
               final price =
                   double.tryParse(priceController.text.trim()) ?? tier.price;
               final perks = perksController.text
@@ -807,6 +845,19 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
                   .map((e) => e.trim())
                   .where((e) => e.isNotEmpty)
                   .toList();
+
+              for (final p in perks) {
+                final perkVal = ContentValidator.validate(p, fieldName: 'Perk');
+                if (!perkVal.isValid) {
+                  Get.snackbar(
+                    'Inappropriate Content',
+                    perkVal.message,
+                    backgroundColor: AppColors.error,
+                    colorText: AppColors.textPrimary,
+                  );
+                  return;
+                }
+              }
 
               await _firestore
                   .collection(FirestoreCollections.channels)

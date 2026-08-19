@@ -23,6 +23,24 @@ class TopicManagementController extends BaseController {
   final RxString searchQuery = ''.obs;
   final RxList<Topic> topicsList = <Topic>[].obs;
   final RxBool rxIsLoading = false.obs;
+  final RxString selectedTopicId = ''.obs;
+  final RxMap<String, dynamic> newTopicData = <String, dynamic>{}.obs;
+  final RxString activeFilterMode = 'all'.obs; // 'all' | 'public' | 'private'
+
+  void setFilterMode(String mode) {
+    activeFilterMode.value = mode;
+  }
+
+  // Compatibility getters for TopicSelectionBottomSheet
+  RxList<Topic> get availableTopics => topicsList;
+  RxBool get isTopicsLoading => rxIsLoading;
+  RxString get topicSearchQuery => searchQuery;
+
+  void selectTopic(String id) {
+    selectedTopicId.value = id;
+  }
+
+  void fetchAvailableTopics() {}
 
   /// Computed Filtered Topics based on search query
   List<Topic> get filteredTopics {
@@ -171,6 +189,17 @@ class TopicManagementController extends BaseController {
     String? thumbnailUrl,
   }) async {
     try {
+      // 0. Validate at least 1 video is selected
+      if (selectedVideoIds.isEmpty) {
+        AppSnackbar.show(
+          'Video Required',
+          'At least 1 video is required to create a topic.',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        throw Exception('At least 1 video is required to create a topic');
+      }
+
       // 1. Validate and clean handle format
       var cleanHandle = handle.trim();
       if (cleanHandle.startsWith('T/') || cleanHandle.startsWith('t/')) {

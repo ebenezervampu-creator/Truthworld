@@ -6,6 +6,7 @@ import 'package:truthworld/features/dashboard/presentation/controllers/chapters_
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/drafts_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
@@ -30,5 +31,6 @@ class DashboardBinding extends Bindings {
     Get.lazyPut(() => CreatorIntelligenceController(channelId: '', creatorId: ''), fenix: true);
     Get.lazyPut(MultiAudioPlayerController.new, fenix: true);
     Get.lazyPut(StudioSettingsController.new, fenix: true);
+    Get.lazyPut(DraftsController.new, fenix: true);
   }
 }

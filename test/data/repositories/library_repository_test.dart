@@ -86,6 +86,33 @@ class FakeLibraryRepository implements LibraryRepository {
     }
     return Result.success(null);
   }
+
+  final List<String> savedVideoIds = ['v5'];
+
+  @override
+  Future<Result<List<Map<String, dynamic>>>> getSavedVideos(
+    String userId, {
+    int page = 1,
+    int limit = 20,
+  }) async {
+    return Result.success(
+      savedVideoIds.map((id) => {'id': id, 'title': 'Saved $id'}).toList(),
+    );
+  }
+
+  @override
+  Future<Result<void>> toggleSaveVideo(
+    String userId,
+    Map<String, dynamic> videoMap,
+  ) async {
+    final videoId = (videoMap['id'] ?? '').toString();
+    if (savedVideoIds.contains(videoId)) {
+      savedVideoIds.remove(videoId);
+    } else if (videoId.isNotEmpty) {
+      savedVideoIds.add(videoId);
+    }
+    return Result.success(null);
+  }
 }
 
 void main() {
@@ -124,6 +151,19 @@ void main() {
       await repository.clearWatchHistory('u1');
       final history = await repository.getWatchHistory('u1');
       expect(history.dataOrNull, isEmpty);
+    });
+
+    test('toggleSaveVideo and getSavedVideos manage saved videos', () async {
+      final initial = await repository.getSavedVideos('u1');
+      expect(initial.dataOrNull?.length, equals(1));
+
+      await repository.toggleSaveVideo('u1', {'id': 'v6', 'title': 'Test Video'});
+      final updated = await repository.getSavedVideos('u1');
+      expect(updated.dataOrNull?.length, equals(2));
+
+      await repository.toggleSaveVideo('u1', {'id': 'v5'});
+      final afterRemove = await repository.getSavedVideos('u1');
+      expect(afterRemove.dataOrNull?.length, equals(1));
     });
   });
 }

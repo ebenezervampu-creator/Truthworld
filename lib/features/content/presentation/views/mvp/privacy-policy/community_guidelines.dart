@@ -28,12 +28,26 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
   final ScrollController _scrollController = ScrollController();
   final RxList<GuidelineSection> _sections = <GuidelineSection>[].obs;
   final RxString _introContent = ''.obs;
+  final RxBool _hasScrolledToBottom = false.obs;
   final RxBool _guidelinesAccepted = false.obs;
 
   @override
   void initState() {
     super.initState();
     _parseGuidelinesText();
+    _scrollController.addListener(() {
+      if (_scrollController.hasClients &&
+          _scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 40) {
+        _hasScrolledToBottom.value = true;
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients &&
+          _scrollController.position.maxScrollExtent <= 20) {
+        _hasScrolledToBottom.value = true;
+      }
+    });
   }
 
   @override
@@ -95,32 +109,34 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
 
   /// Builds the left-hand navigation menu
   Widget _buildNavigationMenu(BuildContext context, {bool isDrawer = false}) {
-    return Container(
-      width: 280, // Fixed width for the nav menu
+    return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: Obx(
-        () => ListView(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
-          children: [
-            ..._sections.map((section) {
-              return ListTile(
-                title: Text(
-                  section.title,
-                  style: const TextStyle(fontSize: 14),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                ),
-                dense: true,
-                onTap: () {
-                  _scrollToSection(section.key);
-                  if (isDrawer) {
-                    Navigator.pop(context); // Close the drawer if it's a drawer
-                  }
-                },
-              );
-            }),
-          ],
+      child: SizedBox(
+        width: 280, // Fixed width for the nav menu
+        child: Obx(
+          () => ListView(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+            children: [
+              ..._sections.map((section) {
+                return ListTile(
+                  title: Text(
+                    section.title,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                  ),
+                  dense: true,
+                  onTap: () {
+                    _scrollToSection(section.key);
+                    if (isDrawer) {
+                      Navigator.pop(context); // Close the drawer if it's a drawer
+                    }
+                  },
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );
@@ -344,6 +360,69 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                   ],
                 )
               : _buildContentArea(context),
+          bottomNavigationBar: Obx(() {
+            final args = Get.arguments as Map<String, dynamic>?;
+            final requireAgreement = args?['requireAgreement'] == true;
+            if (!requireAgreement) return const SizedBox.shrink();
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context).dividerColor,
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                child: _hasScrolledToBottom.value
+                    ? SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Get.back(result: true);
+                          },
+                          icon: const Icon(Icons.check_circle_outline, color: Colors.black, size: 20),
+                          label: const Text(
+                            'I Have Read & Accept Community Guidelines',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.arrow_downward, color: Theme.of(context).textTheme.bodySmall?.color, size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Please scroll to the bottom to accept Community Guidelines',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).textTheme.bodySmall?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            );
+          }),
         );
       },
     );
@@ -442,6 +521,9 @@ Truthworld moderates HOW content is delivered — NOT what opinions, claims, or 
 • **Spirituality & Philosophy:** Mind, spirit, ethics, clean lifestyle guides.
 • **DIY, Cooking & Art:** Crafting, cooking, digital art, creative designs.
 • **Music & Songs:** Instrumental music, background tracks, clean songs (non-romantic themes).
+• **People & Blogs & Vlogs:** Personal vlogs, daily life, Q&A sessions, personal stories, life updates, and behind-the-scenes content (family-friendly delivery required).
+• **Movies & TV Shows:** Clean film reviews, trailers, cinematic analysis, television series discussions, and entertainment commentary.
+• **Kids & Family:** Child-friendly educational content, storytelling, wholesome family activities, and parenting guidance.
 
 6. SENSITIVE TOPICS - OPEN DEBATE RULES
 

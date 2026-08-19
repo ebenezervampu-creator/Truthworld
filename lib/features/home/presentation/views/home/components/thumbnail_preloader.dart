@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import 'components/home_theme.dart';
+
+import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
 
 /// Optimized thumbnail preloading service
 /// Manages image caching strategy for better scroll performance
@@ -29,7 +30,7 @@ class ThumbnailPreloader {
   void preloadAhead(List<String> imageUrls, BuildContext context, int startIndex, int count) {
     final endIndex = (startIndex + count).clamp(0, imageUrls.length - 1);
     
-    for (int i = startIndex; i <= endIndex && i < imageUrls.length; i++) {
+    for (var i = startIndex; i <= endIndex && i < imageUrls.length; i++) {
       if (imageUrls[i].isNotEmpty) {
         preload(imageUrls[i], context);
       }
@@ -46,7 +47,7 @@ class ThumbnailPreloader {
     final startIndex = currentIndex + 1;
     final endIndex = (currentIndex + aheadCount).clamp(0, imageUrls.length - 1);
     
-    for (int i = startIndex; i <= endIndex && i < imageUrls.length; i++) {
+    for (var i = startIndex; i <= endIndex && i < imageUrls.length; i++) {
       if (imageUrls[i].isNotEmpty) {
         await precacheImage(CachedNetworkImageProvider(imageUrls[i]), context);
       }
@@ -90,10 +91,7 @@ class OptimizedThumbnail extends StatelessWidget {
   final Widget Function(BuildContext, String, Object)? errorBuilder;
 
   const OptimizedThumbnail({
-    super.key,
-    required this.imageUrl,
-    required this.width,
-    required this.height,
+    required this.imageUrl, required this.width, required this.height, super.key,
     this.fit = BoxFit.cover,
     this.borderRadius = BorderRadius.zero,
     this.placeholderBuilder,
@@ -141,7 +139,7 @@ class OptimizedThumbnail extends StatelessWidget {
       width: width,
       height: height,
       color: HomeTheme.darkSurfaceVariant,
-      child: Icon(
+      child: const Icon(
         Icons.broken_image,
         color: HomeTheme.darkOnSurfaceVariant,
         size: 32,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
@@ -1521,20 +1522,10 @@ class AdService extends GetxService {
                           children: [
                             Row(
                               children: [
-                                CircleAvatar(
+                                UserAvatar(
                                   radius: 14,
-                                  backgroundImage:
-                                      comment.userProfilePicUrl.isNotEmpty
-                                      ? NetworkImage(comment.userProfilePicUrl)
-                                      : null,
-                                  backgroundColor: AppColors.bgDivider,
-                                  child: comment.userProfilePicUrl.isEmpty
-                                      ? const Icon(
-                                          Icons.person,
-                                          size: 14,
-                                          color: AppColors.textSecondary,
-                                        )
-                                      : null,
+                                  photoUrl: comment.userProfilePicUrl,
+                                  displayName: comment.userName,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(

@@ -37,25 +37,38 @@ service cloud.firestore {
       );
     }
     
+    // Channel Handles Collection (Unique handle registry)
+    match /channel_handles/{handle} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    // Hashtags Collection
+    match /hashtags/{hashtagId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
     // Channel Drafts Collection
     match /channel_drafts/{draftId} {
       // Allow users to read their own drafts
       allow read: if isAuthenticated() && 
-                     resource.data.ownerId == request.auth.uid;
+                     (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid);
       
       // Allow users to create their own drafts
       allow create: if isAuthenticated() && 
-                       request.resource.data.ownerId == request.auth.uid &&
-                       request.resource.data.keys().hasAll(['ownerId', 'channelName', 'updatedAt']);
+                       (request.resource.data.ownerId == request.auth.uid || request.resource.data.userId == request.auth.uid);
       
       // Allow users to update their own drafts
       allow update: if isAuthenticated() && 
-                       resource.data.ownerId == request.auth.uid &&
-                       request.resource.data.ownerId == request.auth.uid;
+                       (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid ||
+                        request.resource.data.ownerId == request.auth.uid);
       
       // Allow users to delete their own drafts
       allow delete: if isAuthenticated() && 
-                       resource.data.ownerId == request.auth.uid;
+                       (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
     }
     
     // Channels Collection
@@ -63,23 +76,25 @@ service cloud.firestore {
       // Allow anyone to read channels (needed for discovery and collection listing)
       allow read: if true;
       
-      // Allow authenticated users to create a channel ONLY if they do not already have one
+      // Allow authenticated users to create their own channel
       allow create: if isAuthenticated() && 
-                       request.resource.data.ownerId == request.auth.uid &&
-                       (!exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
-                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.hasChannel != true);
+                       (request.resource.data.ownerId == request.auth.uid ||
+                        request.resource.data.userId == request.auth.uid ||
+                        isAdmin());
       
-      // Allow owners or admins to update their channels, or any authenticated user to toggle subscription
+      // Allow owners or admins to update their channels, or any authenticated user to toggle subscription / stats
       allow update: if isAuthenticated() && 
                        (resource.data.ownerId == request.auth.uid || 
+                        resource.data.userId == request.auth.uid ||
                         isAdmin() ||
-                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt']) &&
+                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt', 'videoCount', 'metrics']) &&
                          (request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
-                          request.resource.data.subscriberCount == resource.data.subscriberCount - 1)));
+                          request.resource.data.subscriberCount == resource.data.subscriberCount - 1 ||
+                          request.resource.data.subscriberCount == resource.data.subscriberCount)));
       
       // Allow owners or admins to delete their channels
       allow delete: if isAuthenticated() && 
-                       (resource.data.ownerId == request.auth.uid || isAdmin());
+                       (resource.data.ownerId == request.auth.uid || resource.data.userId == request.auth.uid || isAdmin());
 
       // Subscribers subcollection
       match /subscribers/{subscriberId} {
@@ -137,7 +152,6 @@ service cloud.firestore {
     
     // Videos Collection
     match /videos/{videoId} {
-      // Allow anyone to read public videos
       allow read: if true;
       
       // Allow authenticated users to create videos (flexible field check)

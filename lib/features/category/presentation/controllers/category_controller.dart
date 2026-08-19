@@ -350,6 +350,17 @@ class CategoryController extends BaseController {
       'Hiking Guides',
       'Eco Tourism',
     ],
+    'people & blogs': [
+      'All',
+      'Daily Vlogs',
+      'Personal Stories',
+      'Q&A Sessions',
+      'Life Updates',
+      'Behind the Scenes',
+      'Family Vlogs',
+      'Challenge Videos',
+      'Opinion & Rants',
+    ],
     'kids & family': [
       'All',
       'Stories',
@@ -360,6 +371,13 @@ class CategoryController extends BaseController {
       'Parenting Tips',
       'Holiday Activities',
       'Bedtime Routines',
+    ],
+    'other': [
+      'All',
+      'General',
+      'Miscellaneous',
+      'Community',
+      'Mixed',
     ],
   };
 

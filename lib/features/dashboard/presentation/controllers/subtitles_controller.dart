@@ -278,16 +278,65 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
 
     // Parse existing mediaSubtitles map
     final subs = video.mediaSubtitles;
-    final langs = subs.keys.toList();
 
-    if (langs.isEmpty) {
+    // Build ordered language list:
+    // 1. Source language 'en' first (always shown)
+    // 2. Languages that already have subtitle URLs (from mediaSubtitles)
+    // 3. Pending translation languages (requested but not yet generated)
+    final orderedLangs = <String>[];
+
+    // Always add 'en' first
+    if (!orderedLangs.contains('en')) {
+      orderedLangs.add('en');
+    }
+
+    // Add all languages that have existing subtitle URLs (excluding 'en' already added)
+    for (final lang in subs.keys) {
+      if (!orderedLangs.contains(lang)) {
+        orderedLangs.add(lang);
+      }
+    }
+
+    // Add pending translation languages from video.languages (full names → convert to code)
+    // These are requested but not yet generated (no URL in mediaSubtitles yet)
+    final langNameToCode = <String, String>{
+      'tamil': 'ta',
+      'hindi': 'hi',
+      'telugu': 'te',
+      'kannada': 'kn',
+      'malayalam': 'ml',
+      'spanish': 'es',
+      'french': 'fr',
+      'arabic': 'ar',
+      'portuguese': 'pt',
+      'german': 'de',
+      'japanese': 'ja',
+      'korean': 'ko',
+      'chinese': 'zh',
+      'bengali': 'bn',
+      'marathi': 'mr',
+      'gujarati': 'gu',
+      'punjabi': 'pa',
+      'urdu': 'ur',
+    };
+
+    for (final langName in video.languages) {
+      final code = langNameToCode[langName.toLowerCase()] ?? langName.toLowerCase();
+      if (!orderedLangs.contains(code) && !orderedLangs.contains(langName)) {
+        orderedLangs.add(code);
+      }
+    }
+
+    if (orderedLangs.isEmpty) {
       availableLanguages.value = ['en'];
       selectedLanguage.value = 'en';
       currentCues.clear();
     } else {
-      availableLanguages.value = langs;
-      selectedLanguage.value = langs.first;
-      _parseCuesForLanguage(langs.first, subs[langs.first]);
+      availableLanguages.value = orderedLangs;
+      // Select 'en' by default, or the first available
+      final defaultLang = orderedLangs.contains('en') ? 'en' : orderedLangs.first;
+      selectedLanguage.value = defaultLang;
+      _parseCuesForLanguage(defaultLang, subs[defaultLang]);
     }
     selectedVideo.refresh();
   }
@@ -745,11 +794,34 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         buffer.writeln(cue.text);
         buffer.writeln();
       }
+      final vttContent = buffer.toString();
 
       // Build updated subtitle map preserving existing tracks
       final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
-      // Let's store a simulated stored file URI or the raw text format
-      updatedSubs[lang] = buffer.toString();
+
+      // Check if existing value is already a URL (skip re-upload if just reading)
+      final existingValue = updatedSubs[lang] ?? '';
+      final isAlreadyUrl = existingValue.startsWith('http') ||
+          existingValue.startsWith('gs://') ||
+          existingValue.startsWith('https://');
+
+      if (currentCues.isNotEmpty || !isAlreadyUrl) {
+        // Upload to Firebase Storage so the URL is consistent with English subtitle format:
+        // subtitles/{jobId}/{lang}.vtt or videos/{videoId}/subtitles/{lang}.vtt
+        final jobId = video.id;
+        final storagePath = 'subtitles/$jobId/$lang.vtt';
+        final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+        final vttBytes = vttContent.codeUnits;
+        await storageRef.putData(
+          Uint8List.fromList(vttBytes),
+          SettableMetadata(contentType: 'text/vtt'),
+        );
+
+        // Get a gs:// URL (consistent with how pipeline saves subtitles)
+        final bucket = FirebaseStorage.instance.ref().bucket;
+        final gsUrl = 'gs://$bucket/$storagePath';
+        updatedSubs[lang] = gsUrl;
+      }
 
       // Save to media/localization subcollection
       await _firestore
@@ -763,6 +835,15 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
             'audioTracks': video.audioTracks,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
+
+      // Also update root subtitles field for compatibility
+      await _firestore
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .update({
+            'subtitles': updatedSubs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       // Update static cache to reflect changes immediately
       VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(

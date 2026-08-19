@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/data/models/channel.dart';
 
 /// Controller for Studio Settings
 /// Manages user settings, channel info and monetization preferences
@@ -13,6 +15,7 @@ class StudioSettingsController extends BaseController {
 
   final RxMap<String, dynamic> userData = <String, dynamic>{}.obs;
   final RxBool isLoadingData = true.obs;
+  final RxBool isDeletingChannel = false.obs;
 
   late DocumentReference _userRef;
 
@@ -95,4 +98,78 @@ class StudioSettingsController extends BaseController {
         return 'Public';
     }
   }
+
+  /// Deletes (archives) the active channel for the current user.
+  Future<bool> deleteChannel() async {
+    try {
+      isDeletingChannel.value = true;
+      final user = _auth.currentUser;
+      if (user == null) {
+        showWarning('You must be signed in to delete a channel.');
+        return false;
+      }
+
+      String? targetChannelId;
+      if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
+        targetChannelId = AuthService.to.userChannel!.id;
+      }
+
+      if (targetChannelId == null || targetChannelId.isEmpty) {
+        // Fallback query to find active channel owned by current user
+        final query = await _firestore
+            .collection(FirestoreCollections.channels)
+            .where('ownerId', isEqualTo: user.uid)
+            .get();
+
+        final activeDocs = query.docs.where((doc) {
+          final status = doc.data()['status'];
+          return status != ChannelStatus.deleted.name;
+        }).toList();
+
+        if (activeDocs.isNotEmpty) {
+          targetChannelId = activeDocs.first.id;
+        }
+      }
+
+      if (targetChannelId == null || targetChannelId.isEmpty) {
+        showWarning('No active channel found to delete.');
+        return false;
+      }
+
+      // Soft-delete the channel
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(targetChannelId)
+          .update({
+        'status': ChannelStatus.deleted.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update user doc in Firestore to clear channel reference
+      try {
+        await _userRef.update({
+          'channelId': FieldValue.delete(),
+          'hasChannel': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint('Note: Error updating user document during channel deletion: $e');
+      }
+
+      // Update AuthService state if available
+      if (Get.isRegistered<AuthService>()) {
+        AuthService.to.hasChannel.value = false;
+      }
+
+      showSuccess('Channel deleted successfully.');
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting channel: $e');
+      showError('Failed to delete channel: $e');
+      return false;
+    } finally {
+      isDeletingChannel.value = false;
+    }
+  }
 }
+

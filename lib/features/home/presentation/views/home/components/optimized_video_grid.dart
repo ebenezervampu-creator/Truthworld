@@ -1,13 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/home/presentation/views/home/components/avatar.dart';
+import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
-import 'components/avatar.dart';
-import 'components/home_theme.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Optimized video grid using SliverList instead of StaggeredGrid
 /// Provides better scroll performance with cacheExtent and RepaintBoundary
@@ -21,14 +18,7 @@ class OptimizedVideoGrid extends StatelessWidget {
   final String heroPrefix;
 
   const OptimizedVideoGrid({
-    super.key,
-    required this.videos,
-    required this.isLoading,
-    required this.isMobile,
-    required this.horizontalPadding,
-    required this.formatViews,
-    required this.formatTimestamp,
-    required this.heroPrefix,
+    required this.videos, required this.isLoading, required this.isMobile, required this.horizontalPadding, required this.formatViews, required this.formatTimestamp, required this.heroPrefix, super.key,
   });
 
   @override
@@ -46,8 +36,8 @@ class OptimizedVideoGrid extends StatelessWidget {
 
   Widget _buildOptimizedVideoGrid(BuildContext context) {
     // Calculate cross axis count based on screen size
-    final int crossAxisCount = isMobile ? 1 : 3;
-    final double cardWidth = (MediaQuery.of(context).size.width - 
+    final crossAxisCount = isMobile ? 1 : 3;
+    final cardWidth = (MediaQuery.of(context).size.width - 
         (horizontalPadding * 2) - (crossAxisCount - 1) * 8) / crossAxisCount;
 
     return SliverPadding(
@@ -61,9 +51,8 @@ class OptimizedVideoGrid extends StatelessWidget {
             }
 
             // Calculate grid position
-            final int row = index ~/ crossAxisCount;
-            final int col = index % crossAxisCount;
-            final bool isLastRow = index >= videos.length - crossAxisCount;
+            final row = index ~/ crossAxisCount;
+            final col = index % crossAxisCount;
 
             return RepaintBoundary(
               child: Padding(
@@ -102,7 +91,7 @@ class OptimizedVideoGrid extends StatelessWidget {
   }
 
   void _precacheNextImages(BuildContext context, int currentIndex) {
-    for (int i = 1; i <= 2 && currentIndex + i < videos.length; i++) {
+    for (var i = 1; i <= 2 && currentIndex + i < videos.length; i++) {
       final thumbnailUrl = videos[currentIndex + i].thumbnailUrl;
       if (thumbnailUrl.isNotEmpty) {
         precacheImage(CachedNetworkImageProvider(thumbnailUrl), context);
@@ -121,12 +110,11 @@ class OptimizedVideoGrid extends StatelessWidget {
         color: HomeTheme.darkSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: HomeTheme.darkOutline.withOpacity(0.1),
-          width: 1,
+          color: HomeTheme.darkSurfaceVariant.withValues(alpha: 0.1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -185,7 +173,7 @@ class OptimizedVideoGrid extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.3),
+                      Colors.black.withValues(alpha: 0.3),
                     ],
                   ),
                 ),
@@ -199,7 +187,7 @@ class OptimizedVideoGrid extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.8),
+                    color: Colors.black.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -239,7 +227,7 @@ class OptimizedVideoGrid extends StatelessWidget {
                   video.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: HomeTheme.textTheme.titleMedium?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     height: 1.3,
                     fontSize: 15,
@@ -250,7 +238,7 @@ class OptimizedVideoGrid extends StatelessWidget {
                   video.channelName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: HomeTheme.textTheme.bodySmall?.copyWith(
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: HomeTheme.darkOnSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
@@ -258,7 +246,7 @@ class OptimizedVideoGrid extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${formatViews(video.views)} views • ${formatTimestamp(video.uploadedAt)}',
-                  style: HomeTheme.textTheme.bodySmall?.copyWith(
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: HomeTheme.darkOnSurfaceVariant,
                   ),
                   maxLines: 1,
@@ -268,7 +256,7 @@ class OptimizedVideoGrid extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: Icon(
+            icon: const Icon(
               Icons.more_vert_rounded,
               size: 20,
               color: HomeTheme.darkOnSurfaceVariant,
@@ -284,8 +272,8 @@ class OptimizedVideoGrid extends StatelessWidget {
 
   Widget _buildThumbnailShimmer() {
     return Shimmer.fromColors(
-      baseColor: HomeTheme.darkSurfaceVariant.withOpacity(0.3),
-      highlightColor: HomeTheme.darkSurfaceVariant.withOpacity(0.1),
+      baseColor: HomeTheme.darkSurfaceVariant.withValues(alpha: 0.3),
+      highlightColor: HomeTheme.darkSurfaceVariant.withValues(alpha: 0.1),
       child: Container(
         color: HomeTheme.darkSurfaceVariant,
       ),
@@ -293,7 +281,7 @@ class OptimizedVideoGrid extends StatelessWidget {
   }
 
   Widget _buildThumbnailError() {
-    return Container(
+    return const ColoredBox(
       color: HomeTheme.darkSurfaceVariant,
       child: Icon(
         Icons.error_outline,
@@ -304,7 +292,7 @@ class OptimizedVideoGrid extends StatelessWidget {
   }
 
   Widget _buildLoadingGrid(BuildContext context) {
-    final int crossAxisCount = isMobile ? 1 : 3;
+    final crossAxisCount = isMobile ? 1 : 3;
     return SliverToBoxAdapter(
       child: GridView.builder(
         shrinkWrap: true,
@@ -384,20 +372,20 @@ class OptimizedVideoGrid extends StatelessWidget {
               Icon(
                 Icons.video_library_outlined,
                 size: 64,
-                color: HomeTheme.darkOnSurfaceVariant.withOpacity(0.5),
+                color: HomeTheme.darkOnSurfaceVariant.withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
               Text(
                 'No videos available',
-                style: HomeTheme.textTheme.headlineSmall?.copyWith(
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: HomeTheme.darkOnSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Check back later for new content',
-                style: HomeTheme.textTheme.bodyMedium?.copyWith(
-                  color: HomeTheme.darkOnSurfaceVariant.withOpacity(0.7),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: HomeTheme.darkOnSurfaceVariant.withValues(alpha: 0.7),
                 ),
               ),
             ],

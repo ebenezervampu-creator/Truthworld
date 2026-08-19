@@ -581,7 +581,6 @@ export interface FactCheckResult {
   uiReport?: UIReport;               // v8.3: Human-friendly UI format
   
   trustScore: number | null;         // 0-100 institutional score (null = not evaluated)
-  videoRating?: number;              // v4.2 Public score mapping (0-10)
   honestyScore?: number | null;      // v8.5 Public Honesty score (0-100)
   rationalityScore?: number | null;  // v8.5 Public Rationality score (0-100)
   structuralReliabilityScore?: number | null; // v10.0: Structural-only composite
@@ -954,7 +953,7 @@ export const GeminiIntelligenceSchema = z.object({
     title: z.string(),
     start: z.number(),
     end: z.number(),
-    videoRating: z.number(), // Replaces trustIndex
+    videoRating: z.number().optional(), // Replaces trustIndex
     primaryTopics: z.array(z.string())
   })).optional()
 });
@@ -1399,7 +1398,7 @@ export interface TrustChapter {
   title: string;
   start: number;
   end: number;
-  videoRating: number;
+  videoRating?: number;
   primaryTopics: string[];
 }
 
@@ -1441,7 +1440,6 @@ export interface CredibilityResult {
     extractionPartial?: boolean; // v11.1
     verificationCoverageRatio?: number; // v11.5
   };
-  videoRating?: number; // v4.2 Public score
   contentIntent?: {
     primaryIntent: string;
     intentScores?: Record<string, number>;
@@ -1671,7 +1669,6 @@ export interface AggregatedOutput {
   confidence: number;       // 0-1
   confidenceTier: 'high' | 'medium' | 'low';
   speakerConfidence?: number; // v5.3
-  videoRating?: number;     // v4.2 Public score
   rating: number;           // LEGACY: trustIndex compatibility
   summary?: string;
   conclusion?: {

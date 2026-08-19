@@ -323,13 +323,22 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
 
   /// Credibility Gate: Returns 0.0 if video fails credibility check
   /// This is an ELIGIBILITY GATE, not a small bonus
+  ///
+  /// v12.1 FIX: Distinguish between "unscored" (trustScore == 0, not yet fact-checked)
+  /// and "genuinely dangerous" (trustScore < 1.0 after fact-checking).
+  /// Unscored videos get neutral treatment (1.0×) instead of being hard-gated.
   double _computeCredibilityGate(Video video) {
     final score = video.trustScore;
+
+    // Unscored / pending verification: treat as neutral (not penalized, not boosted)
+    // A trustScore of 0.0 with isFactChecked == false means scoring hasn't run yet.
+    if (score == 0.0 && !video.isFactChecked) return 1.0;
+
     if (score >= 4.0) return 1.2; // High credibility → 20% boost
     if (score >= 3.0) return 1.1; // Good credibility → 10% boost
     if (score >= 2.0) return 1.0; // Medium → neutral
     if (score >= 1.0) return 0.3; // Low → 70% suppression
-    return 0.0; // Very low → hard gate
+    return 0.0; // Very low (scored & fact-checked) → hard gate
   }
 
   /// Computes a knowledge quality score as a weighted composite of 8 sub-signals.

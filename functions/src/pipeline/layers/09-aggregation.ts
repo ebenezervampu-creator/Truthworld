@@ -413,7 +413,6 @@ export class AggregationLayer {
           ),
           outputs: {
             trustScore: null, // v12.0: Scoring removed
-            videoRating: 0,
             trustLabel: null,
             rating: 0, // LEGACY
             contentIntent: cred?.contentIntent ? {
@@ -492,7 +491,6 @@ export class AggregationLayer {
           transaction.update(vRef, {
             status: finalStatus,
             trustIndex: null, // v12.0: Scoring removed
-            videoRating: 0,
             contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
             factCheckUrl: directFactCheckUrl,
             transcriptionUrl: directTranscriptUrl,
@@ -524,7 +522,6 @@ export class AggregationLayer {
           const credRef = vRef.collection("media").doc("credibility");
           transaction.set(credRef, {
             trustScore: null, // v12.0: Scoring removed
-            videoRating: 0,
             trustLabel: null,
             scoringFactors: null,
             deductions: [],
@@ -638,7 +635,6 @@ export class AggregationLayer {
           
           const directFactCheckUrl = getDownloadUrl(jobOutputs.factCheckUrl);
           updateData.trustIndex = null; // v12.0: Scoring removed
-          updateData.videoRating = 0;
           updateData.trustLabel = null;
           updateData.factCheckUrl = directFactCheckUrl;
           updateData.summary = cred.summary || "";

@@ -4,8 +4,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,8 +27,7 @@ class VideoAnalysisBottomSheet extends StatefulWidget {
 
 class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
   late final VideoController videoCtrl;
-  late final TowerPlayerController playerCtrl;
-  bool controllersFound = false;
+  bool _showRawJson = false;
 
   @override
   void initState() {
@@ -42,18 +42,16 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
       videoCtrl = Get.put(VideoController());
     }
 
-    if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
-      playerCtrl = Get.find<TowerPlayerController>(tag: tag);
-    } else {
-      playerCtrl = Get.find<TowerPlayerController>();
+    if (widget.video.factCheckUrl.isNotEmpty &&
+        videoCtrl.factCheckData.isEmpty) {
+      videoCtrl.loadFactCheckData(widget.video.factCheckUrl);
     }
-    controllersFound = true;
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
+      height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
         color: AppColors.bgPage.withValues(alpha: 0.98),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -76,7 +74,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
               _buildHeader(context),
               const Divider(height: 1, color: AppColors.bgDivider),
               Expanded(
-                child: _buildFactCheckTab(),
+                child: _buildFactCheckContent(),
               ),
             ],
           ),
@@ -101,28 +99,39 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'VIDEO ANALYSIS & MEDIA',
-                  style: AppTextStyles.labelSmall.copyWith(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.brand,
-                    letterSpacing: 1.5,
-                  ),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.verified_user_outlined,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'AI CREDIBILITY & ANALYSIS',
+                      style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.brand,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   widget.video.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.titleMedium.copyWith(
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
@@ -133,7 +142,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
           IconButton(
             icon: const Icon(
               Icons.close_rounded,
-              color: AppColors.textSecondary,
+              color: Colors.white,
             ),
             onPressed: Get.back,
             style: IconButton.styleFrom(
@@ -146,7 +155,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildFactCheckTab() {
+  Widget _buildFactCheckContent() {
     if (widget.video.factCheckUrl.isEmpty) {
       return _buildNoFactCheckFallback();
     }
@@ -165,138 +174,126 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(reportData);
 
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Credibility System Output (JSON)',
-                  style: AppTextStyles.labelMedium.copyWith(
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: jsonString));
-                    Get.snackbar(
-                      'Copied',
-                      'Fact check JSON copied to clipboard',
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: AppColors.bgSurface,
-                      colorText: AppColors.textPrimary,
-                      duration: const Duration(seconds: 2),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.copy_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    'Copy JSON',
-                    style: AppTextStyles.labelSmall.copyWith(
-                      color: AppColors.brand,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.bgDivider),
-                ),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: SelectableText(
-                    jsonString,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      height: 1.4,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      return Column(
+        children: [
+          _buildViewToggleBar(jsonString),
+          Expanded(
+            child: _showRawJson
+                ? _buildRawJsonView(jsonString)
+                : _buildFormattedDashboard(reportData, jsonString),
+          ),
+        ],
       );
     });
   }
 
-  Widget _buildNoFactCheckFallback() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildViewToggleBar(String jsonString) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        border: const Border(
+          bottom: BorderSide(color: AppColors.bgDivider, width: 0.8),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // View mode toggle
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.bgSurface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildToggleButton(
+                  label: 'Analysis View',
+                  icon: Icons.analytics_outlined,
+                  isSelected: !_showRawJson,
+                  onTap: () => setState(() => _showRawJson = false),
+                ),
+                _buildToggleButton(
+                  label: 'Raw JSON',
+                  icon: Icons.code_rounded,
+                  isSelected: _showRawJson,
+                  onTap: () => setState(() => _showRawJson = true),
+                ),
+              ],
+            ),
+          ),
+
+          // Copy JSON button
+          TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: jsonString));
+              Get.snackbar(
+                'Copied',
+                'Credibility report JSON copied to clipboard',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.bgSurface,
+                colorText: AppColors.textPrimary,
+                duration: const Duration(seconds: 2),
+                margin: const EdgeInsets.all(16),
+              );
+            },
+            icon: const Icon(
+              Icons.copy_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+            label: Text(
+              'Copy JSON',
+              style: GoogleFonts.roboto(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleButton({
+    required String label,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.brand : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.bgSurface,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.bgDivider),
-              ),
-              child: const Icon(
-                Icons.verified_user_outlined,
-                color: AppColors.textTertiary,
-                size: 72,
-              ),
+            Icon(
+              icon,
+              size: 14,
+              color: Colors.white,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(width: 6),
             Text(
-              'Not Fact-Checked Yet',
-              style: AppTextStyles.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Not all videos on our network are fact-checked. Our artificial intelligence and fact-checking engines are deployed for popular or requested streams to verify authenticity.',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                Get.snackbar(
-                  'Request Received',
-                  'AI Verification has been queued for this video stream.',
-                  backgroundColor: AppColors.brand,
-                  colorText: AppColors.textPrimary,
-                  snackPosition: SnackPosition.BOTTOM,
-                  margin: const EdgeInsets.all(16),
-                );
-              },
-              icon: const Icon(Icons.bolt_rounded, size: 18),
-              label: Text(
-                'Request AI Verification',
-                style: AppTextStyles.buttonText,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: AppColors.textPrimary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 14,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
+              label,
+              style: GoogleFonts.roboto(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: Colors.white,
               ),
             ),
           ],
@@ -305,36 +302,626 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildMetricItem(String label, double score) {
-    final color = _getScoreColor(score);
-    return Column(
+  Widget _buildFormattedDashboard(
+    Map<String, dynamic> data,
+    String jsonString,
+  ) {
+    final analysisState =
+        (data['analysisState'] ?? data['state'] ?? 'VERIFIED').toString();
+    final scoreAvailable = data['scoreAvailable'] == true;
+    final viewerNote = (data['viewerNote'] ??
+            data['narrative'] ??
+            data['summary'] ??
+            data['explanation'] ??
+            '')
+        .toString();
+
+    final rawTrustScore = data['trustScore'] ??
+        data['trustIndex'] ??
+        data['score'] ??
+        data['videoRating'];
+    final trustScore = (rawTrustScore is num) ? rawTrustScore.toDouble() : null;
+
+    final trustLabel = (data['trustLabel'] ??
+            data['label'] ??
+            (trustScore != null
+                ? _getRatingLabel(trustScore)
+                : analysisState))
+        .toString();
+
+    final confidenceRaw = data['confidence'];
+    final confidenceTier = (data['confidenceTier'] ?? '').toString();
+    final confidenceVal = (confidenceRaw is num)
+        ? (confidenceRaw > 1.0
+            ? (confidenceRaw / 100.0)
+            : confidenceRaw.toDouble())
+        : (confidenceTier.toLowerCase() == 'high'
+            ? 0.9
+            : (confidenceTier.toLowerCase() == 'medium' ? 0.6 : 0.3));
+
+    final chapters = (data['chapters'] as List?) ?? [];
+    final claims = (data['claims'] as List?) ?? [];
+    final sources =
+        (data['sources'] ?? data['richSources'] as List?) as List? ?? [];
+    final factors =
+        (data['scoringFactors'] ?? data['factors']) as Map? ?? {};
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      physics: const BouncingScrollPhysics(),
       children: [
-        Text(
-          '${score.toInt()}%',
-          style: AppTextStyles.titleLarge.copyWith(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            color: color,
-          ),
+        // 1. Hero Status & Credibility Badge Card
+        _buildHeroCard(
+          analysisState: analysisState,
+          scoreAvailable: scoreAvailable,
+          trustScore: trustScore,
+          trustLabel: trustLabel,
+          confidenceVal: confidenceVal,
+          confidenceTier: confidenceTier,
         ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: AppTextStyles.labelSmall.copyWith(
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textTertiary,
+        const SizedBox(height: 16),
+
+        // 2. AI Viewer Note / Advisory
+        if (viewerNote.isNotEmpty) ...[
+          _buildViewerNoteCard(viewerNote),
+          const SizedBox(height: 16),
+        ],
+
+        // 3. Scoring Factors / Multi-Dimensional Breakdown
+        if (factors.isNotEmpty) ...[
+          _buildFactorsCard(factors),
+          const SizedBox(height: 16),
+        ],
+
+        // 4. Chapter Trust Breakdown & Topic Extraction
+        if (chapters.isNotEmpty) ...[
+          _buildChaptersSection(chapters),
+          const SizedBox(height: 16),
+        ],
+
+        // 5. Fact-Checked Claims
+        if (claims.isNotEmpty) ...[
+          _buildClaimsSection(claims),
+          const SizedBox(height: 16),
+        ],
+
+        // 6. Citations & Verified Sources
+        if (sources.isNotEmpty) ...[
+          _buildSourcesSection(sources),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildHeroCard({
+    required String analysisState,
+    required bool scoreAvailable,
+    required double? trustScore,
+    required String trustLabel,
+    required double confidenceVal,
+    required String confidenceTier,
+  }) {
+    Color stateColor;
+    if (analysisState.toUpperCase() == 'VERIFIED') {
+      stateColor = AppColors.success;
+    } else if (analysisState.toUpperCase().contains('FLAG') ||
+        analysisState.toUpperCase().contains('DISPUTE')) {
+      stateColor = AppColors.error;
+    } else {
+      stateColor = AppColors.warning;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: stateColor.withValues(alpha: 0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: stateColor.withValues(alpha: 0.05),
+            blurRadius: 16,
+            spreadRadius: 2,
           ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: stateColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: stateColor.withValues(alpha: 0.3)),
+                ),
+                child: const Icon(
+                  Icons.shield_outlined,
+                  size: 22,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: stateColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            analysisState.toUpperCase(),
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: stateColor,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ),
+                        if (confidenceTier.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '${confidenceTier.toUpperCase()} CONFIDENCE',
+                            style: GoogleFonts.roboto(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white54,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      trustLabel,
+                      style: GoogleFonts.outfit(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Trust Score gauge badge (if score is available)
+              if (scoreAvailable && trustScore != null && trustScore > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getScoreColor(trustScore > 5 ? trustScore : trustScore * 20).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _getScoreColor(trustScore > 5 ? trustScore : trustScore * 20).withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        trustScore <= 5.0
+                            ? '${trustScore.toStringAsFixed(1)} / 5.0'
+                            : '${trustScore.toInt()}%',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: _getScoreColor(trustScore > 5 ? trustScore : trustScore * 20),
+                        ),
+                      ),
+                      Text(
+                        'TRUST INDEX',
+                        style: GoogleFonts.roboto(
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+
+          // Confidence Progress Bar
+          const SizedBox(height: 14),
+          _buildConfidenceBar(confidenceVal),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewerNoteCard(String note) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome,
+                size: 16,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'AI VIEWER ADVISORY & SUMMARY',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.brand,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            note,
+            style: GoogleFonts.roboto(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFactorsCard(Map<dynamic, dynamic> factors) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CREDIBILITY FACTORS',
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.white54,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...factors.entries.map((e) {
+            final key = e.key.toString();
+            final val = e.value;
+            final label = _formatFactorKey(key);
+            final numVal = (val is num) ? val.toDouble() : 0.0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: GoogleFonts.roboto(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    numVal <= 5.0 && numVal > 0
+                        ? '${numVal.toStringAsFixed(1)} / 5.0'
+                        : (numVal > 5 ? '${numVal.toInt()}%' : val.toString()),
+                    style: GoogleFonts.robotoMono(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChaptersSection(List<dynamic> chapters) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.bookmarks_outlined,
+              size: 16,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'CHAPTER CREDIBILITY & KEY TOPICS (${chapters.length})',
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white54,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: chapters.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final item = chapters[index] as Map?;
+            if (item == null) return const SizedBox.shrink();
+
+            final title = (item['title'] ?? 'Chapter ${index + 1}').toString();
+            final startMs = (item['start'] ?? 0) as num;
+            final endMs = (item['end'] ?? 0) as num;
+            final trustIndex = item['trustIndex'] as num?;
+            final topics = (item['primaryTopics'] ?? item['topics']) as List? ?? [];
+
+            final startDuration = Duration(
+              milliseconds: (startMs < 10000 && startMs > 0)
+                  ? (startMs * 1000).toInt()
+                  : startMs.toInt(),
+            );
+            final endDuration = Duration(
+              milliseconds: (endMs < 10000 && endMs > 0)
+                  ? (endMs * 1000).toInt()
+                  : endMs.toInt(),
+            );
+
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${FormatUtils.formatDuration(startDuration)} - ${FormatUtils.formatDuration(endDuration)}',
+                          style: GoogleFonts.robotoMono(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (trustIndex != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getScoreColor(trustIndex > 5 ? trustIndex.toDouble() : trustIndex * 20).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                trustIndex <= 5.0
+                                    ? '${trustIndex.toStringAsFixed(1)}'
+                                    : '${trustIndex.toInt()}%',
+                                style: GoogleFonts.robotoMono(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (topics.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: topics.map((t) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.brand.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.brand.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Text(
+                            t.toString(),
+                            style: GoogleFonts.roboto(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _buildConfidenceBar(double confidence) {
-    final value = confidence > 1.0 ? confidence / 100 : confidence;
-    final color = value >= 0.8
+  Widget _buildClaimsSection(List<dynamic> claims) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.fact_check_outlined,
+              size: 16,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'FACT-CHECKED CLAIMS (${claims.length})',
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white54,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: claims.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final claim = claims[index];
+            if (claim is! Map) return const SizedBox.shrink();
+            return _buildClaimCard(claim, index);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSourcesSection(List<dynamic> sources) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.auto_stories_rounded,
+              size: 16,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'VERIFIED SOURCES & CITATIONS (${sources.length})',
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white54,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: sources.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final source = sources[index];
+            if (source is! Map) return const SizedBox.shrink();
+            return _buildSourceCard(source);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRawJsonView(String jsonString) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.bgDivider),
+        ),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: SelectableText(
+            jsonString,
+            style: GoogleFonts.robotoMono(
+              fontSize: 12,
+              height: 1.4,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfidenceBar(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    final color = clamped >= 0.75
         ? AppColors.success
-        : (value >= 0.5 ? AppColors.warning : AppColors.error);
+        : (clamped >= 0.45 ? AppColors.warning : AppColors.error);
 
     return Column(
       children: [
@@ -342,36 +929,37 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'ANALYSIS CONFIDENCE',
-              style: AppTextStyles.labelSmall.copyWith(
-                fontSize: 9,
+              'SYSTEM CONFIDENCE',
+              style: GoogleFonts.outfit(
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textTertiary,
+                color: Colors.white54,
+                letterSpacing: 1.0,
               ),
             ),
             Text(
-              '${(value * 100).toInt()}%',
-              style: AppTextStyles.bodyMedium.copyWith(
+              '${(clamped * 100).toInt()}%',
+              style: GoogleFonts.roboto(
                 fontSize: 11,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Stack(
           children: [
             Container(
               height: 6,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: AppColors.bgDivider,
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
             FractionallySizedBox(
-              widthFactor: value.clamp(0.0, 1.0),
+              widthFactor: clamped,
               child: Container(
                 height: 6,
                 decoration: BoxDecoration(
@@ -388,74 +976,34 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildStatCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.bgDivider),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: AppTextStyles.caption.copyWith(
-                    fontSize: 9,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildClaimCard(Map<dynamic, dynamic> claim, int index) {
     final status = (claim['status'] ?? '').toString().toLowerCase();
     final isVerified =
         status == 'correct' ||
         status == 'mostly_correct' ||
+        status == 'verified' ||
         claim['isVerified'] == true;
-    final color = isVerified ? AppColors.success : AppColors.error;
+    final isDisputed = status.contains('dispute') || status.contains('caution');
+    final color = isVerified
+        ? AppColors.success
+        : (isDisputed ? AppColors.warning : AppColors.error);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.1)),
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 24,
-                height: 24,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
@@ -464,19 +1012,20 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                   child: Text(
                     '${index + 1}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       color: color,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   (claim['text'] ?? claim['claim'] ?? '').toString(),
-                  style: AppTextStyles.bodyMedium.copyWith(
+                  style: GoogleFonts.outfit(
                     fontWeight: FontWeight.w600,
+                    fontSize: 13,
                     color: AppColors.textPrimary,
                   ),
                 ),
@@ -485,11 +1034,15 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
           ),
           if (claim['reasoning'] != null) ...[
             const SizedBox(height: 8),
-            Text(
-              claim['reasoning'].toString(),
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.4,
+            Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: Text(
+                claim['reasoning'].toString(),
+                style: GoogleFonts.roboto(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
               ),
             ),
           ],
@@ -584,16 +1137,16 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 24),
+            Icon(icon, color: Colors.white, size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    author ?? title ?? 'Source',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontSize: 11,
+                    author ?? title ?? 'Source Reference',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -602,8 +1155,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     const SizedBox(height: 4),
                     Text(
                       citationText,
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 9,
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -614,8 +1167,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       '"$snippet"',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 9,
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
                         fontStyle: FontStyle.italic,
                         color: AppColors.textTertiary,
                       ),
@@ -636,8 +1189,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         const SizedBox(width: 4),
                         Text(
                           trustLevel.toUpperCase(),
-                          style: AppTextStyles.labelSmall.copyWith(
-                            fontSize: 8,
+                          style: GoogleFonts.roboto(
+                            fontSize: 9,
                             color: trustColor,
                             fontWeight: FontWeight.bold,
                           ),
@@ -650,8 +1203,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                             domain,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.caption.copyWith(
-                              fontSize: 9,
+                            style: GoogleFonts.roboto(
+                              fontSize: 10,
                               color: AppColors.textTertiary,
                             ),
                           ),
@@ -663,9 +1216,9 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             ),
             const SizedBox(width: 8),
             const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textTertiary,
-              size: 20,
+              Icons.open_in_new_rounded,
+              color: Colors.white,
+              size: 16,
             ),
           ],
         ),
@@ -673,25 +1226,94 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildEmptyBox(String text) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
-      ),
-      child: Text(
-        text,
-        style: AppTextStyles.caption.copyWith(
-          color: AppColors.textTertiary,
-          fontSize: 12,
-          fontStyle: FontStyle.italic,
+  Widget _buildNoFactCheckFallback() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurface,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.bgDivider),
+              ),
+              child: const Icon(
+                Icons.verified_user_outlined,
+                color: Colors.white,
+                size: 64,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Not Fact-Checked Yet',
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Artificial intelligence and fact-checking engines are deployed for popular or requested streams to verify authenticity.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.roboto(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                Get.snackbar(
+                  'Request Received',
+                  'AI Verification has been queued for this video stream.',
+                  backgroundColor: AppColors.brand,
+                  colorText: AppColors.textPrimary,
+                  snackPosition: SnackPosition.BOTTOM,
+                  margin: const EdgeInsets.all(16),
+                );
+              },
+              icon: const Icon(
+                Icons.bolt_rounded,
+                size: 18,
+                color: Colors.white,
+              ),
+              label: Text(
+                'Request AI Verification',
+                style: GoogleFonts.outfit(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ),
+          ],
         ),
-        textAlign: TextAlign.center,
       ),
     );
+  }
+
+  String _formatFactorKey(String key) {
+    return key
+        .replaceAllMapped(RegExp('([a-z])([A-Z])'), (m) => '${m[1]} ${m[2]}')
+        .replaceAll('_', ' ')
+        .capitalizeFirst ??
+        key;
   }
 
   Color _getScoreColor(double score) {
@@ -703,10 +1325,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
   }
 
   String _getRatingLabel(double score) {
-    if (score >= 90) return 'EXCEPTIONAL';
-    if (score >= 75) return 'HIGH INTEGRITY';
-    if (score >= 60) return 'TRUSTWORTHY';
-    if (score >= 45) return 'CAUTION ADVISED';
+    final s = score <= 5.0 ? score * 20 : score;
+    if (s >= 90) return 'EXCEPTIONAL INTEGRITY';
+    if (s >= 75) return 'HIGH INTEGRITY';
+    if (s >= 60) return 'TRUSTWORTHY';
+    if (s >= 45) return 'CAUTION ADVISED';
     return 'LOW INTEGRITY';
   }
 }

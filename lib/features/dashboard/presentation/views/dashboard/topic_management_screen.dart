@@ -13,6 +13,7 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_popup_menu.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class TopicManagementScreen extends StatelessWidget {
@@ -181,28 +182,60 @@ class TopicManagementScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          ElevatedButton.icon(
-                            onPressed: () =>
-                                _showCreateTopicDialog(context, controller),
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: Text(
-                              'New Topic',
-                              style: AppTextStyles.buttonText.copyWith(
-                                color: AppColors.textPrimary,
+                          Row(
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  TopicSelectionBottomSheet.showPopupDialog(
+                                    context,
+                                    controller,
+                                    onCreateNewTopic: (isDark) =>
+                                        _showCreateTopicDialog(context, controller),
+                                  );
+                                },
+                                icon: const Icon(Icons.topic_rounded, size: 18, color: Colors.white),
+                                label: Text(
+                                  'Save Video to Topic',
+                                  style: AppTextStyles.buttonText.copyWith(
+                                    color: textColor,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  side: BorderSide(color: borderColor),
+                                ),
                               ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF3B82F6),
-                              foregroundColor: AppColors.textPrimary,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 12,
+                              const SizedBox(width: 10),
+                              ElevatedButton.icon(
+                                onPressed: () =>
+                                    _showCreateTopicDialog(context, controller),
+                                icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+                                label: Text(
+                                  'New Topic',
+                                  style: AppTextStyles.buttonText.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF3B82F6),
+                                  foregroundColor: AppColors.textPrimary,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 0,
-                            ),
+                            ],
                           ),
                         ],
                       );
@@ -221,49 +254,56 @@ class TopicManagementScreen extends StatelessWidget {
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                           shrinkWrap: true,
-                          childAspectRatio: isMobile ? 2.2 : 2.4,
+                          childAspectRatio: isMobile ? 1.8 : 2.4,
                           physics: const NeverScrollableScrollPhysics(),
                           children: [
-                            _buildMetricSummaryCard(
-                              context,
-                              title: 'Total Topics',
-                              value: '${controller.totalTopicsCount}',
-                              icon: Icons.topic_rounded,
-                              iconColor: const Color(0xFF3B82F6),
-                              isDark: isDark,
-                              borderColor: borderColor,
-                              cardBg: cardBgColor,
-                            ),
-                            _buildMetricSummaryCard(
-                              context,
-                              title: 'Linked Videos',
-                              value: '${controller.totalVideosCount}',
-                              icon: Icons.video_library_rounded,
-                              iconColor: const Color(0xFF8B5CF6),
-                              isDark: isDark,
-                              borderColor: borderColor,
-                              cardBg: cardBgColor,
-                            ),
-                            _buildMetricSummaryCard(
-                              context,
-                              title: 'Public Topics',
-                              value: '${controller.publicTopicsCount}',
-                              icon: Icons.public_rounded,
-                              iconColor: const Color(0xFF10B981),
-                              isDark: isDark,
-                              borderColor: borderColor,
-                              cardBg: cardBgColor,
-                            ),
-                            _buildMetricSummaryCard(
-                              context,
-                              title: 'Private Topics',
-                              value: '${controller.privateTopicsCount}',
-                              icon: Icons.lock_rounded,
-                              iconColor: const Color(0xFFF59E0B),
-                              isDark: isDark,
-                              borderColor: borderColor,
-                              cardBg: cardBgColor,
-                            ),
+                             _buildMetricSummaryCard(
+                               context,
+                               title: 'Total Topics',
+                               value: '${controller.totalTopicsCount}',
+                               icon: Icons.topic_rounded,
+                               iconColor: const Color(0xFF3B82F6),
+                               isDark: isDark,
+                               borderColor: borderColor,
+                               cardBg: cardBgColor,
+                               onTap: () => controller.setFilterMode('all'),
+                               isSelected: controller.activeFilterMode.value == 'all',
+                             ),
+                             _buildMetricSummaryCard(
+                               context,
+                               title: 'Linked Videos',
+                               value: '${controller.totalVideosCount}',
+                               icon: Icons.video_library_rounded,
+                               iconColor: const Color(0xFF8B5CF6),
+                               isDark: isDark,
+                               borderColor: borderColor,
+                               cardBg: cardBgColor,
+                               onTap: () => controller.setFilterMode('all'),
+                             ),
+                             _buildMetricSummaryCard(
+                               context,
+                               title: 'Public Topics',
+                               value: '${controller.publicTopicsCount}',
+                               icon: Icons.public_rounded,
+                               iconColor: const Color(0xFF10B981),
+                               isDark: isDark,
+                               borderColor: borderColor,
+                               cardBg: cardBgColor,
+                               onTap: () => controller.setFilterMode('public'),
+                               isSelected: controller.activeFilterMode.value == 'public',
+                             ),
+                             _buildMetricSummaryCard(
+                               context,
+                               title: 'Private Topics',
+                               value: '${controller.privateTopicsCount}',
+                               icon: Icons.lock_rounded,
+                               iconColor: const Color(0xFFF59E0B),
+                               isDark: isDark,
+                               borderColor: borderColor,
+                               cardBg: cardBgColor,
+                               onTap: () => controller.setFilterMode('private'),
+                               isSelected: controller.activeFilterMode.value == 'private',
+                             ),
                           ],
                         );
                       });
@@ -317,9 +357,22 @@ class TopicManagementScreen extends StatelessWidget {
                     final query = controller.searchQuery.value
                         .trim()
                         .toLowerCase();
+                    final filterMode = controller.activeFilterMode.value;
+
+                    var baseTopics = topics;
+                    if (filterMode == 'public') {
+                      baseTopics = topics
+                          .where((t) => t.visibilityType == TopicVisibilityType.public)
+                          .toList();
+                    } else if (filterMode == 'private') {
+                      baseTopics = topics
+                          .where((t) => t.visibilityType == TopicVisibilityType.private)
+                          .toList();
+                    }
+
                     final filtered = query.isEmpty
-                        ? topics
-                        : topics.where((topic) {
+                        ? baseTopics
+                        : baseTopics.where((topic) {
                             return topic.title.toLowerCase().contains(query) ||
                                 topic.handle.toLowerCase().contains(query) ||
                                 topic.description.toLowerCase().contains(
@@ -332,27 +385,48 @@ class TopicManagementScreen extends StatelessWidget {
                       return _buildSearchEmptyState(context, controller);
                     }
 
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 420,
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        final int crossAxisCount;
+                        final double childAspectRatio;
+
+                        if (width >= 1200) {
+                          crossAxisCount = 4;
+                          childAspectRatio = 0.95;
+                        } else if (width >= 800) {
+                          crossAxisCount = 3;
+                          childAspectRatio = 0.90;
+                        } else if (width >= 550) {
+                          crossAxisCount = 2;
+                          childAspectRatio = 0.85;
+                        } else {
+                          crossAxisCount = 1;
+                          childAspectRatio = 1.25;
+                        }
+
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
                             mainAxisSpacing: 16,
                             crossAxisSpacing: 16,
-                            childAspectRatio: 1.25,
+                            childAspectRatio: childAspectRatio,
                           ),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final topic = filtered[index];
-                        return TopicCardWidget(
-                          topic: topic,
-                          isDashboard: true,
-                          showEditOption: false,
-                          trailing: TopicPopupMenu(
-                            topic: topic,
-                            controller: controller,
-                          ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final topic = filtered[index];
+                            return TopicCardWidget(
+                              topic: topic,
+                              isDashboard: true,
+                              showEditOption: false,
+                              trailing: TopicPopupMenu(
+                                topic: topic,
+                                controller: controller,
+                              ),
+                            );
+                          },
                         );
                       },
                     );
@@ -378,60 +452,62 @@ class TopicManagementScreen extends StatelessWidget {
     required bool isDark,
     required Color borderColor,
     required Color cardBg,
+    VoidCallback? onTap,
+    bool isSelected = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? iconColor.withValues(alpha: 0.15) : cardBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? iconColor : borderColor,
+            width: isSelected ? 2.0 : 1.0,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark
-                        ? AppColors.textPrimary
-                        : const Color(0xFF111827),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark
+                          ? AppColors.textPrimary
+                          : const Color(0xFF111827),
+                    ),
                   ),
-                ),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark
-                        ? const Color(0xFF9CA3AF)
-                        : const Color(0xFF6B7280),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark
+                          ? const Color(0xFF9CA3AF)
+                          : const Color(0xFF6B7280),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -666,6 +742,8 @@ class TopicManagementScreen extends StatelessWidget {
       baseColor: const Color(0xFF1F1F1F),
       highlightColor: const Color(0xFF2D2D2D),
       child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
@@ -863,15 +941,28 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
     'Sports',
     'Comedy',
     'Travel',
+    'Lifestyle',
     'Food',
-    'Beauty',
     'Fashion',
+    'Health',
+    'Fitness',
+    'Business',
+    'Finance',
+    'History',
+    'Art',
+    'Animation',
+    'Automotive',
+    'Pets & Animals',
+    'DIY & How-to',
+    'Nature',
+    'Spirituality',
+    'People & Blogs',
+    'Kids & Family',
     'Movies',
     'TV Shows',
     'Vlogs',
-    'DIY & How-to',
-    'Health & Fitness',
-    'Fashion & Beauty',
+    'Documentary',
+    'Other',
   ];
 
   @override

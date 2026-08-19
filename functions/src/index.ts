@@ -1649,8 +1649,8 @@ export {
 export { createChannel, switchChannelType } from "./channels/channels";
 */
 export { createChannel, switchChannelType, onChannelCreatedSyncUser } from "./channels/channels";
-export { onChannelWritten, onImageVerificationWritten } from "./channels/moderation";
-export { onTopicWritten } from "./topics/moderation";
+export { onChannelWritten, onImageVerificationWritten, moderateChannelManual } from "./channels/moderation";
+export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
 
 /*
 export { 
@@ -2131,3 +2131,6 @@ export * from "./admin/adminBulkModerate";
 export * from "./admin/userManagement";
 export * from "./admin/repairStuckJobs";
 export * from "./admin/repairIncompleteVideoDocs";
+
+// Topic Recommendations
+export * from "./topics/recommendations";

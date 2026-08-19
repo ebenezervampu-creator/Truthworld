@@ -1,8 +1,11 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
+import { isChannelsBypassed } from "../moderation/moderationModes";
+import { requireAdmin } from "../utils/auth";
 
 const db = () => admin.firestore();
 
@@ -45,6 +48,20 @@ export const onChannelWritten = onDocumentWritten(
 
     // Prevent infinite loop: if details did not change and we already moderated it
     if (!detailsChanged && (afterData.geminiApproved !== undefined || afterData.status !== "underReview")) {
+      return;
+    }
+
+    // Check if Channel moderation is in Admin Only mode (Gemini bypassed)
+    const bypassed = await isChannelsBypassed();
+    if (bypassed) {
+      logger.info(`[onChannelWritten] Channels moderation toggle is ON (Admin Only). Bypassing Gemini AI for channel ${channelId} and holding for Admin manual review.`);
+      await db().collection("channels").doc(channelId).update({
+        geminiApproved: false,
+        status: "underReview",
+        moderationReason: "Routed to Admin for manual review (Gemini AI bypassed).",
+        bypassGemini: true,
+        updatedAt: Date.now(),
+      });
       return;
     }
 
@@ -168,6 +185,64 @@ export const onImageVerificationWritten = onDocumentWritten(
 
     await batch.commit();
     logger.info(`[onImageVerificationWritten] Successfully synced ${status} to ${channelsSnap.size} channels`);
+  }
+);
+
+/**
+ * 🛡️ HTTPS Endpoint — Manually moderate a channel (Approve or Reject).
+ * Only accessible by authenticated administrators.
+ */
+export const moderateChannelManual = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAdmin(req, res);
+      if (!authUser) return;
+
+      const { channelId, action, reason } = req.body;
+
+      if (!channelId || typeof channelId !== "string") {
+        res.status(400).json({ error: "Missing or invalid channelId." });
+        return;
+      }
+
+      if (action !== "approve" && action !== "reject") {
+        res.status(400).json({ error: "Action must be 'approve' or 'reject'." });
+        return;
+      }
+
+      const channelRef = db().collection("channels").doc(channelId);
+      const channelDoc = await channelRef.get();
+
+      if (!channelDoc.exists) {
+        res.status(404).json({ error: "Channel not found." });
+        return;
+      }
+
+      const now = Date.now();
+      const approved = action === "approve";
+
+      await channelRef.update({
+        geminiApproved: approved,
+        status: approved ? "active" : "verificationRejected",
+        moderationReason: reason || (approved ? "Manually approved by administrator." : "Manually rejected by administrator."),
+        manuallyVerified: true,
+        verifiedBy: authUser.uid,
+        verifiedAt: now,
+        updatedAt: now,
+      });
+
+      res.status(200).json({ success: true, message: `Channel manually ${action}d.` });
+    } catch (err) {
+      logger.error("[moderateChannelManual] Error:", err);
+      res.status(500).json({ error: "Internal server error.", details: String(err) });
+    }
   }
 );
 

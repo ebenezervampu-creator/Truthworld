@@ -13,13 +13,14 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
-class VideoManagementController extends BaseController {
+class VideoManagementController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _firebaseStorage = FirebaseStorage.instance;
 
@@ -389,6 +390,55 @@ class VideoManagementController extends BaseController {
 
   Future<void> updateVideo(String videoId, Map<String, dynamic> data) async {
     try {
+      if (data.containsKey('title')) {
+        final title = (data['title'] as String? ?? '').trim();
+        final titleVal = await validateContent(title, fieldName: 'Title');
+        if (!titleVal.isValid) {
+          Get.snackbar(
+            'Inappropriate Content',
+            titleVal.message,
+            backgroundColor: const Color(0xFFEF4444),
+            colorText: AppColors.textPrimary,
+            icon: const Icon(Icons.error_outline, color: Colors.white),
+          );
+          return;
+        }
+      }
+
+      if (data.containsKey('description')) {
+        final desc = (data['description'] as String? ?? '').trim();
+        if (desc.isNotEmpty) {
+          final descVal = await validateContent(desc, fieldName: 'Description');
+          if (!descVal.isValid) {
+            Get.snackbar(
+              'Inappropriate Content',
+              descVal.message,
+              backgroundColor: const Color(0xFFEF4444),
+              colorText: AppColors.textPrimary,
+              icon: const Icon(Icons.error_outline, color: Colors.white),
+            );
+            return;
+          }
+        }
+      }
+
+      if (data.containsKey('tags') && data['tags'] is List) {
+        final tags = List<String>.from(data['tags'] as List);
+        if (tags.isNotEmpty) {
+          final tagsVal = await validateTags(tags);
+          if (!tagsVal.isValid) {
+            Get.snackbar(
+              'Inappropriate Content',
+              tagsVal.message,
+              backgroundColor: const Color(0xFFEF4444),
+              colorText: AppColors.textPrimary,
+              icon: const Icon(Icons.error_outline, color: Colors.white),
+            );
+            return;
+          }
+        }
+      }
+
       await _firestore.collection('videos').doc(videoId).update(data);
       Get.snackbar(
         'Success',

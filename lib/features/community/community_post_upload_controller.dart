@@ -166,14 +166,59 @@ class CommunityPostUploadController extends BaseController
       _firestore
           .collection(FirestoreCollections.channels)
           .where('ownerId', isEqualTo: user.uid)
-          .where('isArchived', isEqualTo: false)
-          .withConverter<Channel>(
-            fromFirestore: (doc, _) => Channel.fromDocumentSnapshot(doc),
-            toFirestore: (channel, _) => {},
-          )
-          .get(const GetOptions())
-          .then((snapshot) {
-            channels.value = snapshot.docs.map((doc) => doc.data()).toList();
+          .get()
+          .then((snapshot) async {
+            var loaded = snapshot.docs
+                .map(Channel.fromDocumentSnapshot)
+                .where((c) => c.status != ChannelStatus.deleted)
+                .toList();
+
+            // Fallback 1: Query by userId if ownerId returned 0
+            if (loaded.isEmpty) {
+              try {
+                final userSnap = await _firestore
+                    .collection(FirestoreCollections.channels)
+                    .where('userId', isEqualTo: user.uid)
+                    .get();
+                loaded = userSnap.docs
+                    .map(Channel.fromDocumentSnapshot)
+                    .where((c) => c.status != ChannelStatus.deleted)
+                    .toList();
+              } catch (_) {}
+            }
+
+            // Fallback 2: Check user document for channelId reference
+            if (loaded.isEmpty) {
+              try {
+                final userDoc = await _firestore
+                    .collection(FirestoreCollections.users)
+                    .doc(user.uid)
+                    .get();
+                final chId = userDoc.data()?['channelId'] as String?;
+                if (chId != null && chId.isNotEmpty) {
+                  final chDoc = await _firestore
+                      .collection(FirestoreCollections.channels)
+                      .doc(chId)
+                      .get();
+                  if (chDoc.exists && chDoc.data() != null) {
+                    final ch = Channel.fromDocumentSnapshot(chDoc);
+                    if (ch.status != ChannelStatus.deleted) {
+                      loaded = [ch];
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+
+            // Fallback 3: In-memory AuthService channel
+            if (loaded.isEmpty && AuthService.to.userChannel != null) {
+              final authCh = AuthService.to.userChannel!;
+              if (authCh.status != ChannelStatus.deleted) {
+                loaded = [authCh];
+              }
+            }
+
+            channels.value = loaded;
             isChannelsLoading.value = false;
             channelsError.value = '';
 
@@ -444,6 +489,17 @@ class CommunityPostUploadController extends BaseController
     required String description,
     required String tagsRaw,
   }) async {
+    if (title.trim().isNotEmpty) {
+      final titleVal = await validateContent(title, fieldName: 'Draft Title');
+      if (!titleVal.isValid) {
+        AppSnackbar.show(
+          'Inappropriate Content',
+          titleVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+    }
     isSavingDraft.value = true;
     // Mock log
     await Future.delayed(const Duration(seconds: 1));
@@ -460,6 +516,28 @@ class CommunityPostUploadController extends BaseController
     required String description,
     required String tagsRaw,
   }) async {
+    final titleVal = await validateContent(title, fieldName: 'Post Title');
+    if (!titleVal.isValid) {
+      AppSnackbar.show(
+        'Inappropriate Content',
+        titleVal.message,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    if (description.trim().isNotEmpty) {
+      final descVal = await validateContent(description, fieldName: 'Post Description');
+      if (!descVal.isValid) {
+        AppSnackbar.show(
+          'Inappropriate Content',
+          descVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+    }
+
     final parsedTags = tagsRaw
         .split(',')
         .map((t) => t.trim())
@@ -475,6 +553,88 @@ class CommunityPostUploadController extends BaseController
       return;
     }
 
+    if (parsedTags.isNotEmpty) {
+      final tagsVal = await validateTags(parsedTags);
+      if (!tagsVal.isValid) {
+        AppSnackbar.show(
+          'Inappropriate Content',
+          tagsVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+    }
+
+    if (hasPoll.value) {
+      final qVal = await validateContent(pollQuestion.value, fieldName: 'Poll Question');
+      if (!qVal.isValid) {
+        AppSnackbar.show(
+          'Inappropriate Content',
+          qVal.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      if (pollType.value == PollType.multiChoice) {
+        for (var i = 0; i < pollOptions.length; i++) {
+          final opt = pollOptions[i];
+          if (opt.trim().isNotEmpty) {
+            final optVal = await validateContent(opt, fieldName: 'Poll Option ${i + 1}');
+            if (!optVal.isValid) {
+              AppSnackbar.show(
+                'Inappropriate Content',
+                optVal.message,
+                snackPosition: SnackPosition.BOTTOM,
+              );
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    if (newTopicData.isNotEmpty) {
+      final newTitle = (newTopicData['title'] as String? ?? '').trim();
+      if (newTitle.isNotEmpty) {
+        final tTitleVal = await validateContent(newTitle, fieldName: 'Topic Title');
+        if (!tTitleVal.isValid) {
+          AppSnackbar.show(
+            'Inappropriate Content',
+            tTitleVal.message,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          return;
+        }
+
+        final newDescription = (newTopicData['description'] as String? ?? '').trim();
+        if (newDescription.isNotEmpty) {
+          final tDescVal = await validateContent(newDescription, fieldName: 'Topic Description');
+          if (!tDescVal.isValid) {
+            AppSnackbar.show(
+              'Inappropriate Content',
+              tDescVal.message,
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+        }
+
+        final rawHandle = (newTopicData['handle'] as String?) ?? '';
+        if (rawHandle.trim().isNotEmpty) {
+          final tHandleVal = await validateContent(rawHandle, fieldName: 'Topic Handle');
+          if (!tHandleVal.isValid) {
+            AppSnackbar.show(
+              'Inappropriate Content',
+              tHandleVal.message,
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+        }
+      }
+    }
+
     if (selectedChannel.value == null) {
       AppSnackbar.show(
         'Channel Required',
@@ -488,14 +648,14 @@ class CommunityPostUploadController extends BaseController
       var message = 'Your channel is not active.';
       if (selectedChannel.value!.status == ChannelStatus.underReview) {
         message =
-            'Your channel details are currently under review by Gemini AI. You can publish posts once approved.';
+            'Your channel details are currently under review by our Verification System. You can publish posts once approved.';
       } else if (selectedChannel.value!.status ==
           ChannelStatus.verificationRejected) {
         message =
             selectedChannel.value!.moderationReason != null &&
                 selectedChannel.value!.moderationReason!.isNotEmpty
             ? 'Branding Rejected: ${selectedChannel.value!.moderationReason!}'
-            : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
+            : 'Your channel details were rejected by our Verification System. Please update your channel details in customization to re-verify.';
       } else if (selectedChannel.value!.status ==
           ChannelStatus.verificationPending) {
         message =

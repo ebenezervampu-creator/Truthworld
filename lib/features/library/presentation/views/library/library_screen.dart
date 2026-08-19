@@ -48,11 +48,6 @@ class LibraryScreen extends StatefulWidget {
 
 class LibraryScreenState extends State<LibraryScreen>
     with TickerProviderStateMixin {
-  final int previewItemCount = 4;
-  final PlaylistController _playlistController =
-      Get.isRegistered<PlaylistController>()
-          ? Get.find<PlaylistController>()
-          : Get.put(PlaylistController());
   final WatchHistoryController _watchHistoryController =
       Get.isRegistered<WatchHistoryController>()
           ? Get.find<WatchHistoryController>()
@@ -69,6 +64,9 @@ class LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
+    if (!Get.isRegistered<PlaylistController>()) {
+      Get.put(PlaylistController());
+    }
     _initializeAnimations();
   }
 
@@ -562,6 +560,11 @@ class LibraryScreenState extends State<LibraryScreen>
                 onTap: () => Get.toNamed('/history'),
               ),
               _buildLibraryListTile(
+                icon: Icons.video_collection_outlined,
+                title: 'My videos',
+                onTap: () => Get.toNamed('/myvideos'),
+              ),
+              _buildLibraryListTile(
                 icon: Icons.subscriptions_outlined,
                 title: 'Subscriptions',
                 onTap: () {
@@ -857,99 +860,7 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   void _showCreatePlaylistDialog(BuildContext context) {
-    final controller = TextEditingController();
-    var isPublic = false;
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: surfaceColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Create Playlist',
-            style: TextStyle(
-              color: primaryText,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                style: const TextStyle(color: primaryText),
-                decoration: InputDecoration(
-                  hintText: 'Playlist name',
-                  hintStyle: const TextStyle(color: secondaryText),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: buttonBg),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: AppColors.textPrimary),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text(
-                    'Privacy: ',
-                    style: TextStyle(color: secondaryText, fontSize: 14),
-                  ),
-                  const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: const Text('Private'),
-                    selected: !isPublic,
-                    onSelected: (val) {
-                      if (val) setDialogState(() => isPublic = false);
-                    },
-                    selectedColor: buttonBg,
-                  ),
-                  const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: const Text('Public'),
-                    selected: isPublic,
-                    onSelected: (val) {
-                      if (val) setDialogState(() => isPublic = true);
-                    },
-                    selectedColor: buttonBg,
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: secondaryText),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (controller.text.isNotEmpty) {
-                  await _playlistController.createPlayList(
-                    controller.text,
-                    isPublic: isPublic,
-                  );
-                  if (context.mounted) Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryText,
-                foregroundColor: bgColor,
-              ),
-              child: const Text('Create'),
-            ),
-          ],
-        ),
-      ),
-    );
+    Get.toNamed('/create-playlist');
   }
 
   void _showMoreOptions(BuildContext context) {
@@ -1184,6 +1095,11 @@ class LibraryScreenState extends State<LibraryScreen>
           icon: Icons.history_rounded,
           title: 'Watch History',
           onTap: () => Get.toNamed('/watchhistory'),
+        ),
+        _buildSidebarAction(
+          icon: Icons.video_collection_rounded,
+          title: 'My Videos',
+          onTap: () => Get.toNamed('/myvideos'),
         ),
         _buildSidebarAction(
           icon: Icons.thumb_up_rounded,

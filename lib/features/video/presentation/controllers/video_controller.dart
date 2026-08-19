@@ -25,6 +25,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
@@ -125,6 +126,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   RxBool get isDisliked => engagementController.isDisliked;
   final RxBool isExpanded = false.obs;
   final RxBool isTranscriptVisible = false.obs;
+  final RxList<SubtitleSegment> transcriptSegments = <SubtitleSegment>[].obs;
+  final RxBool isLoadingTranscript = false.obs;
+  final RxBool isSummaryVisible = false.obs;
+  final RxString moderationSummary = ''.obs;
+  final RxBool isLoadingSummary = false.obs;
   final RxBool rxIsLoading = true.obs;
   RxBool get isLoadingRx => rxIsLoading;
   @override
@@ -226,7 +232,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       <String, List<Video>>{}.obs;
 
   List<String> get recommendationFilters {
-    final list = ['All'];
+    final list = ['All', 'Flip Coin'];
 
     // 1. Topics tab (ONLY if navigated from Topics page)
     if (navigatedFromTopic.value) {
@@ -257,7 +263,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   List<Video> get filteredRecommendedVideos {
     final filter = selectedRecommendationFilter.value;
-    if (filter == 'All') {
+    if (filter == 'All' || filter == 'Flip Coin') {
       return recommendedVideos;
     }
 
@@ -995,6 +1001,315 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
   }
 
+  /// Proactively finds, downloads, and parses the transcript/subtitles for this video
+  /// Searches video.mediaSubtitles, VideoMediaService, Firestore root doc, and Firebase Storage probes.
+  Future<void> loadTranscriptForVideo() async {
+    final playerCtrl = TowerPlayerController.getForTagOrActive(video.id);
+
+    if (transcriptSegments.isNotEmpty && playerCtrl?.subtitleSegments.isNotEmpty == true) {
+      return;
+    }
+
+    isLoadingTranscript.value = true;
+    playerCtrl?.isLoadingSubtitles.value = true;
+    try {
+      // 1. Check existing availableSubtitles or mediaSubtitles
+      var candidateUrl = video.mediaSubtitles['en'] ??
+          (video.mediaSubtitles.isNotEmpty ? video.mediaSubtitles.values.first : null) ??
+          (video.transcriptionUrl.isNotEmpty ? video.transcriptionUrl : null) ??
+          availableSubtitles.firstOrNull?.url;
+
+      // 2. If null, fetch from localization subcollection
+      if (candidateUrl == null || candidateUrl.isEmpty) {
+        final loc = await VideoMediaService().getLocalization(video.id);
+        if (loc.subtitles.isNotEmpty) {
+          candidateUrl = loc.subtitles['en'] ?? loc.subtitles.values.first;
+        }
+      }
+
+      // 3. If still null, check root video document in Firestore
+      if (candidateUrl == null || candidateUrl.isEmpty) {
+        final snap = await FirebaseFirestore.instance
+            .collection(FirestoreCollections.videos)
+            .doc(video.id)
+            .get();
+        if (snap.exists && snap.data() != null) {
+          final data = snap.data()!;
+          final media = data['media'] as Map<String, dynamic>?;
+          candidateUrl = (media?['transcriptionUrl'] as String?) ??
+              (data['transcriptionUrl'] as String?) ??
+              (data['transcriptUrl'] as String?);
+          if (candidateUrl == null || candidateUrl.isEmpty) {
+            final subs = (media?['subtitles'] ?? data['subtitles']) as Map?;
+            if (subs != null && subs.isNotEmpty) {
+              candidateUrl = subs['en']?.toString() ?? subs.values.first?.toString();
+            }
+          }
+        }
+      }
+
+      // 4. If candidate URL found, fetch and parse
+      if (candidateUrl != null && candidateUrl.isNotEmpty) {
+        if (playerCtrl != null) {
+          await playerCtrl.fetchAndParseSubtitles(candidateUrl);
+          if (playerCtrl.subtitleSegments.isNotEmpty) {
+            transcriptSegments.assignAll(playerCtrl.subtitleSegments);
+            return;
+          }
+        }
+        final segs = await _downloadAndParseTranscript(candidateUrl);
+        if (segs.isNotEmpty) {
+          transcriptSegments.assignAll(segs);
+          playerCtrl?.subtitleSegments.assignAll(segs);
+          return;
+        }
+      }
+
+      // 5. Direct probe into Firebase Storage for pipeline-generated transcripts
+      final storage = FirebaseStorage.instance;
+      final probePaths = [
+        'subtitles/${video.id}/en.vtt',
+        'subtitles/${video.id}/en.srt',
+        'subtitles/${video.id}/transcript.json',
+        'subtitles/${video.id}/transcription.json',
+        'transcripts/${video.id}.json',
+        'transcripts/${video.id}.vtt',
+        'transcripts/${video.id}.srt',
+        'videos/${video.id}/transcript.json',
+        'videos/${video.id}/transcription.json',
+      ];
+
+      for (final p in probePaths) {
+        try {
+          final data = await storage.ref(p).getData();
+          if (data != null && data.isNotEmpty) {
+            final content = utf8.decode(data, allowMalformed: true);
+            final segs = _parseTranscriptContent(content);
+            if (segs.isNotEmpty) {
+              transcriptSegments.assignAll(segs);
+              playerCtrl?.subtitleSegments.assignAll(segs);
+              debugPrint('[VideoController] ✅ Found transcript via storage probe: $p');
+              return;
+            }
+          }
+        } catch (_) {
+          // Probe not found, continue to next
+        }
+      }
+    } catch (e) {
+      debugPrint('[VideoController] 🔥 Error loading transcript: $e');
+    } finally {
+      isLoadingTranscript.value = false;
+      playerCtrl?.isLoadingSubtitles.value = false;
+    }
+  }
+
+  Future<List<SubtitleSegment>> _downloadAndParseTranscript(String url) async {
+    try {
+      String? content;
+      try {
+        final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
+        final response = await http.get(Uri.parse(resolvedUrl));
+        if (response.statusCode == 200) {
+          content = utf8.decode(response.bodyBytes, allowMalformed: true);
+        }
+      } catch (_) {}
+
+      if (content == null || content.isEmpty) {
+        Uint8List? data;
+        if (url.startsWith('gs://') ||
+            url.startsWith('https://storage.googleapis.com/') ||
+            url.startsWith('https://firebasestorage.googleapis.com/')) {
+          data = await FirebaseStorage.instance.refFromURL(url).getData();
+        } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
+          data = await FirebaseStorage.instance.ref(url).getData();
+        }
+        if (data != null && data.isNotEmpty) {
+          content = utf8.decode(data, allowMalformed: true);
+        }
+      }
+
+      if (content != null && content.isNotEmpty) {
+        return _parseTranscriptContent(content);
+      }
+    } catch (e) {
+      debugPrint('[VideoController] Subtitle download error: $e');
+    }
+    return [];
+  }
+
+  List<SubtitleSegment> _parseTranscriptContent(String content) {
+    var raw = content;
+    if (raw.startsWith('\uFEFF')) raw = raw.substring(1);
+    final trimmed = raw.trim();
+
+    // 1. JSON
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        final decoded = jsonDecode(trimmed);
+        final segs = <SubtitleSegment>[];
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map) {
+              final startNum = (item['start'] ?? item['startMs'] ?? item['startTime'] ?? 0) as num;
+              final endNum = (item['end'] ?? item['endMs'] ?? item['endTime'] ?? (startNum + 2000)) as num;
+              final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
+              final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
+              final text = (item['text'] ?? item['sentence'] ?? item['transcript'] ?? '').toString().trim();
+              if (text.isNotEmpty) {
+                segs.add(SubtitleSegment(start: Duration(milliseconds: startMs), end: Duration(milliseconds: endMs), text: text));
+              }
+            }
+          }
+          if (segs.isNotEmpty) return segs;
+        } else if (decoded is Map) {
+          final list = (decoded['segments'] ?? decoded['utterances'] ?? decoded['paragraphs']) as List?;
+          if (list != null) {
+            for (final item in list) {
+              if (item is Map) {
+                final startNum = (item['start'] ?? item['startMs'] ?? item['startTime'] ?? 0) as num;
+                final endNum = (item['end'] ?? item['endMs'] ?? item['endTime'] ?? (startNum + 2000)) as num;
+                final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
+                final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
+                final text = (item['text'] ?? item['sentence'] ?? item['transcript'] ?? '').toString().trim();
+                if (text.isNotEmpty) {
+                  segs.add(SubtitleSegment(start: Duration(milliseconds: startMs), end: Duration(milliseconds: endMs), text: text));
+                }
+              }
+            }
+            if (segs.isNotEmpty) return segs;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. SRT / VTT
+    var normalized = raw.replaceAll('\r\n', '\n').trim();
+    if (normalized.startsWith('WEBVTT')) {
+      normalized = normalized.replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '').trim();
+    }
+    final srtSegs = <SubtitleSegment>[];
+    for (final block in normalized.split('\n\n')) {
+      final lines = block.trim().split('\n');
+      if (lines.length < 2) continue;
+      var timeLine = '';
+      var textStart = 0;
+      if (lines[0].contains('-->')) {
+        timeLine = lines[0];
+        textStart = 1;
+      } else if (lines.length >= 2 && lines[1].contains('-->')) {
+        timeLine = lines[1];
+        textStart = 2;
+      } else {
+        continue;
+      }
+      final times = timeLine.split(' --> ');
+      if (times.length != 2) continue;
+      if (lines.length <= textStart) continue;
+      final text = lines.sublist(textStart).join('\n').trim();
+      if (text.isNotEmpty) {
+        srtSegs.add(
+          SubtitleSegment(
+            start: _parseTimeDuration(times[0]),
+            end: _parseTimeDuration(times[1]),
+            text: text,
+          ),
+        );
+      }
+    }
+    if (srtSegs.isNotEmpty) return srtSegs;
+
+    // 3. Plain text fallback
+    final lines = raw
+        .replaceAll('\r\n', '\n')
+        .split(RegExp(r'\n{2,}|\n(?=[A-Z0-9])'))
+        .map((l) => l.replaceAll('\n', ' ').trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (lines.isNotEmpty) {
+      final segs = <SubtitleSegment>[];
+      for (var i = 0; i < lines.length; i++) {
+        final startMs = i * 4000;
+        final endMs = (i + 1) * 4000;
+        segs.add(SubtitleSegment(start: Duration(milliseconds: startMs), end: Duration(milliseconds: endMs), text: lines[i]));
+      }
+      return segs;
+    }
+
+    return [];
+  }
+
+  Duration _parseTimeDuration(String t) {
+    final cleanTime = t.trim().split(RegExp(r'\s+'))[0].replaceAll(',', '.');
+    final parts = cleanTime.split(':');
+    if (parts.length < 2) return Duration.zero;
+    var h = 0;
+    var m = 0;
+    var sSec = '';
+    if (parts.length == 3) {
+      h = int.tryParse(parts[0]) ?? 0;
+      m = int.tryParse(parts[1]) ?? 0;
+      sSec = parts[2];
+    } else if (parts.length == 2) {
+      m = int.tryParse(parts[0]) ?? 0;
+      sSec = parts[1];
+    }
+    final sParts = sSec.split('.');
+    final s = int.tryParse(sParts[0]) ?? 0;
+    var ms = 0;
+    if (sParts.length > 1) {
+      final msStr = sParts[1].padRight(3, '0').substring(0, 3);
+      ms = int.tryParse(msStr) ?? 0;
+    }
+    return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
+  }
+
+  /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
+  Future<void> fetchSummary() async {
+    if (moderationSummary.value.isNotEmpty) return;
+    isLoadingSummary.value = true;
+    try {
+      // 1. Direct check on video.moderationSummary from Video model
+      if (video.moderationSummary.isNotEmpty) {
+        moderationSummary.value = video.moderationSummary;
+        isLoadingSummary.value = false;
+        return;
+      }
+
+      // 2. Check VideoMediaService credibility cache
+      final credibility = await VideoMediaService().getCredibility(video.id);
+      if (credibility.summary.isNotEmpty) {
+        moderationSummary.value = credibility.summary;
+        isLoadingSummary.value = false;
+        return;
+      }
+
+      // 3. Fallback: Fetch directly from videos/{videoId} document in Firestore
+      final doc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.videos)
+          .doc(video.id)
+          .get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final mod = data['moderation'] as Map<String, dynamic>?;
+        final summary = (mod != null && mod['summary'] != null && (mod['summary'] as String).isNotEmpty)
+            ? (mod['summary'] as String)
+            : ((data['summary'] as String?)?.isNotEmpty == true
+                ? (data['summary'] as String)
+                : ((mod != null && mod['explanation'] != null)
+                    ? (mod['explanation'] as String)
+                    : (data['description'] as String? ?? '')));
+        if (summary.isNotEmpty) {
+          moderationSummary.value = summary;
+        }
+      }
+    } catch (e) {
+      debugPrint('[VideoController] 🔥 Error fetching moderation summary: $e');
+    } finally {
+      isLoadingSummary.value = false;
+    }
+  }
+
   Future<void> fetchAvailableAudioTracks() async {
     try {
       var audioTracksMap = video.audioTracks;
@@ -1605,15 +1920,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   final RxMap<String, dynamic> factCheckData = <String, dynamic>{}.obs;
   final RxBool isLoadingFactCheck = false.obs;
 
-  Future<void> loadFactCheckData() async {
-    if (video.factCheckUrl.isEmpty) {
+  Future<void> loadFactCheckData([String? overrideUrl]) async {
+    final rawUrl = (overrideUrl != null && overrideUrl.isNotEmpty)
+        ? overrideUrl
+        : video.factCheckUrl;
+    if (rawUrl.isEmpty) {
       factCheckData.clear();
       return;
     }
 
     isLoadingFactCheck.value = true;
     try {
-      var url = video.factCheckUrl;
+      var url = rawUrl;
       if (url.startsWith('gs://')) {
         url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
       }
@@ -2154,14 +2472,6 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
               );
       }
 
-      // Add listeners BEFORE initialization to catch all events
-      newVpc.addListener(_videoErrorListener);
-      newVpc.addListener(videoListener);
-
-      if (newVpc.value.hasError) {
-        _videoErrorListener();
-      }
-
       HoverPreviewCoordinator.globalMute.value = true;
 
       if (!newVpc.value.isInitialized) {
@@ -2172,6 +2482,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           },
         );
       }
+
+      // Add listeners AFTER initialization succeeds to prevent race conditions during setup
+      newVpc.addListener(_videoErrorListener);
+      newVpc.addListener(videoListener);
 
       // Immediately start playback to begin decoding and frame rendering
       try {
@@ -2332,8 +2646,25 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     } catch (e, stackTrace) {
       debugPrint('[VideoController] Playback Error: $e');
       debugPrint('[VideoController] Stack trace: $stackTrace');
+
+      if (!_isRecoveringFromFormatError &&
+          (e.toString().contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
+              e.toString().contains('Format error') ||
+              e.toString().contains('format not supported'))) {
+        debugPrint('[VideoController] Attempting format fallback from catch block...');
+        _attemptFormatFallback();
+        return;
+      }
+
       videoError.value = true;
-      rxErrorMessage.value = 'Video unavailable: $e';
+      final errorMsg = e.toString();
+      if (errorMsg.contains('Future already completed') ||
+          errorMsg.contains('Bad state')) {
+        rxErrorMessage.value =
+            'Video stream unavailable. Please check your connection or try again.';
+      } else {
+        rxErrorMessage.value = 'Video unavailable: $e';
+      }
     } finally {
       rxIsLoading.value = false;
     }

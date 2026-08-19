@@ -11,14 +11,22 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/community/community_post_upload_binding.dart';
+import 'package:truthworld/features/community/community_post_upload_controller.dart';
+import 'package:truthworld/features/community/community_post_upload_screen.dart';
+import 'package:truthworld/features/dashboard/data/models/draft_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/ai_features_selector.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
@@ -90,12 +98,76 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     // Add listeners for real-time validation
     _titleController.addListener(_validateForm);
     _descriptionController.addListener(_validateForm);
+    _tagsController.addListener(_validateForm);
     _communityTitleController.addListener(_validateForm);
     _communityDescriptionController.addListener(_validateForm);
+    _communityTagsController.addListener(_validateForm);
 
     // Initialize playlist controller and load public playlists
     _playlistController.fetchPublicPlaylists();
     debugPrint('🎵 Playlist controller initialized with public playlists');
+
+    _loadDraftFromArguments();
+  }
+
+  void _loadDraftFromArguments() {
+    final args = Get.arguments;
+    if (args is Map) {
+      final videoArg = args['video'] ?? args['draftVideo'];
+      final draftArg = args['draft'];
+      final videoId = (args['videoId'] as String?) ?? (args['id'] as String?);
+
+      if (videoArg is Video) {
+        _uploadController.loadFromVideo(videoArg);
+        _titleController.text = _uploadController.titleController.text;
+        _descriptionController.text = _uploadController.descriptionController.text;
+        _tagsController.text = videoArg.tags.join(', ');
+        debugPrint('🎬 Resumed Video Draft from Video Object: ${videoArg.id}');
+      } else if (videoId != null && videoId.isNotEmpty) {
+        FirebaseFirestore.instance.collection('videos').doc(videoId).get().then((doc) {
+          if (doc.exists && doc.data() != null) {
+            final v = Video.fromMap(doc.data()!, doc.id);
+            _uploadController.loadFromVideo(v);
+            _titleController.text = _uploadController.titleController.text;
+            _descriptionController.text = _uploadController.descriptionController.text;
+            _tagsController.text = v.tags.join(', ');
+
+            final rawFileName = doc.data()!['fileName'] as String?;
+            final moderation = doc.data()!['moderation'] as Map<String, dynamic>?;
+
+            if (_titleController.text.isEmpty &&
+                rawFileName != null &&
+                rawFileName.isNotEmpty) {
+              final cleanName = rawFileName
+                  .replaceAll(
+                    RegExp(r'\.(mp4|mov|avi|mkv|webm)$', caseSensitive: false),
+                    '',
+                  )
+                  .replaceAll('_', ' ')
+                  .replaceAll('-', ' ');
+              _titleController.text = cleanName;
+              _uploadController.titleController.text = cleanName;
+            }
+
+            if (_descriptionController.text.isEmpty && moderation != null) {
+              final summary = moderation['summary'] as String?;
+              if (summary != null && summary.isNotEmpty) {
+                _descriptionController.text = summary;
+                _uploadController.descriptionController.text = summary;
+              }
+            }
+
+            if (mounted) setState(() {});
+            debugPrint('🎬 Resumed Video Draft from Firestore ID: $videoId');
+          }
+        }).catchError((e) {
+          debugPrint('⚠️ Error loading video draft $videoId: $e');
+        });
+      } else if (draftArg is DraftModel) {
+        _titleController.text = draftArg.title;
+        _descriptionController.text = draftArg.content;
+      }
+    }
   }
 
   void _initializeAnimations() {
@@ -131,9 +203,30 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   void _validateForm() {
     if (!mounted) return;
-    final isValid =
-        _titleController.text.trim().length >= 5 &&
-        _descriptionController.text.trim().length >= 10;
+    final rawTitle = _titleController.text.trim();
+    final rawDesc = _descriptionController.text.trim();
+    final rawTags = _tagsController.text
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    final isTitleClean = ContentValidator.validate(
+      rawTitle,
+      fieldName: 'Title',
+      minLength: 5,
+      maxLength: 100,
+    ).isValid;
+    final isDescClean = ContentValidator.validate(
+      rawDesc,
+      fieldName: 'Description',
+      minLength: 10,
+      maxLength: 500,
+    ).isValid;
+    final isTagsClean = rawTags.isEmpty ||
+        ContentValidator.validateTags(rawTags, maxTags: 15).isValid;
+
+    final isValid = isTitleClean && isDescClean && isTagsClean;
     _uploadController.setFormValid(isValid);
   }
 
@@ -172,6 +265,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.uploadType == UploadType.communityPost) {
+      if (!Get.isRegistered<CommunityPostUploadController>()) {
+        CommunityPostUploadBinding().dependencies();
+      }
+      return const CommunityPostUploadScreen();
+    }
+
     return Scaffold(
       backgroundColor: context.colors.background,
       body: SafeArea(
@@ -197,6 +297,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       }
 
       if (_uploadController.channels.isEmpty) {
+        final authChannel = AuthService.to.userChannel;
+        if (authChannel != null && authChannel.status != ChannelStatus.deleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_uploadController.channels.isEmpty) {
+              _uploadController.channels.value = [authChannel];
+              _uploadController.selectedChannel.value = authChannel;
+            }
+          });
+          return const Center(child: CircularProgressIndicator());
+        }
         return Center(
           child: SingleChildScrollView(
             child: _buildNoChannelsCard(),
@@ -217,60 +327,22 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         );
       }
 
-      // For web/desktop/tablet: use horizontal split layout with fixed sections
-      if (!device.isMobile) {
-        final tokens = context.layoutTokens;
-        final isCommunity = widget.uploadType == UploadType.communityPost;
-        return Row(
-          children: [
-            // Left sidebar - fixed width
-            Container(
-              width: tokens.sidebarWidth > 0 ? tokens.sidebarWidth : 280,
-              decoration: BoxDecoration(
-                color: context.colors.surface,
-                border: Border(
-                  right: BorderSide(
-                    color: context.colors.divider,
-                  ),
-                ),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _buildCompactAppBar(true),
-                    if (!isCommunity) ...[
-                      const SizedBox(height: 20),
-                      _buildVerticalStepper(true),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            // Main content area - flexible
-            Expanded(
-              child: widget.uploadType == UploadType.video
-                  ? _buildVideoUploadFlow(true)
-                  : _buildCommunityUploadFlow(true),
-            ),
-          ],
-        );
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+
+      if (widget.uploadType == UploadType.video) {
+        return _buildVideoUploadFlow(isDark);
       }
 
-      // Mobile layout - original vertical layout
       return Column(
         children: [
           _buildEnhancedAppBar(),
-          if (widget.uploadType != UploadType.communityPost)
-            _buildProgressIndicator(true),
           Expanded(
             child: Container(
               constraints: BoxConstraints(
                 maxWidth: context.layoutTokens.contentMaxWidth,
               ),
               margin: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
-              child: widget.uploadType == UploadType.video
-                  ? _buildVideoUploadFlow(true)
-                  : _buildCommunityUploadFlow(true),
+              child: _buildCommunityUploadFlow(isDark),
             ),
           ),
         ],
@@ -290,7 +362,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       icon = Icons.sync_rounded;
       title = 'Branding Under Moderation';
       subtitle =
-          'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+          'Your channel details are currently under review by our Verification System. You can publish videos once approved.';
     } else if (channel.status == ChannelStatus.verificationRejected) {
       statusColor = context.colors.error;
       icon = Icons.error_outline_rounded;
@@ -299,7 +371,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           channel.moderationReason != null &&
               channel.moderationReason!.isNotEmpty
           ? channel.moderationReason!
-          : 'Your channel details were rejected by Gemini AI. Please update your name, description, or tags in customization to re-verify.';
+          : 'Your channel details were rejected by our Verification System. Please update your name, description, or tags in customization to re-verify.';
       showButton = true;
     } else if (channel.status == ChannelStatus.verificationPending) {
       statusColor = context.colors.warning;
@@ -499,10 +571,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 color: context.colors.error.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.video_library_outlined,
                 size: 40,
-                color: context.colors.error,
+                color: Colors.white,
               ),
             ),
           ),
@@ -525,7 +597,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           const SizedBox(height: 28),
           ElevatedButton.icon(
             onPressed: () => Get.toNamed('/channelscreen'),
-            icon: const Icon(Icons.add_circle_outline, size: 20),
+            icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.white),
             label: Text(
               'Create Channel',
               style: context.themeTypography.button,
@@ -805,6 +877,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
       // Show empty channels state
       if (_uploadController.channels.isEmpty) {
+        final authChannel = AuthService.to.userChannel;
+        if (authChannel != null && authChannel.status != ChannelStatus.deleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_uploadController.channels.isEmpty) {
+              _uploadController.channels.value = [authChannel];
+              _uploadController.selectedChannel.value = authChannel;
+            }
+          });
+          return const SizedBox.shrink();
+        }
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -818,12 +900,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
+              const Icon(
                 Icons.video_library_outlined,
                 size: 32,
-                color: isDark
-                    ? AppColors.textTertiary
-                    : const Color(0xFFD1D5DB),
+                color: Colors.white,
               ),
               const SizedBox(height: 12),
               Text(
@@ -848,7 +928,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () => Get.toNamed('/channelscreen'),
-                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  icon: const Icon(Icons.add_circle_outline, size: 18, color: Colors.white),
                   label: const Text('Create Channel'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6366F1),
@@ -869,8 +949,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       final channel = _uploadController.selectedChannel.value;
       if (channel == null) return const SizedBox.shrink();
 
+      final isStandard = channel.channelType == ChannelType.standard;
+
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF161B22) : const Color(0xFFF9FAFB),
           borderRadius: BorderRadius.circular(14),
@@ -879,51 +961,172 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             width: 1.5,
           ),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            UserAvatar(
-              radius: 14,
-              photoUrl: channel.avatarUrl,
-              displayName: channel.channelName,
+            Row(
+              children: [
+                UserAvatar(
+                  radius: 14,
+                  photoUrl: channel.avatarUrl,
+                  displayName: channel.channelName,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        channel.channelName,
+                        style: context.themeTypography.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : const Color(0xFF0F172A),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        channel.status == ChannelStatus.active
+                            ? (isStandard
+                                ? 'Standard Channel (20m/day limit)'
+                                : 'Custom Channel (Unlimited)')
+                            : channel.status == ChannelStatus.underReview
+                            ? 'Under Review'
+                            : channel.status == ChannelStatus.verificationRejected
+                            ? 'Rejected'
+                            : channel.status == ChannelStatus.verificationPending
+                            ? 'Pending Verification'
+                            : 'Suspended',
+                        style: context.themeTypography.label.copyWith(
+                          color: channel.status == ChannelStatus.active
+                              ? (isDark ? AppColors.textTertiary : Colors.black45)
+                              : channel.status == ChannelStatus.underReview
+                              ? const Color(0xFF3B82F6)
+                              : channel.status == ChannelStatus.verificationRejected
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    channel.channelName,
-                    style: context.themeTypography.body.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.textPrimary
-                          : const Color(0xFF0F172A),
-                    ),
-                    overflow: TextOverflow.ellipsis,
+            if (isStandard) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF0D1117)
+                      : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _uploadController.isDailyLimitReached.value
+                        ? const Color(0xFFEF4444).withValues(alpha: 0.5)
+                        : (isDark
+                            ? const Color(0xFF21262D)
+                            : const Color(0xFFE5E7EB)),
                   ),
-                  Text(
-                    channel.status == ChannelStatus.active
-                        ? 'Active Channel'
-                        : channel.status == ChannelStatus.underReview
-                        ? 'Under Review'
-                        : channel.status == ChannelStatus.verificationRejected
-                        ? 'Rejected'
-                        : channel.status == ChannelStatus.verificationPending
-                        ? 'Pending Verification'
-                        : 'Suspended',
-                    style: context.themeTypography.label.copyWith(
-                      color: channel.status == ChannelStatus.active
-                          ? (isDark ? AppColors.textTertiary : Colors.black45)
-                          : channel.status == ChannelStatus.underReview
-                          ? const Color(0xFF3B82F6)
-                          : channel.status == ChannelStatus.verificationRejected
-                          ? const Color(0xFFEF4444)
-                          : const Color(0xFFF59E0B),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.timelapse_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Daily Upload Limit',
+                              style: context.themeTypography.label.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.textPrimary
+                                    : const Color(0xFF374151),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _uploadController.isDailyLimitReached.value
+                                ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                                : const Color(0xFF10B981).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _uploadController.isDailyLimitReached.value
+                                ? 'Limit Reached (0m left)'
+                                : '${_uploadController.remainingDailyDurationFormatted} remaining',
+                            style: context.themeTypography.label.copyWith(
+                              fontSize: 11,
+                              color: _uploadController.isDailyLimitReached.value
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFF10B981),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: _uploadController.dailyQuotaUsedRatio,
+                        minHeight: 6,
+                        backgroundColor: isDark
+                            ? const Color(0xFF21262D)
+                            : const Color(0xFFE5E7EB),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _uploadController.isDailyLimitReached.value
+                              ? const Color(0xFFEF4444)
+                              : (_uploadController.dailyQuotaUsedRatio > 0.75
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF6366F1)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${_uploadController.todayUploadedDurationFormatted} / 20 min used today',
+                          style: context.themeTypography.bodySmall.copyWith(
+                            color: isDark
+                                ? AppColors.textTertiary
+                                : const Color(0xFF6B7280),
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          'Resets daily at 00:00',
+                          style: context.themeTypography.bodySmall.copyWith(
+                            color: isDark
+                                ? AppColors.textTertiary
+                                : const Color(0xFF6B7280),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       );
@@ -2219,61 +2422,67 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final videoUrl = _uploadController.videoUrl.value;
     final thumbnailUrl = _uploadController.thumbnailUrl.value;
     final pickedImage = _uploadController.pickedImage.value;
+    final pickedVideo = _uploadController.pickedVideo.value;
     final selectedChannel = _uploadController.selectedChannel.value;
     final selectedCategory = _uploadController.selectedCategory.value;
     final isUploading = _uploadController.isUploading.value;
     final finalStatus = _uploadController.finalstatus.value.toUpperCase();
 
-    final hasVideo = videoUrl.isNotEmpty;
+    final hasVideo = videoUrl.isNotEmpty ||
+        pickedVideo != null ||
+        _uploadController.resumedVideoDraft.value != null;
     final hasThumbnail = thumbnailUrl.isNotEmpty || pickedImage != null;
     final hasChannel = selectedChannel != null;
     final isChannelActive =
         selectedChannel != null &&
         selectedChannel.status == ChannelStatus.active;
-    final hasValidTitle = _titleController.text.trim().length >= 5;
-    final hasValidDesc = _descriptionController.text.trim().length >= 10;
+    final rawTitle = _titleController.text.trim();
+    final rawDesc = _descriptionController.text.trim();
+    final rawTags = _tagsController.text
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    final isTitleValid = ContentValidator.validate(
+      rawTitle,
+      fieldName: 'Title',
+      minLength: 5,
+      maxLength: 100,
+    ).isValid;
+
+    final isDescValid = ContentValidator.validate(
+      rawDesc,
+      fieldName: 'Description',
+      minLength: 10,
+      maxLength: 500,
+      checkPhoneNumbers: true,
+    ).isValid;
+
+    final isTagsValid = rawTags.isEmpty ||
+        ContentValidator.validateTags(rawTags, maxTags: 15).isValid;
+
     final hasCategory = selectedCategory.isNotEmpty;
     final isNotUploading = !isUploading;
-    final isThumbnailApproved = finalStatus == 'APPROVED';
+    final isThumbnailApproved = (thumbnailUrl.isNotEmpty && pickedImage == null) ||
+        finalStatus == 'APPROVED' ||
+        finalStatus.isEmpty;
+    final isDailyLimitValid = !(selectedChannel != null &&
+        selectedChannel.channelType == ChannelType.standard &&
+        _uploadController.isDailyLimitReached.value);
 
     final result =
         hasVideo &&
         hasThumbnail &&
         hasChannel &&
         isChannelActive &&
-        hasValidTitle &&
-        hasValidDesc &&
+        isTitleValid &&
+        isDescValid &&
+        isTagsValid &&
         hasCategory &&
         isNotUploading &&
-        isThumbnailApproved;
-
-    if (!result) {
-      debugPrint('🚫 [_canPublishVideo] Validation failed:');
-      if (!hasVideo) {
-        debugPrint('   - Video URL is empty');
-      }
-      if (!hasThumbnail) {
-        debugPrint('   - Thumbnail missing');
-      }
-      if (!hasChannel) {
-        debugPrint('   - Channel not selected');
-      }
-      if (!hasValidTitle) {
-        debugPrint('   - Title too short (<5): "${_titleController.text}"');
-      }
-      if (!hasValidDesc) {
-        debugPrint('   - Description too short (<10)');
-      }
-      if (!hasCategory) {
-        debugPrint('   - Category not selected');
-      }
-      if (!isNotUploading) {
-        debugPrint('   - Still uploading');
-      }
-      if (!isThumbnailApproved) {
-        debugPrint('   - Thumbnail status: $finalStatus');
-      }
-    }
+        isThumbnailApproved &&
+        isDailyLimitValid;
 
     return result;
   }
@@ -2593,13 +2802,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         var message = 'Your channel is not active.';
         if (selectedChannel.status == ChannelStatus.underReview) {
           message =
-              'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+              'Your channel details are currently under review by our Verification System. You can publish videos once approved.';
         } else if (selectedChannel.status == ChannelStatus.verificationRejected) {
           message =
               selectedChannel.moderationReason != null &&
                   selectedChannel.moderationReason!.isNotEmpty
               ? 'Branding Rejected: ${selectedChannel.moderationReason!}'
-              : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
+              : 'Your channel details were rejected by our Verification System. Please update your channel details in customization to re-verify.';
         } else if (selectedChannel.status == ChannelStatus.verificationPending) {
           message =
               'Your channel is currently verification pending. You can publish videos once your branding is verified.';
@@ -2616,22 +2825,79 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         return;
       }
 
+      final rawTitle = _titleController.text.trim();
+      final rawDesc = _descriptionController.text.trim();
+      final rawTags = _tagsController.text
+          .split(',')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+
+      final titleValidation = ContentValidator.validate(
+        rawTitle,
+        fieldName: 'Title',
+        minLength: 5,
+        maxLength: 100,
+      );
+      if (!titleValidation.isValid) {
+        Get.snackbar(
+          'Profanity / Invalid Title',
+          titleValidation.message,
+          backgroundColor: const Color(0xFFEF4444),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 5),
+          icon: const Icon(Icons.error_outline_rounded, color: Colors.white),
+        );
+        return;
+      }
+
+      final descValidation = ContentValidator.validate(
+        rawDesc,
+        fieldName: 'Description',
+        minLength: 10,
+        maxLength: 500,
+        checkPhoneNumbers: true,
+      );
+      if (!descValidation.isValid) {
+        Get.snackbar(
+          'Profanity / Invalid Description',
+          descValidation.message,
+          backgroundColor: const Color(0xFFEF4444),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 5),
+          icon: const Icon(Icons.error_outline_rounded, color: Colors.white),
+        );
+        return;
+      }
+
+      if (rawTags.isNotEmpty) {
+        final tagsValidation =
+            ContentValidator.validateTags(rawTags, maxTags: 15);
+        if (!tagsValidation.isValid) {
+          Get.snackbar(
+            'Profanity / Invalid Tags',
+            tagsValidation.message,
+            backgroundColor: const Color(0xFFEF4444),
+            colorText: Colors.white,
+            duration: const Duration(seconds: 5),
+            icon: const Icon(Icons.error_outline_rounded, color: Colors.white),
+          );
+          return;
+        }
+      }
+
       final canPublish = _canPublishVideo();
       if (!canPublish) {
         var errorMessage = 'Cannot publish. Validation checks:\n';
-        if (_uploadController.videoUrl.value.isEmpty) {
-          errorMessage += '- Video not uploaded yet.\n';
+        if (_uploadController.videoUrl.value.isEmpty &&
+            _uploadController.pickedVideo.value == null &&
+            _uploadController.resumedVideoDraft.value == null) {
+          errorMessage += '- Video file or draft is required.\n';
         }
-        if (_uploadController.thumbnailUrl.value.isEmpty) {
-          errorMessage += '- Thumbnail not uploaded yet.\n';
+        if (_uploadController.thumbnailUrl.value.isEmpty &&
+            _uploadController.pickedImage.value == null) {
+          errorMessage += '- Thumbnail image is required.\n';
         }
-        if (_titleController.text.trim().isEmpty) {
-          errorMessage += '- Title is required.\n';
-        }
-        if (_titleController.text.length < 5) {
-          errorMessage += '- Title must be at least 5 characters long.\n';
-        }
-
         if (_uploadController.selectedCategory.value.isEmpty) {
           errorMessage += '- Category is required.\n';
         }
@@ -3072,18 +3338,1518 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     }
   }
 
-  Widget _buildVideoUploadFlow(bool isDark) {
-    return PageView(
-      controller: _pageController,
-      physics: const NeverScrollableScrollPhysics(),
-      onPageChanged: _uploadController.setUploadStage,
+    Widget _buildVideoUploadFlow(bool isDark) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 900;
+
+        return Scaffold(
+          backgroundColor: context.colors.background,
+          body: SafeArea(
+            child: Column(
+              children: [
+                if (isWide) _buildPlaylistStyleTopHeader(context),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isWide ? 48.0 : 16.0,
+                      vertical: 24.0,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1200),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildPlaylistStylePageHeader(context, isWide),
+                            const SizedBox(height: 24),
+                            if (isWide)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Left Column (Sections 1-5)
+                                  Expanded(
+                                    flex: 5,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildSection1Title(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection2Description(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection3Tags(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection4Category(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection5Visibility(context),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 32),
+
+                                  // Right Column (Sections 6-9)
+                                  Expanded(
+                                    flex: 6,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildSection6VideoFile(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection7Thumbnail(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection8TopicAndPlaylist(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection9AIFeatures(context),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildSection1Title(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection2Description(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection3Tags(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection4Category(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection5Visibility(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection6VideoFile(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection7Thumbnail(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection8TopicAndPlaylist(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection9AIFeatures(context),
+                                ],
+                              ),
+                            const SizedBox(height: 32),
+                            if (isWide) _buildPlaylistStyleFooterActions(context),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (!isWide) _buildPlaylistStyleMobileFooter(context),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Top Bar for Desktop matching Create Playlist
+  Widget _buildPlaylistStyleTopHeader(BuildContext context) {
+    final selectedChannel = _uploadController.selectedChannel.value;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.colors.background,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.black,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'TRUTHWORLD',
+                style: context.themeTypography.logo.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          if (selectedChannel != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161618),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Row(
+                children: [
+                  UserAvatar(
+                    photoUrl: selectedChannel.avatarUrl,
+                    displayName: selectedChannel.channelName,
+                    radius: 12,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    selectedChannel.channelName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Page Header matching Create Playlist
+  Widget _buildPlaylistStylePageHeader(BuildContext context, bool isDesktop) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildStep1MediaSelection(isDark),
-        _buildStep2BasicInfo(isDark),
-        _buildStep3AdvancedSettings(isDark),
-        _buildStep4PublishReview(isDark),
+        Row(
+          children: [
+            IconButton(
+              onPressed: () => Get.back(),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Upload Video',
+              style: context.themeTypography.display.copyWith(
+                fontSize: isDesktop ? 26 : 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 36),
+          child: Text(
+            'Upload and organize videos on your channel.',
+            style: context.themeTypography.body.copyWith(
+              color: Colors.white.withValues(alpha: 0.6),
+              fontSize: isDesktop ? 14 : 12,
+            ),
+          ),
+        ),
       ],
     );
+  }
+
+  // Section 1: Video Title
+  Widget _buildSection1Title(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '1. Video Title',
+            style: context.themeTypography.title.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _titleController,
+            builder: (context, value, _) {
+              final text = value.text.trim();
+              final validation = text.isNotEmpty
+                  ? ContentValidator.validate(
+                      text,
+                      fieldName: 'Title',
+                      minLength: 5,
+                      maxLength: 100,
+                    )
+                  : null;
+              final hasError = validation != null &&
+                  !validation.isValid &&
+                  (text.length >= 5 ||
+                      validation.message.contains('inappropriate') ||
+                      validation.message.contains('offensive') ||
+                      validation.message.contains('prohibited'));
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    alignment: Alignment.centerRight,
+                    children: [
+                      TextField(
+                        controller: _titleController,
+                        maxLength: 100,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Enter video title',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.35),
+                          ),
+                          counterText: '',
+                          fillColor: const Color(0xFF0F0F11),
+                          filled: true,
+                          contentPadding:
+                              const EdgeInsets.fromLTRB(16, 14, 60, 14),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: hasError
+                                  ? const Color(0xFFEF4444)
+                                  : Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: hasError
+                                  ? const Color(0xFFEF4444)
+                                  : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 14,
+                        child: Text(
+                          '${value.text.length}/100',
+                          style: TextStyle(
+                            color: hasError
+                                ? const Color(0xFFEF4444)
+                                : Colors.white.withValues(alpha: 0.4),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (hasError) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            validation.message,
+                            style: const TextStyle(
+                              color: Color(0xFFEF4444),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Give your video a clear and catchy title.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Section 2: Description
+  Widget _buildSection2Description(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '2. Description',
+            style: context.themeTypography.title.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _descriptionController,
+            builder: (context, value, _) {
+              final text = value.text.trim();
+              final validation = text.isNotEmpty
+                  ? ContentValidator.validate(
+                      text,
+                      fieldName: 'Description',
+                      minLength: 10,
+                      maxLength: 500,
+                      checkPhoneNumbers: true,
+                    )
+                  : null;
+              final hasError = validation != null &&
+                  !validation.isValid &&
+                  (text.length >= 10 ||
+                      validation.message.contains('inappropriate') ||
+                      validation.message.contains('offensive') ||
+                      validation.message.contains('prohibited'));
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    children: [
+                      TextField(
+                        controller: _descriptionController,
+                        maxLines: 4,
+                        maxLength: 500,
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Describe your video',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.35),
+                          ),
+                          counterText: '',
+                          fillColor: const Color(0xFF0F0F11),
+                          filled: true,
+                          contentPadding:
+                              const EdgeInsets.fromLTRB(16, 14, 16, 30),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: hasError
+                                  ? const Color(0xFFEF4444)
+                                  : Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: hasError
+                                  ? const Color(0xFFEF4444)
+                                  : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 14,
+                        bottom: 10,
+                        child: Text(
+                          '${value.text.length}/500',
+                          style: TextStyle(
+                            color: hasError
+                                ? const Color(0xFFEF4444)
+                                : Colors.white.withValues(alpha: 0.4),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (hasError) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            validation.message,
+                            style: const TextStyle(
+                              color: Color(0xFFEF4444),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tell viewers what your video is about.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Section 3: Tags
+  Widget _buildSection3Tags(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '3. Tags',
+            style: context.themeTypography.title.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _tagsController,
+            builder: (context, value, _) {
+              final rawTags = value.text
+                  .split(',')
+                  .map((t) => t.trim())
+                  .where((t) => t.isNotEmpty)
+                  .toList();
+              final validation = rawTags.isNotEmpty
+                  ? ContentValidator.validateTags(rawTags, maxTags: 15)
+                  : null;
+              final hasError = validation != null && !validation.isValid;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _tagsController,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText:
+                          'Add tags separated by commas (e.g. Space, Tech, Science)',
+                      hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                      fillColor: const Color(0xFF0F0F11),
+                      filled: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: hasError
+                              ? const Color(0xFFEF4444)
+                              : Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color:
+                              hasError ? const Color(0xFFEF4444) : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (hasError) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Color(0xFFEF4444),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            validation.message,
+                            style: const TextStyle(
+                              color: Color(0xFFEF4444),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Add relevant tags to help others find your video.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Section 4: Category
+    Widget _buildSection4Category(BuildContext context) {
+    return Obx(() {
+      final currentCategory = _uploadController.selectedCategory.value;
+      final categories = _uploadController.videoCategories;
+      final selectedVal = categories.contains(currentCategory) ? currentCategory : categories.first;
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '4. Category',
+              style: context.themeTypography.title.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: selectedVal,
+              decoration: InputDecoration(
+                fillColor: const Color(0xFF0F0F11),
+                filled: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.white),
+                ),
+              ),
+              dropdownColor: const Color(0xFF161618),
+              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              items: categories.map((cat) {
+                return DropdownMenuItem<String>(
+                  value: cat,
+                  child: Text(cat, style: const TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  _uploadController.selectCategory(val);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Choose the category that best fits your video.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // Section 5: Visibility
+    Widget _buildSection5Visibility(BuildContext context) {
+    return Obx(() {
+      final currentVisibility = _uploadController.selectedVisibility.value;
+
+      final options = <Map<String, dynamic>>[
+        {
+          'value': 'Public',
+          'title': 'Public',
+          'subtitle': 'Anyone can view this video',
+          'icon': Icons.public,
+        },
+        {
+          'value': 'Private',
+          'title': 'Private',
+          'subtitle': 'Only you can view this video',
+          'icon': Icons.lock_outline,
+        },
+        {
+          'value': 'Unlisted',
+          'title': 'Unlisted',
+          'subtitle': 'Anyone with the link can view this video',
+          'icon': Icons.link,
+        },
+        {
+          'value': 'Members only',
+          'title': 'Members only',
+          'subtitle': 'Only channel members can view this video',
+          'icon': Icons.card_membership_rounded,
+        },
+        {
+          'value': 'Subscribers only',
+          'title': 'Subscribers only',
+          'subtitle': 'Only channel subscribers can view this video',
+          'icon': Icons.people_alt_rounded,
+        },
+      ];
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '5. Visibility',
+              style: context.themeTypography.title.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose who can view this video',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...options.map((opt) {
+              final isSelected = currentVisibility.toLowerCase() == (opt['value'] as String).toLowerCase();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  onTap: () => _uploadController.selectedVisibility.value = opt['value'] as String,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.white.withValues(alpha: 0.05) : const Color(0xFF0F0F11),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.1),
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(opt['icon'] as IconData, color: Colors.white, size: 20),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opt['title'] as String,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                opt['subtitle'] as String,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      );
+    });
+  }
+
+  // Section 6: Video File Upload
+      Widget _buildSection6VideoFile(BuildContext context) {
+    return Obx(() {
+      final pickedVideo = _uploadController.pickedVideo.value;
+      final videoUrl = _uploadController.videoUrl.value;
+      final isUploading = _uploadController.isUploading.value;
+      final progressPercent = _uploadController.uploadProgressPercent;
+      final playerCtrl = _uploadController.videoPlayerController;
+      final hasVideo = pickedVideo != null || videoUrl.isNotEmpty;
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '6. Video File',
+                  style: context.themeTypography.title.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _uploadController.pickVideo(),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 16),
+                  label: Text(
+                    hasVideo ? 'Change video' : 'Select video',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!hasVideo)
+              InkWell(
+                onTap: () => _uploadController.pickVideo(),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(32),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F0F11),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.cloud_upload_outlined, color: Colors.white, size: 40),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Select video to upload',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Click or drag video file to upload (MP4, MOV, MKV, WEBM)',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                ),
+                child: Column(
+                  children: [
+                    if (playerCtrl != null)
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: MobileFriendlyVideoPlayer(
+                            controller: playerCtrl,
+                            showControls: true,
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.movie_creation_outlined, color: Colors.white, size: 28),
+                            const SizedBox(width: 12),
+                            Text(
+                              pickedVideo?.name ?? 'Video File Ready',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.video_library, color: Colors.white, size: 22),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pickedVideo?.name ?? 'Video File Ready',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (isUploading)
+                                  Text(
+                                    'Uploading: $progressPercent',
+                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isUploading)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: _uploadController.uploadProgress.value,
+                            backgroundColor: Colors.white.withValues(alpha: 0.1),
+                            color: Colors.white,
+                            minHeight: 4,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // Section 7: Thumbnail Image
+    Widget _buildSection7Thumbnail(BuildContext context) {
+    return Obx(() {
+      final pickedImage = _uploadController.pickedImage.value;
+      final thumbnailUrl = _uploadController.thumbnailUrl.value;
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '7. Thumbnail',
+              style: context.themeTypography.title.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose or upload a YouTube 16:9 thumbnail for your video',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (pickedImage != null && pickedImage.path != null && pickedImage.path!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: kIsWeb
+                        ? Image.memory(pickedImage.bytes!, fit: BoxFit.cover)
+                        : Image.file(io.File(pickedImage.path!), fit: BoxFit.cover),
+                  ),
+                ),
+              )
+            else if (thumbnailUrl.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (ctx, url, err) => Container(
+                        color: const Color(0xFF0F0F11),
+                        child: const Icon(Icons.image, color: Colors.white, size: 32),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            InkWell(
+              onTap: () => _uploadController.pickImage(forCommunity: false),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.file_upload_outlined, color: Colors.white, size: 20),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pickedImage != null || thumbnailUrl.isNotEmpty ? 'Change Thumbnail' : 'Upload custom image',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        Text(
+                          '16:9 Aspect Ratio (1280x720). PNG, JPG or WEBP.',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // Section 8: Topic & Playlist
+    Widget _buildSection8TopicAndPlaylist(BuildContext context) {
+    return Obx(() {
+      final selectedTopicId = _uploadController.selectedTopicId.value;
+      final selectedPlaylist = _uploadController.selectedPlaylist.value;
+      final playlists = _playlistController.playlists;
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '8. Playlist & Topic',
+                  style: context.themeTypography.title.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => Get.toNamed('/create-playlist'),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 16),
+                  label: const Text('+ Create Playlist', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: playlists.any((p) => p.id == selectedPlaylist) ? selectedPlaylist : null,
+              decoration: InputDecoration(
+                hintText: 'Select Playlist to save video (Optional)',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  fontSize: 13,
+                ),
+                fillColor: const Color(0xFF0F0F11),
+                filled: true,
+                prefixIcon: const Icon(Icons.playlist_add, color: Colors.white, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.12),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.white),
+                ),
+              ),
+              dropdownColor: const Color(0xFF161618),
+              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              items: playlists.map((p) {
+                return DropdownMenuItem<String>(
+                  value: p.id,
+                  child: Text(p.name, style: const TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  _uploadController.selectedPlaylist.value = val;
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                TopicSelectionBottomSheet.show(
+                  context,
+                  _uploadController,
+                  onCreateNewTopic: (isDarkTheme) {
+                    CreateTopicDialog.show(
+                      context: context,
+                      isDarkMode: isDarkTheme,
+                      channelVideosFuture: Future.value([]),
+                      onCreateTopicSubmitted: (c) async {},
+                    );
+                  },
+                );
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.topic, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        selectedTopicId.isNotEmpty ? selectedTopicId : 'Select Topic (Optional)',
+                        style: TextStyle(
+                          color: selectedTopicId.isNotEmpty ? Colors.white : Colors.white.withValues(alpha: 0.5),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // Section 9: AI Features
+      Widget _buildSection9AIFeatures(BuildContext context) {
+    final subtitleSearchQuery = ''.obs;
+    final dubbingSearchQuery = ''.obs;
+
+    final allSubtitleLangs = supportedLanguages.map((l) => l.name).toList();
+
+    final allDubbingLangs = [
+      'English', 'Spanish', 'French', 'German', 'Hindi', 'Japanese', 'Chinese (Mandarin)',
+      'Portuguese', 'Italian', 'Arabic', 'Russian', 'Korean', 'Turkish', 'Dutch', 'Swedish', 'Polish',
+      'Bengali', 'Telugu', 'Tamil', 'Marathi', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Urdu',
+      'Indonesian', 'Thai', 'Vietnamese', 'Czech', 'Greek', 'Hebrew', 'Hungarian', 'Danish', 'Finnish',
+      'Norwegian', 'Slovak', 'Bulgarian', 'Catalan', 'Croatian', 'Lithuanian', 'Slovenian', 'Afrikaans',
+      'Tagalog', 'Malay', 'Persian', 'Romanian', 'Ukrainian', 'Estonian', 'Latvian', 'Serbian', 'Albanian',
+      'Azerbaijani', 'Basque', 'Belarusian', 'Bosnian', 'Galician', 'Georgian', 'Icelandic', 'Irish',
+      'Macedonian', 'Maltese', 'Nepali', 'Somali', 'Swahili', 'Welsh', 'Yiddish', 'Zulu', 'Kazakh', 'Uzbek'
+    ];
+
+    return Obx(() {
+      final isFactCheck = _uploadController.aiFactCheckEnabled.value;
+      final isSubtitles = _uploadController.aiGenerateSubtitles.value;
+      final isDubbing = _uploadController.aiGenerateDubbing.value;
+      final isDiarization = _uploadController.aiDiarizationEnabled.value;
+      final isChapters = _uploadController.aiChaptersEnabled.value;
+      final isSummary = _uploadController.aiSummaryEnabled.value;
+
+      final selectedSubLangs = _uploadController.aiTranslationLanguages;
+      final selectedDubLangs = _uploadController.aiDubbingLanguages;
+
+      final filteredSubLangs = subtitleSearchQuery.value.isEmpty
+          ? allSubtitleLangs
+          : allSubtitleLangs.where((l) => l.toLowerCase().contains(subtitleSearchQuery.value.toLowerCase())).toList();
+
+      final filteredDubLangs = dubbingSearchQuery.value.isEmpty
+          ? allDubbingLangs
+          : allDubbingLangs.where((l) => l.toLowerCase().contains(dubbingSearchQuery.value.toLowerCase())).toList();
+
+      return Material(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '9. AI Features',
+                style: context.themeTypography.title.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Auto-Generate Subtitles (100+ Languages)
+              SwitchListTile(
+                value: isSubtitles,
+                onChanged: (val) => _uploadController.aiGenerateSubtitles.value = val,
+                title: const Text('Auto-Generate Subtitles (100+ Languages)', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('Google Cloud Translation supported caption languages', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                activeColor: Colors.white,
+                secondary: const Icon(Icons.subtitles, color: Colors.white, size: 20),
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (isSubtitles) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        onChanged: (v) => subtitleSearchQuery.value = v,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: 'Search 100+ subtitle languages...',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
+                          prefixIcon: const Icon(Icons.search, color: Colors.white, size: 16),
+                          fillColor: const Color(0xFF0F0F11),
+                          filled: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 180),
+                        child: SingleChildScrollView(
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: filteredSubLangs.map((lang) {
+                              final isSelected = selectedSubLangs.contains(lang);
+                              return FilterChip(
+                                selected: isSelected,
+                                label: Text(lang, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 11)),
+                                selectedColor: Colors.white,
+                                backgroundColor: const Color(0xFF0F0F11),
+                                onSelected: (_) {
+                                  _uploadController.toggleSubtitleLanguage(lang);
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Divider(color: Colors.white10),
+
+              // AI Audio Translation & Dubbing (70+ Languages)
+              SwitchListTile(
+                value: isDubbing,
+                onChanged: (val) => _uploadController.aiGenerateDubbing.value = val,
+                title: const Text('AI Audio Translation & Dubbing (70+ Languages)', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('Natural AI voice dubbing (Selecting dubbing auto-enables subtitles)', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                activeColor: Colors.white,
+                secondary: const Icon(Icons.translate, color: Colors.white, size: 20),
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (isDubbing) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 4, bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        onChanged: (v) => dubbingSearchQuery.value = v,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: InputDecoration(
+                          hintText: 'Search 70+ dubbing languages...',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
+                          prefixIcon: const Icon(Icons.search, color: Colors.white, size: 16),
+                          fillColor: const Color(0xFF0F0F11),
+                          filled: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 180),
+                        child: SingleChildScrollView(
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: filteredDubLangs.map((lang) {
+                              final isSelected = selectedDubLangs.contains(lang);
+                              return FilterChip(
+                                selected: isSelected,
+                                label: Text(lang, style: TextStyle(color: isSelected ? Colors.black : Colors.white, fontSize: 11)),
+                                selectedColor: Colors.white,
+                                backgroundColor: const Color(0xFF0F0F11),
+                                onSelected: (_) {
+                                  _uploadController.toggleDubbingLanguage(lang);
+                                },
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const Divider(color: Colors.white10),
+
+              // Speaker Diarization
+              SwitchListTile(
+                value: isDiarization,
+                onChanged: (val) => _uploadController.aiDiarizationEnabled.value = val,
+                title: const Text('Speaker Diarization', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('Identify and label multiple speakers', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                activeColor: Colors.white,
+                secondary: const Icon(Icons.record_voice_over, color: Colors.white, size: 20),
+                contentPadding: EdgeInsets.zero,
+              ),
+              const Divider(color: Colors.white10),
+
+              // Auto Chapters
+              SwitchListTile(
+                value: isChapters,
+                onChanged: (val) => _uploadController.aiChaptersEnabled.value = val,
+                title: const Text('Auto Chapters', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('Generate smart video timestamp chapters', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                activeColor: Colors.white,
+                secondary: const Icon(Icons.video_label, color: Colors.white, size: 20),
+                contentPadding: EdgeInsets.zero,
+              ),
+              const Divider(color: Colors.white10),
+
+              // AI Summary
+              SwitchListTile(
+                value: isSummary,
+                onChanged: (val) => _uploadController.aiSummaryEnabled.value = val,
+                title: const Text('AI Video Summary', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('Generate smart key takeaways overview', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                activeColor: Colors.white,
+                secondary: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                contentPadding: EdgeInsets.zero,
+              ),
+              const Divider(color: Colors.white10),
+
+              // Truth Verification
+              SwitchListTile(
+                value: isFactCheck,
+                onChanged: (val) => _uploadController.aiFactCheckEnabled.value = val,
+                title: const Text('Truth Verification Analysis', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('Enable automated fact-checking & claim verification', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                activeColor: Colors.white,
+                secondary: const Icon(Icons.verified, color: Colors.white, size: 20),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  // Footer Actions for Desktop matching Create Playlist
+  Widget _buildPlaylistStyleFooterActions(BuildContext context) {
+    return Obx(() {
+      final isUploading = _uploadController.isUploading.value;
+      final canPublish = _canPublishVideo();
+
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          OutlinedButton(
+            onPressed: () => Get.back(),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Cancel'),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton(
+            onPressed: !isUploading ? () => _handleVideoUpload(isDraft: true) : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Save Draft'),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: (canPublish && !isUploading) ? () => _handleVideoUpload() : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              isUploading ? 'Publishing...' : 'Publish Video',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  // Footer Actions for Mobile matching Create Playlist
+  Widget _buildPlaylistStyleMobileFooter(BuildContext context) {
+    return Obx(() {
+      final isUploading = _uploadController.isUploading.value;
+      final canPublish = _canPublishVideo();
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          border: Border(
+            top: BorderSide(
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: (canPublish && !isUploading) ? () => _handleVideoUpload() : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              isUploading ? 'Publishing...' : 'Publish Video',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildCommunityUploadFlow(bool isDark) {
@@ -3919,7 +5685,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          'MP4, MOV, AVI • Max 500MB • Up to 10 minutes',
+          'MP4, MOV, AVI • Max 500MB • Up to 20 minutes',
           style: context.themeTypography.bodySmall.copyWith(
             color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
           ),

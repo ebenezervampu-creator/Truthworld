@@ -4664,7 +4664,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Your advertisement has been submitted for moderation. Once approved by Gemini, it will go live.',
+                        'Your advertisement has been submitted for moderation. Once approved by our Verification System, it will go live.',
                         textAlign: TextAlign.center,
                         style: AppTextStyles.labelLarge.copyWith(
                           color: AppColors.textSecondary,

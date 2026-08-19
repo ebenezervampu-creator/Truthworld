@@ -94,7 +94,6 @@ class VideoMediaLocalization {
 class VideoMediaCredibility {
   const VideoMediaCredibility({
     this.trustScore = 0.0,
-    this.videoRating = 0.0,
     this.trustLabel,
     this.summary = '',
     this.scoringFactors,
@@ -120,7 +119,6 @@ class VideoMediaCredibility {
   factory VideoMediaCredibility.fromMap(Map<String, dynamic> data) {
     return VideoMediaCredibility(
       trustScore: (data['trustScore'] ?? 0).toDouble(),
-      videoRating: (data['videoRating'] ?? 0).toDouble(),
       trustLabel: data['trustLabel'],
       summary: data['summary'] ?? data['uiReport']?['narrative'] ?? '',
       scoringFactors: data['scoringFactors'] != null
@@ -166,14 +164,21 @@ class VideoMediaCredibility {
       uiReport: data['uiReport'] != null
           ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
           : null,
-      factCheckUrl: data['factCheckUrl'] ?? '',
-      transcriptionUrl: data['transcriptionUrl'] ?? '',
+      factCheckUrl: (data['media'] is Map &&
+              data['media']['factCheckUrl'] != null &&
+              (data['media']['factCheckUrl'] as String).isNotEmpty)
+          ? (data['media']['factCheckUrl'] as String)
+          : (data['factCheckUrl'] ?? ''),
+      transcriptionUrl: (data['media'] is Map &&
+              data['media']['transcriptionUrl'] != null &&
+              (data['media']['transcriptionUrl'] as String).isNotEmpty)
+          ? (data['media']['transcriptionUrl'] as String)
+          : (data['transcriptionUrl'] ?? ''),
       updatedAt: data['updatedAt'] as Timestamp?,
     );
   }
   // Core scores (also duplicated as summary on main doc for card display)
   final double trustScore;
-  final double videoRating;
   final String? trustLabel;
   final String summary;
 
@@ -206,7 +211,6 @@ class VideoMediaCredibility {
 
   Map<String, dynamic> toMap() => {
     'trustScore': trustScore,
-    'videoRating': videoRating,
     'trustLabel': trustLabel,
     'scoringFactors': scoringFactors?.toMap(),
     'deductions': deductions.map((e) => e.toMap()).toList(),

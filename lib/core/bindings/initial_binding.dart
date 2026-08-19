@@ -48,6 +48,7 @@ import 'package:truthworld/features/topics/presentation/controllers/explore_topi
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/saved_videos_controller.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 
 class InitialBinding extends Bindings {
@@ -115,5 +116,6 @@ class InitialBinding extends Bindings {
     Get.lazyPut(PlaylistController.new, fenix: true);
     Get.lazyPut(SubscriptionController.new, fenix: true);
     Get.lazyPut(WatchHistoryController.new, fenix: true);
+    Get.lazyPut(SavedVideosController.new, fenix: true);
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/core/services/channel_wallet_service.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_content_details_screen.dart';
@@ -36,8 +37,12 @@ class _ContentScreenState extends State<ContentScreen> {
     controller = Get.isRegistered<VideoManagementController>()
         ? Get.find<VideoManagementController>()
         : Get.put(VideoManagementController());
-    controller.listenToChannelVideos(widget.channelId);
-    controller.listenToCommunityPosts(widget.channelId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        controller.listenToChannelVideos(widget.channelId);
+        controller.listenToCommunityPosts(widget.channelId);
+      }
+    });
   }
 
   @override
@@ -493,120 +498,133 @@ class _ContentScreenState extends State<ContentScreen> {
         side: const BorderSide(color: AppColors.bgDivider),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 96,
-              height: 54,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: AppColors.bgInput,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          debugPrint('🎬 Direct draft resume tapped for video: ${video.id}');
+          Get.toNamed(
+            '/upload/video',
+            arguments: {'video': video, 'videoId': video.id, 'draft': video},
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 96,
+                height: 54,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.bgInput,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: video.thumbnailUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: video.thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.drafts_outlined,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Center(
+                          child: Icon(
+                            Icons.drafts_outlined,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                ),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: video.thumbnailUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: video.thumbnailUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => const Icon(
-                          Icons.drafts_outlined,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Center(
-                        child: Icon(
-                          Icons.drafts_outlined,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B)
-                              .withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
                             color: const Color(0xFFF59E0B)
-                                .withValues(alpha: 0.4),
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFFF59E0B)
+                                  .withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Text(
+                            'DRAFT',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: const Color(0xFFF59E0B),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
-                        child: Text(
-                          'DRAFT',
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: const Color(0xFFF59E0B),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      video.title.isNotEmpty ? video.title : 'Untitled Draft',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.videoTitleMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.white),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    Get.toNamed(
+                      '/upload/video',
+                      arguments: {'video': video, 'videoId': video.id, 'draft': video},
+                    );
+                  } else if (value == 'delete') {
+                    controller.deleteVideo(video);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_rounded, size: 18, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text('Resume / Edit Upload'),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    video.title.isNotEmpty ? video.title : 'Untitled Draft',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.videoTitleMedium.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 8),
+                        Text('Delete Draft'),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
-              onSelected: (value) {
-                if (value == 'edit') {
-                  Get.toNamed('/upload');
-                } else if (value == 'delete') {
-                  controller.deleteVideo(video);
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_rounded, size: 18, color: Colors.white),
-                      SizedBox(width: 8),
-                      Text('Resume / Edit Upload'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.delete_outline_rounded,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      SizedBox(width: 8),
-                      Text('Delete Draft'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2061,7 +2079,62 @@ class _ContentScreenState extends State<ContentScreen> {
                       ),
                     ],
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgSurfaceHover,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.bgDivider),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Funding Source:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                r'Channel Revenue & $10 Trial Credit',
+                                style: AppTextStyles.labelMedium.copyWith(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text(
+                                'Estimated Cost:',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '\$${ChannelWalletService.calculateAIFeatureCost(selectedFeatures: selectedFeatures.toSet(), targetLanguages: selectedLangs.toList()).toStringAsFixed(2)}',
+                                style: AppTextStyles.titleMedium.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -2087,9 +2160,13 @@ class _ContentScreenState extends State<ContentScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          icon: const Icon(Icons.bolt_rounded, size: 18),
+                          icon: const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Colors.black,
+                            size: 18,
+                          ),
                           label: Text(
-                            'Generate AI Features',
+                            'Generate & Pay from Balance',
                             style: AppTextStyles.buttonText.copyWith(
                               fontWeight: FontWeight.bold,
                             ),

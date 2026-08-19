@@ -80,3 +80,25 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.iml
+
+# Firebase
+.firebase/
+
+# Temporary / Scratch files
+.artifacts/
+analysis.txt
+analyze_out.txt
+analyze_output.txt
+dart_files.txt
+issues.txt
+remaining_issues.txt
+/full.json
+/latest.json
+/manifest.json

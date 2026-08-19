@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/domain/entities/channel_entity.dart';
 import 'package:truthworld/domain/repositories/channel_repository.dart';
@@ -180,22 +182,52 @@ class ChannelRepositoryImpl extends BaseRepository
       final ref = _firestore.collection(FirestoreCollections.channels).doc();
       final now = FieldValue.serverTimestamp();
 
+      final cleanHandle = handle.startsWith('@') ? handle.substring(1).trim() : handle.trim();
+      final handleLower = cleanHandle.toLowerCase();
+
       final data = {
         'id': ref.id,
-        'name': name,
-        'nameLowercase': name.toLowerCase(),
-        'handle': handle,
-        'handleLowercase': handle.toLowerCase(),
-        'description': description ?? '',
+        'name': name.trim(),
+        'nameLowercase': name.trim().toLowerCase(),
+        'channelName': name.trim(),
+        'channelNameLowercase': name.trim().toLowerCase(),
+        'handle': cleanHandle,
+        'handleLowercase': handleLower,
+        'customUrl': cleanHandle,
+        'customUrlLowercase': handleLower,
+        'description': description?.trim() ?? '',
         'ownerId': ownerId,
+        'userId': ownerId,
         'createdAt': now,
         'updatedAt': now,
         'status': ChannelStatus.active.name,
+        'subscriberCount': 0,
+        'videoCount': 0,
+        'isVerified': false,
+        'avatarUrl': '',
+        'bannerUrl': '',
+        'metrics': {
+          'totalViews': 0,
+          'totalWatchTimeMinutes': 0,
+          'averageRetention': 0.0,
+        },
       };
 
       await ref.set(data);
 
-      // Update user doc with hasChannel flag
+      // Claim handle in channel_handles collection
+      try {
+        await _firestore
+            .collection('channel_handles')
+            .doc(handleLower)
+            .set({
+              'channelId': ref.id,
+              'ownerId': ownerId,
+              'claimedAt': now,
+            });
+      } catch (_) {}
+
+      // Update user doc with hasChannel flag and channelId
       await _firestore
           .collection(FirestoreCollections.users)
           .doc(ownerId)
@@ -208,7 +240,14 @@ class ChannelRepositoryImpl extends BaseRepository
 
       // Fetch immediately to get parsed dates properly
       final doc = await ref.get();
-      return _mapToEntity(Channel.fromDocumentSnapshot(doc));
+      final createdChannel = Channel.fromDocumentSnapshot(doc);
+
+      // Update AuthService in-memory state if registered
+      if (Get.isRegistered<AuthService>()) {
+        AuthService.to.setUserChannel(createdChannel);
+      }
+
+      return _mapToEntity(createdChannel);
     });
   }
 

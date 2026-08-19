@@ -67,21 +67,24 @@ class StudioSettingsPage extends StatelessWidget {
                         const Divider(color: Color(0xFF333333), height: 32),
                         _buildSectionHeader('Advanced'),
                         _buildAdvancedSettings(controller),
+                        const Divider(color: Color(0xFF333333), height: 32),
+                        _buildSectionHeader('Danger Zone', color: AppColors.error),
+                        _buildDangerZoneSettings(context, controller),
                       ],
                     )),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {Color color = AppColors.textPrimary}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: AppColors.textPrimary,
+          color: color,
         ),
       ),
     );
@@ -256,6 +259,190 @@ class StudioSettingsPage extends StatelessWidget {
           (value) => controller.updateField('twoFactorEnabled', value),
         ),
       ],
+    );
+  }
+
+  // ===== DANGER ZONE SECTION =====
+  Widget _buildDangerZoneSettings(
+      BuildContext context, StudioSettingsController controller) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.error.withOpacity(0.5)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.delete_forever_outlined,
+                color: Colors.white,
+                size: 24,
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Delete Channel',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Deleting your channel is permanent. All channel settings, content, and data associated with this channel will be removed.',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Obx(
+            () => SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: controller.isDeletingChannel.value
+                    ? null
+                    : () => _showDeleteChannelDialog(context, controller),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                icon: controller.isDeletingChannel.value
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.delete_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                label: Text(
+                  controller.isDeletingChannel.value
+                      ? 'Deleting...'
+                      : 'Delete Channel',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteChannelDialog(
+      BuildContext context, StudioSettingsController controller) {
+    final channelName = controller.userData['displayName'] ?? 'your channel';
+    final textController = TextEditingController();
+    final confirmEnabled = false.obs;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+            SizedBox(width: 10),
+            Text(
+              'Delete Channel?',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete "$channelName"? This action cannot be undone.',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Type DELETE to confirm:',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: textController,
+              autofocus: true,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'DELETE',
+                hintStyle: const TextStyle(color: AppColors.textSecondary),
+                filled: true,
+                fillColor: const Color(0xFF2C2C2C),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (val) {
+                confirmEnabled.value = val.trim().toUpperCase() == 'DELETE';
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          Obx(
+            () => ElevatedButton(
+              onPressed: confirmEnabled.value
+                  ? () async {
+                      Navigator.of(dialogContext).pop();
+                      final success = await controller.deleteChannel();
+                      if (success && context.mounted) {
+                        Get.offAllNamed('/');
+                      }
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                disabledBackgroundColor: AppColors.error.withOpacity(0.3),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete Channel'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

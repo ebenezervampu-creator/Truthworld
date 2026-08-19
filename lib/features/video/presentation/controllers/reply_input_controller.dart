@@ -2,11 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ReplyInputController extends BaseController {
+class ReplyInputController extends BaseController with ContentValidationMixin {
   ReplyInputController({
     required this.videoId,
     required this.commentId,
@@ -50,6 +51,18 @@ class ReplyInputController extends BaseController {
 
   Future<void> sendReply() async {
     if (replyText.value.trim().isEmpty) return;
+
+    final validation = await validateContent(replyText.value, fieldName: 'Reply');
+    if (!validation.isValid) {
+      Get.snackbar(
+        'Inappropriate Content',
+        validation.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
 
     isSending.value = true;
 

@@ -78,29 +78,39 @@ export class ScoringEngine {
       }
 
       // Count by Bucket & Verdict
-      switch (c.status) {
+      switch (c.status as string) {
         case 'verified_true':
+        case 'correct':
           stats.verified_true++;
           stats.total_verifiable++;
           break;
         case 'mostly_true':
+        case 'mostly_correct':
+        case 'outdated':
           stats.mostly_true++;
           stats.total_verifiable++;
           break;
         case 'disputed':
         case 'partially_true':
+        case 'contested_interpretation':
           stats.disputed++;
           stats.total_verifiable++;
           break;
         case 'unproven':
+        case 'unsupported':
           stats.unproven++;
           stats.total_verifiable++;
           break;
         case 'misleading':
+        case 'needs_context':
           stats.misleading++;
           stats.total_verifiable++;
           break;
         case 'false_claim':
+        case 'verified_false':
+        case 'incorrect':
+        case 'historical_consensus_denial':
+        case 'incorrect_citation':
           stats.false_claim++;
           stats.total_verifiable++;
           break;
@@ -109,14 +119,21 @@ export class ScoringEngine {
         case 'faith_context':
         case 'not_historically_verifiable':
         case 'historical_tradition':
+        case 'doctrinal_unverifiable':
           stats.religious_belief++;
           stats.total_subjective++;
           break;
         case 'opinion_claim':
+        case 'opinion':
+        case 'anecdotal_experience':
+        case 'value_judgment':
+        case 'preference_statement':
+        case 'unverifiable_personal_claim':
           stats.opinion_claim++;
           stats.total_subjective++;
           break;
         case 'satire_claim':
+        case 'satire':
           stats.satire_claim++;
           stats.total_subjective++;
           break;
@@ -124,6 +141,7 @@ export class ScoringEngine {
           stats.verification_timeout++;
           break;
         case 'inconclusive':
+        case 'unverifiable':
           stats.inconclusive++;
           stats.total_verifiable++;
           break;
@@ -159,7 +177,6 @@ export class ScoringEngine {
       analysisState: finalState,
       scoreAvailable: false,
       trustScore: null,
-      videoRating: undefined,
       trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low',

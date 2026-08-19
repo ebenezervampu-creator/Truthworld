@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
@@ -769,6 +770,18 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   Future<void> _createNewPlaylist() async {
     final name = newPlaylistCtrl.text.trim();
     if (name.isEmpty || _dialogController.isCreatingPlaylist.value) return;
+
+    final nameVal = ContentValidator.validate(name, fieldName: 'Playlist Name');
+    if (!nameVal.isValid) {
+      Get.snackbar(
+        'Inappropriate Content',
+        nameVal.message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+      return;
+    }
 
     _dialogController.setCreatingPlaylist(true);
 

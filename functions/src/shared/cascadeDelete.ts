@@ -322,13 +322,18 @@ export const onVideoDeleted = onDocumentDeleted(
     const channelId = data.channelId;
     const jobId = data.jobId;
     const videoUrl = data.videoUrl;
+    const originalUrl = data.originalUrl;
     const thumbnailUrl = data.thumbnailUrl;
+    const md5Hash = data.md5Hash || data.videoHash || data.hash;
 
     console.log(`[VideoCascade] Starting cleanup for video: ${videoId}`);
     const db = admin.firestore();
 
     // 1. Delete subcollections of the video
-    const subcollections = ["views", "likes", "dislikes", "reports", "transcripts", "dailyStats"];
+    const subcollections = [
+      "views", "likes", "dislikes", "reports", "transcripts", "dailyStats",
+      "media", "claim_sources",
+    ];
     for (const sub of subcollections) {
       await deleteQueryBatch(db.collection("videos").doc(videoId).collection(sub));
     }
@@ -352,55 +357,64 @@ export const onVideoDeleted = onDocumentDeleted(
     // 5. Delete copyrights and content verifications
     await deleteQueryBatch(db.collection("copyrights").where("videoId", "==", videoId));
     await deleteQueryBatch(db.collection("content_verifications").where("videoId", "==", videoId));
+    await db.collection("copyright_assets").doc(videoId).delete().catch(() => {});
+    await deleteQueryBatch(db.collection("copyright_assets").where("originalVideoId", "==", videoId));
+    await deleteQueryBatch(db.collection("copyright_chunks").where("assetId", "==", videoId));
 
-    // 6. Delete stats / state documents
+    // 6. Delete denormalized search, moderation, and legacy hash records.
+    await db.collection("video_search").doc(videoId).delete().catch(() => {});
+    await db.collection("shorts").doc(videoId).delete().catch(() => {});
+    await db.collection("admin_review_queue").doc(videoId).delete().catch(() => {});
+    for (const collectionName of ["video_hashes", "video_hashs"]) {
+      if (md5Hash) {
+        await db.collection(collectionName).doc(md5Hash).delete().catch(() => {});
+      }
+      await deleteQueryBatch(db.collection(collectionName).where("videoId", "==", videoId));
+      await deleteQueryBatch(db.collection(collectionName).where("originalVideoId", "==", videoId));
+      await deleteQueryBatch(db.collection(collectionName).where("assetId", "==", videoId));
+      await deleteQueryBatch(db.collection(collectionName).where("jobId", "==", videoId));
+    }
+
+    // 7. Delete stats / state documents
     await db.collection("video_stats").doc(videoId).delete().catch(() => {});
     const stateStatsRef = db.collection("video_state_stats").doc(videoId);
     await deleteQueryBatch(stateStatsRef.collection("states"));
     await stateStatsRef.delete().catch(() => {});
 
-    // 7. Delete daily/hourly stats
+    // 8. Delete daily/hourly stats
     await deleteQueryBatch(db.collection("video_stats_daily").where("videoId", "==", videoId));
     await deleteQueryBatch(db.collection("video_stats_hourly").where("videoId", "==", videoId));
 
-    // 8. Delete qualified views (docs matching pattern: videoId_*)
+    // 9. Delete qualified views (docs matching pattern: videoId_*)
     // Using document ID range query instead of full collection scan + filter
     const qualifiedViewsQuery = db.collection("qualified_views")
       .where(admin.firestore.FieldPath.documentId(), ">=", `${videoId}_`)
       .where(admin.firestore.FieldPath.documentId(), "<", `${videoId}_\uf8ff`);
     await deleteQueryBatch(qualifiedViewsQuery);
 
-    // 9. Delete view dedup
+    // 10. Delete view dedup
     const viewDedupRef = db.collection("viewDedup").doc(videoId);
     await deleteQueryBatch(viewDedupRef.collection("ips"));
     await viewDedupRef.delete().catch(() => {});
 
-    // 10. Delete associated video_jobs (main + sharded)
-    let finalJobId = jobId;
-    if (finalJobId) {
-      const jobDoc = await db.collection("video_jobs").doc(finalJobId).get();
-      if (jobDoc.exists) {
-        const jobData = jobDoc.data();
-        const shard = jobData?.shard;
-        await jobDoc.ref.delete().catch(() => {});
-        if (shard !== undefined) {
-          await db.collection(`video_jobs_${shard}`).doc(finalJobId).delete().catch(() => {});
-        }
-      }
-    } else {
-      const jobsSnap = await db.collection("video_jobs").where("videoId", "==", videoId).get();
-      for (const jobDoc of jobsSnap.docs) {
-        finalJobId = jobDoc.id;
-        const jobData = jobDoc.data();
-        const shard = jobData?.shard;
-        await jobDoc.ref.delete().catch(() => {});
-        if (shard !== undefined) {
-          await db.collection(`video_jobs_${shard}`).doc(finalJobId).delete().catch(() => {});
-        }
+    // 11. Delete associated video_jobs (main + sharded)
+    const jobIds = new Set<string>();
+    if (jobId) jobIds.add(jobId);
+    const jobsSnap = await db.collection("video_jobs").where("videoId", "==", videoId).get();
+    jobsSnap.docs.forEach(jobDoc => jobIds.add(jobDoc.id));
+
+    for (const linkedJobId of jobIds) {
+      const jobDoc = await db.collection("video_jobs").doc(linkedJobId).get();
+      if (!jobDoc.exists) continue;
+
+      const shard = jobDoc.data()?.shard;
+      await jobDoc.ref.delete().catch(() => {});
+      if (shard !== undefined) {
+        await db.collection(`video_jobs_${shard}`).doc(linkedJobId).delete().catch(() => {});
       }
     }
 
-    // 11. Decrement videoCount on channel
+    // 12. Decrement videoCount on channel
     if (channelId) {
       await db.collection("channels").doc(channelId).update({
         "videoCount": admin.firestore.FieldValue.increment(-1),
@@ -408,17 +422,18 @@ export const onVideoDeleted = onDocumentDeleted(
       }).catch(() => {});
     }
 
-    // 12. Delete Storage folders and files
+    // 13. Delete Storage folders and files
     await deleteStorageFolder(`videos/${videoId}`);
     await deleteStorageFolder(`thumbnails/${videoId}`);
     await deleteStorageFolder(`resolutions/${videoId}`);
 
-    if (finalJobId) {
-      await deleteStorageFolder(`transcripts/${finalJobId}`);
-      await deleteStorageFolder(`translations/${finalJobId}`);
-      await deleteStorageFolder(`factChecks/${finalJobId}`);
-      await deleteStorageFolder(`subtitles/${finalJobId}`);
-      await deleteStorageFolder(`dubbing_results/${finalJobId}`);
+    for (const linkedJobId of jobIds) {
+      await deleteStorageFolder(`transcripts/${linkedJobId}`);
+      await deleteStorageFolder(`translations/${linkedJobId}`);
+      await deleteStorageFolder(`factChecks/${linkedJobId}`);
+      await deleteStorageFolder(`factchecks/${linkedJobId}`);
+      await deleteStorageFolder(`subtitles/${linkedJobId}`);
+      await deleteStorageFolder(`dubbing_results/${linkedJobId}`);
     }
 
     // Parse and delete specific media files from URL
@@ -430,8 +445,12 @@ export const onVideoDeleted = onDocumentDeleted(
       const thumbPath = getStoragePathFromUrl(thumbnailUrl);
       if (thumbPath) await deleteStorageFile(thumbPath);
     }
+    if (originalUrl && originalUrl !== videoUrl) {
+      const originalPath = getStoragePathFromUrl(originalUrl);
+      if (originalPath) await deleteStorageFile(originalPath);
+    }
 
-    // 13. Decrement videoCount on associated topics
+    // 14. Decrement videoCount on associated topics
     const topicSlug = data.topicId;
     const topicSlugs = data.topics || [];
     const allTopicSlugs = new Set<string>();
@@ -457,7 +476,7 @@ export const onVideoDeleted = onDocumentDeleted(
       }
     }
 
-    // 14. Remove video from featuredVideoIds in all topics
+    // 15. Remove video from featuredVideoIds in all topics
     const topicsWithFeaturedSnap = await db.collection("topics").where("featuredVideoIds", "array-contains", videoId).get();
     for (const doc of topicsWithFeaturedSnap.docs) {
       const featuredVideoIds = doc.data().featuredVideoIds || [];
@@ -467,7 +486,7 @@ export const onVideoDeleted = onDocumentDeleted(
       }).catch(err => console.error(`[VideoCascade] Error updating featuredVideoIds in topic ${doc.id}:`, err));
     }
 
-    // 15. Remove video from all public and private playlists
+    // 16. Remove video from all public and private playlists
     const playlistsSnap = await db.collection("playlists").where("videoIds", "array-contains", videoId).get();
     for (const doc of playlistsSnap.docs) {
       const videoIds = doc.data().videoIds || [];

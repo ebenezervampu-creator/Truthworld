@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'home_theme.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Optimized Video Card Component with RepaintBoundary for performance
 /// Extracted from monolithic home.dart
@@ -18,11 +17,7 @@ class VideoCard extends StatelessWidget {
   final bool isCompact;
 
   const VideoCard({
-    super.key,
-    required this.video,
-    required this.heroPrefix,
-    required this.formatViews,
-    required this.formatTimestamp,
+    required this.video, required this.heroPrefix, required this.formatViews, required this.formatTimestamp, super.key,
     this.isCompact = false,
   });
 
@@ -35,7 +30,6 @@ class VideoCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: HomeTheme.darkOnSurfaceVariant.withValues(alpha: 0.1),
-            width: 1,
           ),
           boxShadow: [
             BoxShadow(
@@ -199,7 +193,7 @@ class VideoCard extends StatelessWidget {
   }
 
   Widget _buildError() {
-    return Container(
+    return ColoredBox(
       color: HomeTheme.darkSurfaceVariant.withValues(alpha: 0.3),
       child: const Icon(
         Icons.broken_image_rounded,
@@ -217,8 +211,8 @@ class _Avatar extends StatelessWidget {
   final String? placeholderText;
 
   const _Avatar({
-    this.imageUrl,
     required this.radius,
+    this.imageUrl,
     this.placeholderText,
   });
 
@@ -295,7 +289,7 @@ class VideoCardSkeleton extends StatelessWidget {
           Shimmer.fromColors(
             baseColor: HomeTheme.darkSurfaceVariant.withValues(alpha: 0.3),
             highlightColor: HomeTheme.darkSurfaceVariant.withValues(alpha: 0.1),
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 18,
               backgroundColor: HomeTheme.darkSurfaceVariant,
             ),

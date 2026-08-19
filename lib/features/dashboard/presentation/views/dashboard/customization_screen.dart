@@ -173,15 +173,15 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     if (channelStatus == 'underReview') {
       bannerColor = AppColors.info;
       icon = Icons.sync_rounded;
-      title = 'Branding Under Gemini AI Moderation';
+      title = 'Branding Under Verification System Review';
       subtitle =
-          'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
+          'Our Verification System is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
     } else if (channelStatus == 'verificationRejected') {
       bannerColor = AppColors.error;
       icon = Icons.error_outline_rounded;
-      title = 'Branding Verification Rejected by Gemini AI';
+      title = 'Branding Verification Rejected';
       subtitle =
-          'We created channel according to community guidelines, then channel selected for manual verification. ${reason.isNotEmpty ? '\n\nGemini Response: $reason' : ''}';
+          'We created channel according to community guidelines, then channel selected for manual verification. ${reason.isNotEmpty ? '\n\nVerification System Response: $reason' : ''}';
     } else {
       return const SizedBox.shrink();
     }
@@ -714,7 +714,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         fit: BoxFit.cover,
         placeholder: (context, url) => const Center(
           child: CircularProgressIndicator(
-            color: AppColors.brand,
+            color: Colors.white,
             strokeWidth: 2,
           ),
         ),
@@ -726,7 +726,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               Icon(
                 Icons.broken_image_rounded,
                 size: 40,
-                color: AppColors.textTertiary,
+                color: Colors.white,
               ),
               SizedBox(height: 6),
               Text(
@@ -748,7 +748,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                   ? Icons.account_circle_rounded
                   : Icons.add_photo_alternate_rounded,
               size: 48,
-              color: AppColors.brand,
+              color: Colors.white,
             ),
             const SizedBox(height: 8),
             Text(
@@ -772,6 +772,71 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       );
     }
 
+    final pickerCard = Container(
+      height: isCircular ? height : null,
+      width: isCircular ? height : double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: isCircular
+            ? BorderRadius.circular(height / 2)
+            : BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.bgDivider,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned.fill(child: imageWidget),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    AppColors.bgPage.withValues(alpha: 0.35),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF27272A),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: InkWell(
@@ -779,70 +844,16 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         borderRadius: isCircular
             ? BorderRadius.circular(height / 2)
             : BorderRadius.circular(12),
-        child: Container(
-          height: height,
-          width: isCircular ? height : double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.bgSurface,
-            borderRadius: isCircular
-                ? BorderRadius.circular(height / 2)
-                : BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.brand.withValues(alpha: 0.4),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+        child: isCircular
+            ? SizedBox(
+                width: height,
+                height: height,
+                child: pickerCard,
+              )
+            : AspectRatio(
+                aspectRatio: 16 / 9,
+                child: pickerCard,
               ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Positioned.fill(child: imageWidget),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        AppColors.bgPage.withValues(alpha: 0.35),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.brand,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt_rounded,
-                    color: AppColors.textPrimary,
-                    size: 18,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

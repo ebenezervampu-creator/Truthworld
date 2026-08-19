@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -51,15 +52,62 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
 
   void _onSave() {
     if (_formKey.currentState!.validate()) {
+      final title = _titleController.text.trim();
+      final titleResult = ContentValidator.validate(title, fieldName: 'Title');
+      if (!titleResult.isValid) {
+        Get.snackbar(
+          'Inappropriate Content',
+          titleResult.message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
+        return;
+      }
+
+      final description = _descriptionController.text.trim();
+      if (description.isNotEmpty) {
+        final descResult = ContentValidator.validate(
+          description,
+          fieldName: 'Description',
+        );
+        if (!descResult.isValid) {
+          Get.snackbar(
+            'Inappropriate Content',
+            descResult.message,
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppColors.error,
+            colorText: AppColors.textPrimary,
+          );
+          return;
+        }
+      }
+
+      final tags = _tagsController.text
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .take(5)
+          .toList();
+
+      if (tags.isNotEmpty) {
+        final tagsResult = ContentValidator.validateTags(tags);
+        if (!tagsResult.isValid) {
+          Get.snackbar(
+            'Inappropriate Content',
+            tagsResult.message,
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppColors.error,
+            colorText: AppColors.textPrimary,
+          );
+          return;
+        }
+      }
+
       final updatedData = {
-        'title': _titleController.text,
-        'description': _descriptionController.text,
-        'tags': _tagsController.text
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .take(5)
-            .toList(),
+        'title': title,
+        'description': description,
+        'tags': tags,
         'visibility': _selectedVisibility.value,
         'isKidFriendly': _isKidFriendly.value,
         'showLikeCount': _showLikeCount.value,
@@ -86,7 +134,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
             padding: const EdgeInsets.only(right: 12),
             child: ElevatedButton.icon(
               onPressed: _onSave,
-              icon: const Icon(Icons.save, size: 18),
+              icon: const Icon(Icons.save, size: 18, color: Colors.white),
               label: Text('Save', style: AppTextStyles.buttonText),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
@@ -109,14 +157,14 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
               _buildTextField(
                 controller: _titleController,
                 label: 'Title',
-                validator: (value) =>
-                    value!.isEmpty ? 'Title cannot be empty' : null,
+                validator: ContentValidator.formValidator('Title'),
               ),
               const SizedBox(height: 20),
               _buildTextField(
                 controller: _descriptionController,
                 label: 'Description',
                 maxLines: 5,
+                validator: ContentValidator.formValidator('Description', required: false),
               ),
               const SizedBox(height: 20),
               _buildTextField(
@@ -124,9 +172,13 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
                 label: 'Tags (comma separated, max 5)',
                 validator: (val) {
                   if (val != null && val.trim().isNotEmpty) {
-                    final count = val.split(',').where((e) => e.trim().isNotEmpty).length;
-                    if (count > 5) {
+                    final tagList = val.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                    if (tagList.length > 5) {
                       return 'Maximum 5 tags allowed';
+                    }
+                    for (final tag in tagList) {
+                      final res = ContentValidator.validate(tag, fieldName: 'Tag');
+                      if (!res.isValid) return res.message;
                     }
                   }
                   return null;

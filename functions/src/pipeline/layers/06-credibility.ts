@@ -394,8 +394,25 @@ export class CredibilityEngine {
               claimSourcesSnap.docs.forEach(doc => {
                 const data = doc.data();
                 if (data?.url && typeof data.url === 'string') {
-                  const targetLabel = data.target ? ` [Target: ${data.target}]` : '';
-                  communitySources.push(`${data.url}${targetLabel}`);
+                  // v12.1 SECURITY FIX: Validate and sanitize community-submitted URLs
+                  const rawUrl = data.url.trim();
+
+                  // 1. Reject excessively long URLs (potential payload)
+                  if (rawUrl.length > 2048) return;
+
+                  // 2. Reject URLs with control characters or newlines (prompt injection vector)
+                  if (/[\x00-\x1f\x7f]/.test(rawUrl)) return;
+
+                  // 3. Validate URL format and enforce HTTPS only
+                  try {
+                    const parsed = new URL(rawUrl);
+                    if (parsed.protocol !== 'https:') return;
+                    // 4. Only keep the clean URL (strip any appended target labels that could inject instructions)
+                    communitySources.push(parsed.href);
+                  } catch {
+                    // Invalid URL — silently skip
+                    return;
+                  }
                 }
               });
             }
@@ -403,7 +420,10 @@ export class CredibilityEngine {
             logger.warn("[Credibility] Could not fetch community claim_sources", { jobId, targetVideoId, error: (e as any)?.message });
           }
 
-          const channelProvidedSources = Array.from(new Set([...rawProvidedSources, ...disputeSources, ...communitySources])).filter(s => typeof s === 'string' && s.trim().length > 0);
+          // v12.1 SECURITY FIX: Separate creator-provided sources from untrusted community sources.
+          // Creator sources are labeled as "PRIMARY CANDIDATES"; community sources are sandboxed.
+          const creatorProvidedSources = Array.from(new Set([...rawProvidedSources, ...disputeSources])).filter(s => typeof s === 'string' && s.trim().length > 0);
+          const sanitizedCommunitySources = Array.from(new Set(communitySources)).filter(s => !creatorProvidedSources.includes(s));
 
           const deepResearchOptions = {
             jobId: jobId,
@@ -412,7 +432,8 @@ export class CredibilityEngine {
             minSourcesRequired: DEEP_RESEARCH_CONFIG.MIN_SOURCES_PER_CLAIM,
             sourceDiversityRequired: DEEP_RESEARCH_CONFIG.SOURCE_DIVERSITY_REQUIRED,
             isDiscoverySensitive: isDiscoverySensitive || isSensitiveTopic,
-            providedSources: channelProvidedSources,
+            providedSources: creatorProvidedSources,
+            communitySources: sanitizedCommunitySources, // v12.1: Separated & sandboxed
           };
 
           // v10.5 Audit #8: Pre-verification cost logging
@@ -656,7 +677,6 @@ export class CredibilityEngine {
         trustLabel:       'Not Scored' as any,
         confidence:       0,
         confidenceTier:   'low' as any,
-        videoRating:      0,
         
         factors:          null, // v12.0: Scoring factors removed
         chapters:         synthesis.chapters || [],
@@ -890,7 +910,6 @@ export class CredibilityEngine {
       trustLabel: 'Not Scored' as any,
       confidence: 0,
       confidenceTier: 'low' as any,
-      videoRating: 0,
       factors: null,
       deductions: [],
       totalClaims: 0,
@@ -1086,26 +1105,32 @@ export class CredibilityEngine {
     const bucket = admin.storage().bucket();
     const factCheckUrl = `gs://${bucket.name}/${latestPath}`;
 
-    const finalTrustScore = (result.trustScore === null || isNaN(result.trustScore as any)) ? 0 : result.trustScore as number;
-    const finalVideoRating = result.videoRating ?? (isNaN(finalTrustScore) ? 0 : Number((finalTrustScore / 10).toFixed(1)));
-
+    // v12.1 FIX: Distinguish between "unscored" (null) and "scored 0" (genuine low-trust).
+    // When scoring is disabled (v12.0 decoupled mode), trustScore is null — do NOT coerce to 0.
+    const isScored = result.scoreAvailable !== false && result.trustScore !== null && !isNaN(result.trustScore as any);
+    const finalTrustScore = isScored ? (result.trustScore as number) : null;
     // Update video_jobs with the factCheckUrl
     await db().collection("video_jobs").doc(jobId).update({
       "outputs.factCheckUrl": factCheckUrl,
       "outputs.trustScore": finalTrustScore,
-      "outputs.videoRating": isNaN(finalVideoRating) ? 0 : finalVideoRating,
+      "outputs.scoreAvailable": isScored,
       updatedAt: Date.now(),
     });
 
     // Skip Firestore factChecks write to comply with storage-only verification results policy
     logger.info("[Credibility] Skipped Firestore factChecks write, result saved to Storage only", { jobId });
 
-    // Directly update channel reputation and propagate to linked videos
-    try {
-      const { updateChannelReputationAndVideos } = await import("../../channels/reputation_triggers.js");
-      await updateChannelReputationAndVideos(jobId, isNaN(finalVideoRating) ? 0 : finalVideoRating);
-    } catch (err) {
-      logger.error("[Credibility] Failed to propagate reputation updates", { jobId, err });
+    // v12.1 FIX: Only update channel reputation when a real score was computed.
+    // Writing unscored sentinel values into EWMA would poison channel ratings.
+    if (isScored && finalTrustScore !== null) {
+      try {
+        const { updateChannelReputationAndVideos } = await import("../../channels/reputation_triggers.js");
+        await updateChannelReputationAndVideos(jobId, finalTrustScore);
+      } catch (err) {
+        logger.error("[Credibility] Failed to propagate reputation updates", { jobId, err });
+      }
+    } else {
+      logger.info("[Credibility] Skipped reputation update — scoring not available (v12.0 decoupled mode)", { jobId });
     }
 
     // Note: Propagation to video collection is now handled centrally by AggregationLayer.onStageComplete

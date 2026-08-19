@@ -43,6 +43,9 @@ class VideoChaptersBottomSheet extends StatelessWidget {
           Get.isRegistered<TowerPlayerController>(tag: videoTag)) {
         return Get.find<TowerPlayerController>(tag: videoTag);
       }
+      if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+        return Get.find<TowerPlayerController>(tag: video.id);
+      }
       if (Get.isRegistered<TowerPlayerController>()) {
         return Get.find<TowerPlayerController>();
       }
@@ -163,159 +166,166 @@ class ChapterTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ctrl = playerCtrl;
+    if (ctrl == null) {
+      return _buildContent(context, isCurrent: false);
+    }
     return Obx(() {
-      final isCurrent = playerCtrl?.currentChapter.value == chapter;
-      final thumbUrl =
-          (chapter.thumbnailUrl != null && chapter.thumbnailUrl!.isNotEmpty)
-          ? chapter.thumbnailUrl!
-          : video.thumbnailUrl;
+      final isCurrent = ctrl.currentChapter.value == chapter;
+      return _buildContent(context, isCurrent: isCurrent);
+    });
+  }
 
-      return InkWell(
-        onTap:
-            onTapOverride ??
-            () {
-              if (playerCtrl != null) {
-                unawaited(playerCtrl!.seekTo(chapter.startTime));
-              }
-            },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: isCurrent ? AppColors.bgSurfaceHover : Colors.transparent,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Chapter Thumbnail Container
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 140,
-                  height: 78,
-                  color: AppColors.bgInput,
-                  child: thumbUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: thumbUrl,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => const Center(
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+  Widget _buildContent(BuildContext context, {required bool isCurrent}) {
+    final thumbUrl =
+        (chapter.thumbnailUrl != null && chapter.thumbnailUrl!.isNotEmpty)
+            ? chapter.thumbnailUrl!
+            : video.thumbnailUrl;
+
+    return InkWell(
+      onTap: onTapOverride ??
+          () {
+            if (playerCtrl != null) {
+              unawaited(playerCtrl!.seekTo(chapter.startTime));
+            }
+          },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: isCurrent ? AppColors.bgSurfaceHover : Colors.transparent,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Chapter Thumbnail Container
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 140,
+                height: 78,
+                color: AppColors.bgInput,
+                child: thumbUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: thumbUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
                           ),
-                          errorWidget: (context, url, error) => const Center(
-                            child: Icon(
-                              Icons.play_circle_outline,
-                              color: Colors.white, // Rule: White icon
-                              size: 28,
-                            ),
-                          ),
-                        )
-                      : const Center(
+                        ),
+                        errorWidget: (context, url, error) => const Center(
                           child: Icon(
                             Icons.play_circle_outline,
                             color: Colors.white, // Rule: White icon
                             size: 28,
                           ),
                         ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Title and Action Icons
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      chapter.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.twTypography.title.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        height: 1.2,
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.play_circle_outline,
+                          color: Colors.white, // Rule: White icon
+                          size: 28,
+                        ),
                       ),
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Title and Action Icons
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    chapter.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.twTypography.title.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      height: 1.2,
                     ),
-                    if (isCurrent) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          // Share Icon
-                          InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () {
-                              ShareBottomSheet.show(
-                                title: chapter.title,
-                                url:
-                                    'https://truthworld.app/watch?v=${video.id}&t=${chapter.startTime.inSeconds}',
-                                thumbnailUrl:
-                                    chapter.thumbnailUrl ?? video.thumbnailUrl,
-                                currentPosition: chapter.startTime,
-                              );
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.share_outlined,
-                                color: Colors.white, // Rule: White icon
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Replay Icon
-                          InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () {
-                              if (playerCtrl != null) {
-                                unawaited(
-                                  playerCtrl!.seekTo(chapter.startTime),
-                                );
-                              }
-                            },
-                            child: const Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.repeat_rounded,
-                                color: Colors.white, // Rule: White icon
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Timestamp Pill Badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF162A45), // Signature dark blue badge
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  chapter.formattedStartTime,
-                  style: const TextStyle(
-                    color: Color(0xFF3EA6FF), // Signature light blue time text
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
+                  if (isCurrent) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        // Share Icon
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            ShareBottomSheet.show(
+                              title: chapter.title,
+                              url:
+                                  'https://truthworld.app/watch?v=${video.id}&t=${chapter.startTime.inSeconds}',
+                              thumbnailUrl:
+                                  chapter.thumbnailUrl ?? video.thumbnailUrl,
+                              currentPosition: chapter.startTime,
+                            );
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.share_outlined,
+                              color: Colors.white, // Rule: White icon
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Replay Icon
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            if (playerCtrl != null) {
+                              unawaited(
+                                playerCtrl!.seekTo(chapter.startTime),
+                              );
+                            }
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.repeat_rounded,
+                              color: Colors.white, // Rule: White icon
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Timestamp Pill Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF162A45), // Signature dark blue badge
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                chapter.formattedStartTime,
+                style: const TextStyle(
+                  color: Color(0xFF3EA6FF), // Signature light blue time text
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    });
+      ),
+    );
   }
 }

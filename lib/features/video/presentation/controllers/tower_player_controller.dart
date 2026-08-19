@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:chewie/chewie.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,6 +58,26 @@ class TowerPlayerController extends BaseController {
   }
   // ── Global registry ───────────────────────────────────────
   static final List<TowerPlayerController> _activePlayers = [];
+  static List<TowerPlayerController> get activePlayers => List.unmodifiable(_activePlayers);
+
+  /// Find active TowerPlayerController by tag or fallback to any registered/active instance
+  static TowerPlayerController? getForTagOrActive(String? tag) {
+    if (tag != null && tag.isNotEmpty && Get.isRegistered<TowerPlayerController>(tag: tag)) {
+      return Get.find<TowerPlayerController>(tag: tag);
+    }
+    if (Get.isRegistered<TowerPlayerController>()) {
+      return Get.find<TowerPlayerController>();
+    }
+    if (_activePlayers.isNotEmpty) {
+      if (tag != null && tag.isNotEmpty) {
+        final match = _activePlayers.firstWhereOrNull((p) => p.tag == tag);
+        if (match != null) return match;
+      }
+      return _activePlayers.last;
+    }
+    return null;
+  }
+
   static const MethodChannel _pipChannel = MethodChannel(
     'com.example.truthworld/pip',
   );
@@ -404,6 +425,7 @@ class TowerPlayerController extends BaseController {
   final RxString activeSubLang = 'Off'.obs;
   final RxList<SubtitleTrack> subtitleTracks = <SubtitleTrack>[].obs;
   final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
+  final RxBool isLoadingSubtitles = false.obs;
   final RxString currentSubtitle = ''.obs;
 
   // ── Global Subtitle Appearance Options (Industry Standards) ──
@@ -1054,7 +1076,9 @@ class TowerPlayerController extends BaseController {
       if (!Get.isRegistered<VideoController>(tag: tag)) return;
       final vc = Get.find<VideoController>(tag: tag);
 
-      if (vc.availableSubtitles.isNotEmpty && subtitleTracks.isEmpty) {
+      if (vc.availableSubtitles.isNotEmpty &&
+          (subtitleTracks.isEmpty ||
+              subtitleTracks.length != vc.availableSubtitles.length)) {
         subtitleTracks.assignAll(
           vc.availableSubtitles
               .map(
@@ -1112,13 +1136,15 @@ class TowerPlayerController extends BaseController {
           );
           if (match != null) {
             setSubtitles(enabled: true, track: match);
-          } else if (subtitleTracks.isNotEmpty) {
+          } else if (subtitleTracks.isNotEmpty && activeSubLang.value.isEmpty) {
             setSubtitles(enabled: true, track: subtitleTracks.first);
           }
         }
       }
 
-      if (vc.availableAudioTracks.isNotEmpty && audioTracks.isEmpty) {
+      if (vc.availableAudioTracks.isNotEmpty &&
+          (audioTracks.isEmpty ||
+              audioTracks.length != vc.availableAudioTracks.length)) {
         audioTracks.assignAll(
           vc.availableAudioTracks
               .map(
@@ -1616,54 +1642,239 @@ class TowerPlayerController extends BaseController {
 
   Future<void> fetchAndParseSubtitles(String url) async {
     if (url.isEmpty) return;
+    isLoadingSubtitles.value = true;
     try {
-      final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-      final response = await http.get(Uri.parse(resolvedUrl));
-      if (response.statusCode == 200) {
-        var content = utf8.decode(response.bodyBytes, allowMalformed: true);
-        if (content.startsWith('\uFEFF')) content = content.substring(1);
-        final trimmed = content.trim();
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-          subtitleSegments.assignAll(_parseJsonTranscript(trimmed));
-        } else {
-          subtitleSegments.assignAll(_parseSRT(content));
+      String? content;
+
+      // 1. Attempt direct HTTP download
+      try {
+        final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
+        final response = await http.get(Uri.parse(resolvedUrl));
+        if (response.statusCode == 200) {
+          content = utf8.decode(response.bodyBytes, allowMalformed: true);
         }
+      } catch (_) {}
+
+      // 2. Fallback: FirebaseStorage SDK (supports private files, tokens, and gs:// paths)
+      if (content == null || content.isEmpty) {
+        try {
+          Uint8List? data;
+          if (url.startsWith('gs://')) {
+            data = await FirebaseStorage.instance.refFromURL(url).getData();
+          } else if (url.startsWith('https://storage.googleapis.com/') ||
+              url.startsWith('https://firebasestorage.googleapis.com/')) {
+            data = await FirebaseStorage.instance.refFromURL(url).getData();
+          } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
+            data = await FirebaseStorage.instance.ref(url).getData();
+          }
+          if (data != null && data.isNotEmpty) {
+            content = utf8.decode(data, allowMalformed: true);
+          }
+        } catch (e) {
+          debugPrint('[TowerPlayer] FirebaseStorage SDK fetch error: $e');
+        }
+      }
+
+      if (content != null && content.isNotEmpty) {
+        parseSubtitleContent(content);
       }
     } catch (e) {
       debugPrint('[TowerPlayer] Subtitle error: $e');
       subtitleSegments.clear();
+    } finally {
+      isLoadingSubtitles.value = false;
+    }
+  }
+
+  void parseSubtitleContent(String content) {
+    var raw = content;
+    if (raw.startsWith('\uFEFF')) raw = raw.substring(1);
+    final trimmed = raw.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      final jsonSegs = _parseJsonTranscript(trimmed);
+      if (jsonSegs.isNotEmpty) {
+        subtitleSegments.assignAll(jsonSegs);
+        return;
+      }
+    }
+    final srtSegs = _parseSRT(raw);
+    if (srtSegs.isNotEmpty) {
+      subtitleSegments.assignAll(srtSegs);
+      return;
+    }
+
+    // Fallback: If not formatted with timestamps, parse raw text lines into readable segments
+    final lines = raw
+        .replaceAll('\r\n', '\n')
+        .split(RegExp(r'\n{2,}|\n(?=[A-Z0-9])'))
+        .map((l) => l.replaceAll('\n', ' ').trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (lines.isNotEmpty) {
+      final segs = <SubtitleSegment>[];
+      for (var i = 0; i < lines.length; i++) {
+        final startMs = i * 4000;
+        final endMs = (i + 1) * 4000;
+        segs.add(
+          SubtitleSegment(
+            start: Duration(milliseconds: startMs),
+            end: Duration(milliseconds: endMs),
+            text: lines[i],
+          ),
+        );
+      }
+      subtitleSegments.assignAll(segs);
     }
   }
 
   List<SubtitleSegment> _parseJsonTranscript(String content) {
     final segs = <SubtitleSegment>[];
     try {
-      final decoded = json.decode(content);
-      final list = decoded is List
-          ? decoded
-          : (decoded is Map ? (decoded['segments'] ?? decoded['words'] ?? []) : []);
-      if (list is List) {
-        for (final item in list) {
+      final decoded = jsonDecode(content);
+
+      if (decoded is List) {
+        for (final item in decoded) {
           if (item is Map) {
-            final start = (item['start'] as num?)?.toDouble() ?? 0.0;
-            final end = (item['end'] as num?)?.toDouble() ?? (start + 2.0);
-            final text = (item['text'] ?? item['translatedText'] ?? item['word'] ?? '').toString().trim();
-            if (text.isNotEmpty) {
-              final startMs = (start * (start < 10000 ? 1000 : 1)).round();
-              final endMs = (end * (end < 10000 ? 1000 : 1)).round();
-              segs.add(SubtitleSegment(
-                start: Duration(milliseconds: startMs),
-                end: Duration(milliseconds: endMs),
-                text: text,
-              ));
+            final seg = _segmentFromMap(item);
+            if (seg != null) segs.add(seg);
+          }
+        }
+      } else if (decoded is Map) {
+        // 1. Check utterances (AssemblyAI speaker turns)
+        if (decoded['utterances'] is List &&
+            (decoded['utterances'] as List).isNotEmpty) {
+          for (final item in (decoded['utterances'] as List)) {
+            if (item is Map) {
+              final seg = _segmentFromMap(item);
+              if (seg != null) segs.add(seg);
             }
           }
+        }
+        // 2. Check segments (Whisper or standard pipeline)
+        else if (decoded['segments'] is List &&
+            (decoded['segments'] as List).isNotEmpty) {
+          for (final item in (decoded['segments'] as List)) {
+            if (item is Map) {
+              final seg = _segmentFromMap(item);
+              if (seg != null) segs.add(seg);
+            }
+          }
+        }
+        // 3. Check paragraphs
+        else if (decoded['paragraphs'] is List &&
+            (decoded['paragraphs'] as List).isNotEmpty) {
+          for (final item in (decoded['paragraphs'] as List)) {
+            if (item is Map) {
+              final seg = _segmentFromMap(item);
+              if (seg != null) segs.add(seg);
+            }
+          }
+        }
+        // 4. Check words (group consecutive words into sentence segments)
+        else if (decoded['words'] is List &&
+            (decoded['words'] as List).isNotEmpty) {
+          final wordsList = (decoded['words'] as List).whereType<Map>().toList();
+          final currentChunk = <Map>[];
+          for (var i = 0; i < wordsList.length; i++) {
+            final w = wordsList[i];
+            currentChunk.add(w);
+            final wordText = (w['text'] ?? w['word'] ?? '').toString().trim();
+            final isPunctuationEnd = wordText.endsWith('.') ||
+                wordText.endsWith('?') ||
+                wordText.endsWith('!') ||
+                wordText.endsWith(';') ||
+                currentChunk.length >= 8;
+            if (isPunctuationEnd || i == wordsList.length - 1) {
+              final startNum =
+                  (currentChunk.first['start'] as num?)?.toDouble() ?? 0.0;
+              final endNum =
+                  (currentChunk.last['end'] as num?)?.toDouble() ??
+                  (startNum + 2000);
+              final startMs =
+                  (startNum < 10000 ? startNum * 1000 : startNum).round();
+              final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
+              final sentenceText = currentChunk
+                  .map(
+                    (e) => (e['text'] ?? e['word'] ?? '').toString().trim(),
+                  )
+                  .where((t) => t.isNotEmpty)
+                  .join(' ');
+              if (sentenceText.isNotEmpty) {
+                segs.add(
+                  SubtitleSegment(
+                    start: Duration(milliseconds: startMs),
+                    end: Duration(milliseconds: endMs),
+                    text: sentenceText,
+                  ),
+                );
+              }
+              currentChunk.clear();
+            }
+          }
+        }
+        // 5. Fallback: single text / transcript string
+        else if (decoded['text'] is String &&
+            (decoded['text'] as String).isNotEmpty) {
+          final fullText = (decoded['text'] as String).trim();
+          segs.add(
+            SubtitleSegment(
+              start: Duration.zero,
+              end: const Duration(hours: 2),
+              text: fullText,
+            ),
+          );
+        } else if (decoded['transcript'] is String &&
+            (decoded['transcript'] as String).isNotEmpty) {
+          final fullText = (decoded['transcript'] as String).trim();
+          segs.add(
+            SubtitleSegment(
+              start: Duration.zero,
+              end: const Duration(hours: 2),
+              text: fullText,
+            ),
+          );
         }
       }
     } catch (e) {
       debugPrint('[TowerPlayer] JSON transcript parse error: $e');
     }
     return segs;
+  }
+
+  SubtitleSegment? _segmentFromMap(Map item) {
+    final startVal = item['start'] ??
+        item['startMs'] ??
+        item['startTime'] ??
+        item['startTimeMs'];
+    final endVal = item['end'] ??
+        item['endMs'] ??
+        item['endTime'] ??
+        item['endTimeMs'];
+    final text = (item['text'] ??
+            item['sentence'] ??
+            item['content'] ??
+            item['transcript'] ??
+            item['word'] ??
+            '')
+        .toString()
+        .trim();
+    if (text.isEmpty) return null;
+
+    final startNum = (startVal is num)
+        ? startVal.toDouble()
+        : (double.tryParse(startVal?.toString() ?? '') ?? 0.0);
+    final endNum = (endVal is num)
+        ? endVal.toDouble()
+        : (double.tryParse(endVal?.toString() ?? '') ?? (startNum + 2.0));
+
+    final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
+    final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
+
+    return SubtitleSegment(
+      start: Duration(milliseconds: startMs),
+      end: Duration(milliseconds: endMs),
+      text: text,
+    );
   }
 
   List<SubtitleSegment> _parseSRT(String content) {
@@ -1706,15 +1917,32 @@ class TowerPlayerController extends BaseController {
   }
 
   Duration _parseSRTTime(String t) {
-    final parts = t.trim().replaceAll(',', '.').split(':');
-    if (parts.length != 3) return Duration.zero;
-    final sParts = parts[2].split('.');
-    return Duration(
-      hours: int.parse(parts[0]),
-      minutes: int.parse(parts[1]),
-      seconds: int.parse(sParts[0]),
-      milliseconds: sParts.length > 1 ? int.parse(sParts[1]) : 0,
-    );
+    final cleanTime = t.trim().split(RegExp(r'\s+'))[0].replaceAll(',', '.');
+    final parts = cleanTime.split(':');
+    if (parts.length < 2) return Duration.zero;
+
+    var h = 0;
+    var m = 0;
+    var sSec = '';
+
+    if (parts.length == 3) {
+      h = int.tryParse(parts[0]) ?? 0;
+      m = int.tryParse(parts[1]) ?? 0;
+      sSec = parts[2];
+    } else if (parts.length == 2) {
+      m = int.tryParse(parts[0]) ?? 0;
+      sSec = parts[1];
+    }
+
+    final sParts = sSec.split('.');
+    final s = int.tryParse(sParts[0]) ?? 0;
+    var ms = 0;
+    if (sParts.length > 1) {
+      final msStr = sParts[1].padRight(3, '0').substring(0, 3);
+      ms = int.tryParse(msStr) ?? 0;
+    }
+
+    return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
   }
 
   // ─── Audio language ──────────────────────────────────────

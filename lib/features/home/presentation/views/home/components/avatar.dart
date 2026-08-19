@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import 'home_theme.dart';
+import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
 
 /// Reusable Avatar component extracted from home.dart
 class Avatar extends StatelessWidget {
@@ -13,16 +13,15 @@ class Avatar extends StatelessWidget {
   final bool showBorder;
 
   const Avatar({
-    super.key,
+    required this.radius, super.key,
     this.imageUrl,
-    required this.radius,
     this.placeholderText,
     this.showBorder = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
 
     return Container(
       decoration: showBorder
@@ -30,7 +29,6 @@ class Avatar extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(
                 color: HomeTheme.primaryAccent.withValues(alpha: 0.2),
-                width: 1,
               ),
             )
           : null,

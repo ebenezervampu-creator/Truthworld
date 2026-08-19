@@ -43,4 +43,17 @@ abstract class LibraryRepository {
 
   /// Toggle watch later status.
   Future<Result<void>> toggleWatchLater(String userId, String videoId);
+
+  /// Fetch saved videos for the current user.
+  Future<Result<List<Map<String, dynamic>>>> getSavedVideos(
+    String userId, {
+    int page = 1,
+    int limit = 20,
+  });
+
+  /// Toggle saved video status.
+  Future<Result<void>> toggleSaveVideo(
+    String userId,
+    Map<String, dynamic> videoMap,
+  );
 }

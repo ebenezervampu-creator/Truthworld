@@ -1,8 +1,11 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
 import { MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
+import { isTopicsBypassed } from "../moderation/moderationModes";
+import { requireAdmin } from "../utils/auth";
 
 const db = () => admin.firestore();
 
@@ -96,6 +99,20 @@ export const onTopicWritten = onDocumentWritten(
 
     // Prevent infinite loop: if details did not change and we already moderated it
     if (!detailsChanged && (afterData.geminiApproved !== undefined || afterData.status !== "underReview")) {
+      return;
+    }
+
+    // Check if Topic moderation is in Admin Only mode (Gemini bypassed)
+    const bypassed = await isTopicsBypassed();
+    if (bypassed) {
+      logger.info(`[onTopicWritten] Topics moderation toggle is ON (Admin Only). Bypassing Gemini AI for topic ${topicId} and holding for Admin manual review.`);
+      await db().collection("topics").doc(topicId).update({
+        geminiApproved: false,
+        status: "underReview",
+        moderationReason: "Routed to Admin for manual review (Gemini AI bypassed).",
+        bypassGemini: true,
+        updatedAt: Date.now(),
+      });
       return;
     }
 
@@ -225,3 +242,62 @@ export const onTopicWritten = onDocumentWritten(
     });
   }
 );
+
+/**
+ * 🛡️ HTTPS Endpoint — Manually moderate a topic (Approve or Reject).
+ * Only accessible by authenticated administrators.
+ */
+export const moderateTopicManual = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAdmin(req, res);
+      if (!authUser) return;
+
+      const { topicId, action, reason } = req.body;
+
+      if (!topicId || typeof topicId !== "string") {
+        res.status(400).json({ error: "Missing or invalid topicId." });
+        return;
+      }
+
+      if (action !== "approve" && action !== "reject") {
+        res.status(400).json({ error: "Action must be 'approve' or 'reject'." });
+        return;
+      }
+
+      const topicRef = db().collection("topics").doc(topicId);
+      const topicDoc = await topicRef.get();
+
+      if (!topicDoc.exists) {
+        res.status(404).json({ error: "Topic not found." });
+        return;
+      }
+
+      const now = Date.now();
+      const approved = action === "approve";
+
+      await topicRef.update({
+        geminiApproved: approved,
+        status: approved ? "active" : "verificationRejected",
+        moderationReason: reason || (approved ? "Manually approved by administrator." : "Manually rejected by administrator."),
+        manuallyVerified: true,
+        verifiedBy: authUser.uid,
+        verifiedAt: now,
+        updatedAt: now,
+      });
+
+      res.status(200).json({ success: true, message: `Topic manually ${action}d.` });
+    } catch (err) {
+      logger.error("[moderateTopicManual] Error:", err);
+      res.status(500).json({ error: "Internal server error.", details: String(err) });
+    }
+  }
+);
+

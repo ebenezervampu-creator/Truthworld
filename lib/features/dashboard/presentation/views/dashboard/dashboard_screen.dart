@@ -10,6 +10,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
@@ -30,6 +31,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyr
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
@@ -416,6 +418,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     _initializeAnimations(); // Initialize early to avoid LateInitializationError in dispose
+    final initChannelId = _getChannelId(channel);
+    controller = Get.isRegistered<DashboardController>()
+        ? Get.find<DashboardController>()
+        : Get.put(DashboardController(channelId: initChannelId));
     unawaited(_resolveChannelAndInit());
 
     _authWorker = ever(AuthService.to.isAuthenticated, (isAuth) {
@@ -840,18 +846,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         SizedBox(width: isMobile ? 4 : 8),
 
-        // Create Channel Button (only if user doesn't have one yet)
-        if (!AuthService.to.hasChannel.value)
-          _buildActionButton(
-            icon: Icons.add_circle_outline_rounded,
-            label: isDesktop ? 'Create Channel' : '',
-            onPressed: () => Get.toNamed('/channelscreen'),
-            isDarkMode: isDarkMode,
-            tooltip: 'Create a Channel',
-          ),
-
-        SizedBox(width: isMobile ? 4 : 8),
-
         // Google Account Selector
         _buildGoogleAccountSelector(isDarkMode),
 
@@ -1072,25 +1066,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             width: 2,
           ),
         ),
-        child: CircleAvatar(
+        child: UserAvatar(
           radius: 16,
-          backgroundImage: AuthService.to.activePhotoUrl.isNotEmpty
-              ? NetworkImage(AuthService.to.activePhotoUrl)
-              : null,
-          backgroundColor: const Color(0xFF6366F1),
-          child: AuthService.to.activePhotoUrl.isEmpty
-              ? Text(
-                  (AuthService.to.activeDisplayName.isNotEmpty
-                          ? AuthService.to.activeDisplayName
-                          : (user.email ?? 'U'))[0]
-                      .toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                )
-              : null,
+          photoUrl: AuthService.to.activePhotoUrl,
+          displayName: AuthService.to.activeDisplayName.isNotEmpty
+              ? AuthService.to.activeDisplayName
+              : (user.email ?? 'U'),
+          showBorder: false,
         ),
       ),
     );
@@ -1356,6 +1338,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'action': 'select',
         'target': 15,
       },
+      {
+        'icon': Icons.drafts_rounded,
+        'label': 'Drafts',
+        'color': const Color(0xFF6366F1),
+        'action': 'select',
+        'target': 20,
+      },
     ];
 
     return ListView.builder(
@@ -1574,7 +1563,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     final currentChannel = channel;
     final channelId = _getChannelId(currentChannel);
     if (channelId.isEmpty) {
-      return _buildNoChannelSelected(isDarkMode);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Get.offAllNamed<dynamic>('/channelscreen');
+        }
+      });
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+        ),
+      );
     }
 
     return FadeTransition(
@@ -1659,74 +1657,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                   channelId: channelId,
                   isDarkMode: isDarkMode,
                 );
+              case 20:
+                return DraftsScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
               default:
                 return _buildDashboardContent(isDarkMode);
             }
           }),
         ),
-      ),
-    );
-  }
-
-  Widget _buildNoChannelSelected(bool isDarkMode) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: isMobile ? 120 : 160,
-            height: isMobile ? 120 : 160,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF6366F1).withValues(alpha: 0.2),
-                  const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(isMobile ? 60 : 80),
-            ),
-            child: const Icon(
-              Icons.video_library_rounded,
-              size: 60,
-              color: Color(0xFF6366F1),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Channel Required',
-            style: TextStyle(
-              fontSize: isMobile ? 22 : 28,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              'You need a channel to access Creator Studio.',
-              style: TextStyle(
-                fontSize: isMobile ? 14 : 16,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => Get.offAllNamed<dynamic>('/channelscreen'),
-            icon: const Icon(Icons.add_circle_outline),
-            label: const Text('Create Channel'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -2371,15 +2311,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (channel.status == ChannelStatus.underReview) {
       bannerColor = const Color(0xFF3B82F6); // Blue
       icon = Icons.sync_rounded;
-      title = 'Branding Under Gemini AI Moderation';
+      title = 'Branding Under Verification System Review';
       subtitle =
-          'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
+          'Our Verification System is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
     } else if (channel.status == ChannelStatus.verificationRejected) {
       bannerColor = const Color(0xFFEF4444); // Red
       icon = Icons.error_outline_rounded;
-      title = 'Branding Verification Rejected by Gemini AI';
+      title = 'Branding Verification Rejected';
       subtitle =
-          'We created channel according to community guidelines, then channel selected for manual verification. ${channel.moderationReason != null && channel.moderationReason!.isNotEmpty ? '\n\nGemini Response: ${channel.moderationReason}' : ''}';
+          'We created channel according to community guidelines, then channel selected for manual verification. ${channel.moderationReason != null && channel.moderationReason!.isNotEmpty ? '\n\nVerification System Response: ${channel.moderationReason}' : ''}';
       showButton = true;
     } else {
       return const SizedBox.shrink();
@@ -2501,7 +2441,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Branding Approved by Gemini AI!',
+                  'Branding Approved by Verification System!',
                   style: TextStyle(
                     color: bannerColor,
                     fontSize: 16,
@@ -3715,46 +3655,50 @@ class _DashboardScreenState extends State<DashboardScreen>
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.visibility_rounded,
-                            size: 14,
-                            color: isDarkMode
-                                ? AppColors.textSecondary
-                                : Colors.black,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${video.views} views',
-                            style: TextStyle(
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.visibility_rounded,
+                              size: 14,
                               color: isDarkMode
-                                  ? AppColors.textSecondary
+                                  ? Colors.white
                                   : Colors.black,
-                              fontSize: 12,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.access_time_rounded,
-                            size: 14,
-                            color: isDarkMode
-                                ? AppColors.textSecondary
-                                : Colors.black,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            DateFormat(
-                              'MMM d, yyyy',
-                            ).format(video.uploadedAt.toDate()),
-                            style: TextStyle(
+                            const SizedBox(width: 4),
+                            Text(
+                              '${video.views} views',
+                              style: TextStyle(
+                                color: isDarkMode
+                                    ? AppColors.textSecondary
+                                    : Colors.black,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(
+                              Icons.access_time_rounded,
+                              size: 14,
                               color: isDarkMode
-                                  ? AppColors.textSecondary
+                                  ? Colors.white
                                   : Colors.black,
-                              fontSize: 12,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat(
+                                'MMM d, yyyy',
+                              ).format(video.uploadedAt.toDate()),
+                              style: TextStyle(
+                                color: isDarkMode
+                                    ? AppColors.textSecondary
+                                    : Colors.black,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

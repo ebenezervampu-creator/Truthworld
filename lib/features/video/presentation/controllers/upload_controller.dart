@@ -14,9 +14,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:profanity_filter/profanity_filter.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/verification_cache_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
@@ -142,6 +144,7 @@ class UploadController extends BaseController with ContentValidationMixin {
   RxBool aiDiarizationEnabled = false.obs;
   RxBool aiSummaryEnabled = false.obs;
   RxList<String> aiTranslationLanguages = <String>[].obs;
+  RxList<String> aiDubbingLanguages = <String>[].obs;
   RxBool aiTTSEnabled = false.obs;
   RxString aiTTSVoiceType = 'default'.obs; // "default" | "cloned"
   RxBool aiFactCheckEnabled = false.obs;
@@ -169,6 +172,32 @@ class UploadController extends BaseController with ContentValidationMixin {
     }
   }
 
+  /// Toggle subtitle language selection.
+  /// Selecting in Subtitles does NOT select for Dubbing.
+  void toggleSubtitleLanguage(String lang) {
+    if (aiTranslationLanguages.contains(lang)) {
+      aiTranslationLanguages.remove(lang);
+      if (aiDubbingLanguages.contains(lang)) {
+        aiDubbingLanguages.remove(lang);
+      }
+    } else {
+      aiTranslationLanguages.add(lang);
+    }
+  }
+
+  /// Toggle dubbing language selection.
+  /// When selected in Dubbing, AUTOMATICALLY select it for Subtitles as well.
+  void toggleDubbingLanguage(String lang) {
+    if (aiDubbingLanguages.contains(lang)) {
+      aiDubbingLanguages.remove(lang);
+    } else {
+      aiDubbingLanguages.add(lang);
+      if (!aiTranslationLanguages.contains(lang)) {
+        aiTranslationLanguages.add(lang);
+      }
+    }
+  }
+
   /// Build the AI features map for Firestore.
   Map<String, dynamic> buildFeaturesMap({String? pipelineStage}) {
     final map = AIFeatures(
@@ -188,6 +217,7 @@ class UploadController extends BaseController with ContentValidationMixin {
       pipelineStage: pipelineStage,
     ).toMap();
     map['providedSources'] = List<String>.from(providedSources);
+    map['dubbingLanguages'] = List<String>.from(aiDubbingLanguages);
     return map;
   }
 
@@ -248,8 +278,133 @@ class UploadController extends BaseController with ContentValidationMixin {
     'Kids & Family',
   ];
 
+  // ══════════════════════════════════════════════════════════════
+  // DAILY UPLOAD QUOTA STATE (Standard Channel 20 min/day limit)
+  // ══════════════════════════════════════════════════════════════
+  /// Total video duration in seconds uploaded today by the currently selected channel
+  final RxInt todayUploadedDurationSeconds = 0.obs;
+
+  /// Remaining video duration in seconds available for today (max 1200s for standard)
+  final RxInt remainingDailyDurationSeconds = 1200.obs;
+
+  /// Whether today's daily upload limit (20 mins) has been reached
+  final RxBool isDailyLimitReached = false.obs;
+
+  /// Whether quota is currently being fetched
+  final RxBool isQuotaLoading = false.obs;
+
+  /// Human-readable string for today's uploaded duration (e.g., "15m 00s")
+  String get todayUploadedDurationFormatted =>
+      ContentValidationMixin.formatDurationMinutesSeconds(
+        todayUploadedDurationSeconds.value,
+      );
+
+  /// Human-readable string for remaining daily duration (e.g., "5m 00s")
+  String get remainingDailyDurationFormatted =>
+      ContentValidationMixin.formatDurationMinutesSeconds(
+        remainingDailyDurationSeconds.value,
+      );
+
+  /// Progress ratio (0.0 to 1.0) of today's 20-minute daily limit used
+  double get dailyQuotaUsedRatio =>
+      (todayUploadedDurationSeconds.value / 1200.0).clamp(0.0, 1.0);
+
+  /// Fetches the total duration in seconds of videos uploaded today by the given channel
+  Future<int> getTodayUploadedDurationSeconds(String channelId) async {
+    if (channelId.trim().isEmpty) return 0;
+
+    try {
+      final now = DateTime.now();
+      final startOfToday = DateTime(now.year, now.month, now.day);
+
+      final snapshot = await _firestore
+          .collection('videos')
+          .where('channelId', isEqualTo: channelId)
+          .get();
+
+      var totalDurationSeconds = 0;
+      for (final doc in snapshot.docs) {
+        // Do not double count the active draft currently being resumed/edited
+        if (_currentVideoId != null && doc.id == _currentVideoId) continue;
+
+        final data = doc.data();
+        final status = (data['status'] as String?)?.toLowerCase();
+        // Exclude deleted, rejected, uncompleted drafts, and uploading placeholders
+        if (status == 'deleted' ||
+            status == 'rejected' ||
+            status == 'draft' ||
+            status == 'uploading') {
+          continue;
+        }
+
+        final rawDate =
+            data['uploadedAt'] ?? data['publishedAt'] ?? data['createdAt'];
+        if (rawDate == null) continue;
+
+        final uploadTime = TimestampUtils.parse(rawDate).toDate();
+        if (uploadTime.isAfter(startOfToday) ||
+            uploadTime.isAtSameMomentAs(startOfToday)) {
+          var durSecs = 0;
+          if (data['durationMs'] != null) {
+            final ms = (data['durationMs'] as num).toInt();
+            durSecs = (ms / 1000).round();
+          } else if (data['duration'] != null) {
+            final raw = (data['duration'] as num).toInt();
+            durSecs = raw > 86400 ? (raw / 1000).round() : raw;
+          }
+
+          // Legacy correction: If an old video doc got assigned the 600s default without durationMs
+          if (durSecs == 600 &&
+              data['durationMs'] == null &&
+              data['codec'] == 'unknown') {
+            final fileSize = (data['fileSize'] as num?)?.toInt() ?? 0;
+            if (fileSize > 0) {
+              // Estimate duration based on standard 1080p/720p bitrate (~1.5 MB/sec)
+              durSecs = (fileSize / (1024 * 1024 * 1.5)).clamp(30, 300).round();
+            } else {
+              durSecs = 120; // 2 minutes safe fallback
+            }
+          }
+
+          totalDurationSeconds += durSecs;
+        }
+      }
+      return totalDurationSeconds;
+    } catch (e) {
+      debugPrint('⚠️ Error fetching today uploaded duration: $e');
+      return 0;
+    }
+  }
+
+  /// Refreshes the daily upload quota for the selected channel
+  Future<void> refreshDailyUploadQuota() async {
+    final channel = selectedChannel.value;
+    if (channel == null) return;
+
+    if (channel.channelType != ChannelType.standard) {
+      todayUploadedDurationSeconds.value = 0;
+      remainingDailyDurationSeconds.value = 86400; // 24 hours
+      isDailyLimitReached.value = false;
+      return;
+    }
+
+    try {
+      isQuotaLoading.value = true;
+      final usedSeconds = await getTodayUploadedDurationSeconds(channel.id);
+      todayUploadedDurationSeconds.value = usedSeconds;
+      remainingDailyDurationSeconds.value = (1200 - usedSeconds).clamp(0, 1200);
+      isDailyLimitReached.value = usedSeconds >= 1200;
+      debugPrint(
+        '📊 [UploadController] Daily quota for ${channel.channelName}: ${usedSeconds}s / 1200s used (${remainingDailyDurationSeconds.value}s remaining)',
+      );
+    } finally {
+      isQuotaLoading.value = false;
+    }
+  }
+
   void selectChannel(Channel channel) {
     selectedChannel.value = channel;
+    refreshDailyUploadQuota();
   }
 
   void selectPlaylist(String id) {
@@ -282,6 +437,9 @@ class UploadController extends BaseController with ContentValidationMixin {
 
   /// Public getter for the current video ID being uploaded
   String? get currentVideoId => _currentVideoId;
+
+  /// Holds the resumed video draft when editing from Creator Studio
+  final Rx<Video?> resumedVideoDraft = Rx<Video?>(null);
 
   // Channel Loading State
   RxBool isChannelsLoading = true.obs;
@@ -443,6 +601,108 @@ class UploadController extends BaseController with ContentValidationMixin {
     return false;
   }
 
+  /// Load an existing video draft from Firestore into UploadController
+  void loadFromVideo(Video video) {
+    resumedVideoDraft.value = video;
+    _currentVideoId = video.id;
+
+    videoUrl.value = video.originalUrl.isNotEmpty
+        ? video.originalUrl
+        : video.videoUrl;
+    thumbnailUrl.value = video.thumbnailUrl;
+    isUploading.value = false;
+    isProcessing.value = false;
+    uploadProgress.value = 1.0;
+    videoUploadProgress.value = 1.0;
+
+    // Title pre-fill: if generic 'Uploading...' or empty
+    if (video.title.isNotEmpty &&
+        video.title != 'Uploading...' &&
+        video.title != 'Untitled' &&
+        video.title != 'Untitled Draft') {
+      titleController.text = video.title;
+    }
+
+    // Description pre-fill: if generic 'Processing...'
+    if (video.description.isNotEmpty && video.description != 'Processing...') {
+      descriptionController.text = video.description;
+    }
+
+    if (video.category.isNotEmpty) {
+      selectedCategory.value = video.category;
+    }
+
+    if (video.visibility.isNotEmpty &&
+        video.visibility.toLowerCase() != 'draft') {
+      selectedVisibility.value = video.visibility;
+    }
+
+    if (video.tags.isNotEmpty) {
+      tagController.text = video.tags.join(', ');
+    }
+
+    if (video.topics.isNotEmpty) {
+      selectedTopicId.value = video.topics.first;
+    }
+
+    // Match channel
+    if (video.channelId.isNotEmpty && channels.isNotEmpty) {
+      final matching = channels.firstWhereOrNull(
+        (c) => c.channelId == video.channelId || c.id == video.channelId,
+      );
+      if (matching != null) {
+        selectedChannel.value = matching;
+      }
+    }
+
+    if (video.geminiApproved != null && video.geminiApproved!) {
+      videoModerationStatus.value = 'APPROVED';
+    }
+
+    isFormValid.value = titleController.text.trim().length >= 5;
+    canAdvanceStage.value = true;
+    uploadStage.value = 1; // Details stage
+
+    debugPrint(
+      '🎬 Video draft loaded into controller: ${video.id} (title: "${titleController.text}")',
+    );
+  }
+
+  /// Load an existing video draft by document ID from Firestore
+  Future<void> loadVideoById(String videoId) async {
+    try {
+      final doc = await _firestore.collection('videos').doc(videoId).get();
+      if (doc.exists && doc.data() != null) {
+        final v = Video.fromMap(doc.data()!, doc.id);
+        loadFromVideo(v);
+        final rawFileName = doc.data()!['fileName'] as String?;
+        final moderation = doc.data()!['moderation'] as Map<String, dynamic>?;
+
+        if (titleController.text.isEmpty &&
+            rawFileName != null &&
+            rawFileName.isNotEmpty) {
+          final cleanName = rawFileName
+              .replaceAll(
+                RegExp(r'\.(mp4|mov|avi|mkv|webm)$', caseSensitive: false),
+                '',
+              )
+              .replaceAll('_', ' ')
+              .replaceAll('-', ' ');
+          titleController.text = cleanName;
+        }
+
+        if (descriptionController.text.isEmpty && moderation != null) {
+          final summary = moderation['summary'] as String?;
+          if (summary != null && summary.isNotEmpty) {
+            descriptionController.text = summary;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error loading video draft $videoId: $e');
+    }
+  }
+
   /// Ensure auth context is ready for Storage operations on web
   Future<void> _ensureStorageAuthReady() async {
     try {
@@ -482,7 +742,7 @@ class UploadController extends BaseController with ContentValidationMixin {
     fetchChannels();
   }
 
-  // Fetch channels with fallback to simple query if index missing
+  // Fetch channels with robust multi-tier fallback (ownerId, userId, user doc, in-memory)
   void fetchChannels() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -501,30 +761,84 @@ class UploadController extends BaseController with ContentValidationMixin {
         .where('ownerId', isEqualTo: user.uid)
         .snapshots()
         .listen(
-          (snapshot) {
-            debugPrint('✅ Channels loaded: ${snapshot.docs.length}');
+          (snapshot) async {
+            debugPrint('✅ Channels loaded by ownerId: ${snapshot.docs.length}');
 
-            // Filter active channels in memory (status != deleted)
-            channels.value = snapshot.docs
+            var loadedChannels = snapshot.docs
                 .map(Channel.fromDocumentSnapshot)
                 .where((channel) => channel.status != ChannelStatus.deleted)
                 .toList();
 
+            // Fallback 1: Query by userId if ownerId returned 0 channels
+            if (loadedChannels.isEmpty) {
+              try {
+                final userSnap = await _firestore
+                    .collection('channels')
+                    .where('userId', isEqualTo: user.uid)
+                    .get();
+                loadedChannels = userSnap.docs
+                    .map(Channel.fromDocumentSnapshot)
+                    .where((channel) => channel.status != ChannelStatus.deleted)
+                    .toList();
+              } catch (e) {
+                debugPrint('⚠️ Fetching channels by userId fallback: $e');
+              }
+            }
+
+            // Fallback 2: Check user document for channelId reference
+            if (loadedChannels.isEmpty) {
+              try {
+                final userDoc = await _firestore.collection('users').doc(user.uid).get();
+                final chId = userDoc.data()?['channelId'] as String?;
+                if (chId != null && chId.isNotEmpty) {
+                  final chDoc = await _firestore.collection('channels').doc(chId).get();
+                  if (chDoc.exists && chDoc.data() != null) {
+                    final ch = Channel.fromDocumentSnapshot(chDoc);
+                    if (ch.status != ChannelStatus.deleted) {
+                      loadedChannels = [ch];
+                    }
+                  }
+                }
+              } catch (e) {
+                debugPrint('⚠️ Fetching channel by userDoc fallback: $e');
+              }
+            }
+
+            // Fallback 3: In-memory AuthService channel
+            if (loadedChannels.isEmpty && AuthService.to.userChannel != null) {
+              final authCh = AuthService.to.userChannel!;
+              if (authCh.status != ChannelStatus.deleted) {
+                loadedChannels = [authCh];
+              }
+            }
+
+            channels.value = loadedChannels;
             isChannelsLoading.value = false;
             channelsError.value = '';
 
-            // Auto-select first channel if none selected
-            if (channels.isNotEmpty && selectedChannel.value == null) {
-              selectedChannel.value = channels.first;
-              debugPrint(
-                'Auto-selected channel: ${channels.first.channelName}',
-              );
+            // Auto-select first channel if none selected or if selected channel changed
+            if (channels.isNotEmpty) {
+              if (selectedChannel.value == null ||
+                  !channels.any((c) => c.id == selectedChannel.value!.id)) {
+                selectedChannel.value = channels.first;
+                refreshDailyUploadQuota();
+                debugPrint(
+                  'Auto-selected channel: ${channels.first.channelName}',
+                );
+              }
             }
           },
           onError: (error) {
             debugPrint('❌ Error fetching channels: $error');
-            isChannelsLoading.value = false;
-            channelsError.value = 'Failed to load channels: $error';
+            if (AuthService.to.userChannel != null) {
+              channels.value = [AuthService.to.userChannel!];
+              selectedChannel.value = AuthService.to.userChannel;
+              isChannelsLoading.value = false;
+              channelsError.value = '';
+            } else {
+              isChannelsLoading.value = false;
+              channelsError.value = 'Failed to load channels: $error';
+            }
           },
         );
   }
@@ -638,9 +952,37 @@ class UploadController extends BaseController with ContentValidationMixin {
           await controller.dispose();
         }
 
-        if (duration > maxDurationSeconds) {
-          Get.snackbar('Error', 'Video exceeds 60 minute limit.');
-          return;
+        // Validate Daily Upload Limit & Video Duration against selected channel
+        final channel = selectedChannel.value;
+        if (channel != null) {
+          final todayUsed = await getTodayUploadedDurationSeconds(channel.id);
+          todayUploadedDurationSeconds.value = todayUsed;
+          remainingDailyDurationSeconds.value =
+              (1200 - todayUsed).clamp(0, 1200);
+          isDailyLimitReached.value = todayUsed >= 1200;
+
+          final validation = validateChannelVideoUpload(
+            channel,
+            durationSeconds: duration,
+            dailyUploadedDurationSeconds: todayUsed,
+          );
+
+          if (!validation.isValid) {
+            Get.snackbar(
+              'Upload Limit Exceeded',
+              validation.message,
+              backgroundColor: const Color(0xFFEF4444),
+              colorText: Colors.white,
+              duration: const Duration(seconds: 6),
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+        } else {
+          if (duration > maxDurationSeconds) {
+            Get.snackbar('Error', 'Video exceeds 60 minute limit.');
+            return;
+          }
         }
 
         pickedVideo.value = pickedFile;
@@ -796,6 +1138,41 @@ class UploadController extends BaseController with ContentValidationMixin {
       debugPrint('✅ Authenticated user: $userId');
       debugPrint('🆔 Generated video ID: $uniqueId');
 
+      var preExtractDurationMs = 0;
+      try {
+        preExtractDurationMs = await getVideoDurationMs(videoFile);
+      } catch (e) {
+        debugPrint('⚠️ Could not extract duration before upload: $e');
+      }
+      final preExtractDurationSecs = preExtractDurationMs ~/ 1000;
+
+      // Validate Daily Upload Quota before starting upload
+      if (selectedChannel.value != null) {
+        try {
+          final used =
+              await getTodayUploadedDurationSeconds(selectedChannel.value!.id);
+          todayUploadedDurationSeconds.value = used;
+          remainingDailyDurationSeconds.value =
+              (1200 - used).clamp(0, 1200);
+          isDailyLimitReached.value = used >= 1200;
+
+          final validation = validateChannelVideoUpload(
+            selectedChannel.value!,
+            durationSeconds: preExtractDurationSecs,
+            dailyUploadedDurationSeconds: used,
+          );
+          if (!validation.isValid) {
+            throw Exception(validation.message);
+          }
+        } catch (e) {
+          if (e.toString().contains('Daily') ||
+              e.toString().contains('Standard channel')) {
+            rethrow;
+          }
+          debugPrint('⚠️ Non-fatal error during video duration pre-check: $e');
+        }
+      }
+
       // --------------------------------------------------------
       // 1️⃣ Create initial Firestore document (with AI features)
       // --------------------------------------------------------
@@ -806,6 +1183,8 @@ class UploadController extends BaseController with ContentValidationMixin {
         'channelId': selectedChannel.value?.channelId ?? userId,
         'status': 'uploading', // Will change via Cloud Function
         'uploadedAt': Timestamp.now(),
+        'duration': preExtractDurationSecs,
+        'durationMs': preExtractDurationMs,
         'title': 'Uploading...',
         'description': 'Processing...',
         'videoUrl': '',
@@ -866,7 +1245,7 @@ class UploadController extends BaseController with ContentValidationMixin {
                 videoModerationSummary.value = modSummary;
 
                 if (modStatus == 'APPROVED') {
-                  debugPrint('✅ Video content APPROVED by Gemini moderation');
+                  debugPrint('✅ Video content APPROVED by Verification System moderation');
                   Get.snackbar(
                     'Content Approved',
                     '✅ Your video complies with Community Guidelines',
@@ -971,7 +1350,13 @@ class UploadController extends BaseController with ContentValidationMixin {
       final videoRef = FirebaseStorage.instance.ref().child(
         'videos/$uniqueId/original.mp4',
       );
-      final metadata = SettableMetadata(contentType: 'video/mp4');
+      final metadata = SettableMetadata(
+        contentType: 'video/mp4',
+        customMetadata: {
+          'duration': '$preExtractDurationSecs',
+          'durationMs': '$preExtractDurationMs',
+        },
+      );
       _videoUploadTask = videoRef.putData(videoFile.bytes!, metadata);
 
       // Upload voice sample if Dubbing with cloning is selected
@@ -1494,6 +1879,28 @@ class UploadController extends BaseController with ContentValidationMixin {
         pickedVideo.value!,
       );
 
+      // Validate daily quota for selected channel before publishing
+      final currentChan = selectedChannel.value;
+      if (currentChan != null && !isDraft) {
+        final durationSeconds = durationMs ~/ 1000;
+        final used = await getTodayUploadedDurationSeconds(currentChan.id);
+        final validation = validateChannelVideoUpload(
+          currentChan,
+          durationSeconds: durationSeconds,
+          dailyUploadedDurationSeconds: used,
+        );
+        if (!validation.isValid) {
+          Get.snackbar(
+            'Upload Limit Exceeded',
+            validation.message,
+            backgroundColor: const Color(0xFFEF4444),
+            colorText: Colors.white,
+            duration: const Duration(seconds: 6),
+          );
+          return;
+        }
+      }
+
       // Upload thumbnail if needed
       if (thumbnailUrl.value.isEmpty && pickedImage.value != null) {
         await _startImageUpload(pickedImage.value!);
@@ -1543,8 +1950,12 @@ class UploadController extends BaseController with ContentValidationMixin {
         'title': title.trim(),
         'description': description.trim(),
         'keywords': _generateKeywords(title.trim()),
-        'videoUrl': videoUrl.value,
-        'thumbnailUrl': thumbnailUrl.value,
+        'videoUrl': videoUrl.value.isNotEmpty
+            ? videoUrl.value
+            : (docSnapshot.data()?['videoUrl'] as String? ?? ''),
+        'thumbnailUrl': thumbnailUrl.value.isNotEmpty
+            ? thumbnailUrl.value
+            : (docSnapshot.data()?['thumbnailUrl'] as String? ?? ''),
         'channelName': channelName.trim(),
         'channelId': channelId.trim(),
         'channelImage': channelImage,
@@ -1561,8 +1972,13 @@ class UploadController extends BaseController with ContentValidationMixin {
             : uploadQuality.value,
         'enableComments': enableComments.value,
         'allowRatings': allowRatings.value,
-        'durationMs': durationMs,
-        'fileName': pickedVideo.value?.name ?? 'unnamed_video.mp4',
+        'durationMs': durationMs > 0
+            ? durationMs
+            : ((docSnapshot.data()?['duration'] as int?) != null
+                ? (docSnapshot.data()!['duration'] as int) * 1000
+                : durationMs),
+        'fileName': pickedVideo.value?.name ??
+            (docSnapshot.data()?['fileName'] as String? ?? 'unnamed_video.mp4'),
         'status': isDraft
             ? 'draft'
             : (isScheduled.value ? 'scheduled' : 'published'),
@@ -2025,6 +2441,91 @@ class UploadController extends BaseController with ContentValidationMixin {
     }
   }
 
+  /// Dynamically computes and ranks topic recommendations based on video details
+  List<TopicRelevanceResult> getRankedTopicsForCurrentVideo({
+    String? overrideTitle,
+    String? overrideCategory,
+    String? overrideDescription,
+  }) {
+    final title = (overrideTitle ?? titleController.text).trim();
+    final category = (overrideCategory ?? selectedCategory.value).trim();
+    final desc = (overrideDescription ?? descriptionController.text).trim();
+
+    final results = <TopicRelevanceResult>[];
+
+    Set<String> tokenizeText(String text) {
+      if (text.isEmpty) return {};
+      const stopWords = {
+        'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+        'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
+        'to', 'was', 'were', 'will', 'with', 'video', 'how', 'what'
+      };
+      final cleaned = text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+      return cleaned
+          .split(RegExp(r'\s+'))
+          .where((w) => w.length > 2 && !stopWords.contains(w))
+          .toSet();
+    }
+
+    final videoTokens = tokenizeText('$title $category $desc');
+    final titleTokens = tokenizeText(title);
+    final catClean = category.toLowerCase();
+
+    for (final topic in availableTopics) {
+      double score = 10;
+      final reasons = <String>[];
+
+      final topicCatClean = topic.category.toLowerCase();
+      if (catClean.isNotEmpty &&
+          topicCatClean.isNotEmpty &&
+          (catClean == topicCatClean ||
+              catClean.contains(topicCatClean) ||
+              topicCatClean.contains(catClean))) {
+        score += 45;
+        reasons.add('Category match (${topic.category})');
+      }
+
+      final topicTitleTokens = tokenizeText('${topic.title} ${topic.handle}');
+      var titleMatches = 0;
+      for (final token in titleTokens) {
+        if (topicTitleTokens.contains(token)) {
+          titleMatches++;
+          score += 15;
+        }
+      }
+      if (titleMatches > 0) {
+        reasons.add('$titleMatches matching title keywords');
+      }
+
+      final topicDescTokens = tokenizeText(topic.description);
+      for (final token in videoTokens) {
+        if (topicDescTokens.contains(token)) {
+          score += 4;
+        }
+      }
+
+      final popBonus = (topic.videoCount * 0.1 + topic.followerCount * 0.05).clamp(0.0, 10.0);
+      score += popBonus;
+
+      final rawPct = ((score / 110.0) * 100).round().clamp(62, 98);
+      final reason = reasons.isNotEmpty
+          ? reasons.join(' • ')
+          : 'Relevant topic knowledge hub';
+
+      results.add(
+        TopicRelevanceResult(
+          topic: topic,
+          matchPercentage: rawPct,
+          recommendationReason: reason,
+          score: score,
+        ),
+      );
+    }
+
+    results.sort((a, b) => b.score.compareTo(a.score));
+    return results;
+  }
+
   /// Resolves and caches channel metadata (name, handle, avatar) for a given channelId
   Future<void> fetchChannelMetadata(String channelId) async {
     if (channelId.isEmpty || channelMetadataCache.containsKey(channelId)) {
@@ -2308,4 +2809,19 @@ class VideoReportRepository {
       rethrow;
     }
   }
+}
+
+/// Data model for topic recommendation relevance results
+class TopicRelevanceResult {
+  const TopicRelevanceResult({
+    required this.topic,
+    required this.matchPercentage,
+    required this.recommendationReason,
+    required this.score,
+  });
+
+  final Topic topic;
+  final int matchPercentage;
+  final String recommendationReason;
+  final double score;
 }

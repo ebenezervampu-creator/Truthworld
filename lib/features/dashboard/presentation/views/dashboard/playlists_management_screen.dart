@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -478,174 +479,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
   }
 
   void _showCreatePlaylistDialog(BuildContext context, bool isDarkMode) {
-    final titleController = TextEditingController();
-    final descController = TextEditingController();
-    var selectedVisibility = PlaylistVisibility.public;
-
-    showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: isDarkMode
-                  ? AppColors.bgSurface
-                  : AppColors.textPrimary,
-              title: Text(
-                'Create New Playlist',
-                style: TextStyle(
-                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Playlist Name *',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode
-                          ? AppColors.bgInput
-                          : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descController,
-                    maxLines: 3,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Description (optional)',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode
-                          ? AppColors.bgInput
-                          : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<PlaylistVisibility>(
-                    value: selectedVisibility,
-                    dropdownColor: isDarkMode
-                        ? AppColors.bgSurface
-                        : AppColors.textPrimary,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Visibility',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode
-                          ? AppColors.bgInput
-                          : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    items: PlaylistVisibility.values.map((vis) {
-                      return DropdownMenuItem(
-                        value: vis,
-                        child: Text(vis.name.toUpperCase()),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => selectedVisibility = val);
-                      }
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final name = titleController.text.trim();
-                    if (name.isEmpty) {
-                      Get.snackbar(
-                        'Required',
-                        'Please enter a playlist name.',
-                        backgroundColor: AppColors.error,
-                        colorText: AppColors.textPrimary,
-                      );
-                      return;
-                    }
-
-                    final docRef = _firestore
-                        .collection(FirestoreCollections.playlists)
-                        .doc();
-                    final user = FirebaseAuth.instance.currentUser;
-                    final newPlaylist = PlaylistModel(
-                      id: docRef.id,
-                      name: name,
-                      description: descController.text.trim(),
-                      ownerId: user?.uid ?? '',
-                      channelId: activeChannelId,
-                      visibility: selectedVisibility,
-                      createdAt: Timestamp.now(),
-                      updatedAt: Timestamp.now(),
-                    );
-
-                    await docRef.set(newPlaylist.toMap());
-                    if (context.mounted) Navigator.pop(ctx);
-                    Get.snackbar(
-                      'Created',
-                      'Playlist "$name" created successfully.',
-                      backgroundColor: AppColors.success,
-                      colorText: AppColors.textPrimary,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.textPrimary,
-                  ),
-                  child: const Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    Get.toNamed('/create-playlist');
   }
 
   void _showEditPlaylistDialog(
@@ -777,13 +611,44 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                     final name = titleController.text.trim();
                     if (name.isEmpty) return;
 
+                    final nameVal = ContentValidator.validate(
+                      name,
+                      fieldName: 'Playlist Name',
+                    );
+                    if (!nameVal.isValid) {
+                      Get.snackbar(
+                        'Inappropriate Content',
+                        nameVal.message,
+                        backgroundColor: AppColors.error,
+                        colorText: AppColors.textPrimary,
+                      );
+                      return;
+                    }
+
+                    final description = descController.text.trim();
+                    if (description.isNotEmpty) {
+                      final descVal = ContentValidator.validate(
+                        description,
+                        fieldName: 'Playlist Description',
+                      );
+                      if (!descVal.isValid) {
+                        Get.snackbar(
+                          'Inappropriate Content',
+                          descVal.message,
+                          backgroundColor: AppColors.error,
+                          colorText: AppColors.textPrimary,
+                        );
+                        return;
+                      }
+                    }
+
                     await _firestore
                         .collection(FirestoreCollections.playlists)
                         .doc(playlist.id)
                         .update({
                           'name': name,
                           'playlistName': name,
-                          'description': descController.text.trim(),
+                          'description': description,
                           'visibility': selectedVisibility.name,
                           'isPublic':
                               selectedVisibility == PlaylistVisibility.public,

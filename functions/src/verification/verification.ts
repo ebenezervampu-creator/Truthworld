@@ -51,7 +51,6 @@ if (!admin.apps.length) {
 
 type ImageCategory      = "thumbnail" | "avatar" | "banner" | "community" | "unknown";
 type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED" | "FLAGGED" | "ERROR";
-type TrustTier          = "HIGH" | "MEDIUM" | "LOW" | "NEW";
 
 interface ImageMetadata {
   category:   ImageCategory;
@@ -200,9 +199,6 @@ const CONFIDENCE_LEVELS: Record<string, number> = {
   VERY_UNLIKELY: 0, UNLIKELY: 1, POSSIBLE: 2, LIKELY: 3, VERY_LIKELY: 4,
 };
 
-const TRUST_THRESHOLDS = { HIGH: 75, MEDIUM: 40, LOW: 10 };
-const HIGH_TRUST_SAMPLE_RATE  = 0.15;
-const MEDIUM_TRUST_SCAN_RATE  = 0.50;
 const TRUST_SCORE_NEW_USER    = 50;
 const TRUST_DELTA_APPROVED    = 2;
 const TRUST_DELTA_REJECTED    = -15;
@@ -473,21 +469,8 @@ function generateMessageId(): string {
   return crypto.randomUUID();
 }
 
-function getTrustTier(doc: UserTrustDoc | null): TrustTier {
-  if (!doc) return "NEW";
-  const s = doc.score;
-  if (s >= TRUST_THRESHOLDS.HIGH)   return "HIGH";
-  if (s >= TRUST_THRESHOLDS.MEDIUM) return "MEDIUM";
-  if (s >= TRUST_THRESHOLDS.LOW)    return "LOW";
-  return "NEW";
-}
-
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, score));
-}
-
-function shouldSample(rate: number): boolean {
-  return Math.random() < rate;
 }
 
 function getPriority(category: ImageCategory): string {
@@ -864,11 +847,6 @@ async function setHashDoc(hashDocId: string, hash: string, status: "APPROVED" | 
   } catch (err) {
     logger.warn("[Firestore] imageHashes write failed (non-fatal):", err);
   }
-}
-
-async function getUserTrustDoc(userId: string): Promise<UserTrustDoc | null> {
-  const snap = await db().collection(COL_USER_TRUST).doc(userId).get();
-  return snap.exists ? (snap.data() as UserTrustDoc) : null;
 }
 
 async function updateUserTrust(userId: string, status: "APPROVED" | "REJECTED" | "FLAGGED"): Promise<void> {
@@ -1294,21 +1272,30 @@ export const prefilterWorker = onMessagePublished(
         metadata._hashDocId = hashDocId;
       }
 
-      if (metadata.userId) {
-        try {
-          const trustDoc = await getUserTrustDoc(metadata.userId);
-          const tier     = getTrustTier(trustDoc);
-          if (tier === "HIGH" && !shouldSample(HIGH_TRUST_SAMPLE_RATE)) {
-            await doApprove(docId, metadata, startTime, "trust-HIGH");
-            return;
-          }
-          if (tier === "MEDIUM" && !shouldSample(MEDIUM_TRUST_SCAN_RATE)) {
-            await doApprove(docId, metadata, startTime, "trust-MEDIUM-sampled-out");
-            return;
-          }
-        } catch (trustErr) {
-          logger.error(`[Prefilter] Trust check failed (scanning anyway):`, trustErr);
-        }
+      // ─── MANDATORY AI SCAN (100% Coverage): No trust-based skipping ───
+      // Every avatar, banner, thumbnail, and image must be scanned by Vision AI.
+
+      // ─── CHECK IF CATEGORY IS IN ADMIN ONLY MODE (Bypass Gemini / Vision AI) ───
+      const { isThumbnailsBypassed, isAvatarBypassed, isBannerBypassed } = require("../moderation/moderationModes");
+      let isCategoryBypassed = false;
+      if (metadata.category === "thumbnail") isCategoryBypassed = await isThumbnailsBypassed();
+      else if (metadata.category === "avatar") isCategoryBypassed = await isAvatarBypassed();
+      else if (metadata.category === "banner") isCategoryBypassed = await isBannerBypassed();
+
+      if (isCategoryBypassed) {
+        logger.info(`[Prefilter] ${metadata.category} moderation toggle is ON (Admin Only). Routing directly to Admin review queue without AI scanning.`);
+        const result: ValidationResult = {
+          status: "FLAGGED",
+          reason: `Routed to Admin for manual review (${metadata.category} AI bypassed).`,
+          score: 0,
+          timestamp: Date.now(),
+          processedAt: Date.now(),
+          detailedScores: { adult: 0, racy: 0, violence: 0, medical: 0, spoof: 0 },
+        };
+        await updateVerificationDoc(docId, metadata, result);
+        await logFlaggedImage(metadata, result);
+        await logMetrics(metadata, result, Date.now() - startTime, "prefilter", "admin-bypass");
+        return;
       }
 
       const { topic: moderationTopic, priority } = getPriorityTopic(metadata.category);

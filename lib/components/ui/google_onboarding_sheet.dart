@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -25,13 +26,13 @@ class GoogleOnboardingSheet extends StatefulWidget {
 }
 
 class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
-  final RxnString _selectedAgeGroup = RxnString();
-  final RxnString _selectedGender = RxnString();
+  final Rx<String?> _selectedAgeGroup = Rx<String?>(null);
+  final Rx<String?> _selectedGender = Rx<String?>(null);
+  final RxBool _isSaving = false.obs;
   final TextEditingController _selfDescribeController =
       TextEditingController();
-  final RxBool _isSaving = false.obs;
 
-  final List<String> _ageGroupOptions = const [
+  final List<String> _ageGroups = [
     'Under 13',
     '13–17',
     '18–24',
@@ -43,7 +44,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
     'Prefer not to say',
   ];
 
-  final List<String> _genderOptions = const [
+  final List<String> _genders = [
     'Male',
     'Female',
     'Non-binary',
@@ -52,7 +53,6 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
   ];
 
   Future<void> _onSave() async {
-    _isSaving.value = true;
     final navigator = Navigator.of(context);
 
     try {
@@ -61,13 +61,31 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
       if (selectedGenderVal != null) {
         if (selectedGenderVal == 'Self-describe') {
           final customText = _selfDescribeController.text.trim();
-          genderValue = customText.isNotEmpty
-              ? 'Self-describe: $customText'
-              : 'Self-describe';
+          if (customText.isNotEmpty) {
+            final validation = ContentValidator.validate(
+              customText,
+              fieldName: 'Self-description',
+            );
+            if (!validation.isValid) {
+              Get.snackbar(
+                'Inappropriate Content',
+                validation.message,
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.errorContainer,
+                colorText: AppColors.textPrimary,
+              );
+              return;
+            }
+            genderValue = 'Self-describe: $customText';
+          } else {
+            genderValue = 'Self-describe';
+          }
         } else {
           genderValue = selectedGenderVal;
         }
       }
+
+      _isSaving.value = true;
 
       await AuthService.to.updateUserProfileOnboarding(
         ageGroup: _selectedAgeGroup.value,
@@ -220,7 +238,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
               return Wrap(
                 spacing: 8,
                 runSpacing: 10,
-                children: _ageGroupOptions.map((option) {
+                children: _ageGroups.map((option) {
                   final isSelected = selectedAge == option;
                   return ChoiceChip(
                     label: Text(
@@ -299,7 +317,7 @@ class _GoogleOnboardingSheetState extends State<GoogleOnboardingSheet> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 10,
-                    children: _genderOptions.map((option) {
+                    children: _genders.map((option) {
                       final isSelected = selectedGender == option;
                       return ChoiceChip(
                         label: Text(

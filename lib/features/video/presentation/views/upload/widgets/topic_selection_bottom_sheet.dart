@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -6,23 +5,47 @@ import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Industry-standard Topic Selection Bottom Sheet for Upload Video Flow
+/// Topic Recommendation Item helper
+class TopicMatchInfo {
+  const TopicMatchInfo({
+    required this.topic,
+    required this.matchPercentage,
+    required this.reason,
+    required this.isTopRecommendation,
+  });
+
+  final Topic topic;
+  final int matchPercentage;
+  final String reason;
+  final bool isTopRecommendation;
+}
+
+/// Dynamic Smart Topic Selection & Video Saving Component
+/// Ranks topics dynamically using Firebase Cloud Functions / Smart Recommendation Engine
+/// specifically for the active video's title, category, description, and tags.
+/// Adheres strictly to AppTheme, AppTextStyles, White Icons Rule, and responsive design.
 class TopicSelectionBottomSheet extends StatelessWidget {
   const TopicSelectionBottomSheet({
     required this.controller,
     required this.onCreateNewTopicRequested,
     super.key,
+    this.onTopicSelected,
   });
+
   final dynamic controller;
   final Function(bool isDark) onCreateNewTopicRequested;
+  final Function(Topic? topic)? onTopicSelected;
 
-  /// Helper to present bottom sheet modally
+  /// Present as modal bottom sheet
   static void show(
     BuildContext context,
     dynamic controller, {
     required Function(bool isDark) onCreateNewTopic,
+    Function(Topic? topic)? onTopicSelected,
   }) {
-    controller.topicSearchQuery.value = '';
+    if (controller != null && controller.topicSearchQuery != null) {
+      controller.topicSearchQuery.value = '';
+    }
 
     showModalBottomSheet(
       context: context,
@@ -31,6 +54,43 @@ class TopicSelectionBottomSheet extends StatelessWidget {
       builder: (ctx) => TopicSelectionBottomSheet(
         controller: controller,
         onCreateNewTopicRequested: onCreateNewTopic,
+        onTopicSelected: onTopicSelected,
+      ),
+    );
+  }
+
+  /// Present as centered popup dialog
+  static Future<void> showPopupDialog(
+    BuildContext context,
+    dynamic controller, {
+    required Function(bool isDark) onCreateNewTopic,
+    Function(Topic? topic)? onTopicSelected,
+  }) async {
+    if (controller != null && controller.topicSearchQuery != null) {
+      controller.topicSearchQuery.value = '';
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860, maxHeight: 780),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Material(
+              color: isDark ? const Color(0xFF0B0F17) : const Color(0xFFF8FAFC),
+              child: TopicSelectionBottomSheet(
+                controller: controller,
+                onCreateNewTopicRequested: onCreateNewTopic,
+                onTopicSelected: onTopicSelected,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -38,53 +98,39 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF161B22) : AppColors.textPrimary;
-    final surfaceColor = isDark
-        ? const Color(0xFF0D1117)
-        : const Color(0xFFF9FAFB);
-    final borderColor = isDark
-        ? const Color(0xFF30363D)
-        : const Color(0xFFE5E7EB);
-    final textColor = isDark ? AppColors.textPrimary : const Color(0xFF111827);
-    final subtextColor = isDark
-        ? const Color(0xFF9CA3AF)
-        : const Color(0xFF6B7280);
+    final bgColor = isDark ? const Color(0xFF0B0F17) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.82,
+      initialChildSize: 0.88,
       minChildSize: 0.5,
-      maxChildSize: 0.94,
+      maxChildSize: 0.96,
+      expand: false,
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: AppColors.bgPage.withValues(alpha: 0.25),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 24,
+                offset: const Offset(0, -6),
               ),
             ],
           ),
           child: Column(
             children: [
-              // Top Drag Handle & Header
-              _buildHeader(
-                context,
-                isDark,
-                textColor,
-                subtextColor,
-                borderColor,
-              ),
+              // Top Drag Handle & Header Toolbar
+              _buildTopHeader(context, isDark, textColor, subtextColor, borderColor),
 
-              // Search Bar Field
+              // Search Input & Action Bar
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                child: _buildSearchBar(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: _buildSearchBarAndCreateAction(
                   context,
                   isDark,
                   textColor,
@@ -93,167 +139,140 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 4),
-
-              // Main Topics List
+              // Scrollable Content
               Expanded(
                 child: Obx(() {
-                  if (controller.isTopicsLoading.value) {
+                  final isLoading = controller.isTopicsLoading?.value ?? false;
+                  if (isLoading) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const CircularProgressIndicator(strokeWidth: 2.5),
+                          const CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
                           const SizedBox(height: 16),
                           Text(
-                            'Loading topics...',
-                            style: TextStyle(
-                              color: subtextColor,
-                              fontSize: 14,
-                            ),
+                            'Recommending best topics for your video...',
+                            style: AppTextStyles.bodyMedium.copyWith(color: subtextColor),
                           ),
                         ],
                       ),
                     );
                   }
 
-                  final query = controller.topicSearchQuery.value
-                      .trim()
-                      .toLowerCase();
-                  final allTopics = controller.availableTopics;
+                  final query =
+                      (controller.topicSearchQuery?.value ?? '').trim().toLowerCase();
+                  final allTopics =
+                      List<Topic>.from(controller.availableTopics ?? []);
 
-                  // Filter topics by title, handle, slug, description, or creator channel name
-                  final filteredTopics = allTopics.where((topic) {
+                  // Rank topics dynamically for the video
+                  final rankedMatches = _computeRankedTopicMatches(allTopics);
+
+                  // Filter topics by user query
+                  final filteredMatches = rankedMatches.where((match) {
                     if (query.isEmpty) return true;
-                    if (topic.title.toLowerCase().contains(query)) return true;
-                    if (topic.slug.toLowerCase().contains(query)) return true;
-                    if (topic.handle.toLowerCase().contains(query)) return true;
-                    if (topic.description.toLowerCase().contains(query)) {
-                      return true;
-                    }
-
-                    // Channel search
-                    final channelMeta = controller.getChannelMetadata(
-                      topic.channelId ?? '',
-                    );
-                    if (channelMeta != null) {
-                      final chName = (channelMeta['name'] ?? '').toLowerCase();
-                      final chHandle = (channelMeta['handle'] ?? '')
-                          .toLowerCase();
-                      if (chName.contains(query) || chHandle.contains(query)) {
-                        return true;
-                      }
-                    }
+                    final t = match.topic;
+                    if (t.title.toLowerCase().contains(query)) return true;
+                    if (t.slug.toLowerCase().contains(query)) return true;
+                    if (t.handle.toLowerCase().contains(query)) return true;
+                    if (t.category.toLowerCase().contains(query)) return true;
+                    if (t.description.toLowerCase().contains(query)) return true;
                     return false;
                   }).toList();
 
+                  final selectedId = controller.selectedTopicId?.value ?? '';
+
+                  // Top Hero Topic (Dynamic #1 Recommendation for this video)
+                  TopicMatchInfo? featuredMatch;
+                  if (selectedId.isNotEmpty) {
+                    featuredMatch = rankedMatches.firstWhereOrNull(
+                      (m) => m.topic.slug == selectedId || m.topic.id == selectedId,
+                    );
+                  }
+                  featuredMatch ??= filteredMatches.isNotEmpty
+                      ? filteredMatches.first
+                      : (rankedMatches.isNotEmpty ? rankedMatches.first : null);
+
                   return ListView(
                     controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
                     children: [
-                      // "None" option card
-                      _buildNoneTopicCard(
-                        context,
-                        isDark,
-                        textColor,
-                        subtextColor,
-                        borderColor,
-                      ),
-                      const SizedBox(height: 8),
+                      // "None" Topic Option Chip
+                      _buildNoneTopicChip(context, isDark, textColor, subtextColor, borderColor),
+                      const SizedBox(height: 16),
 
-                      // Draft Topic Option (if exists)
-                      if (controller.newTopicData.isNotEmpty) ...[
+                      // Draft Topic Option Card (if active draft exists)
+                      if (controller.newTopicData != null && controller.newTopicData.isNotEmpty) ...[
                         _buildDraftTopicCard(context, isDark, borderColor),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                       ],
 
-                      // Header label
-                      if (filteredTopics.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: 8,
-                            bottom: 8,
-                            left: 4,
-                          ),
-                          child: Text(
-                            'AVAILABLE TOPICS (${filteredTopics.length})',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.1,
-                              color: subtextColor,
-                            ),
-                          ),
+                      // 1. TOP HERO CONTAINER (#1 Recommended Topic for this Video)
+                      if (featuredMatch != null && query.isEmpty) ...[
+                        _buildHeroTopicCard(
+                          context,
+                          featuredMatch,
+                          selectedId == featuredMatch.topic.slug || selectedId == featuredMatch.topic.id,
+                          isDark,
+                          textColor,
+                          subtextColor,
+                          borderColor,
                         ),
+                        const SizedBox(height: 24),
+                      ],
 
-                      if (filteredTopics.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(32),
-                          margin: const EdgeInsets.only(top: 20),
-                          decoration: BoxDecoration(
-                            color: surfaceColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: borderColor),
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.search_off_rounded,
-                                size: 48,
-                                color: subtextColor.withValues(alpha: 0.6),
+                      // 2. MIDDLE SECTION HEADER
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Add this video to another topic',
+                              style: AppTextStyles.headlineSmall.copyWith(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                query.isEmpty
-                                    ? 'No topics found'
-                                    : 'No matching topics for "$query"',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: textColor,
-                                ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Topics ranked by relevance for your video',
+                              style: AppTextStyles.caption.copyWith(
+                                fontSize: 13,
+                                color: subtextColor,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Try a different search term or create a new topic below.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: subtextColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // 3. TOPIC CARDS LIST (Ranked topics below section header)
+                      if (filteredMatches.isEmpty)
+                        _buildEmptyState(query, textColor, subtextColor, isDark, borderColor)
                       else
                         ListView.separated(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredTopics.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
+                          itemCount: filteredMatches.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
-                            final topic = filteredTopics[index];
+                            final match = filteredMatches[index];
                             final isSelected =
-                                controller.selectedTopicId.value == topic.slug;
-                            return _buildTopicCard(
+                                selectedId == match.topic.slug || selectedId == match.topic.id;
+                            return _buildTopicListItemCard(
                               context,
-                              topic,
+                              match,
                               isSelected,
                               isDark,
                               textColor,
                               subtextColor,
                               borderColor,
-                              surfaceColor,
                             );
                           },
                         ),
-
-                      const SizedBox(height: 16),
-
-                      // Create New Topic button card
-                      _buildCreateTopicActionCard(context, isDark, borderColor),
                     ],
                   );
                 }),
@@ -265,8 +284,70 @@ class TopicSelectionBottomSheet extends StatelessWidget {
     );
   }
 
-  /// Header widget with title and close/refresh buttons
-  Widget _buildHeader(
+  /// Calculates dynamic topic recommendations for the active video
+  List<TopicMatchInfo> _computeRankedTopicMatches(List<Topic> topics) {
+    if (topics.isEmpty) return [];
+
+    // Check if controller has getRankedTopicsForCurrentVideo method
+    try {
+      if (controller != null && controller.getRankedTopicsForCurrentVideo != null) {
+        final ranked = controller.getRankedTopicsForCurrentVideo();
+        if (ranked != null && ranked.isNotEmpty) {
+          final results = <TopicMatchInfo>[];
+          for (var i = 0; i < ranked.length; i++) {
+            final r = ranked[i];
+            results.add(
+              TopicMatchInfo(
+                topic: r.topic,
+                matchPercentage: r.matchPercentage,
+                reason: r.recommendationReason,
+                isTopRecommendation: i == 0,
+              ),
+            );
+          }
+          return results;
+        }
+      }
+    } catch (_) {}
+
+    // Smart fallback recommendation ranking
+    final videoTitle = (controller.titleController?.text ?? '').trim().toLowerCase();
+    final videoCat = (controller.selectedCategory?.value ?? '').trim().toLowerCase();
+
+    final fallback = <TopicMatchInfo>[];
+    for (var i = 0; i < topics.length; i++) {
+      final t = topics[i];
+      final topicCat = t.category.toLowerCase();
+      var score = 70;
+      var reason = 'Suggested topic knowledge hub';
+
+      if (videoCat.isNotEmpty && (videoCat == topicCat || videoCat.contains(topicCat) || topicCat.contains(videoCat))) {
+        score += 25;
+        reason = 'Category match (${t.category})';
+      }
+
+      if (videoTitle.isNotEmpty && t.title.toLowerCase().split(' ').any((w) => w.length > 3 && videoTitle.contains(w))) {
+        score += 15;
+        reason = 'Matches video title keywords';
+      }
+
+      final pct = score.clamp(64, 98);
+      fallback.add(
+        TopicMatchInfo(
+          topic: t,
+          matchPercentage: pct,
+          reason: reason,
+          isTopRecommendation: i == 0,
+        ),
+      );
+    }
+
+    fallback.sort((a, b) => b.matchPercentage.compareTo(a.matchPercentage));
+    return fallback;
+  }
+
+  /// Top Header Bar
+  Widget _buildTopHeader(
     BuildContext context,
     bool isDark,
     Color textColor,
@@ -277,10 +358,10 @@ class TopicSelectionBottomSheet extends StatelessWidget {
       children: [
         const SizedBox(height: 10),
         Container(
-          width: 38,
+          width: 40,
           height: 4.5,
           decoration: BoxDecoration(
-            color: isDark ? AppColors.textDisabled : Colors.black12,
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
             borderRadius: BorderRadius.circular(3),
           ),
         ),
@@ -291,12 +372,12 @@ class TopicSelectionBottomSheet extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.topic_rounded,
-                  color: Color(0xFF3B82F6),
+                  color: Colors.white,
                   size: 20,
                 ),
               ),
@@ -306,16 +387,16 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Select Topic',
-                      style: TextStyle(
+                      'Save Video to Topic',
+                      style: AppTextStyles.headlineSmall.copyWith(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: textColor,
                       ),
                     ),
                     Text(
-                      'Save video directly to a topic knowledge hub',
-                      style: TextStyle(
+                      'AI Topic Recommendation Hub',
+                      style: AppTextStyles.caption.copyWith(
                         fontSize: 12,
                         color: subtextColor,
                       ),
@@ -324,20 +405,18 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: controller.fetchAvailableTopics,
-                icon: const Icon(Icons.refresh_rounded, size: 20),
-                tooltip: 'Refresh topics',
-                style: IconButton.styleFrom(
-                  foregroundColor: subtextColor,
-                ),
+                onPressed: () {
+                  if (controller.fetchAvailableTopics != null) {
+                    controller.fetchAvailableTopics();
+                  }
+                },
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+                tooltip: 'Refresh recommendations',
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded, size: 20),
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
                 tooltip: 'Close',
-                style: IconButton.styleFrom(
-                  foregroundColor: subtextColor,
-                ),
               ),
             ],
           ),
@@ -347,882 +426,889 @@ class TopicSelectionBottomSheet extends StatelessWidget {
     );
   }
 
-  /// Search Bar with instant query filtering
-  Widget _buildSearchBar(
+  /// Search Bar with Create Action
+  Widget _buildSearchBarAndCreateAction(
     BuildContext context,
     bool isDark,
     Color textColor,
     Color subtextColor,
     Color borderColor,
   ) {
-    return Obx(() {
-      final query = controller.topicSearchQuery.value;
-      return Container(
-        height: 48,
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 46,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF161B26) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderColor),
+            ),
+            child: TextField(
+              onChanged: (val) {
+                if (controller.topicSearchQuery != null) {
+                  controller.topicSearchQuery.value = val;
+                }
+              },
+              style: AppTextStyles.bodyMedium.copyWith(color: textColor, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Search topics by title, category, handle...',
+                hintStyle: AppTextStyles.caption.copyWith(color: subtextColor, fontSize: 13),
+                prefixIcon: const Icon(Icons.search_rounded, color: Colors.white, size: 20),
+                suffixIcon: (controller.topicSearchQuery?.value ?? '').isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, color: Colors.white, size: 18),
+                        onPressed: () => controller.topicSearchQuery.value = '',
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.pop(context);
+            onCreateNewTopicRequested(isDark);
+          },
+          icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+          label: Text(
+            'New Topic',
+            style: AppTextStyles.buttonText.copyWith(color: Colors.white, fontSize: 13),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2563EB),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// "None" Option Chip
+  Widget _buildNoneTopicChip(
+    BuildContext context,
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+    Color borderColor,
+  ) {
+    final String selectedId = controller.selectedTopicId?.value ?? '';
+    final isSelected = selectedId.isEmpty &&
+        (controller.newTopicData == null || controller.newTopicData.isEmpty);
+
+    return InkWell(
+      onTap: () {
+        if (controller.selectTopic != null) {
+          controller.selectTopic('');
+        } else if (controller.selectedTopicId != null) {
+          controller.selectedTopicId.value = '';
+        }
+        if (controller.newTopicData != null) {
+          controller.newTopicData.clear();
+        }
+        if (onTopicSelected != null) {
+          onTopicSelected!(null);
+        }
+        HapticFeedback.lightImpact();
+        Navigator.pop(context);
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF3F4F6),
+          color: isSelected
+              ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0))
+              : (isDark ? const Color(0xFF111722) : Colors.white),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: query.isNotEmpty
-                ? const Color(0xFF3B82F6)
-                : (isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB)),
-            width: query.isNotEmpty ? 1.5 : 1.0,
+            color: isSelected ? const Color(0xFF3B82F6) : borderColor,
+            width: isSelected ? 1.8 : 1.0,
           ),
         ),
-        child: TextField(
-          onChanged: (val) => controller.topicSearchQuery.value = val,
-          style: TextStyle(
-            fontSize: 14,
-            color: textColor,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Search topics by name, handle or channel...',
-            hintStyle: TextStyle(
-              fontSize: 14,
-              color: subtextColor,
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.block_rounded, color: Colors.white, size: 18),
             ),
-            prefixIcon: const Icon(
-              Icons.search_rounded,
-              color: Color(0xFF3B82F6),
-              size: 20,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "None (Don't save video to any topic)",
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: textColor,
+                    ),
+                  ),
+                  Text(
+                    'Publish video as a standalone upload',
+                    style: AppTextStyles.caption.copyWith(fontSize: 12, color: subtextColor),
+                  ),
+                ],
+              ),
             ),
-            suffixIcon: query.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear_rounded, size: 18),
-                    onPressed: () => controller.topicSearchQuery.value = '',
-                    color: subtextColor,
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-        ),
-      );
-    });
-  }
-
-  /// Option card to unselect topic ("None")
-  Widget _buildNoneTopicCard(
-    BuildContext context,
-    bool isDark,
-    Color textColor,
-    Color subtextColor,
-    Color borderColor,
-  ) {
-    return Obx(() {
-      final isSelected =
-          controller.selectedTopicId.value.isEmpty &&
-          controller.newTopicData.isEmpty;
-      return InkWell(
-        onTap: () {
-          controller.selectTopic('');
-          controller.newTopicData.clear();
-          HapticFeedback.lightImpact();
-          Navigator.pop(context);
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? (isDark ? const Color(0xFF1F2937) : const Color(0xFFEFF6FF))
-                : (isDark ? const Color(0xFF0D1117) : AppColors.textPrimary),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF3B82F6)
-                  : (isDark
-                        ? const Color(0xFF30363D)
-                        : const Color(0xFFE5E7EB)),
-              width: isSelected ? 1.8 : 1.0,
-            ),
-          ),
-          child: Row(
-            children: [
+            if (isSelected)
               Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF21262D)
-                      : const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.block_rounded,
-                  color: subtextColor,
-                  size: 20,
-                ),
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Color(0xFF3B82F6), shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "None (Don't add to topic)",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
-                    Text(
-                      'Publish as a standalone video without linking to a topic',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: subtextColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (isSelected)
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: Color(0xFF3B82F6),
-                  size: 22,
-                ),
-            ],
-          ),
+          ],
         ),
-      );
-    });
+      ),
+    );
   }
 
-  /// Draft Topic option card
+  /// Draft Topic Option Card
   Widget _buildDraftTopicCard(
     BuildContext context,
     bool isDark,
     Color borderColor,
   ) {
-    return Obx(() {
-      final isSelected = controller.selectedTopicId.value == 'new_topic_draft';
-      final title =
-          controller.newTopicData['title'] as String? ?? 'Untitled Draft';
+    final String selectedId = controller.selectedTopicId?.value ?? '';
+    final isSelected = selectedId == 'new_topic_draft';
+    final title = controller.newTopicData['title'] as String? ?? 'Untitled Draft';
 
-      return InkWell(
-        onTap: () {
+    return InkWell(
+      onTap: () {
+        if (controller.selectTopic != null) {
           controller.selectTopic('new_topic_draft');
-          HapticFeedback.lightImpact();
-          Navigator.pop(context);
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        } else if (controller.selectedTopicId != null) {
+          controller.selectedTopicId.value = 'new_topic_draft';
+        }
+        HapticFeedback.lightImpact();
+        Navigator.pop(context);
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2D1537) : const Color(0xFFFDF4FF),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFFA855F7),
+            width: isSelected ? 2.0 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFA855F7).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.edit_document, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Draft: $title',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : const Color(0xFF7E22CE),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFA855F7).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'NEW DRAFT',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Topic will be created upon video publish',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 12,
+                      color: isDark ? const Color(0xFFE9D5FF) : const Color(0xFF6B21A8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Color(0xFFA855F7), shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 1. TOP HERO CONTAINER (#1 Recommended Topic dynamically calculated for video)
+  Widget _buildHeroTopicCard(
+    BuildContext context,
+    TopicMatchInfo match,
+    bool isSelected,
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+    Color borderColor,
+  ) {
+    final topic = match.topic;
+    final imageSrc = topic.thumbnailUrl ?? topic.coverImage;
+    final categoryText =
+        topic.category.isNotEmpty ? topic.category.toUpperCase() : 'GENERAL';
+    final dateStr = _formatTopicDate(topic.createdAt);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 620;
+
+        return Container(
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF2D1537) : const Color(0xFFFDF4FF),
-            borderRadius: BorderRadius.circular(14),
+            color: isDark ? const Color(0xFF0F141C) : const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.brandHover,
+              color: isSelected ? const Color(0xFF38BDF8) : const Color(0xFF1E293B),
               width: isSelected ? 2.0 : 1.0,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          child: Row(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Dynamic Recommendation Badge Overlay (BEST MATCH • 98% Match)
               Container(
-                width: 40,
-                height: 40,
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.brand.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.6)),
                 ),
-                child: const Icon(
-                  Icons.edit_document,
-                  color: AppColors.brandHover,
-                  size: 20,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.stars_rounded, color: Colors.white, size: 14),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'BEST MATCH FOR YOUR VIDEO',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: Color(0xFF38BDF8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '(${match.reason})',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
+
+              // Main content row (Image on left, details on right)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Topic Large Image Thumbnail
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: isNarrow ? 100 : 140,
+                      height: isNarrow ? 100 : 140,
+                      color: const Color(0xFF1E293B),
+                      child: imageSrc != null && imageSrc.isNotEmpty
+                          ? Image.network(
+                              imageSrc,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _buildFallbackThumbnail(),
+                            )
+                          : _buildFallbackThumbnail(),
+                    ),
+                  ),
+
+                  const SizedBox(width: 18),
+
+                  // Right side details column
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Category Tag
+                        Text(
+                          categoryText,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.3,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // Topic Title
+                        Text(
+                          topic.title,
+                          style: AppTextStyles.titleLarge.copyWith(
+                            fontSize: isNarrow ? 20 : 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Topic Description
+                        if (topic.description.isNotEmpty)
+                          Text(
+                            topic.description,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontSize: 13,
+                              color: const Color(0xFF94A3B8),
+                              height: 1.35,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        const SizedBox(height: 10),
+
+                        // Date Metadata Row
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              dateStr,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              // Bottom Stats & Primary Action Button Row
+              if (isNarrow)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStatsRow(topic),
+                    const SizedBox(height: 14),
+                    _buildHeroActionButton(topic, isSelected, context),
+                  ],
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildStatsRow(topic),
+                    const SizedBox(width: 16),
+                    _buildHeroActionButton(topic, isSelected, context),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Hero Stats Row
+  Widget _buildStatsRow(Topic topic) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Video Count
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_circle_outline_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  FormatUtils.formatCount(topic.videoCount),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const Text(
+                  'Videos',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        const SizedBox(width: 16),
+        Container(width: 1, height: 28, color: const Color(0xFF334155)),
+        const SizedBox(width: 16),
+
+        // Followers Count
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.people_outline_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  FormatUtils.formatCount(topic.followerCount),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const Text(
+                  'Followers',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Primary Action Button
+  Widget _buildHeroActionButton(Topic topic, bool isSelected, BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: () => _handleTopicSelection(context, topic),
+      icon: Icon(
+        isSelected ? Icons.check_rounded : Icons.add_rounded,
+        size: 18,
+        color: isSelected ? Colors.white : const Color(0xFF0F172A),
+      ),
+      label: Text(
+        isSelected ? 'Added to topic' : 'Add video to this topic',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: isSelected ? Colors.white : const Color(0xFF0F172A),
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? const Color(0xFF0EA5E9) : Colors.white,
+        foregroundColor: isSelected ? Colors.white : const Color(0xFF0F172A),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
+    );
+  }
+
+  /// 3. TOPIC LIST CARDS (Ranked by relevance to video)
+  Widget _buildTopicListItemCard(
+    BuildContext context,
+    TopicMatchInfo match,
+    bool isSelected,
+    bool isDark,
+    Color textColor,
+    Color subtextColor,
+    Color borderColor,
+  ) {
+    final topic = match.topic;
+    final imageSrc = topic.thumbnailUrl ?? topic.coverImage;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F141C) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected
+              ? const Color(0xFF38BDF8)
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          width: isSelected ? 1.8 : 1.0,
+        ),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 480;
+
+          return Row(
+            children: [
+              // Topic Thumbnail
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 72,
+                  height: 52,
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                  child: imageSrc != null && imageSrc.isNotEmpty
+                      ? Image.network(
+                          imageSrc,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _buildFallbackThumbnailSmall(),
+                        )
+                      : _buildFallbackThumbnailSmall(),
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              // Title, Description & Recommendation Badge
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Text(
-                          'Draft: $title',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.brandHover,
+                        Expanded(
+                          child: Text(
+                            topic.title,
+                            style: AppTextStyles.bodyLarge.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: textColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 6),
+
+                        // Recommended Badge (No percentage)
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.brand.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(4),
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
-                            'UNSAVED DRAFT',
+                            'RECOMMENDED',
                             style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.brandHover,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF38BDF8),
                             ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'This new topic will be created when you publish your video',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? AppColors.brand : AppColors.brand,
+                    if (topic.description.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        topic.description,
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 12,
+                          color: subtextColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
-              if (isSelected)
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppColors.brandHover,
-                  size: 22,
-                ),
-            ],
-          ),
-        ),
-      );
-    });
-  }
 
-  /// Topic Item Card displaying thumbnail, title, counts, creator channel & lock state
-  Widget _buildTopicCard(
-    BuildContext context,
-    Topic topic,
-    bool isSelected,
-    bool isDark,
-    Color textColor,
-    Color subtextColor,
-    Color borderColor,
-    Color surfaceColor,
-  ) {
-    final isPrivate = topic.visibilityType == TopicVisibilityType.private;
-    final isChannelOnly =
-        topic.visibilityType == TopicVisibilityType.channelOnly;
+              const SizedBox(width: 10),
 
-    final imageSrc = topic.thumbnailUrl ?? topic.coverImage;
-
-    return InkWell(
-      onTap: () => _handleTopicSelection(context, topic),
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF))
-              : surfaceColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF3B82F6) : borderColor,
-            width: isSelected ? 2.0 : 1.0,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Thumbnail with fallback icon & lock badge overlay
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: 58,
-                    height: 58,
-                    color: isDark
-                        ? const Color(0xFF21262D)
-                        : const Color(0xFFE5E7EB),
-                    child: imageSrc != null && imageSrc.isNotEmpty
-                        ? Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Image.network(
-                                imageSrc,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) =>
-                                    _buildFallbackThumbnail(isDark),
-                              ),
-                              Container(
-                                color: Colors.black.withValues(alpha: 0.65),
-                              ),
-                              Image.network(
-                                imageSrc,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, _, _) =>
-                                    _buildFallbackThumbnail(isDark),
-                              ),
-                            ],
-                          )
-                        : _buildFallbackThumbnail(isDark),
-                  ),
-                ),
-
-                // Visibility badge overlay
-                Positioned(
-                  bottom: 3,
-                  right: 3,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: isPrivate
-                          ? AppColors.warning
-                          : (isChannelOnly
-                                ? AppColors.info
-                                : AppColors.success),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.textPrimary,
-                        width: 1.2,
+              // Right side stats & Add button
+              if (!isCompact) ...[
+                // Stat 1: Video Count
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_circle_outline_rounded,
+                        size: 14,
+                        color: Colors.white,
                       ),
                     ),
-                    child: Icon(
-                      isPrivate
-                          ? Icons.lock_rounded
-                          : (isChannelOnly
-                                ? Icons.group_rounded
-                                : Icons.public_rounded),
-                      size: 10,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(width: 14),
-
-            // Content details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title & Badge row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          topic.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                    const SizedBox(width: 5),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          FormatUtils.formatCount(topic.videoCount),
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                             color: textColor,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-
-                      // Visibility Chip
-                      _buildVisibilityChip(topic.visibilityType),
-                    ],
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // Followers & Videos Count Row
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.people_alt_outlined,
-                        size: 13,
-                        color: subtextColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${FormatUtils.formatCount(topic.followerCount)} followers',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: subtextColor,
+                        Text(
+                          'Videos',
+                          style: TextStyle(fontSize: 10, color: subtextColor),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Text(
-                          '•',
-                          style: TextStyle(color: subtextColor, fontSize: 12),
-                        ),
-                      ),
-                      Icon(
-                        Icons.video_library_outlined,
-                        size: 13,
-                        color: subtextColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${FormatUtils.formatCount(topic.videoCount)} videos',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: subtextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // Channel Name (For Public or Channel topics)
-                  _buildCreatorChannelInfo(topic, isDark, subtextColor),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 10),
-
-            // Radio/Selection Icon
-            if (isSelected)
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF3B82F6),
-                  shape: BoxShape.circle,
+                      ],
+                    ),
+                  ],
                 ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  color: AppColors.textPrimary,
+
+                const SizedBox(width: 14),
+
+                // Stat 2: Follower Count
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.people_outline_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          FormatUtils.formatCount(topic.followerCount),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        Text(
+                          'Followers',
+                          style: TextStyle(fontSize: 10, color: subtextColor),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(width: 14),
+              ],
+
+              // Action button: "+ Add" / "Added"
+              OutlinedButton.icon(
+                onPressed: () => _handleTopicSelection(context, topic),
+                icon: Icon(
+                  isSelected ? Icons.check_rounded : Icons.add_rounded,
                   size: 16,
+                  color: isSelected ? Colors.white : textColor,
                 ),
-              )
-            else if (isPrivate)
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                label: Text(
+                  isSelected ? 'Added' : 'Add',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : textColor,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.key_rounded,
-                  color: AppColors.warning,
-                  size: 16,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: isSelected
+                      ? const Color(0xFF0EA5E9)
+                      : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                  foregroundColor: isSelected ? Colors.white : textColor,
+                  side: BorderSide(
+                    color: isSelected ? const Color(0xFF0EA5E9) : borderColor,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  /// Renders fallback thumbnail gradient with icon
-  Widget _buildFallbackThumbnail(bool isDark) {
+  /// Empty state widget
+  Widget _buildEmptyState(
+    String query,
+    Color textColor,
+    Color subtextColor,
+    bool isDark,
+    Color borderColor,
+  ) {
     return Container(
+      padding: const EdgeInsets.all(32),
+      margin: const EdgeInsets.only(top: 16),
       decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F141C) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.search_off_rounded, size: 48, color: Colors.white),
+          const SizedBox(height: 12),
+          Text(
+            query.isEmpty ? 'No topics found' : 'No matching topics for "$query"',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.headlineSmall.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Create a new topic to organize and save your videos.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.caption.copyWith(fontSize: 13, color: subtextColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Fallback Thumbnail for Top Hero Card
+  Widget _buildFallbackThumbnail() {
+    return Container(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1F2937), const Color(0xFF111827)]
-              : [const Color(0xFFE0F2FE), const Color(0xFFBAE6FD)],
+          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
       child: const Center(
-        child: Icon(
-          Icons.topic_rounded,
-          color: Color(0xFF3B82F6),
-          size: 26,
-        ),
+        child: Icon(Icons.topic_rounded, color: Colors.white, size: 40),
       ),
     );
   }
 
-  /// Visibility Chip (Public / Private / Channel Only)
-  Widget _buildVisibilityChip(TopicVisibilityType type) {
-    var label = 'Public';
-    var color = AppColors.success;
-    var icon = Icons.public_rounded;
-
-    if (type == TopicVisibilityType.private) {
-      label = 'Private';
-      color = AppColors.warning;
-      icon = Icons.lock_rounded;
-    } else if (type == TopicVisibilityType.channelOnly) {
-      label = 'Channel';
-      color = AppColors.info;
-      icon = Icons.group_rounded;
-    }
-
+  /// Fallback Thumbnail for Topic Item Cards
+  Widget _buildFallbackThumbnailSmall() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 10, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
+      child: const Center(
+        child: Icon(Icons.topic_rounded, color: Colors.white, size: 22),
       ),
     );
   }
 
-  /// Displays Creator Channel details for public topics
-  Widget _buildCreatorChannelInfo(
-    Topic topic,
-    bool isDark,
-    Color subtextColor,
-  ) {
-    if (topic.channelId == null || topic.channelId!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Obx(() {
-      final channelMeta = controller.getChannelMetadata(topic.channelId!);
-      final channelName = channelMeta?['name'] ?? 'TruthWorld Creator';
-
-      return Row(
-        children: [
-          const Icon(
-            Icons.account_circle_outlined,
-            size: 13,
-            color: Color(0xFF3B82F6),
-          ),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'Created by $channelName',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF3B82F6),
-              ),
-            ),
-          ),
-        ],
-      );
-    });
+  /// Helper to format date string e.g. "Aug 14, 2026"
+  String _formatTopicDate(DateTime? dateTime) {
+    final dt = dateTime ?? DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
-  /// Create New Topic Card Action button
-  Widget _buildCreateTopicActionCard(
-    BuildContext context,
-    bool isDark,
-    Color borderColor,
-  ) {
-    return InkWell(
-      onTap: () {
-        Navigator.pop(context);
-        onCreateNewTopicRequested(isDark);
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
-            width: 1.2,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                color: Color(0xFF3B82F6),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: AppColors.textPrimary,
-                size: 16,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Create New Topic',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF3B82F6),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Handles selection of a topic (and prompts for PIN if topic is private)
+  /// Handle Topic Selection
   void _handleTopicSelection(BuildContext context, Topic topic) {
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final isCreator =
-        topic.creatorId == currentUserId ||
-        (controller.selectedChannel.value != null &&
-            topic.channelId == controller.selectedChannel.value!.id);
-
-    // If public or channelOnly or created by current user -> select immediately
-    if (topic.visibilityType != TopicVisibilityType.private || isCreator) {
-      controller.selectTopic(topic.slug);
-      controller.newTopicData.clear();
-      HapticFeedback.lightImpact();
-      Navigator.pop(context);
-      Get.snackbar(
-        'Topic Selected',
-        'Video will save to "${topic.title}"',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        duration: const Duration(seconds: 2),
-      );
-      return;
+    if (controller.selectTopic != null) {
+      controller.selectTopic(topic.slug.isNotEmpty ? topic.slug : topic.id);
+    } else if (controller.selectedTopicId != null) {
+      controller.selectedTopicId.value = topic.slug.isNotEmpty ? topic.slug : topic.id;
     }
-
-    // If topic is private and user is not creator -> Require PIN / Password
-    _showPrivateTopicPinDialog(context, topic);
-  }
-
-  /// Security Modal Dialog for entering PIN / Password for Private Topics
-  void _showPrivateTopicPinDialog(BuildContext context, Topic topic) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pinController = TextEditingController();
-    final isObscured = true.obs;
-    final errorMessage = ''.obs;
-    final isVerifying = false.obs;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) {
-        return AlertDialog(
-          backgroundColor: isDark
-              ? const Color(0xFF161B22)
-              : AppColors.textPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.lock_rounded,
-                  color: AppColors.warning,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Private Topic PIN',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark
-                            ? AppColors.textPrimary
-                            : const Color(0xFF111827),
-                      ),
-                    ),
-                    Text(
-                      'Passcode required to save video',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? AppColors.textSecondary
-                            : AppColors.bgPage54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter PIN / Password for "${topic.title}":',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isDark
-                      ? AppColors.textSecondary
-                      : const Color(0xFF374151),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              Obx(
-                () => TextField(
-                  controller: pinController,
-                  obscureText: isObscured.value,
-                  autofocus: true,
-                  style: TextStyle(
-                    fontSize: 15,
-                    letterSpacing: isObscured.value ? 2.0 : 0.5,
-                    color: isDark ? AppColors.textPrimary : AppColors.bgPage,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Enter topic passcode...',
-                    prefixIcon: const Icon(
-                      Icons.key_rounded,
-                      size: 18,
-                      color: AppColors.warning,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        isObscured.value
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        size: 18,
-                        color: isDark
-                            ? AppColors.textSecondary
-                            : Colors.black45,
-                      ),
-                      onPressed: isObscured.toggle,
-                    ),
-                    filled: true,
-                    fillColor: isDark
-                        ? const Color(0xFF0D1117)
-                        : const Color(0xFFF3F4F6),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: errorMessage.isNotEmpty
-                            ? AppColors.error
-                            : (isDark
-                                  ? const Color(0xFF30363D)
-                                  : const Color(0xFFE5E7EB)),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: errorMessage.isNotEmpty
-                            ? AppColors.error
-                            : AppColors.warning,
-                        width: 1.8,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              Obx(() {
-                if (errorMessage.isEmpty) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 14,
-                        color: AppColors.error,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          errorMessage.value,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.error,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  color: isDark ? AppColors.textSecondary : AppColors.bgPage54,
-                ),
-              ),
-            ),
-            Obx(
-              () => ElevatedButton.icon(
-                onPressed: isVerifying.value
-                    ? null
-                    : () async {
-                        final inputPasscode = pinController.text.trim();
-                        if (inputPasscode.isEmpty) {
-                          errorMessage.value = 'Passcode cannot be empty';
-                          return;
-                        }
-
-                        isVerifying.value = true;
-                        errorMessage.value = '';
-
-                        final success = await controller.unlockPrivateTopic(
-                          topic.slug,
-                          inputPasscode,
-                        );
-                        isVerifying.value = false;
-
-                        if (success) {
-                          if (dialogCtx.mounted) {
-                            Navigator.pop(dialogCtx); // Close PIN dialog
-                          }
-                          if (context.mounted) {
-                            Navigator.pop(context); // Close Bottom Sheet
-                          }
-                        } else {
-                          errorMessage.value =
-                              'Incorrect PIN / Password for this topic';
-                        }
-                      },
-                icon: isVerifying.value
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.textPrimary,
-                        ),
-                      )
-                    : const Icon(Icons.lock_open_rounded, size: 16),
-                label: Text(
-                  isVerifying.value ? 'Verifying...' : 'Unlock & Select',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warning,
-                  foregroundColor: AppColors.textPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    if (controller.newTopicData != null) {
+      controller.newTopicData.clear();
+    }
+    if (onTopicSelected != null) {
+      onTopicSelected!(topic);
+    }
+    HapticFeedback.lightImpact();
+    Navigator.pop(context);
   }
 }

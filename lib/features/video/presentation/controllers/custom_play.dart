@@ -31,6 +31,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:chewie/chewie.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -151,6 +152,7 @@ class TowerPlayerController extends BaseController {
   final RxString activeSubLang = 'Off'.obs;
   final RxList<SubtitleTrack> subtitleTracks = <SubtitleTrack>[].obs;
   final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
+  final RxBool isLoadingSubtitles = false.obs;
   final RxString currentSubtitle = ''.obs;
   // ignore: unused_field
   html.TrackElement? _activeTrack;
@@ -446,10 +448,14 @@ class TowerPlayerController extends BaseController {
     try {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
-        if (vc.availableSubtitles.isNotEmpty && subtitleTracks.isEmpty) {
+        if (vc.availableSubtitles.isNotEmpty &&
+            (subtitleTracks.isEmpty ||
+                subtitleTracks.length != vc.availableSubtitles.length)) {
           subtitleTracks.assignAll(vc.availableSubtitles);
         }
-        if (vc.availableAudioTracks.isNotEmpty && audioTracks.isEmpty) {
+        if (vc.availableAudioTracks.isNotEmpty &&
+            (audioTracks.isEmpty ||
+                audioTracks.length != vc.availableAudioTracks.length)) {
           audioTracks.assignAll(vc.availableAudioTracks);
           activeAudioLang.value = audioTracks.first.label;
         }
@@ -802,27 +808,217 @@ class TowerPlayerController extends BaseController {
 
   Future<void> fetchAndParseSubtitles(String url) async {
     if (url.isEmpty) return;
+    isLoadingSubtitles.value = true;
     try {
-      debugPrint('[TowerPlayer] Fetching subtitles: $url');
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        // Industry Standard: Use utf8.decode on bodyBytes to ensure correct encoding
-        // regardless of server headers. Also handle the UTF-8 BOM if present.
-        var content = utf8.decode(response.bodyBytes, allowMalformed: true);
+      debugPrint('[TowerPlayer] Fetching subtitles/transcript: $url');
+      String? content;
 
-        // Remove UTF-8 BOM (\uFEFF) if present at the start of the file
+      // 1. Try resolving and downloading via HTTP
+      try {
+        var resolvedUrl = url;
+        if (resolvedUrl.startsWith('gs://')) {
+          resolvedUrl = await FirebaseStorage.instance
+              .refFromURL(resolvedUrl)
+              .getDownloadURL();
+        }
+        final response = await http.get(Uri.parse(resolvedUrl));
+        if (response.statusCode == 200) {
+          content = utf8.decode(response.bodyBytes, allowMalformed: true);
+        }
+      } catch (_) {}
+
+      // 2. Fallback: FirebaseStorage SDK directly
+      if (content == null || content.isEmpty) {
+        try {
+          Uint8List? data;
+          if (url.startsWith('gs://') ||
+              url.startsWith('https://storage.googleapis.com/') ||
+              url.startsWith('https://firebasestorage.googleapis.com/')) {
+            data = await FirebaseStorage.instance.refFromURL(url).getData();
+          } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/') || url.startsWith('videos/')) {
+            data = await FirebaseStorage.instance.ref(url).getData();
+          }
+          if (data != null && data.isNotEmpty) {
+            content = utf8.decode(data, allowMalformed: true);
+          }
+        } catch (e) {
+          debugPrint('[TowerPlayer] FirebaseStorage SDK fetch error: $e');
+        }
+      }
+
+      if (content != null && content.isNotEmpty) {
         if (content.startsWith('\uFEFF')) {
           content = content.substring(1);
         }
 
-        final segments = _parseSRT(content);
-        subtitleSegments.assignAll(segments);
-        debugPrint('[TowerPlayer] Parsed ${segments.length} subtitle segments');
+        final trimmed = content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          final segments = _parseJsonTranscript(trimmed);
+          subtitleSegments.assignAll(segments);
+        } else {
+          final segments = _parseSRT(content);
+          subtitleSegments.assignAll(segments);
+        }
+        debugPrint(
+          '[TowerPlayer] Parsed ${subtitleSegments.length} subtitle segments',
+        );
       }
     } catch (e) {
       debugPrint('[TowerPlayer] Subtitle fetch/parse error: $e');
       subtitleSegments.clear();
+    } finally {
+      isLoadingSubtitles.value = false;
     }
+  }
+
+  List<SubtitleSegment> _parseJsonTranscript(String content) {
+    final segs = <SubtitleSegment>[];
+    try {
+      final decoded = jsonDecode(content);
+
+      if (decoded is List) {
+        for (final item in decoded) {
+          if (item is Map) {
+            final seg = _segmentFromMap(item);
+            if (seg != null) segs.add(seg);
+          }
+        }
+      } else if (decoded is Map) {
+        // 1. Check utterances (AssemblyAI speaker turns)
+        if (decoded['utterances'] is List &&
+            (decoded['utterances'] as List).isNotEmpty) {
+          for (final item in (decoded['utterances'] as List)) {
+            if (item is Map) {
+              final seg = _segmentFromMap(item);
+              if (seg != null) segs.add(seg);
+            }
+          }
+        }
+        // 2. Check segments (Whisper or standard pipeline)
+        else if (decoded['segments'] is List &&
+            (decoded['segments'] as List).isNotEmpty) {
+          for (final item in (decoded['segments'] as List)) {
+            if (item is Map) {
+              final seg = _segmentFromMap(item);
+              if (seg != null) segs.add(seg);
+            }
+          }
+        }
+        // 3. Check paragraphs
+        else if (decoded['paragraphs'] is List &&
+            (decoded['paragraphs'] as List).isNotEmpty) {
+          for (final item in (decoded['paragraphs'] as List)) {
+            if (item is Map) {
+              final seg = _segmentFromMap(item);
+              if (seg != null) segs.add(seg);
+            }
+          }
+        }
+        // 4. Check words (group consecutive words into sentence segments)
+        else if (decoded['words'] is List &&
+            (decoded['words'] as List).isNotEmpty) {
+          final wordsList = (decoded['words'] as List).whereType<Map>().toList();
+          final currentChunk = <Map>[];
+          for (var i = 0; i < wordsList.length; i++) {
+            final w = wordsList[i];
+            currentChunk.add(w);
+            final wordText = (w['text'] ?? w['word'] ?? '').toString().trim();
+            final isPunctuationEnd = wordText.endsWith('.') ||
+                wordText.endsWith('?') ||
+                wordText.endsWith('!') ||
+                wordText.endsWith(';') ||
+                currentChunk.length >= 8;
+            if (isPunctuationEnd || i == wordsList.length - 1) {
+              final startNum =
+                  (currentChunk.first['start'] as num?)?.toDouble() ?? 0.0;
+              final endNum =
+                  (currentChunk.last['end'] as num?)?.toDouble() ??
+                  (startNum + 2000);
+              final startMs =
+                  (startNum < 10000 ? startNum * 1000 : startNum).round();
+              final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
+              final sentenceText = currentChunk
+                  .map(
+                    (e) => (e['text'] ?? e['word'] ?? '').toString().trim(),
+                  )
+                  .where((t) => t.isNotEmpty)
+                  .join(' ');
+              if (sentenceText.isNotEmpty) {
+                segs.add(
+                  SubtitleSegment(
+                    start: Duration(milliseconds: startMs),
+                    end: Duration(milliseconds: endMs),
+                    text: sentenceText,
+                  ),
+                );
+              }
+              currentChunk.clear();
+            }
+          }
+        }
+        // 5. Fallback: single text / transcript string
+        else if (decoded['text'] is String &&
+            (decoded['text'] as String).isNotEmpty) {
+          final fullText = (decoded['text'] as String).trim();
+          segs.add(
+            SubtitleSegment(
+              start: Duration.zero,
+              end: const Duration(hours: 2),
+              text: fullText,
+            ),
+          );
+        } else if (decoded['transcript'] is String &&
+            (decoded['transcript'] as String).isNotEmpty) {
+          final fullText = (decoded['transcript'] as String).trim();
+          segs.add(
+            SubtitleSegment(
+              start: Duration.zero,
+              end: const Duration(hours: 2),
+              text: fullText,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[TowerPlayer] JSON transcript parse error: $e');
+    }
+    return segs;
+  }
+
+  SubtitleSegment? _segmentFromMap(Map item) {
+    final startVal = item['start'] ??
+        item['startMs'] ??
+        item['startTime'] ??
+        item['startTimeMs'];
+    final endVal = item['end'] ??
+        item['endMs'] ??
+        item['endTime'] ??
+        item['endTimeMs'];
+    final text = (item['text'] ??
+            item['sentence'] ??
+            item['content'] ??
+            item['transcript'] ??
+            item['word'] ??
+            '')
+        .toString()
+        .trim();
+    if (text.isEmpty) return null;
+
+    final startNum = (startVal is num)
+        ? startVal.toDouble()
+        : (double.tryParse(startVal?.toString() ?? '') ?? 0.0);
+    final endNum = (endVal is num)
+        ? endVal.toDouble()
+        : (double.tryParse(endVal?.toString() ?? '') ?? (startNum + 2.0));
+
+    final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
+    final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
+
+    return SubtitleSegment(
+      start: Duration(milliseconds: startMs),
+      end: Duration(milliseconds: endMs),
+      text: text,
+    );
   }
 
   List<SubtitleSegment> _parseSRT(String content) {
@@ -875,15 +1071,31 @@ class TowerPlayerController extends BaseController {
   }
 
   Duration _parseSRTTime(String timeStr) {
-    // 00:00:20,000
-    final parts = timeStr.trim().replaceAll(',', '.').split(':');
-    if (parts.length != 3) return Duration.zero;
+    // e.g. "00:00:20.000" or "00:00:20,000" or "00:20.000" or "00:00:20.000 align:start"
+    final cleanTime = timeStr.trim().split(RegExp(r'\s+'))[0].replaceAll(',', '.');
+    final parts = cleanTime.split(':');
+    if (parts.length < 2) return Duration.zero;
 
-    final h = int.parse(parts[0]);
-    final m = int.parse(parts[1]);
-    final sParts = parts[2].split('.');
-    final s = int.parse(sParts[0]);
-    final ms = sParts.length > 1 ? int.parse(sParts[1]) : 0;
+    var h = 0;
+    var m = 0;
+    var sSec = '';
+
+    if (parts.length == 3) {
+      h = int.tryParse(parts[0]) ?? 0;
+      m = int.tryParse(parts[1]) ?? 0;
+      sSec = parts[2];
+    } else if (parts.length == 2) {
+      m = int.tryParse(parts[0]) ?? 0;
+      sSec = parts[1];
+    }
+
+    final sParts = sSec.split('.');
+    final s = int.tryParse(sParts[0]) ?? 0;
+    var ms = 0;
+    if (sParts.length > 1) {
+      final msStr = sParts[1].padRight(3, '0').substring(0, 3);
+      ms = int.tryParse(msStr) ?? 0;
+    }
 
     return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
   }
@@ -1191,7 +1403,7 @@ class TowerCustomPlayer extends StatelessWidget {
                   // ── Layer 0: Audio-Only overlay ──────────────────────────────
                   Obx(
                     () => c.isAudioOnly.value
-                        ? const _AudioOnlyOverlay()
+                        ? _AudioOnlyOverlay(ctrl: c)
                         : const SizedBox.shrink(),
                   ),
 
@@ -1357,7 +1569,9 @@ class _SwitchingResolutionOverlay extends StatelessWidget {
 // AUDIO ONLY OVERLAY
 // ─────────────────────────────────────────────────────────────────────────────
 class _AudioOnlyOverlay extends StatelessWidget {
-  const _AudioOnlyOverlay();
+  const _AudioOnlyOverlay({this.ctrl});
+
+  final TowerPlayerController? ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1406,7 +1620,11 @@ class _AudioOnlyOverlay extends StatelessWidget {
             Obx(() {
               // Ensure we touch an observable to prevent GetX "improper use" exception
               // when the service is not yet registered.
-              Get.find<TowerPlayerController>().isAudioOnly.value;
+              if (ctrl != null) {
+                ctrl!.isAudioOnly.value;
+              } else if (Get.isRegistered<TowerPlayerController>()) {
+                Get.find<TowerPlayerController>().isAudioOnly.value;
+              }
 
               final svc = Get.isRegistered<AudioOnlyService>()
                   ? Get.find<AudioOnlyService>()
@@ -3106,88 +3324,7 @@ class _RatingPanel extends StatelessWidget {
                   ],
                 ),
 
-                // NEW: Video Rating Section in Player Settings
-                Builder(
-                  builder: (context) {
-                    try {
-                      final vc = Get.find<VideoController>(tag: ctrl.tag);
-                      if (vc.video.videoRating > 0) {
-                        final rating = vc.video.videoRating;
-                        final isHigh = rating > 75;
-                        final statusColor = isHigh
-                            ? AppColors.success
-                            : AppColors.warning;
 
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 20),
-                          child: InkWell(
-                            onTap: () {
-                              ctrl.settingsOpen.value = false;
-                              vc.fetchFullDisclosure();
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppColors.textPrimary.withValues(
-                                  alpha: 0.05,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.textPrimary.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.verified_user_rounded,
-                                    color: statusColor,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Video Rating: ${rating.toStringAsFixed(1)}%',
-                                          style: const TextStyle(
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        const Text(
-                                          'AI Verified Content',
-                                          style: TextStyle(
-                                            color: AppColors.textTertiary,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Text(
-                                    'VIEW REPORT',
-                                    style: TextStyle(
-                                      color: PT.primary,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                    } catch (_) {}
-                    return const SizedBox.shrink();
-                  },
-                ),
               ],
             ),
           ),

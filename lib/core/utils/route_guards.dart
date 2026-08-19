@@ -118,6 +118,33 @@ class ChannelCreationGuard extends GetMiddleware {
   }
 }
 
+/// Route guard middleware for protecting studio routes (/studio, /dashboard).
+/// Enforces that a user MUST be authenticated AND MUST have an active channel to enter Studio.
+class StudioAccessGuard extends GetMiddleware {
+  @override
+  int? get priority => 8;
+
+  final AuthService _authService = Get.find<AuthService>();
+
+  @override
+  RouteSettings? redirect(String? route) {
+    // 1. If user is NOT authenticated -> redirect to home / prompt sign-in
+    if (!_authService.isAuthenticated.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AuthGuard._showAuthRequiredDialog();
+      });
+      return const RouteSettings(name: '/');
+    }
+
+    // 2. If user IS authenticated BUT has no channel -> redirect directly to channel creation wizard
+    if (!_authService.hasChannel.value && _authService.userChannel == null) {
+      return const RouteSettings(name: '/channelscreen');
+    }
+
+    return null;
+  }
+}
+
 /// Utility class for route protection
 class RouteProtection {
   /// Check if user is authenticated before navigating to protected route
@@ -127,6 +154,23 @@ class RouteProtection {
     if (!authService.isAuthenticated.value) {
       // User is not authenticated
       AuthGuard._showAuthRequiredDialog();
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Check if user has access to Studio (authenticated and has channel)
+  static Future<bool> checkStudioAccessBeforeNavigate() async {
+    final authService = Get.find<AuthService>();
+
+    if (!authService.isAuthenticated.value) {
+      AuthGuard._showAuthRequiredDialog();
+      return false;
+    }
+
+    if (!authService.hasChannel.value && authService.userChannel == null) {
+      await Get.toNamed('/channelscreen');
       return false;
     }
 
