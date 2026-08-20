@@ -34,7 +34,9 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _controller = Get.find<MyVideosController>();
+    _controller = Get.isRegistered<MyVideosController>()
+        ? Get.find<MyVideosController>()
+        : Get.put(MyVideosController());
   }
 
   @override
@@ -59,18 +61,17 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Obx(
-                  () => _controller.isSearchExpanded.value
-                      ? Expanded(
-                          child: Container(
+                Expanded(
+                  child: Obx(
+                    () => _controller.isSearchExpanded.value
+                        ? Container(
                             height: 40,
                             margin: const EdgeInsets.only(right: 12),
                             decoration: BoxDecoration(
-                              color: AppColors.bgSurface,
+                              color: surfaceColor,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: AppColors.bgDivider.withValues(
@@ -114,62 +115,61 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
                                 ),
                               ),
                             ),
+                          )
+                        : Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.arrow_back,
+                                  color: primaryText,
+                                ),
+                                onPressed: () {
+                                  if (widget.isDashboard) {
+                                    Get.find<HomeController>()
+                                            .sideNavSelectedIndex
+                                            .value =
+                                        HomeController.indexLibrary;
+                                  } else {
+                                    Get.back();
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'My videos',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: primaryText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        )
-                      : Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: primaryText,
-                              ),
-                              onPressed: () {
-                                if (widget.isDashboard) {
-                                  Get.find<HomeController>()
-                                          .sideNavSelectedIndex
-                                          .value =
-                                      HomeController.indexLibrary;
-                                } else {
-                                  Get.back();
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'My videos',
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w700,
-                                color: primaryText,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ],
-                        ),
+                  ),
                 ),
-                Row(
-                  children: [
-                    Obx(
-                      () => !_controller.isSearchExpanded.value
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.search,
-                                color: primaryText,
-                              ),
-                              onPressed: () =>
-                                  _controller.isSearchExpanded.value = true,
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.add_circle_outline,
-                        color: primaryText,
-                        size: 24,
-                      ),
-                      onPressed: () => Get.toNamed('/upload'),
-                    ),
-                  ],
+                Obx(
+                  () => !_controller.isSearchExpanded.value
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.search,
+                            color: primaryText,
+                          ),
+                          onPressed: () =>
+                              _controller.isSearchExpanded.value = true,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.add_circle_outline,
+                    color: primaryText,
+                    size: 24,
+                  ),
+                  onPressed: () => Get.toNamed('/upload'),
                 ),
               ],
             ),
@@ -186,7 +186,8 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
           }
 
           if (_controller.rxErrorMessage.value.isNotEmpty) {
-            return SliverToBoxAdapter(
+            return SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
@@ -203,6 +204,7 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
           final videos = _controller.filteredAndSortedVideos;
           if (videos.isEmpty) {
             return const SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: Text(
                   'No videos found',
@@ -314,37 +316,45 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
 
   Widget _buildNotLoggedInWidget(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.video_library_rounded,
-            size: 80,
-            color: primaryText,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Sign in to see your videos',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: primaryText,
-            ),
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () => Get.toNamed('/auth'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryText,
-              foregroundColor: bgColor,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.video_library_rounded,
+                size: 80,
+                color: primaryText,
               ),
-            ),
-            child: const Text('Sign In'),
+              const SizedBox(height: 24),
+              const Text(
+                'Sign in to see your videos',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: primaryText,
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () => Get.toNamed('/auth'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryText,
+                  foregroundColor: bgColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Sign In'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,12 +1,14 @@
 import { DOMAIN, SCHEMA_VERSION, escapeHtml, cleanJsonLd } from "../schema/schemaConfig";
 
-export const SNAPSHOT_VERSION = 1;
+export const SNAPSHOT_VERSION = 4;
 
 export interface HtmlRenderOptions {
   title: string;
   description: string;
   url: string;
   image?: string;
+  imageWidth?: number;
+  imageHeight?: number;
   type?: string;
   robots?: string;
   jsonLd?: any[];
@@ -18,6 +20,11 @@ export interface HtmlRenderOptions {
   transcriptExcerpt?: string;
   relatedItems?: Array<{ title: string; url: string }>;
   topicItems?: Array<{ title: string; url: string }>;
+  // Video-specific properties for rich link previews
+  videoUrl?: string;
+  embedUrl?: string;
+  durationSeconds?: number;
+  uploadDate?: string;
 }
 
 export function truncateTranscriptToSentence(transcript?: string, maxChars: number = 2500): string {
@@ -65,6 +72,35 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
     hreflangTags += `<link rel="alternate" hreflang="${lang}" href="${canonicalUrl}" />\n  `;
   }
 
+  // Determine image MIME type
+  const isPng = image.toLowerCase().endsWith(".png");
+  const isWebp = image.toLowerCase().endsWith(".webp");
+  const mimeType = isPng ? "image/png" : (isWebp ? "image/webp" : "image/jpeg");
+
+  // Standard 16:9 widescreen dimensions (1280x720 for large social cards)
+  const isVideo = options.type === "video.other" || !!options.videoUrl || !!options.embedUrl;
+  const width = options.imageWidth || 1280;
+  const height = options.imageHeight || 720;
+
+  // Video-specific Open Graph and Twitter Player tags for WhatsApp, Telegram, Twitter/X, Facebook
+  let videoMetaTags = "";
+  if (isVideo) {
+    const embed = options.embedUrl || canonicalUrl;
+    videoMetaTags = `
+  <meta property="og:video" content="${escapeHtml(embed)}" />
+  <meta property="og:video:url" content="${escapeHtml(embed)}" />
+  <meta property="og:video:secure_url" content="${escapeHtml(embed)}" />
+  <meta property="og:video:type" content="text/html" />
+  <meta property="og:video:width" content="1280" />
+  <meta property="og:video:height" content="720" />
+  ${options.videoUrl ? `<meta property="og:video:stream" content="${escapeHtml(options.videoUrl)}" />\n  <meta property="og:video:type" content="video/mp4" />` : ""}
+  ${options.durationSeconds ? `<meta property="video:duration" content="${options.durationSeconds}" />` : ""}
+  ${options.uploadDate ? `<meta property="video:release_date" content="${options.uploadDate}" />` : ""}
+  <meta name="twitter:player" content="${escapeHtml(embed)}" />
+  <meta name="twitter:player:width" content="1280" />
+  <meta name="twitter:player:height" content="720" />`;
+  }
+
   // Header meta tags
   const headMetaTags = `
   <title>${escapeHtml(options.title)}</title>
@@ -81,9 +117,10 @@ export function buildSemanticSsrHtml(options: HtmlRenderOptions): string {
   <meta property="og:description" content="${escapeHtml(options.description)}" />
   <meta property="og:image" content="${image}" />
   <meta property="og:image:secure_url" content="${image}" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="${escapeHtml(options.title)}" />
+  <meta property="og:image:type" content="${mimeType}" />
+  <meta property="og:image:width" content="${width}" />
+  <meta property="og:image:height" content="${height}" />
+  <meta property="og:image:alt" content="${escapeHtml(options.title)}" />${videoMetaTags}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@truthworld" />
   <meta name="twitter:title" content="${escapeHtml(options.title)}" />

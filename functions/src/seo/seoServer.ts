@@ -138,21 +138,17 @@ async function resolveVideoImage(db: admin.firestore.Firestore, data: any): Prom
 }
 
 async function resolveChannelImage(db: admin.firestore.Firestore, channelId: string, docData: any): Promise<string | undefined> {
-  // 1. Direct channel image fields (banner -> cover -> avatar -> photo)
-  let img = ensureAbsoluteImageUrl(
+  // 1. Direct channel banner fields (16:9 widescreen for high-impact social preview cards)
+  let bannerImg = ensureAbsoluteImageUrl(
     docData.bannerUrl ||
+    docData.bannerImage ||
     docData.coverUrl ||
     docData.banner ||
-    docData.avatarUrl ||
-    docData.photoUrl ||
-    docData.profile?.photoUrl ||
-    docData.profilePicture ||
-    docData.imageUrl ||
-    docData.iconUrl
+    docData.coverImage
   );
-  if (img) return img;
+  if (bannerImg) return bannerImg;
 
-  // 2. Fallback to channel's latest video thumbnail
+  // 2. Fallback to channel's latest public video thumbnail (16:9 widescreen)
   try {
     const vSnap = await db.collection("videos")
       .where("channelId", "==", channelId)
@@ -162,7 +158,7 @@ async function resolveChannelImage(db: admin.firestore.Firestore, channelId: str
       .get();
     if (!vSnap.empty) {
       const vData = vSnap.docs[0].data();
-      img = ensureAbsoluteImageUrl(
+      const vImg = ensureAbsoluteImageUrl(
         vData.thumbnailUrl ||
         vData.thumbnail ||
         vData.thumbnail_url ||
@@ -170,11 +166,24 @@ async function resolveChannelImage(db: admin.firestore.Firestore, channelId: str
         vData.coverUrl ||
         vData.imageUrl
       );
-      if (img) return img;
+      if (vImg) return vImg;
     }
   } catch (_) {}
 
-  return undefined;
+  // 3. Fallback to channel avatar / profile photo
+  let avatarImg = ensureAbsoluteImageUrl(
+    docData.avatarUrl ||
+    docData.avatarImage ||
+    docData.photoUrl ||
+    docData.profile?.photoUrl ||
+    docData.profilePicture ||
+    docData.imageUrl ||
+    docData.iconUrl
+  );
+  if (avatarImg) return avatarImg;
+
+  // 4. Default brand OG image
+  return `${DOMAIN}/icons/og-image.png`;
 }
 
 async function resolvePlaylistImage(db: admin.firestore.Firestore, playlistId: string, data: any): Promise<string | undefined> {
@@ -436,23 +445,57 @@ export const seoServer = onRequest(
               ? `${DOMAIN}/${channelHandle.startsWith("@") ? channelHandle : `@${channelHandle}`}`
               : `${DOMAIN}/channel/${docData.channelId}`;
 
+            const rawTitle = (docData.title || "Video").trim();
+            const videoDurationSec = docData.durationMs ? Math.floor(docData.durationMs / 1000) : (docData.duration || 0);
+            const viewCount = docData.viewCount || docData.views || 0;
+            const viewCountStr = viewCount >= 1000000
+              ? `${(viewCount / 1000000).toFixed(1).replace(/\.0$/, "")}M views`
+              : viewCount >= 1000
+                ? `${(viewCount / 1000).toFixed(1).replace(/\.0$/, "")}K views`
+                : `${viewCount} view${viewCount === 1 ? "" : "s"}`;
+
+            const durationFormatted = videoDurationSec > 0
+              ? `${Math.floor(videoDurationSec / 60)}:${(videoDurationSec % 60).toString().padStart(2, "0")}`
+              : "";
+
+            // Format Video Title cleanly
+            let pageTitle = `${rawTitle} - Truthworld`;
+            if (channelName && channelName !== "Channel" && !rawTitle.toLowerCase().includes(channelName.toLowerCase())) {
+              pageTitle = `${rawTitle} - ${channelName} | Truthworld`;
+            }
+
+            // Rich Industry Standard Description
+            const rawDesc = (docData.description || "").trim();
+            let pageDescription = `Watch "${rawTitle}" by ${channelName} on Truthworld. Stream verified family-safe video.`;
+            if (rawDesc) {
+              pageDescription = `${rawDesc} • Video by ${channelName}${viewCountStr ? ` • ${viewCountStr}` : ""}${durationFormatted ? ` • ${durationFormatted}` : ""} • Truthworld`;
+            } else {
+              pageDescription = `Watch "${rawTitle}" by ${channelName} on Truthworld. • ${viewCountStr}${durationFormatted ? ` • ${durationFormatted}` : ""} • Family-safe verified video platform.`;
+            }
+
             const videoImage = await resolveVideoImage(db, docData);
             const videoSchema = generateVideoSchema({ id: docId, ...docData } as any, authorUrl, channelName);
             const breadcrumbs = generateBreadcrumbData([
               { name: channelName, url: authorUrl },
-              { name: docData.title || "Video", url: canonicalUrl }
+              { name: rawTitle, url: canonicalUrl }
             ]);
 
             const finalHtml = buildSemanticSsrHtml({
-              title: `${docData.title} - Truthworld`,
-              description: docData.description || `Watch ${docData.title} on Truthworld.`,
+              title: pageTitle,
+              description: pageDescription,
               url: canonicalUrl,
               image: videoImage,
+              imageWidth: 1280,
+              imageHeight: 720,
               type: "video.other",
+              videoUrl: docData.hlsUrl || docData.originalUrl || docData.videoUrl,
+              embedUrl: `${DOMAIN}/embed/${docId}`,
+              durationSeconds: videoDurationSec,
+              uploadDate: docData.uploadedAt || docData.createdAt,
               robots: visibility === "unlisted" ? "noindex, nofollow" : "index, follow",
               jsonLd: [videoSchema, breadcrumbs.jsonLd, ...orgSchemas],
               breadcrumbHtml: breadcrumbs.html,
-              contentHeading: docData.title,
+              contentHeading: rawTitle,
               authorName: channelName,
               authorUrl: authorUrl,
               transcriptExcerpt: docData.transcript || docData.captionsText
@@ -519,7 +562,45 @@ export const seoServer = onRequest(
           }
 
           if (docData && docData.status !== "deleted" && docData.status !== "suspended") {
-            const channelName = docData.displayName || docData.name || "Channel";
+            const rawChannelName = (docData.displayName || docData.name || docData.channelName || "Channel").trim();
+            const channelName = (rawChannelName.toLowerCase().startsWith("untitled") || !rawChannelName)
+              ? "Truthworld Channel"
+              : rawChannelName;
+            
+            const handle = (docData.handle || "").replace(/^@/, "").trim();
+            const handleWithAt = handle ? `@${handle}` : "";
+
+            // Format Title cleanly avoiding redundant "Truthworld - Truthworld"
+            let pageTitle: string;
+            if (channelName.toLowerCase() === "truthworld" || channelName.toLowerCase() === "truth world") {
+              pageTitle = handleWithAt 
+                ? `Truthworld (${handleWithAt}) - Official Video Channel` 
+                : `Truthworld - Official Video Channel | Truthworld`;
+            } else if (handleWithAt) {
+              pageTitle = `${channelName} (${handleWithAt}) - Truthworld`;
+            } else {
+              pageTitle = `${channelName} - Truthworld`;
+            }
+
+            // Extract subscriber & video metrics
+            const subscriberCount = docData.subscriberCount || docData.subscribers || docData.stats?.subscriberCount || 0;
+            const videoCount = docData.videoCount || 0;
+            const subStr = subscriberCount >= 1000000 
+              ? `${(subscriberCount / 1000000).toFixed(1).replace(/\.0$/, "")}M Subscribers`
+              : subscriberCount >= 1000
+                ? `${(subscriberCount / 1000).toFixed(1).replace(/\.0$/, "")}K Subscribers`
+                : `${subscriberCount} Subscriber${subscriberCount === 1 ? "" : "s"}`;
+            const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
+
+            // Build rich industry-standard description
+            const rawBio = (docData.about || docData.description || "").trim();
+            let pageDescription: string;
+            if (rawBio) {
+              pageDescription = `${rawBio} • ${subStr} • ${vidStr} on Truthworld.`;
+            } else {
+              pageDescription = `Watch family-safe, verified videos from ${channelName} on Truthworld. • ${subStr} • ${vidStr}`;
+            }
+
             const channelImage = await resolveChannelImage(db, docData.id, docData);
             const channelSchema = generateChannelSchema(docData, canonicalUrl);
             const breadcrumbs = generateBreadcrumbData([
@@ -527,15 +608,17 @@ export const seoServer = onRequest(
             ]);
 
             const finalHtml = buildSemanticSsrHtml({
-              title: `${channelName} - Truthworld`,
-              description: docData.about || docData.description || `Watch videos from ${channelName} on Truthworld.`,
+              title: pageTitle,
+              description: pageDescription,
               url: canonicalUrl,
               image: channelImage,
+              imageWidth: 1280,
+              imageHeight: 720,
               type: "profile",
               robots: "index, follow",
               jsonLd: [channelSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
-              contentHeading: channelName,
+              contentHeading: `${channelName}${handleWithAt ? ` (${handleWithAt})` : ""}`,
               authorName: channelName,
               authorUrl: canonicalUrl
             });
@@ -561,7 +644,7 @@ export const seoServer = onRequest(
 
         if (slug) {
           const cleanSlug = slug.replace(/^(T\/|t\/)/i, "").trim();
-          const cacheKey = `topic_v2_${cleanSlug.toLowerCase()}`;
+          const cacheKey = `topic_v3_${cleanSlug.toLowerCase()}`;
           const cached = await getCachedSnapshot(cacheKey);
           if (cached) {
             logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
@@ -596,7 +679,8 @@ export const seoServer = onRequest(
           }
 
           if (docData && docData.status !== "deleted" && docData.status !== "inactive") {
-            const topicTitle = docData.title || docData.name || "Topic";
+            const rawTitle = (docData.title || docData.name || "Topic").trim();
+            const cleanTitle = rawTitle.replace(/^[#Tt]\//, "").trim();
             const topVideos: any[] = [];
             try {
               const vSnap = await db.collection("videos")
@@ -619,25 +703,36 @@ export const seoServer = onRequest(
             const topicImage = ensureAbsoluteImageUrl(rawTopicImg);
             const videoCount = docData.videoCount || topVideos.length || 0;
             const followerCount = docData.followerCount || 0;
-            const topicDescription = docData.description && docData.description.trim().length > 0
-              ? `${docData.description.trim()} • ${followerCount} Followers • ${videoCount} Videos on Truthworld`
-              : `Explore top videos and discussions in ${topicTitle} • ${followerCount} Followers • ${videoCount} Videos on Truthworld.`;
+            const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
+            const folStr = followerCount >= 1000
+              ? `${(followerCount / 1000).toFixed(1).replace(/\.0$/, "")}K Followers`
+              : `${followerCount} Follower${followerCount === 1 ? "" : "s"}`;
+
+            const rawDesc = (docData.description || "").trim();
+            let topicDescription: string;
+            if (rawDesc) {
+              topicDescription = `${rawDesc} • #${cleanTitle} • ${folStr} • ${vidStr} on Truthworld.`;
+            } else {
+              topicDescription = `Explore top videos and discussions in #${cleanTitle} on Truthworld. • ${folStr} • ${vidStr} • Verified family-safe content.`;
+            }
 
             const topicSchema = generateTopicSchema(docData, canonicalUrl, topVideos);
             const breadcrumbs = generateBreadcrumbData([
-              { name: topicTitle, url: canonicalUrl }
+              { name: `#${cleanTitle}`, url: canonicalUrl }
             ]);
 
             const finalHtml = buildSemanticSsrHtml({
-              title: `${topicTitle} - Topic | Truthworld`,
+              title: `#${cleanTitle} - Topic | Truthworld`,
               description: topicDescription,
               url: canonicalUrl,
               image: topicImage,
+              imageWidth: 1280,
+              imageHeight: 720,
               type: "website",
               robots: "index, follow",
               jsonLd: [topicSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
-              contentHeading: `${topicTitle} Topic`,
+              contentHeading: `#${cleanTitle} Topic`,
               relatedItems: topVideos.map(v => ({ title: v.title, url: `${DOMAIN}/watch?v=${v.id}` }))
             });
 
@@ -655,7 +750,7 @@ export const seoServer = onRequest(
           playlistId = path.split("/")[2];
         }
         if (playlistId) {
-          const cacheKey = `playlist_v2_${playlistId}`;
+          const cacheKey = `playlist_v3_${playlistId}`;
           const cached = await getCachedSnapshot(cacheKey);
           if (cached) {
             logSeoEvent({ eventType: "cache_hit", path: canonicalUrl, durationMs: Date.now() - startTime });
@@ -698,23 +793,41 @@ export const seoServer = onRequest(
           }
 
           if (docData) {
-            const playlistName = docData.playlistName || docData.name || docData.title || "Playlist";
+            const playlistName = (docData.playlistName || docData.name || docData.title || "Playlist").trim();
             const playlistImage = await resolvePlaylistImage(db, docData.id, docData);
             const playlistSchema = generatePlaylistSchema({ id: docData.id, ...docData }, canonicalUrl);
             const breadcrumbs = generateBreadcrumbData([
               { name: playlistName, url: canonicalUrl }
             ]);
 
+            const videoCount = docData.videoCount || (Array.isArray(docData.videos) ? docData.videos.length : (Array.isArray(docData.videoIds) ? docData.videoIds.length : 0));
+            const vidStr = `${videoCount} Video${videoCount === 1 ? "" : "s"}`;
+            const channelName = docData.channelName || docData.creatorName || "";
+
+            const rawDesc = (docData.description || "").trim();
+            let pageDescription: string;
+            if (rawDesc) {
+              pageDescription = `${rawDesc} • Playlist${channelName ? ` by ${channelName}` : ""} • ${vidStr} on Truthworld.`;
+            } else {
+              pageDescription = `Watch the "${playlistName}" playlist${channelName ? ` by ${channelName}` : ""} on Truthworld. • ${vidStr} • Verified video platform.`;
+            }
+
+            const pageTitle = channelName
+              ? `${playlistName} - ${channelName} | Truthworld`
+              : `${playlistName} - Playlist | Truthworld`;
+
             const finalHtml = buildSemanticSsrHtml({
-              title: `${playlistName} - Playlist | Truthworld`,
-              description: docData.description || `Watch this playlist on Truthworld.`,
+              title: pageTitle,
+              description: pageDescription,
               url: canonicalUrl,
               image: playlistImage,
+              imageWidth: 1280,
+              imageHeight: 720,
               type: "website",
               robots: docData.visibility === "private" ? "noindex, nofollow" : "index, follow",
               jsonLd: [playlistSchema, breadcrumbs.jsonLd],
               breadcrumbHtml: breadcrumbs.html,
-              contentHeading: playlistName
+              contentHeading: `${playlistName} Playlist`
             });
 
             const saved = await saveSnapshot(cacheKey, finalHtml);

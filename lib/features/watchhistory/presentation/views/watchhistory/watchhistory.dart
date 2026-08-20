@@ -63,51 +63,51 @@ class _WatchHistoryState extends State<WatchHistory>
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.textPrimary,
+                Expanded(
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: AppColors.textPrimary,
+                        ),
+                        onPressed: () {
+                          if (widget.isDashboard) {
+                            Get.find<HomeController>()
+                                    .sideNavSelectedIndex
+                                    .value =
+                                HomeController.indexLibrary;
+                          } else {
+                            Get.back();
+                          }
+                        },
                       ),
-                      onPressed: () {
-                        if (widget.isDashboard) {
-                          Get.find<HomeController>()
-                                  .sideNavSelectedIndex
-                                  .value =
-                              HomeController.indexLibrary;
-                        } else {
-                          Get.back();
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'Watch history',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        color: primaryText,
-                        letterSpacing: -0.5,
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Watch history',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.search, color: primaryText),
-                      onPressed: () {},
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.more_vert, color: primaryText),
-                      onPressed: _showHistorySettingsBottomSheet,
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.search, color: primaryText),
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: primaryText),
+                  onPressed: _showHistorySettingsBottomSheet,
                 ),
               ],
             ),
@@ -132,7 +132,8 @@ class _WatchHistoryState extends State<WatchHistory>
             }
 
             if (snapshot.hasError) {
-              return SliverToBoxAdapter(
+              return SliverFillRemaining(
+                hasScrollBody: false,
                 child: Center(
                   child: Text(
                     'Error: ${snapshot.error}',
@@ -144,6 +145,7 @@ class _WatchHistoryState extends State<WatchHistory>
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
               return const SliverFillRemaining(
+                hasScrollBody: false,
                 child: Center(
                   child: Text(
                     'No watch history found',
@@ -303,37 +305,45 @@ class _WatchHistoryState extends State<WatchHistory>
 
   Widget _buildNotLoggedInWidget(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.history_rounded,
-            size: 80,
-            color: AppColors.textPrimary,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Sign in to see your history',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () => Get.toNamed('/auth'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.textPrimary,
-              foregroundColor: AppColors.textPrimary,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.history_rounded,
+                size: 80,
+                color: AppColors.textPrimary,
               ),
-            ),
-            child: const Text('Sign In'),
+              const SizedBox(height: 24),
+              const Text(
+                'Sign in to see your history',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () => Get.toNamed('/auth'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.textPrimary,
+                  foregroundColor: AppColors.textPrimary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Sign In'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

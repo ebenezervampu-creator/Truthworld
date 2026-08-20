@@ -9,9 +9,13 @@ export interface ChannelData {
   description?: string;
   avatarUrl?: string;
   avatar?: string;
+  bannerUrl?: string;
+  bannerImage?: string;
+  coverUrl?: string;
+  videoCount?: number;
   profile?: { photoUrl?: string; links?: Record<string, string> };
   socialLinks?: Record<string, string>;
-  stats?: { subscriberCount?: number };
+  stats?: { subscriberCount?: number; videoCount?: number };
   subscriberCount?: number;
   isBrand?: boolean;
   creatorType?: string;
@@ -21,7 +25,7 @@ export interface ChannelData {
 export function generateChannelSchema(channel: ChannelData, channelUrl: string) {
   const channelName = channel.displayName || channel.name || "Channel";
   const descStr = channel.about || channel.description || `Watch videos from ${channelName} on Truthworld.`;
-  const imgStr = channel.profile?.photoUrl || channel.avatarUrl || channel.avatar || `${DOMAIN}/icons/og-image.png`;
+  const imgStr = channel.bannerUrl || channel.coverUrl || channel.bannerImage || channel.profile?.photoUrl || channel.avatarUrl || channel.avatar || `${DOMAIN}/icons/og-image.png`;
   
   const isBrand = channel.isBrand === true || channel.creatorType === "Organization" || channel.type === "custom";
   const mainEntityType = isBrand ? "Organization" : "Person";
@@ -39,6 +43,23 @@ export function generateChannelSchema(channel: ChannelData, channelUrl: string) 
     }
   }
 
+  const interactions: any[] = [
+    {
+      "@type": "InteractionCounter",
+      interactionType: { "@type": "SubscribeAction" },
+      userInteractionCount: channel.stats?.subscriberCount || channel.subscriberCount || 0
+    }
+  ];
+
+  const totalVideos = channel.stats?.videoCount || channel.videoCount || 0;
+  if (totalVideos > 0) {
+    interactions.push({
+      "@type": "InteractionCounter",
+      interactionType: { "@type": "CreateAction" },
+      userInteractionCount: totalVideos
+    });
+  }
+
   return {
     "@context": "https://schema.org",
     "@type": "ProfilePage",
@@ -48,13 +69,7 @@ export function generateChannelSchema(channel: ChannelData, channelUrl: string) 
       description: descStr,
       image: imgStr,
       url: channelUrl,
-      interactionStatistic: [
-        {
-          "@type": "InteractionCounter",
-          interactionType: { "@type": "SubscribeAction" },
-          userInteractionCount: channel.stats?.subscriberCount || channel.subscriberCount || 0
-        }
-      ],
+      interactionStatistic: interactions,
       sameAs: sameAsList
     }
   };

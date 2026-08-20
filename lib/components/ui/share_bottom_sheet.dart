@@ -13,6 +13,7 @@ class ShareBottomSheet extends StatefulWidget {
     required this.url,
     super.key,
     this.thumbnailUrl,
+    this.bannerUrl,
     this.subtitle,
     this.avatarUrl,
     this.durationMs,
@@ -27,6 +28,7 @@ class ShareBottomSheet extends StatefulWidget {
   final String title;
   final String url;
   final String? thumbnailUrl;
+  final String? bannerUrl;
   final String? subtitle;
   final String? avatarUrl;
   final int? durationMs;
@@ -42,6 +44,7 @@ class ShareBottomSheet extends StatefulWidget {
     required String title,
     required String url,
     String? thumbnailUrl,
+    String? bannerUrl,
     String? subtitle,
     String? avatarUrl,
     int? durationMs,
@@ -58,6 +61,7 @@ class ShareBottomSheet extends StatefulWidget {
         title: title,
         url: url,
         thumbnailUrl: thumbnailUrl,
+        bannerUrl: bannerUrl,
         subtitle: subtitle,
         avatarUrl: avatarUrl,
         durationMs: durationMs,
@@ -727,18 +731,18 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                           fit: BoxFit.cover,
                           placeholder: (context, url) =>
                               Container(color: AppColors.bgInput),
-                          errorWidget: (context, url, err) => Center(
+                          errorWidget: (context, url, err) => const Center(
                             child: Icon(
                               Icons.play_circle_fill_rounded,
-                              color: AppColors.brand.withValues(alpha: 0.8),
+                              color: Colors.white,
                               size: 38,
                             ),
                           ),
                         )
-                      : Center(
+                      : const Center(
                           child: Icon(
                             Icons.play_circle_fill_rounded,
-                            color: AppColors.brand.withValues(alpha: 0.8),
+                            color: Colors.white,
                             size: 38,
                           ),
                         ),
@@ -854,126 +858,259 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Widget _buildChannelCard() {
+    final effectiveBanner = widget.bannerUrl != null && widget.bannerUrl!.isNotEmpty
+        ? widget.bannerUrl
+        : (widget.thumbnailUrl != null &&
+                widget.thumbnailUrl != widget.avatarUrl &&
+                widget.thumbnailUrl!.isNotEmpty
+            ? widget.thumbnailUrl
+            : null);
+    final effectiveAvatar = widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty
+        ? widget.avatarUrl
+        : widget.thumbnailUrl;
+    final cleanHandle = widget.handle != null && widget.handle!.isNotEmpty
+        ? (widget.handle!.startsWith('@')
+            ? widget.handle!
+            : '@${widget.handle!}')
+        : '@channel';
+
+    final hasBanner = effectiveBanner != null && effectiveBanner.isNotEmpty;
+
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.bgSurfaceHover,
-            AppColors.bgSurfaceHover.withValues(alpha: 0.7),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(14),
+        color: AppColors.bgSurfaceHover,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.25),
+          color: AppColors.brand.withValues(alpha: 0.3),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: 0.3),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 14,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Channel Avatar with Ring
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.brand,
-                  AppColors.brand.withValues(alpha: 0.3),
-                ],
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(32),
-              child: Container(
-                width: 54,
-                height: 54,
-                color: AppColors.bgInput,
-                child:
-                    widget.thumbnailUrl != null &&
-                        widget.thumbnailUrl!.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: widget.thumbnailUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) =>
-                            Container(color: AppColors.bgInput),
-                        errorWidget: (context, url, err) => const Icon(
-                          Icons.person_rounded,
-                          color: AppColors.textTertiary,
-                          size: 32,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.person_rounded,
-                        color: AppColors.textTertiary,
-                        size: 32,
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // Channel Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+          if (hasBanner)
+            Stack(
+              clipBehavior: Clip.none,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        widget.title,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                // Banner Image (16:9 widescreen header)
+                SizedBox(
+                  height: 90,
+                  width: double.infinity,
+                  child: CachedNetworkImage(
+                    imageUrl: effectiveBanner,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => const ColoredBox(
+                      color: AppColors.bgInput,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      color: AppColors.brand,
-                      size: 15,
+                    errorWidget: (context, url, err) => Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.brand.withValues(alpha: 0.6),
+                            AppColors.bgSurface,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  widget.handle != null && widget.handle!.isNotEmpty
-                      ? (widget.handle!.startsWith('@')
-                            ? widget.handle!
-                            : '@${widget.handle!}')
-                      : '@channel',
-                  style: const TextStyle(
-                    color: AppColors.brand,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  widget.subtitle ??
-                      '${widget.subscriberCount != null ? '${_formatCount(widget.subscriberCount!)} subscribers' : 'Channel'} • ${widget.videoCount != null ? '${widget.videoCount} videos' : 'TruthWorld'}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11.5,
+                // Gradient Shadow Overlay on Banner bottom
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.7),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                ),
+                // Channel Badge in Top Right
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.tv_rounded, color: Colors.white, size: 11),
+                        SizedBox(width: 4),
+                        Text(
+                          'CHANNEL',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+          // Channel Details Body
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                // Circular Avatar
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.bgSurface,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      color: AppColors.bgInput,
+                      child: effectiveAvatar != null && effectiveAvatar.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: effectiveAvatar,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(color: AppColors.bgInput),
+                              errorWidget: (context, url, err) => const Icon(
+                                Icons.person_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.person_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Text Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.title,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            cleanHandle,
+                            style: const TextStyle(
+                              color: AppColors.brand,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 3,
+                            height: 3,
+                            decoration: const BoxDecoration(
+                              color: AppColors.textSecondary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${widget.subscriberCount != null ? '${_formatCount(widget.subscriberCount!)} subscribers' : 'Channel'} • ${widget.videoCount != null ? '${widget.videoCount} videos' : 'TruthWorld'}',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (widget.subtitle != null && widget.subtitle!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.subtitle!.trim(),
+                          style: const TextStyle(
+                            color: AppColors.textTertiary,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1028,13 +1165,13 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                               Container(color: AppColors.bgInput),
                           errorWidget: (context, url, err) => const Icon(
                             Icons.playlist_play_rounded,
-                            color: AppColors.textTertiary,
+                            color: Colors.white,
                             size: 38,
                           ),
                         )
                       : const Icon(
                           Icons.playlist_play_rounded,
-                          color: AppColors.textTertiary,
+                          color: Colors.white,
                           size: 38,
                         ),
                 ),
@@ -1066,7 +1203,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       const SizedBox(height: 2),
                       const Icon(
                         Icons.playlist_play_rounded,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         size: 18,
                       ),
                     ],
@@ -1216,22 +1353,20 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                                 fit: BoxFit.contain,
                                 placeholder: (context, url) =>
                                     Container(color: AppColors.bgInput),
-                                errorWidget: (context, url, err) => Center(
+                                errorWidget: (context, url, err) => const Center(
                                   child: Icon(
                                     Icons.tag_rounded,
-                                    color: AppColors.brand.withValues(
-                                      alpha: 0.8,
-                                    ),
+                                    color: Colors.white,
                                     size: 36,
                                   ),
                                 ),
                               ),
                             ],
                           )
-                        : Center(
+                        : const Center(
                             child: Icon(
                               Icons.tag_rounded,
-                              color: AppColors.brand.withValues(alpha: 0.8),
+                              color: Colors.white,
                               size: 36,
                             ),
                           ),
@@ -1255,7 +1390,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   ),
                   child: const Icon(
                     Icons.explore_rounded,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                     size: 13,
                   ),
                 ),
@@ -1376,13 +1511,13 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) => Icon(
                           icon ?? Icons.share_rounded,
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           size: 24,
                         ),
                       )
                     : Icon(
                         icon,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         size: 24,
                       ),
               ),
@@ -1402,9 +1537,32 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     );
   }
 
+  String _buildShareMessage(String shareUrl) {
+    final contentType = _detectType();
+    if (contentType == 'channel') {
+      final cleanHandle = (widget.handle ?? '').replaceAll(RegExp('^@'), '').trim();
+      final handleStr = cleanHandle.isNotEmpty ? ' (@$cleanHandle)' : '';
+      return 'Check out ${widget.title}$handleStr on TruthWorld:\n$shareUrl';
+    } else if (contentType == 'playlist') {
+      return 'Check out "${widget.title}" playlist on TruthWorld:\n$shareUrl';
+    } else if (contentType == 'topic') {
+      final topicName = widget.title.replaceAll(RegExp('^[#Tt]/'), '').trim();
+      return 'Explore #$topicName on TruthWorld:\n$shareUrl';
+    } else {
+      final byChannel = (widget.channelName != null &&
+              widget.channelName!.isNotEmpty &&
+              widget.channelName != 'Channel' &&
+              widget.channelName != 'TruthWorld Creator' &&
+              !widget.title.toLowerCase().contains(widget.channelName!.toLowerCase()))
+          ? ' by ${widget.channelName}'
+          : '';
+      return 'Watch "${widget.title}"$byChannel on TruthWorld:\n$shareUrl';
+    }
+  }
+
   Future<void> _shareToSocial(String platform) async {
     final shareUrl = _getShareUrl();
-    final text = 'Check this out on TruthWorld: ${widget.title}\n$shareUrl';
+    final text = _buildShareMessage(shareUrl);
     final encodedText = Uri.encodeComponent(text);
     final encodedUrl = Uri.encodeComponent(shareUrl);
     final encodedTitle = Uri.encodeComponent(widget.title);
@@ -1500,10 +1658,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Future<void> _shareNative() async {
+    final shareUrl = _getShareUrl();
     await SharePlus.instance.share(
       ShareParams(
-        text:
-            'Check this out on TruthWorld: ${widget.title}\n${_getShareUrl()}',
+        text: _buildShareMessage(shareUrl),
         subject: widget.title,
       ),
     );

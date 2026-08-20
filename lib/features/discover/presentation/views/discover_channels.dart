@@ -182,34 +182,43 @@ class DiscoverChannelsPage extends StatelessWidget {
     return InkWell(
       onTap: () => controller.selectCategory(catName),
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          image: DecorationImage(
-            image: CachedNetworkImageProvider(imageUrl),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              AppColors.bgPage.withValues(alpha: 0.4),
-              BlendMode.darken,
-            ),
-          ),
-        ),
-        alignment: Alignment.bottomLeft,
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          catName,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(
-                color: Colors.black54,
-                offset: Offset(0, 1),
-                blurRadius: 4,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              errorWidget: (context, url, error) => Container(
+                color: AppColors.bgSurfaceHover,
               ),
-            ],
-          ),
+            ),
+            Container(
+              color: AppColors.bgPage.withValues(alpha: 0.4),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  catName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black54,
+                        offset: Offset(0, 1),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -287,7 +296,7 @@ class DiscoverChannelsPage extends StatelessWidget {
       case 'spirituality':
         return 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?q=80&w=1000&auto=format&fit=crop';
       case 'kids & family':
-        return 'https://images.unsplash.com/photo-1536640712267-c8d024a1438c?q=80&w=1000&auto=format&fit=crop';
+        return 'https://images.unsplash.com/photo-1536640712-4d4c36ff0e4e?q=80&w=1000&auto=format&fit=crop';
       default:
         return 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop';
     }
@@ -302,57 +311,71 @@ class DiscoverChannelsPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Selected Category Banner Header
-          Container(
-            height: 120,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              image: DecorationImage(
-                image: CachedNetworkImageProvider(catImage),
-                fit: BoxFit.cover,
-                colorFilter: ColorFilter.mode(
-                  AppColors.bgPage.withValues(alpha: 0.5),
-                  BlendMode.darken,
-                ),
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => controller.selectCategory('All'),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: SizedBox(
+                height: 120,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Text(
-                      selectedCat,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black54,
-                            offset: Offset(0, 1),
-                            blurRadius: 4,
+                    CachedNetworkImage(
+                      imageUrl: catImage,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => Container(
+                        color: AppColors.bgSurfaceHover,
+                      ),
+                    ),
+                    Container(
+                      color: AppColors.bgPage.withValues(alpha: 0.5),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            onPressed: () => controller.selectCategory('All'),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                selectedCat,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black54,
+                                      offset: Offset(0, 1),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                'Exploring $selectedCat channels',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    Text(
-                      'Exploring $selectedCat channels',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
           // Horizontal Category Pills Bar for 1-tap Category Switching

@@ -322,6 +322,103 @@ class SeoHelper {
     }
   }
 
+  /// Set channel metadata with optimized banner and avatar image handling
+  static void setChannelMetadata({
+    required String channelName,
+    required String description,
+    required String url,
+    String? bannerUrl,
+    String? avatarUrl,
+    String? handle,
+    int? subscriberCount,
+    int? videoCount,
+  }) {
+    // Prioritize high-res banner for wide social card, fallback to avatar
+    final effectiveImage = (bannerUrl != null && bannerUrl.isNotEmpty)
+        ? bannerUrl
+        : avatarUrl;
+    final absoluteImageUrl = _validateImageUrl(effectiveImage);
+
+    final cleanHandle = (handle ?? '').replaceAll(RegExp('^@'), '').trim();
+    final handleWithAt = cleanHandle.isNotEmpty ? '@$cleanHandle' : '';
+
+    String pageTitle;
+    if (channelName.toLowerCase() == 'truthworld' ||
+        channelName.toLowerCase() == 'truth world') {
+      pageTitle = handleWithAt.isNotEmpty
+          ? 'Truthworld ($handleWithAt) - Official Video Channel'
+          : 'Truthworld - Official Video Channel';
+    } else if (handleWithAt.isNotEmpty) {
+      pageTitle = '$channelName ($handleWithAt)';
+    } else {
+      pageTitle = channelName;
+    }
+
+    setPage(
+      title: pageTitle,
+      description: description,
+      url: url,
+      image: absoluteImageUrl,
+      author: channelName,
+      type: 'profile',
+    );
+
+    final head = html.document.head;
+    if (head != null && cleanHandle.isNotEmpty) {
+      _updateOrCreateMeta(
+        property: 'profile:username',
+        content: cleanHandle,
+      );
+    }
+  }
+
+  /// Set playlist metadata with optimized image handling
+  static void setPlaylistMetadata({
+    required String playlistName,
+    required String description,
+    required String url,
+    String? thumbnailUrl,
+    String? channelName,
+    int? videoCount,
+  }) {
+    final absoluteImageUrl = _validateImageUrl(thumbnailUrl);
+    final vidStr = videoCount != null ? ' • $videoCount Videos' : '';
+    final channelStr = channelName != null && channelName.isNotEmpty ? ' by $channelName' : '';
+    final pageTitle = '$playlistName$channelStr | Playlist | Truthworld';
+
+    setPage(
+      title: pageTitle,
+      description: '$description$vidStr on Truthworld',
+      url: url,
+      image: absoluteImageUrl,
+      author: channelName,
+    );
+  }
+
+  /// Set topic metadata with optimized image handling
+  static void setTopicMetadata({
+    required String topicName,
+    required String description,
+    required String url,
+    String? thumbnailUrl,
+    int? videoCount,
+    int? followerCount,
+  }) {
+    final cleanTopic = topicName.replaceAll(RegExp('^[#Tt]/'), '').trim();
+    final absoluteImageUrl = _validateImageUrl(thumbnailUrl);
+    final statsStr = (videoCount != null || followerCount != null)
+        ? ' • ${followerCount ?? 0} Followers • ${videoCount ?? 0} Videos'
+        : '';
+    final pageTitle = '#$cleanTopic - Topic | Truthworld';
+
+    setPage(
+      title: pageTitle,
+      description: '$description$statsStr on Truthworld',
+      url: url,
+      image: absoluteImageUrl,
+    );
+  }
+
   /// Reset to default metadata
   static void resetToDefault() {
     setPage(

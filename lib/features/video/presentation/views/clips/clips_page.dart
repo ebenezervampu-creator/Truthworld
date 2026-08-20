@@ -178,9 +178,14 @@ class ClipsPage extends StatelessWidget {
   const ClipsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
+  UserClipsController get controller =>
+      Get.isRegistered<UserClipsController>()
+          ? Get.find<UserClipsController>()
+          : Get.put(UserClipsController());
+
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<UserClipsController>();
+    final controller = this.controller;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -196,14 +201,13 @@ class ClipsPage extends StatelessWidget {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 48, 16, 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Obx(
-                  () => controller.isSearchExpanded.value
-                      ? Expanded(
-                          child: Container(
+                Expanded(
+                  child: Obx(
+                    () => controller.isSearchExpanded.value
+                        ? Container(
                             height: 40,
                             margin: const EdgeInsets.only(right: 12),
                             decoration: BoxDecoration(
@@ -253,64 +257,66 @@ class ClipsPage extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          )
+                        : Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.arrow_back,
+                                  color: AppColors.textPrimary,
+                                ),
+                                onPressed: () {
+                                  if (isDashboard) {
+                                    if (Get.isRegistered<HomeController>()) {
+                                      Get.find<HomeController>()
+                                              .sideNavSelectedIndex
+                                              .value =
+                                          HomeController.indexLibrary;
+                                    }
+                                  } else {
+                                    Get.back<void>();
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Your Clips',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        )
-                      : Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: AppColors.textPrimary,
-                              ),
-                              onPressed: () {
-                                if (isDashboard) {
-                                  Get.find<HomeController>()
-                                          .sideNavSelectedIndex
-                                          .value =
-                                      HomeController.indexLibrary;
-                                } else {
-                                  Get.back<void>();
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Your Clips',
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
+                  ),
                 ),
-                Row(
-                  children: [
-                    Obx(
-                      () => !controller.isSearchExpanded.value
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.search,
-                                color: AppColors.textPrimary,
-                              ),
-                              onPressed: () =>
-                                  controller.isSearchExpanded.value = true,
-                            )
-                          : const SizedBox.shrink(),
+                Obx(
+                  () => !controller.isSearchExpanded.value
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.search,
+                            color: AppColors.textPrimary,
+                          ),
+                          onPressed: () =>
+                              controller.isSearchExpanded.value = true,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                IconButton(
+                  icon: Obx(
+                    () => Icon(
+                      controller.isListView.value
+                          ? Icons.grid_view_rounded
+                          : Icons.view_list_rounded,
+                      color: AppColors.textPrimary,
                     ),
-                    IconButton(
-                      icon: Obx(
-                        () => Icon(
-                          controller.isListView.value
-                              ? Icons.grid_view_rounded
-                              : Icons.view_list_rounded,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      onPressed: () => controller.toggleView(),
-                    ),
-                  ],
+                  ),
+                  onPressed: () => controller.toggleView(),
                 ),
               ],
             ),
@@ -320,6 +326,7 @@ class ClipsPage extends StatelessWidget {
         Obx(() {
           if (controller.rxIsLoading.value) {
             return const SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: CircularProgressIndicator(
                   color: AppColors.brand,
@@ -329,7 +336,8 @@ class ClipsPage extends StatelessWidget {
           }
 
           if (controller.rxErrorMessage.isNotEmpty) {
-            return SliverToBoxAdapter(
+            return SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
@@ -346,6 +354,7 @@ class ClipsPage extends StatelessWidget {
           final clips = controller.filteredClips;
           if (clips.isEmpty) {
             return SliverFillRemaining(
+              hasScrollBody: false,
               child: _buildEmptyState(context),
             );
           }
@@ -355,10 +364,10 @@ class ClipsPage extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               sliver: SliverGrid.builder(
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 350,
+                  maxCrossAxisExtent: 320,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.75,
                 ),
                 itemCount: clips.length,
                 itemBuilder: (context, index) {
@@ -443,40 +452,45 @@ class ClipsPage extends StatelessWidget {
 
   Widget _buildEmptyState(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: AppColors.bgSurface,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.bgDivider.withValues(alpha: 0.1),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.bgDivider.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Icon(
+                  Icons.content_cut_rounded,
+                  size: 48,
+                  color: AppColors.textSecondary.withValues(alpha: 0.3),
+                ),
               ),
-            ),
-            child: Icon(
-              Icons.content_cut_rounded,
-              size: 64,
-              color: AppColors.textSecondary.withValues(alpha: 0.3),
-            ),
+              const SizedBox(height: 16),
+              const Text(
+                'No clips yet',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Find your favorite moments and clip them!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'No clips yet',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Find your favorite moments and clip them!',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -864,40 +878,49 @@ class _ClipVideoGridCard extends StatelessWidget {
                 ),
               ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    clip.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          clip.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          clip.videoTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    clip.videoTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
+                    Text(
+                      'Clip ($durationText) • ${controller.formatTimeAgo(clip.createdAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary.withValues(alpha: 0.7),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Clip ($durationText) • ${controller.formatTimeAgo(clip.createdAt)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

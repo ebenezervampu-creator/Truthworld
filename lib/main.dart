@@ -149,12 +149,9 @@ void main() {
                         style: const TextStyle(fontSize: 14),
                       ),
                       const SizedBox(height: 30),
-                      ElevatedButton(
-                        onPressed: () {
-                          // Restart the app
-                          runApp(const Truthworld());
-                        },
-                        child: const Text('Retry'),
+                      const ElevatedButton(
+                        onPressed: main,
+                        child: Text('Retry'),
                       ),
                     ],
                   ),

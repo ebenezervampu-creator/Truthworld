@@ -45,6 +45,7 @@ export const recommendTopicsForVideo = onRequest(
     minInstances: 0,
     maxInstances: 5,
     concurrency: 80,
+    cpu: 1,
     timeoutSeconds: 15,
     memory: "256MiB",
   },

@@ -64,7 +64,10 @@ class DownloadsPage extends StatefulWidget {
 
 class _DownloadsPageState extends State<DownloadsPage>
     with TickerProviderStateMixin {
-  final DownloadsController controller = Get.find<DownloadsController>();
+  DownloadsController get controller =>
+      Get.isRegistered<DownloadsController>()
+          ? Get.find<DownloadsController>()
+          : Get.put(DownloadsController());
 
   @override
   Widget build(BuildContext context) {
@@ -79,14 +82,13 @@ class _DownloadsPageState extends State<DownloadsPage>
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Obx(
-                  () => controller.isSearchExpanded.value
-                      ? Expanded(
-                          child: Container(
+                Expanded(
+                  child: Obx(
+                    () => controller.isSearchExpanded.value
+                        ? Container(
                             height: 40,
                             margin: const EdgeInsets.only(right: 12),
                             decoration: BoxDecoration(
@@ -136,64 +138,64 @@ class _DownloadsPageState extends State<DownloadsPage>
                                 ),
                               ),
                             ),
+                          )
+                        : Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.arrow_back,
+                                  color: AppColors.textPrimary,
+                                ),
+                                onPressed: () {
+                                  if (widget.isDashboard) {
+                                    Get.find<HomeController>()
+                                            .sideNavSelectedIndex
+                                            .value =
+                                        HomeController.indexLibrary;
+                                  } else {
+                                    Get.back();
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Downloads',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        )
-                      : Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: AppColors.textPrimary,
-                              ),
-                              onPressed: () {
-                                if (widget.isDashboard) {
-                                  Get.find<HomeController>()
-                                          .sideNavSelectedIndex
-                                          .value =
-                                      HomeController.indexLibrary;
-                                } else {
-                                  Get.back();
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Downloads',
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
+                  ),
                 ),
-                Row(
-                  children: [
-                    Obx(
-                      () => !controller.isSearchExpanded.value
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.search,
-                                color: AppColors.textPrimary,
-                              ),
-                              onPressed: () =>
-                                  controller.isSearchExpanded.value = true,
-                            )
-                          : const SizedBox.shrink(),
+                Obx(
+                  () => !controller.isSearchExpanded.value
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.search,
+                            color: AppColors.textPrimary,
+                          ),
+                          onPressed: () =>
+                              controller.isSearchExpanded.value = true,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                IconButton(
+                  icon: Obx(
+                    () => Icon(
+                      controller.isListView.value
+                          ? Icons.grid_view_rounded
+                          : Icons.view_list_rounded,
+                      color: AppColors.textPrimary,
                     ),
-                    IconButton(
-                      icon: Obx(
-                        () => Icon(
-                          controller.isListView.value
-                              ? Icons.grid_view_rounded
-                              : Icons.view_list_rounded,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      onPressed: controller.toggleView,
-                    ),
-                  ],
+                  ),
+                  onPressed: controller.toggleView,
                 ),
               ],
             ),
@@ -203,6 +205,7 @@ class _DownloadsPageState extends State<DownloadsPage>
         Obx(() {
           if (controller.rxIsLoading.value) {
             return const SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: CircularProgressIndicator(
                   color: AppColors.brand,
@@ -212,7 +215,8 @@ class _DownloadsPageState extends State<DownloadsPage>
           }
 
           if (controller.errorMessage.isNotEmpty) {
-            return SliverToBoxAdapter(
+            return SliverFillRemaining(
+              hasScrollBody: false,
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),

@@ -10,9 +10,14 @@ class TrendingVideosPage extends GetView<TrendingController> {
   final bool isDashboard;
 
   @override
+  TrendingController get controller =>
+      Get.isRegistered<TrendingController>()
+          ? Get.find<TrendingController>()
+          : Get.put(TrendingController());
+
+  @override
   Widget build(BuildContext context) {
-    // Inject the controller if not already present
-    Get.find<TrendingController>();
+    controller;
 
     return ResponsiveBuilder(
       builder: (context, device) {

@@ -302,20 +302,22 @@ class LibraryScreenState extends State<LibraryScreen>
     return Scaffold(
       backgroundColor: bgColor,
       body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: EdgeInsets.all(isDesktop ? 40 : 24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildUnauthenticatedIcon(),
-              const SizedBox(height: 32),
-              _buildUnauthenticatedTitle(),
-              const SizedBox(height: 16),
-              _buildUnauthenticatedSubtitle(),
-              const SizedBox(height: 40),
-              _buildSignInButton(context),
-            ],
+        child: SingleChildScrollView(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 500),
+            padding: EdgeInsets.all(isDesktop ? 40 : 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildUnauthenticatedIcon(),
+                const SizedBox(height: 32),
+                _buildUnauthenticatedTitle(),
+                const SizedBox(height: 16),
+                _buildUnauthenticatedSubtitle(),
+                const SizedBox(height: 40),
+                _buildSignInButton(context),
+              ],
+            ),
           ),
         ),
       ),

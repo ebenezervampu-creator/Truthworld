@@ -65,7 +65,7 @@ class MainController extends BaseController {
   // SHARING (from navCtrl - wait, share methods were in interaction? Let's check)
   // No, share is in sessionCtrl according to my script! Wait, share methods were part of VIDEO INTERACTIONS!
   Future<void> shareVideo(String v, String t, {String? thumbnailUrl, String? channelName, int? durationMs, Duration? currentPosition, String? subtitle}) => _sessionCtrl.shareVideo(v, t, thumbnailUrl: thumbnailUrl, channelName: channelName, durationMs: durationMs, currentPosition: currentPosition, subtitle: subtitle);
-  Future<void> shareChannel(String c, String n, {String? avatarUrl, String? handle, int? subscriberCount, int? videoCount, String? subtitle}) => _sessionCtrl.shareChannel(c, n, avatarUrl: avatarUrl, handle: handle, subscriberCount: subscriberCount, videoCount: videoCount, subtitle: subtitle);
+  Future<void> shareChannel(String c, String n, {String? avatarUrl, String? bannerUrl, String? handle, int? subscriberCount, int? videoCount, String? subtitle}) => _sessionCtrl.shareChannel(c, n, avatarUrl: avatarUrl, bannerUrl: bannerUrl, handle: handle, subscriberCount: subscriberCount, videoCount: videoCount, subtitle: subtitle);
   Future<void> sharePlaylist(String p, String n, {String? thumbnailUrl, String? channelName, int? videoCount, String? subtitle}) => _sessionCtrl.sharePlaylist(p, n, thumbnailUrl: thumbnailUrl, channelName: channelName, videoCount: videoCount, subtitle: subtitle);
   Future<void> shareTopic(String s, String t, {String? thumbnailUrl, int? videoCount, int? followerCount, String? subtitle}) => _sessionCtrl.shareTopic(s, t, thumbnailUrl: thumbnailUrl, videoCount: videoCount, followerCount: followerCount, subtitle: subtitle);
 

@@ -10,7 +10,8 @@ class AuthGuard extends GetMiddleware {
   @override
   int? get priority => 9; // High priority to execute early
 
-  final AuthService _authService = Get.find<AuthService>();
+  AuthService? get _authService =>
+      Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
 
   /// List of routes that require authentication
   static const List<String> protectedRoutes = [
@@ -49,7 +50,8 @@ class AuthGuard extends GetMiddleware {
         (cleanRoute != null && protectedRoutes.contains(cleanRoute)) ||
         (route != null && protectedRoutes.contains(route));
 
-    if (isProtected && !_authService.isAuthenticated.value) {
+    final isAuthed = _authService?.isAuthenticated.value ?? false;
+    if (isProtected && !isAuthed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showAuthRequiredDialog();
       });
@@ -100,12 +102,15 @@ class ChannelCreationGuard extends GetMiddleware {
   @override
   int? get priority => 8;
 
-  final AuthService _authService = Get.find<AuthService>();
+  AuthService? get _authService =>
+      Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
 
   @override
   RouteSettings? redirect(String? route) {
-    if (_authService.isAuthenticated.value &&
-        (_authService.hasChannel.value || _authService.userChannel != null)) {
+    final auth = _authService;
+    if (auth != null &&
+        auth.isAuthenticated.value &&
+        (auth.hasChannel.value || auth.userChannel != null)) {
       if (kIsWeb) {
         final host = Uri.base.host.toLowerCase();
         if (host.startsWith('studio') || host.contains('studio.truthworld.in')) {
@@ -124,12 +129,14 @@ class StudioAccessGuard extends GetMiddleware {
   @override
   int? get priority => 8;
 
-  final AuthService _authService = Get.find<AuthService>();
+  AuthService? get _authService =>
+      Get.isRegistered<AuthService>() ? Get.find<AuthService>() : null;
 
   @override
   RouteSettings? redirect(String? route) {
+    final auth = _authService;
     // 1. If user is NOT authenticated -> redirect to home / prompt sign-in
-    if (!_authService.isAuthenticated.value) {
+    if (auth == null || !auth.isAuthenticated.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AuthGuard._showAuthRequiredDialog();
       });
@@ -137,7 +144,7 @@ class StudioAccessGuard extends GetMiddleware {
     }
 
     // 2. If user IS authenticated BUT has no channel -> redirect directly to channel creation wizard
-    if (!_authService.hasChannel.value && _authService.userChannel == null) {
+    if (!auth.hasChannel.value && auth.userChannel == null) {
       return const RouteSettings(name: '/channelscreen');
     }
 

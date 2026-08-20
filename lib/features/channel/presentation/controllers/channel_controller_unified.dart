@@ -2215,7 +2215,12 @@ class ChannelController extends BaseController
     Get.find<MainController>().shareChannel(
       channelId,
       channel.channelName,
-      avatarUrl: channel.avatarUrl,
+      avatarUrl: channel.avatarUrl.isNotEmpty ? channel.avatarUrl : null,
+      bannerUrl: channel.bannerUrl.isNotEmpty ? channel.bannerUrl : null,
+      handle: channel.handle,
+      subscriberCount: channel.subscriberCount,
+      videoCount: channel.videoCount,
+      subtitle: channel.description.isNotEmpty ? channel.description : null,
     );
   }
 

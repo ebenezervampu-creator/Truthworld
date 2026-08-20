@@ -59,7 +59,8 @@ class VideoScreen extends GetView<VideoController> {
 
   bool _isMobilePlatform(BuildContext context) {
     return defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        MediaQuery.of(context).size.width < TWBreakpoints.desktop;
   }
 
   // Theme Shortcuts
@@ -171,20 +172,17 @@ class VideoScreen extends GetView<VideoController> {
       slivers: [
         _buildVideoPlayerSection(),
         _buildVideoInfoSection(context),
-        if (_isMobilePlatform(context))
-          SliverPadding(
-            padding: const EdgeInsets.only(bottom: 24),
-            sliver: SliverToBoxAdapter(
-              child: RecommendationFeed(
-                video: controller.video,
-                videoTag: videoTag,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-              ),
+        SliverPadding(
+          padding: const EdgeInsets.only(bottom: 24),
+          sliver: SliverToBoxAdapter(
+            child: RecommendationFeed(
+              video: controller.video,
+              videoTag: videoTag,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
             ),
-          )
-        else
-          ..._buildCommentsSlivers(context),
+          ),
+        ),
       ],
     );
   }
@@ -201,20 +199,7 @@ class VideoScreen extends GetView<VideoController> {
             slivers: [
               _buildVideoPlayerSection(),
               _buildVideoInfoSection(context, isDesktop: true),
-              if (_isMobilePlatform(context))
-                SliverPadding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  sliver: SliverToBoxAdapter(
-                    child: RecommendationFeed(
-                      video: controller.video,
-                      videoTag: videoTag,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                    ),
-                  ),
-                )
-              else
-                ..._buildCommentsSlivers(context),
+              ..._buildCommentsSlivers(context),
             ],
           ),
         ),
@@ -2271,16 +2256,14 @@ class VideoScreen extends GetView<VideoController> {
                 const SizedBox(width: 8),
 
                 // Comment (icon only)
-                if (_isMobilePlatform(context)) ...[
-                  _buildModernCapsuleButton(
-                    icon: Icons.comment_rounded,
-                    label: '',
-                    onTap: () {
-                      _showCommentsBottomSheet(context);
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                ],
+                _buildModernCapsuleButton(
+                  icon: Icons.comment_rounded,
+                  label: '',
+                  onTap: () {
+                    _showCommentsBottomSheet(context);
+                  },
+                ),
+                const SizedBox(width: 8),
 
                 // Share
                 _buildModernCapsuleButton(

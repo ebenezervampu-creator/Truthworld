@@ -282,6 +282,7 @@ class UserSessionController extends BaseController {
     String channelId,
     String channelName, {
     String? avatarUrl,
+    String? bannerUrl,
     String? handle,
     int? subscriberCount,
     int? videoCount,
@@ -293,7 +294,11 @@ class UserSessionController extends BaseController {
       ShareBottomSheet.show(
         title: channelName,
         url: url,
-        thumbnailUrl: avatarUrl,
+        avatarUrl: avatarUrl,
+        bannerUrl: bannerUrl,
+        thumbnailUrl: (bannerUrl != null && bannerUrl.isNotEmpty)
+            ? bannerUrl
+            : avatarUrl,
         handle: handle,
         subscriberCount: subscriberCount,
         videoCount: videoCount,

@@ -172,7 +172,7 @@ class DiscoverController extends BaseController {
     DiscoverCategoryData(
       name: 'Kids & Family',
       imageUrl:
-          'https://images.unsplash.com/photo-1536640712267-c8d024a1438c?auto=format&fit=crop&w=1200&q=90',
+          'https://images.unsplash.com/photo-1536640712-4d4c36ff0e4e?auto=format&fit=crop&w=1200&q=90',
     ),
     DiscoverCategoryData(
       name: 'Other',

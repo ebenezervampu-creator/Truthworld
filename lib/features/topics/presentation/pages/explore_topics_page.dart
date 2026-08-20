@@ -320,34 +320,43 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     return InkWell(
       onTap: () => controller.selectCategory(category.title),
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          image: DecorationImage(
-            image: CachedNetworkImageProvider(category.imageUrl),
-            fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(
-              AppColors.bgPage.withValues(alpha: 0.45),
-              BlendMode.darken,
-            ),
-          ),
-        ),
-        alignment: Alignment.bottomLeft,
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          category.title,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(
-                color: AppColors.bgPage.withValues(alpha: 0.8),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: category.imageUrl,
+              fit: BoxFit.cover,
+              errorWidget: (context, url, error) => Container(
+                color: AppColors.bgSurfaceHover,
               ),
-            ],
-          ),
+            ),
+            Container(
+              color: AppColors.bgPage.withValues(alpha: 0.45),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  category.title,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: AppColors.bgPage.withValues(alpha: 0.8),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

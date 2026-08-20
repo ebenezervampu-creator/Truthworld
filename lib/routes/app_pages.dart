@@ -505,6 +505,9 @@ class AppPages {
     GetPage(
       name: '/clips',
       page: () => const ClipsPage(),
+      binding: BindingsBuilder(() {
+        Get.lazyPut<UserClipsController>(UserClipsController.new);
+      }),
     ),
     GetPage(
       name: '/admin',

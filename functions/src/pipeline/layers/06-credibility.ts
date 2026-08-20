@@ -1062,7 +1062,8 @@ export class CredibilityEngine {
 
       return {
         claimId:        claim.claimId ?? `claim_${idx}`,
-        claim:          `${mapped.icon} ${claim.text}`,
+        claim:          claim.text,
+        displayLabel:   `${mapped.icon} ${claim.text}`,
         status:         claim.status,
         nature:         claim.nature,
         framing:        claim.framing,
@@ -1070,10 +1071,13 @@ export class CredibilityEngine {
         ontology:       claim.nature as any, // Legacy field
         severity:       claim.severity,
         severityLabel:  claim.severity ? severityLabels[claim.severity] : undefined,
-        whyWrong:       ['incorrect', 'historical_consensus_denial', 'incorrect_citation'].includes(claim.status) ? claim.reasoning : undefined,
+        reasoning:      claim.reasoning || claim.verificationSummary || "",
+        response:       claim.reasoning || claim.verificationSummary || "",
+        explanation:    claim.reasoning || claim.verificationSummary || "",
+        whyWrong:       claim.reasoning || undefined,
         correction:     ['incorrect', 'historical_consensus_denial', 'incorrect_citation'].includes(claim.status)
           ? `Correction: ${claim.reasoning}`
-          : undefined,
+          : (claim.reasoning || undefined),
         sources:        claim.richSources && claim.richSources.length > 0
           ? claim.richSources.map(rs => ({
               title:          rs.title,

@@ -66,12 +66,22 @@ class DeepLinkService {
   // ═══════════════════════════════════════════════════════════════════
 
   /// Share a video with title and URL.
-  Future<void> shareVideo(String videoId, String videoTitle) async {
+  Future<void> shareVideo(
+    String videoId,
+    String videoTitle, {
+    String? channelName,
+  }) async {
     try {
       final url = videoUrl(videoId);
+      final byChannel = (channelName != null &&
+              channelName.isNotEmpty &&
+              channelName != 'Channel' &&
+              !videoTitle.toLowerCase().contains(channelName.toLowerCase()))
+          ? ' by $channelName'
+          : '';
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Check out "$videoTitle" on TruthWorld:\n$url',
+          text: 'Watch "$videoTitle"$byChannel on TruthWorld:\n$url',
           subject: videoTitle,
         ),
       );
@@ -80,12 +90,18 @@ class DeepLinkService {
     }
   }
 
-  /// Share a channel with name and URL.
-  Future<void> shareChannel(String channelId, {String? channelName}) async {
+  /// Share a channel with name, handle, and URL.
+  Future<void> shareChannel(
+    String channelId, {
+    String? channelName,
+    String? handle,
+  }) async {
     try {
       final url = channelUrl(channelId);
+      final cleanHandle = (handle ?? '').replaceAll(RegExp('^@'), '').trim();
+      final handleStr = cleanHandle.isNotEmpty ? ' (@$cleanHandle)' : '';
       final text = channelName != null
-          ? 'Check out "$channelName" on TruthWorld:\n$url'
+          ? 'Check out $channelName$handleStr on TruthWorld:\n$url'
           : 'Check out this channel on TruthWorld:\n$url';
       await SharePlus.instance.share(
         ShareParams(
@@ -117,10 +133,11 @@ class DeepLinkService {
   Future<void> shareTopic(String slugOrHandle, String topicTitle) async {
     try {
       final url = topicUrl(slugOrHandle);
+      final cleanTitle = topicTitle.replaceAll(RegExp('^[#Tt]/'), '').trim();
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Explore "$topicTitle" topic on TruthWorld:\n$url',
-          subject: topicTitle,
+          text: 'Explore #$cleanTitle on TruthWorld:\n$url',
+          subject: '#$cleanTitle',
         ),
       );
     } catch (e) {
