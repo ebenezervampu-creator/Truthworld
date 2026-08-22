@@ -120,8 +120,15 @@ class ViewsPage extends StatelessWidget {
     final viewsChange = args['viewsChange'] as String? ?? '+0%';
     final isPositive = viewsChange.startsWith('+');
     final totalViews = controller.selectedVideoId.value.isNotEmpty
-        ? controller.videoAnalytics.value?.totalViews ?? 0
-        : controller.channelAnalytics.value?.totalVideoWatches ?? 0;
+        ? (controller.videoAnalytics.value?.totalViews ?? 0)
+        : ((controller.channelAnalytics.value?.totalVideoWatches ?? 0) > 0
+            ? controller.channelAnalytics.value!.totalVideoWatches
+            : (controller.channelVideos.isNotEmpty
+                ? controller.channelVideos.fold<int>(
+                    0,
+                    (sum, v) => sum + v.viewCount,
+                  )
+                : 0));
     final title = controller.selectedVideoId.value.isNotEmpty
         ? (controller.videoAnalytics.value?.title ?? 'Video Analytics')
         : 'Total Channel Views';

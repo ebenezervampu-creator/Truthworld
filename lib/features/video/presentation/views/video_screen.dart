@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/layout/global_app_bar.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/flip_coin_widget.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
@@ -26,7 +27,6 @@ import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -40,6 +40,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/clip_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
@@ -101,7 +102,6 @@ class VideoScreen extends GetView<VideoController> {
         final isFs = ctrl.isFullScreen.value;
         return Scaffold(
           backgroundColor: background,
-          extendBodyBehindAppBar: true,
           // Hide appbar in fullscreen mode cleanly with local rebuild only
           appBar: _ResponsiveAppBar(
             controller: ctrl,
@@ -149,7 +149,7 @@ class VideoScreen extends GetView<VideoController> {
     if (Get.isRegistered<MainController>()) {
       return Get.find<MainController>();
     }
-    return Get.put(MainController());
+    return Get.put(MainController(), permanent: true);
   }
 
   PlaylistController? get _playlistController {
@@ -245,225 +245,8 @@ class VideoScreen extends GetView<VideoController> {
   // SHARED WIDGETS
   // ==========================================================================
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final isDesktop =
-        context.isDesktop || context.isLargeDesktop || context.isUltraWide;
-    // Check if user came from home screen
-    final previousRoute = Get.previousRoute;
-    final isFromHome =
-        previousRoute.contains('home') ||
-        previousRoute.isEmpty ||
-        previousRoute == '/';
-
-    if (isFromHome && isDesktop) {
-      // Exact replica of home screen app bar
-      return AppBar(
-        backgroundColor: AppColors.bgPage,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        title: _buildHomeStyleHeader(context),
-        actions: _buildHomeStyleActions(context),
-      );
-    }
-
-    // Default minimal app bar for other sources
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.bgSurface.withValues(alpha: 0.7),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.arrow_back, size: 18, color: textPrimary),
-        ),
-        onPressed: Get.back,
-        tooltip: 'Back',
-      ),
-    );
-  }
-
-  // Exact replica of home screen header
-  Widget _buildHomeStyleHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          // Logo
-          InkWell(
-            onTap: () => Get.offAllNamed('/'),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Truthworld',
-                    style: GoogleFonts.roboto(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 40),
-          // Search bar exactly like home screen
-          Expanded(
-            child: Center(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 650),
-                height: 44,
-                child: Material(
-                  borderRadius: BorderRadius.circular(22),
-                  color: Colors.white.withValues(alpha: 0.05),
-                  child: InkWell(
-                    onTap: () => Get.offAndToNamed('/search'),
-                    borderRadius: BorderRadius.circular(22),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.search_rounded,
-                            color: Colors.grey.shade400,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'Search videos...',
-                              style: GoogleFonts.roboto(
-                                color: Colors.grey.shade400,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Exact copy of home screen actions
-  List<Widget> _buildHomeStyleActions(BuildContext context) {
-    // Use AuthService observable instead of FirebaseAuth directly
-    return [
-      // Notification bell like home screen
-      IconButton(
-        icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-        onPressed: () {
-          // Navigate to notifications
-        },
-      ),
-      Obx(() {
-        final isAuthenticated = AuthService.to.isAuthenticated.value;
-        if (!isAuthenticated) {
-          // Sign In button
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton.icon(
-              icon: const Icon(
-                Icons.account_circle_outlined,
-                size: 18,
-                color: Color(0xFF3B82F6),
-              ),
-              label: const Text(
-                'Sign In',
-                style: TextStyle(
-                  color: Color(0xFF3B82F6),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onPressed: () {
-                final homeController = Get.find<HomeController>();
-                if (!homeController.isLoadingAuth.value) {
-                  homeController.signInWithGoogle();
-                }
-              },
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.6),
-                  width: 1.5,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-              ),
-            ),
-          );
-        } else {
-          // User is signed in - show CircleAvatar with user initial (like home screen)
-          final user = AuthService.to.user;
-          final initial =
-              user?.email?.substring(0, 1).toUpperCase() ??
-              user?.displayName?.substring(0, 1).toUpperCase() ??
-              'U';
-          return Padding(
-            padding: const EdgeInsets.only(right: 16, left: 8),
-            child: InkWell(
-              onTap: () {
-                // Show user menu
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade800,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey.shade600),
-                ),
-                child: Center(
-                  child: Text(
-                    initial,
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-      }),
-    ];
+  PreferredSizeWidget? _buildAppBar(BuildContext context) {
+    return buildGlobalAppBar(context);
   }
 
   Widget _buildVideoPlayerSection() {
@@ -471,9 +254,7 @@ class VideoScreen extends GetView<VideoController> {
     // mounted in the widget tree so Chewie can transition to and from fullscreen smoothly.
     return SliverToBoxAdapter(
       child: Obx(() {
-        controller.video;
         controller.isFullScreen.value;
-        controller.showThumbnail.value;
         final ratio = controller.video.isShort
             ? 9 / 16
             : controller.vpcAspectRatio;
@@ -1143,12 +924,6 @@ class VideoScreen extends GetView<VideoController> {
     return Hero(
       tag: heroTag,
       child: Obx(() {
-        controller.isLoading;
-        controller.videoError.value;
-        controller.isSwitchingResolution.value;
-        controller.isAutoSwitching.value;
-        controller.isAudioOnly.value;
-        controller.showThumbnail.value;
         if (controller.isLoading && !controller.isSwitchingResolution.value) {
           return thumbnailWidget;
         }
@@ -1213,9 +988,8 @@ class VideoScreen extends GetView<VideoController> {
         final isAudioOnly = controller.isAudioOnly.value;
         final showThumbnailOverlay =
             !isAutoSwitching &&
-            (!isVideoReady ||
-                (!isPlaying && controller.showThumbnail.value) ||
-                isAudioOnly);
+            !isAudioOnly &&
+            (!isVideoReady || (!isPlaying && controller.showThumbnail.value));
 
         final vpc = controller.videoPlayerController;
         if (controller.chewieController == null ||
@@ -1227,13 +1001,14 @@ class VideoScreen extends GetView<VideoController> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            // Only show thumbnail if video not ready yet
-            if (showThumbnailOverlay) thumbnailWidget,
             // Video player
             TowerCustomPlayer(
               videoPlayerController: vpc,
               tag: controller.video.id,
             ),
+            // Only show thumbnail if video not ready yet
+            if (showThumbnailOverlay)
+              Positioned.fill(child: thumbnailWidget),
 
             // --- Clip Mode Overlay ---
             if (controller.activeClip.value != null)
@@ -1837,13 +1612,27 @@ class VideoScreen extends GetView<VideoController> {
                   final duration =
                       clipController.endSeconds.value -
                       clipController.startSeconds.value;
-                  return Text(
-                    '${duration.toInt()}s',
-                    style: GoogleFonts.roboto(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
+                  final atLimit = duration >= 30;
+                  return Row(
+                    children: [
+                      Text(
+                        '${duration.toInt()}s',
+                        style: GoogleFonts.roboto(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: atLimit
+                              ? AppColors.error
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        ' / 30s max',
+                        style: GoogleFonts.roboto(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   );
                 }),
               ],
@@ -1874,8 +1663,8 @@ class VideoScreen extends GetView<VideoController> {
                       ),
                     ),
                     onChanged: (values) {
-                      // Enforce max 60s
-                      if (values.end - values.start <= 60.0) {
+                      // Enforce max 30s
+                      if (values.end - values.start <= 30.0) {
                         clipController.updateStart(values.start);
                         clipController.updateEnd(values.end);
                         // Preview the start
@@ -2098,68 +1887,15 @@ class VideoScreen extends GetView<VideoController> {
   void _showDownloadQualityDialog(BuildContext context, bool isUserSignedIn) {
     if (!isUserSignedIn) return _showSignInPrompt();
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(Icons.download_for_offline, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Select Download Quality',
-                    style: GoogleFonts.roboto(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(color: Colors.white10),
-            if (controller.availableResolutions.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  'No download options available for this video.',
-                  style: GoogleFonts.roboto(color: textSecondary),
-                ),
-              )
-            else
-              ...controller.availableResolutions.map(
-                (res) => ListTile(
-                  leading: const Icon(Icons.high_quality, color: textSecondary),
-                  title: Text(
-                    res.label,
-                    style: GoogleFonts.roboto(color: textPrimary),
-                  ),
-                  subtitle: Text(
-                    'Save to in-app library',
-                    style: GoogleFonts.roboto(
-                      color: textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    controller.saveVideoOffline(res);
-                  },
-                ),
-              ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
+    final downloadsCtrl = Get.isRegistered<DownloadsController>()
+        ? Get.find<DownloadsController>()
+        : Get.put(DownloadsController());
+
+    downloadsCtrl.showDownloadQualityDialog(
+      context,
+      controller.video,
+      onResolutionSelected: (res) => controller.saveVideoOffline(res),
+      onAudioSelected: () => controller.saveAudioOffline(),
     );
   }
 
@@ -2347,8 +2083,8 @@ class VideoScreen extends GetView<VideoController> {
                     );
                   }
                   return _buildModernCapsuleButton(
-                    icon: Icons.bookmark_border_rounded,
-                    label: 'Save',
+                    icon: Icons.download_rounded,
+                    label: 'Download',
                     onTap: () =>
                         _showDownloadQualityDialog(context, isUserSignedIn),
                   );
@@ -2489,8 +2225,8 @@ class VideoScreen extends GetView<VideoController> {
                     );
                   }
                   return _buildModernCapsuleButton(
-                    icon: Icons.bookmark_border_rounded,
-                    label: 'Save',
+                    icon: Icons.download_rounded,
+                    label: 'Download',
                     onTap: () =>
                         _showDownloadQualityDialog(context, isUserSignedIn),
                   );
@@ -2961,143 +2697,148 @@ class VideoScreen extends GetView<VideoController> {
   ) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.bgSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: textSecondary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Notification settings',
-              style: GoogleFonts.roboto(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Obx(() {
-              final option =
-                  _channelController?.notificationOption.value ?? 'all';
-              final notificationsEnabled =
-                  _channelController?.notificationsEnabled.value ?? true;
-              final isAll = notificationsEnabled && option == 'all';
-              final isPersonalized =
-                  notificationsEnabled && option == 'personalized';
-              final isNone = !notificationsEnabled || option == 'none';
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: textSecondary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Notification settings',
+                  style: GoogleFonts.roboto(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Obx(() {
+                  final option =
+                      _channelController?.notificationOption.value ?? 'all';
+                  final notificationsEnabled =
+                      _channelController?.notificationsEnabled.value ?? true;
+                  final isAll = notificationsEnabled && option == 'all';
+                  final isPersonalized =
+                      notificationsEnabled && option == 'personalized';
+                  final isNone = !notificationsEnabled || option == 'none';
 
-              return Column(
-                children: [
-                  ListTile(
-                    leading: Icon(
-                      Icons.notifications_active,
-                      color: isAll ? primary : textPrimary,
-                    ),
-                    title: Text(
-                      'All',
-                      style: GoogleFonts.roboto(
-                        color: isAll ? primary : textPrimary,
-                        fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(
+                          Icons.notifications_active,
+                          color: AppColors.textPrimary,
+                        ),
+                        title: Text(
+                          'All',
+                          style: GoogleFonts.roboto(
+                            color: isAll ? primary : textPrimary,
+                            fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          "You'll get all notifications",
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            color: textSecondary,
+                          ),
+                        ),
+                        trailing: isAll
+                            ? const Icon(Icons.check, color: AppColors.textPrimary)
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _channelController?.updateNotificationPreference(
+                            channelId,
+                            'all',
+                          );
+                        },
                       ),
-                    ),
-                    subtitle: Text(
-                      "You'll get all notifications",
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: textSecondary,
+                      ListTile(
+                        leading: const Icon(
+                          Icons.notifications_outlined,
+                          color: AppColors.textPrimary,
+                        ),
+                        title: Text(
+                          'Personalized',
+                          style: GoogleFonts.roboto(
+                            color: isPersonalized ? primary : textPrimary,
+                            fontWeight: isPersonalized
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          "You'll get personalized notifications",
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            color: textSecondary,
+                          ),
+                        ),
+                        trailing: isPersonalized
+                            ? const Icon(Icons.check, color: AppColors.textPrimary)
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _channelController?.updateNotificationPreference(
+                            channelId,
+                            'personalized',
+                          );
+                        },
                       ),
-                    ),
-                    trailing: isAll
-                        ? const Icon(Icons.check, color: AppColors.textPrimary)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _channelController?.updateNotificationPreference(
-                        channelId,
-                        'all',
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.notifications_outlined,
-                      color: isPersonalized ? primary : textPrimary,
-                    ),
-                    title: Text(
-                      'Personalized',
-                      style: GoogleFonts.roboto(
-                        color: isPersonalized ? primary : textPrimary,
-                        fontWeight: isPersonalized
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                      ListTile(
+                        leading: const Icon(
+                          Icons.notifications_off_outlined,
+                          color: AppColors.textPrimary,
+                        ),
+                        title: Text(
+                          'None',
+                          style: GoogleFonts.roboto(
+                            color: isNone ? primary : textPrimary,
+                            fontWeight: isNone
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Turn off all notifications',
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            color: textSecondary,
+                          ),
+                        ),
+                        trailing: isNone
+                            ? const Icon(Icons.check, color: AppColors.textPrimary)
+                            : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _channelController?.updateNotificationPreference(
+                            channelId,
+                            'none',
+                          );
+                        },
                       ),
-                    ),
-                    subtitle: Text(
-                      "You'll get personalized notifications",
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: textSecondary,
-                      ),
-                    ),
-                    trailing: isPersonalized
-                        ? const Icon(Icons.check, color: AppColors.textPrimary)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _channelController?.updateNotificationPreference(
-                        channelId,
-                        'personalized',
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.notifications_off_outlined,
-                      color: isNone ? primary : textPrimary,
-                    ),
-                    title: Text(
-                      'None',
-                      style: GoogleFonts.roboto(
-                        color: isNone ? primary : textPrimary,
-                        fontWeight: isNone
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Turn off all notifications',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: textSecondary,
-                      ),
-                    ),
-                    trailing: isNone
-                        ? const Icon(Icons.check, color: AppColors.textPrimary)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      _channelController?.updateNotificationPreference(
-                        channelId,
-                        'none',
-                      );
-                    },
-                  ),
-                ],
-              );
-            }),
-          ],
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -6224,7 +5965,6 @@ class RecommendationFeed extends StatelessWidget {
                         video: item,
                         isGrid: true,
                         heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
-                        disableHoverPreview: true,
                       );
                     }
                     return const SizedBox.shrink();
@@ -6260,7 +6000,6 @@ class RecommendationFeed extends StatelessWidget {
                   return VideoCard(
                     video: item,
                     heroPrefix: 'rec_list_${videoTag ?? 'global'}',
-                    disableHoverPreview: true,
                   );
                 }
                 return const SizedBox.shrink();
@@ -6308,19 +6047,27 @@ class _ResponsiveAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.appBarBuilder,
   });
   final VideoController controller;
-  final PreferredSizeWidget Function() appBarBuilder;
+  final PreferredSizeWidget? Function() appBarBuilder;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      return !controller.isFullScreen.value
-          ? appBarBuilder()
-          : const SizedBox.shrink();
+      if (controller.isFullScreen.value) {
+        return const SizedBox.shrink();
+      }
+      final bar = appBarBuilder();
+      return bar ?? const SizedBox.shrink();
     });
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize {
+    if (controller.isFullScreen.value) {
+      return Size.zero;
+    }
+    final bar = appBarBuilder();
+    return bar?.preferredSize ?? Size.zero;
+  }
 }
 
 // ==========================================================================

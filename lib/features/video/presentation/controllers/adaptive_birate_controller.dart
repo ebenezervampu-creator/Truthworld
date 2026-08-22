@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
@@ -24,6 +25,40 @@ class ResolutionTier {
     required this.bitrate,
     required this.minBandwidth,
   });
+
+  /// Factory to normalize and convert a VideoResolutionV2 into a ResolutionTier.
+  /// Handles bps vs kbps conversion automatically and calculates sustainable minBandwidth.
+  factory ResolutionTier.fromVideoResolution(VideoResolutionV2 v) {
+    final int kbps;
+    if (v.bitrate > 50000) {
+      // Bitrate was specified in bps (e.g. 4,500,000 for 1080p) -> convert to kbps (4500)
+      kbps = (v.bitrate / 1000).round();
+    } else if (v.bitrate > 0) {
+      kbps = v.bitrate;
+    } else {
+      kbps = defaultBitrateForHeight(v.height);
+    }
+
+    return ResolutionTier(
+      label: v.label,
+      url: v.url,
+      height: v.height,
+      bitrate: kbps,
+      minBandwidth: (kbps * 1.2).toInt(),
+    );
+  }
+
+  static int defaultBitrateForHeight(int height) {
+    if (height >= 2160) return 15000;
+    if (height >= 1440) return 10000;
+    if (height >= 1080) return 5000;
+    if (height >= 1040) return 4500;
+    if (height >= 720) return 2500;
+    if (height >= 480) return 1000;
+    if (height >= 360) return 600;
+    if (height >= 240) return 300;
+    return 100;
+  }
   final String label; // e.g. "1080p", "720p"
   final String url; // HLS/DASH segment URL
   final int height; // Vertical pixels
@@ -81,7 +116,22 @@ class ResolutionTier {
       bitrate: 5000,
       minBandwidth: 6000,
     ),
+    const ResolutionTier(
+      label: '1440p',
+      url: '',
+      height: 1440,
+      bitrate: 10000,
+      minBandwidth: 12000,
+    ),
+    const ResolutionTier(
+      label: '2160p',
+      url: '',
+      height: 2160,
+      bitrate: 15000,
+      minBandwidth: 18000,
+    ),
   ];
+
 }
 
 /// Playback state machine — industry standard FSM

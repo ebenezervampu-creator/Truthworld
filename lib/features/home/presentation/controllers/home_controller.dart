@@ -58,7 +58,6 @@ class HomeController extends BaseController {
   static const int indexPlaylistDetail = HomeNavigationController.indexPlaylistDetail;
   static const int indexChannelDetail = HomeNavigationController.indexChannelDetail;
   static const int indexSettings = HomeNavigationController.indexSettings;
-  static const int indexHelp = HomeNavigationController.indexHelp;
   static const int indexFeedback = HomeNavigationController.indexFeedback;
   static const int indexAbout = HomeNavigationController.indexAbout;
   static const int indexPrivacy = HomeNavigationController.indexPrivacy;

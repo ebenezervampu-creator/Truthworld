@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SidebarItemData {
@@ -58,13 +59,23 @@ class StandardSidebar extends StatelessWidget {
                     : MainAxisAlignment.center,
                 children: [
                   if (isExpanded)
-                    Text(
-                      'Navigation',
-                      style: AppTheme.typography.label.copyWith(
-                        color: AppTheme.colors.textSecondary,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const AppLogo(size: 24, borderRadius: 6),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Truthworld',
+                          style: AppTheme.typography.label.copyWith(
+                            color: AppTheme.colors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    const AppLogo(size: 24, borderRadius: 6),
                   IconButton(
                     icon: Icon(
                       isExpanded ? Icons.menu_open : Icons.menu,

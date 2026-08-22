@@ -19,7 +19,7 @@ class ClipController extends BaseController {
   final RxString clipTitle = ''.obs;
   final RxBool isSaving = false.obs;
 
-  double get maxDuration => 60; // Max clip duration 60s
+  double get maxDuration => 30; // Max shareable clip duration: 30s
 
   void updateStart(double value) {
     if (value < endSeconds.value - 1) {
@@ -95,8 +95,9 @@ class ClipController extends BaseController {
 
     if (duration > maxDuration + 1) {
       Get.snackbar(
-        'Error',
-        'Clip duration cannot exceed 1 minute (60 seconds)',
+        'Clip too long',
+        'Clips can only be shared up to 30 seconds',
+        snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
@@ -118,14 +119,25 @@ class ClipController extends BaseController {
       Get.back();
     }
 
+    final videoSourceUrl = video.originalUrl.isNotEmpty
+        ? video.originalUrl
+        : (video.adaptiveResolutions.isNotEmpty
+            ? video.adaptiveResolutions.first.url
+            : video.videoUrl);
+
     ShareBottomSheet.show(
-      title: '🎬 $title (Truthworld Watermark Clip)',
+      title: title,
       url: clipUrl,
       thumbnailUrl: video.thumbnailUrl,
       subtitle: watermarkText,
       channelName: video.channelName,
       durationMs: (duration * 1000).toInt(),
       type: 'clip',
+      clipStartTime: start,
+      clipEndTime: end,
+      videoUrl: videoSourceUrl,
+      videoId: video.id,
+      videoTitle: video.title,
     );
   }
 }

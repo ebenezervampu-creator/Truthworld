@@ -18,6 +18,11 @@ class AuthGuard extends GetMiddleware {
     '/upload',
     '/upload/video',
     '/upload/community',
+    '/upload/playlist',
+    '/upload/topic',
+    '/create-post',
+    '/create-playlist',
+    '/create-topic',
     '/uploadscreen', // Backward compatibility
     '/myvideos',
     '/settings',

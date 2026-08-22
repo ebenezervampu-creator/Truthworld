@@ -67,6 +67,7 @@ dependencies:
   image_cropper: ^12.2.1
   image: ^4.5.4
   video_trimmer: ^5.0.0
+  ffmpeg_kit_flutter_new: ^4.6.2
 
   # Platform & Utilities
   device_info_plus: ^13.2.0
@@ -121,6 +122,7 @@ dependencies:
 
   flutter_web_plugins:
     sdk: flutter
+  app_links: ^7.2.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

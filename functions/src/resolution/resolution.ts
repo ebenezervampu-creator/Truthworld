@@ -49,11 +49,12 @@ const REGION = "asia-south1";
 
 // ─── Resolution Configuration ────────────────────────────────────────────────
 
-/** Maximum resolution cap — 1080p standard */
-const MAX_RESOLUTION_HEIGHT = 1080;
+/** Maximum resolution cap — 1080p standard, 2160p custom */
+const MAX_STANDARD_RESOLUTION_HEIGHT = 1080;
+const MAX_CUSTOM_RESOLUTION_HEIGHT = 2160;
 
 /** Full resolution ladder (descending). Only resolutions ≤ source are generated. */
-interface ResolutionProfile {
+export interface ResolutionProfile {
   height: number;
   width: number;
   label: string;
@@ -62,7 +63,7 @@ interface ResolutionProfile {
   fps: number;
 }
 
-const RESOLUTION_LADDER: ResolutionProfile[] = [
+export const STANDARD_RESOLUTION_LADDER: ResolutionProfile[] = [
   { height: 1080, width: 1920, label: "1080p", bitrateKbps: 4500, audioBitrateKbps: 128, fps: 30 },
   { height: 720, width: 1280, label: "720p", bitrateKbps: 2500, audioBitrateKbps: 128, fps: 30 },
   { height: 480, width: 854, label: "480p", bitrateKbps: 1200, audioBitrateKbps: 96, fps: 30 },
@@ -71,11 +72,43 @@ const RESOLUTION_LADDER: ResolutionProfile[] = [
   { height: 144, width: 256, label: "144p", bitrateKbps: 200, audioBitrateKbps: 32, fps: 15 },
 ];
 
+export const CUSTOM_RESOLUTION_LADDER: ResolutionProfile[] = [
+  { height: 2160, width: 3840, label: "2160p", bitrateKbps: 15000, audioBitrateKbps: 192, fps: 30 },
+  { height: 1440, width: 2560, label: "1440p", bitrateKbps: 10000, audioBitrateKbps: 160, fps: 30 },
+  ...STANDARD_RESOLUTION_LADDER,
+];
+
 const VALID_VIDEO_EXTENSIONS = new Set([
   ".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv", 
   ".3gpp", ".3gp", ".mpeg", ".mpg", ".mpegps", ".m4v", 
   ".dnxhr", ".prores", ".cineform", ".hevc"
 ]);
+
+/** Helper to probe media dimensions and codec with ffprobe */
+function probeVideoFile(filePath: string): Promise<{ width: number; height: number; codec: string }> {
+  return new Promise((resolve) => {
+    try {
+      getFFmpegInstance().ffprobe(filePath, (err: any, metadata: any) => {
+        if (err || !metadata || !metadata.streams) {
+          resolve({ width: 0, height: 0, codec: "unknown" });
+          return;
+        }
+        const videoStream = metadata.streams.find((s: any) => s.codec_type === "video");
+        if (videoStream) {
+          resolve({
+            width: Number(videoStream.width) || 0,
+            height: Number(videoStream.height) || 0,
+            codec: String(videoStream.codec_name || "unknown"),
+          });
+        } else {
+          resolve({ width: 0, height: 0, codec: "unknown" });
+        }
+      });
+    } catch {
+      resolve({ width: 0, height: 0, codec: "unknown" });
+    }
+  });
+}
 
 // ─── Storage Trigger ─────────────────────────────────────────────────────────
 
@@ -132,16 +165,20 @@ export const onVideoUploadedForResolution = onObjectFinalized(
 
     console.log(`[Resolution Service] Autonomous processing: ${filePath}`, { videoId, userId });
 
+    let channelType = "standard";
+
     // ─── MODERATION GATE: Skip resolution for rejected videos ────────────
-    // Cost optimization: don't waste compute transcoding videos that will be rejected.
-    // For pending moderation, we proceed but the video won't be exposed until approved.
     try {
       const videoDoc = await db.collection("videos").doc(videoId).get();
       if (videoDoc.exists) {
-        const moderationStatus = videoDoc.data()?.moderation?.status;
+        const videoData = videoDoc.data();
+        const moderationStatus = videoData?.moderation?.status;
         if (moderationStatus === "rejected") {
           console.log(`[Resolution Service] Video REJECTED by moderation — skipping resolution`, { videoId });
           return;
+        }
+        if (videoData?.channelType === "custom" || videoData?.type === "custom") {
+          channelType = "custom";
         }
       }
     } catch (modCheckErr) {
@@ -157,17 +194,21 @@ export const onVideoUploadedForResolution = onObjectFinalized(
       const fileSize = parseInt(String(metadata.size ?? "0"), 10);
       const codec = String(metadata.metadata?.codec ?? "unknown");
 
-      // Determine effective source resolution
-      const effectiveHeight = sourceHeight > 0 ? Math.min(sourceHeight, MAX_RESOLUTION_HEIGHT) : MAX_RESOLUTION_HEIGHT;
+      // Select ladder based on channelType (Standard up to 1080p, Custom up to 4K / 2160p)
+      const baseLadder = channelType === "custom" ? CUSTOM_RESOLUTION_LADDER : STANDARD_RESOLUTION_LADDER;
+      const maxLadderHeight = channelType === "custom" ? MAX_CUSTOM_RESOLUTION_HEIGHT : MAX_STANDARD_RESOLUTION_HEIGHT;
 
-      // Build applicable resolution ladder (only resolutions ≤ source height, capped at 1040)
-      const applicableResolutions = RESOLUTION_LADDER.filter(
+      // Determine effective source resolution
+      const effectiveHeight = sourceHeight > 0 ? Math.min(sourceHeight, maxLadderHeight) : maxLadderHeight;
+
+      // Build applicable resolution ladder (only resolutions ≤ source height)
+      const applicableResolutions = baseLadder.filter(
         (r) => r.height <= effectiveHeight
       );
 
       if (applicableResolutions.length === 0) {
         console.warn(`[Resolution] No applicable resolutions for height=${sourceHeight}`);
-        applicableResolutions.push(RESOLUTION_LADDER[RESOLUTION_LADDER.length - 1]); // at minimum 144p
+        applicableResolutions.push(baseLadder[baseLadder.length - 1]); // at minimum 144p
       }
 
       // Build resolution variants (pending status)
@@ -180,6 +221,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
         fps: number;
         status: "pending" | "processing" | "completed" | "failed";
         outputPath: string | null;
+        downloadUrl?: string | null;
         processedAt: number | null;
         error: string | null;
       }> = {};
@@ -194,6 +236,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
           fps: res.fps,
           status: "pending",
           outputPath: null,
+          downloadUrl: null,
           processedAt: null,
           error: null,
         };
@@ -209,7 +252,8 @@ export const onVideoUploadedForResolution = onObjectFinalized(
         sourceWidth,
         sourceCodec: codec,
         sourceFileSize: fileSize,
-        maxResolution: MAX_RESOLUTION_HEIGHT,
+        channelType,
+        maxResolution: effectiveHeight,
         variants,
         totalVariants: applicableResolutions.length,
         completedVariants: 0,
@@ -220,9 +264,11 @@ export const onVideoUploadedForResolution = onObjectFinalized(
 
       console.log(`[Resolution] Job created`, {
         videoId,
+        channelType,
         variants: applicableResolutions.map((r) => r.label).join(", "),
         maxRes: `${effectiveHeight}p`,
       });
+
 
       // ─── Autonomous Event Publishing (Per-Variant Concurrency) ───────────────────
       // Instead of 1 monolithic job trying to transcode all 6 resolutions in a single function,
@@ -350,10 +396,12 @@ export const getResolutionProfiles = onRequest(
     maxInstances: 2,
     cors: true,
   },
-  async (_req, res) => {
+  async (req, res) => {
+    const isCustom = req.query.type === "custom";
+    const ladder = isCustom ? CUSTOM_RESOLUTION_LADDER : STANDARD_RESOLUTION_LADDER;
     res.status(200).json({
-      maxResolution: `${MAX_RESOLUTION_HEIGHT}p`,
-      profiles: RESOLUTION_LADDER.map((r) => ({
+      maxResolution: isCustom ? `${MAX_CUSTOM_RESOLUTION_HEIGHT}p` : `${MAX_STANDARD_RESOLUTION_HEIGHT}p`,
+      profiles: ladder.map((r) => ({
         label: r.label,
         height: r.height,
         width: r.width,
@@ -370,23 +418,24 @@ export const getResolutionProfiles = onRequest(
 /**
  * Worker triggered by 'resolution.requested' Pub/Sub topic via push subscription.
  *
- * 💰 COST-OPTIMIZED TRANSCODING ENGINE:
- *   1. Right-sized 1GiB RAM (50% cheaper execution cost vs 2GiB)
- *   2. Native resolution passthrough (-c copy) when source matches target (saves 95% CPU)
- *   3. Single-pass CRF 24 with -preset veryfast (saves 60-70% CPU time & disk size)
- *   4. Immediate /tmp disk cleanup to ensure 0 memory/disk leakage
- *   5. Real-time UI exposure on each variant completion
+ * 💰 INDUSTRY-STANDARD TRANSCODING ENGINE (YouTube-grade):
+ *   1. 2GiB RAM allocation to prevent OOM on large video downloads & FFmpeg transcode
+ *   2. Native resolution passthrough (-c copy) when source matches target
+ *   3. Universal browser compatibility via -pix_fmt yuv420p, -c:v libx264, -c:a aac
+ *   4. Direct Firebase Storage download token generation for 100% reliable HTML5 playback
+ *   5. Immediate /tmp disk cleanup to ensure 0 disk leakage
+ *   6. Real-time UI exposure on each variant completion
  *
- * ✅ CONFIG: minInstances=0 (scale-to-zero), maxInstances=5, 1GiB memory, 540s timeout
+ * ✅ CONFIG: minInstances=0 (scale-to-zero), maxInstances=5, 2GiB memory, 540s timeout
  */
 export const handleResolution = onMessagePublished(
   {
     topic: "resolution.requested",
     region: REGION,
-    memory: "1GiB",         // 50% cost reduction vs 2GiB
+    memory: "2GiB",         // 2GiB RAM guarantees zero OOM on 1080p/4K transcode
     timeoutSeconds: 540,
     minInstances: 0,        // Scale-to-zero (0 idle cost)
-    maxInstances: 5,        // Max 5 concurrent workers
+    maxInstances: 2,        // Max 2 concurrent workers to respect CPU quota
   },
   async (event) => {
     const t0 = Date.now();
@@ -409,7 +458,7 @@ export const handleResolution = onMessagePublished(
       }>(event.data.message);
 
       videoId = parsedEvent.jobId;
-      const { sourcePath, sourceBucket, sourceHeight = 0, variant, variants: legacyVariants } = parsedEvent.data;
+      const { sourcePath, sourceBucket, sourceHeight: initialSourceHeight = 0, variant, variants: legacyVariants } = parsedEvent.data;
 
       // Extract the list of variants to process in this function invocation
       const variantsToProcess: ResolutionProfile[] = variant
@@ -451,6 +500,12 @@ export const handleResolution = onMessagePublished(
         console.log(`[Resolution Worker] Downloading source: ${sourcePath}`, { videoId });
         await bucket.file(sourcePath).download({ destination: localSourcePath });
 
+        // Probe downloaded file directly with ffprobe for accurate dimensions
+        const probed = await probeVideoFile(localSourcePath);
+        const actualSourceHeight = probed.height > 0 ? probed.height : initialSourceHeight;
+        const actualSourceWidth = probed.width > 0 ? probed.width : 0;
+        console.log(`[Resolution Worker] Source probed: ${actualSourceWidth}x${actualSourceHeight}, codec=${probed.codec}`, { videoId });
+
         const variantRef = db.collection("resolution_jobs").doc(videoId);
 
         // 5. PROCESS EACH VARIANT (Sequentially per container to guarantee low RAM usage)
@@ -465,6 +520,19 @@ export const handleResolution = onMessagePublished(
             continue;
           }
 
+          // 🚫 STRICT NO-UPSCALING GATE:
+          // Never generate resolutions higher than the source video uploaded by the creator.
+          // E.g. If creator uploads 720p, only generate 720p, 480p, 360p, 240p, 144p (never 1080p, 1440p, 2160p).
+          if (actualSourceHeight > 0 && targetVariant.height > actualSourceHeight + 16) {
+            console.log(`[Resolution Worker] 🚫 Skipping upscaling: variant ${variantLabel} (${targetVariant.height}p) > source (${actualSourceHeight}p)`, { videoId });
+            await variantRef.update({
+              [`variants.${variantLabel}.status`]: "skipped",
+              [`variants.${variantLabel}.error`]: `Source resolution (${actualSourceHeight}p) is lower than target (${targetVariant.height}p)`,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            continue;
+          }
+
           console.log(`[Resolution Worker] Transcoding variant: ${variantLabel} (${targetVariant.height}p)`, { videoId });
 
           await variantRef.update({
@@ -476,8 +544,11 @@ export const handleResolution = onMessagePublished(
           const targetPath = `resolutions/${videoId}/${variantLabel}.mp4`;
 
           // 💰 COST OPTIMIZATION: Passthrough Copy for Native Resolution
-          // If the source video matches this resolution height and is already MP4, fast-copy without re-encoding!
-          const isNativeMatch = sourceHeight > 0 && Math.abs(sourceHeight - targetVariant.height) <= 16 && sourcePath.endsWith(".mp4");
+          // If the source video matches this resolution height and is already MP4 H.264/AAC, fast-copy!
+          const isNativeMatch = actualSourceHeight > 0 &&
+            Math.abs(actualSourceHeight - targetVariant.height) <= 16 &&
+            probed.codec.includes("h264") &&
+            sourcePath.endsWith(".mp4");
 
           try {
             if (isNativeMatch) {
@@ -494,12 +565,13 @@ export const handleResolution = onMessagePublished(
                   .run();
               });
             } else {
-              // Execute FFmpeg Transcode with CRF rate control for minimal file size and rapid encode
+              // Execute FFmpeg Transcode with standard web profile (H.264 Main + AAC + YUV420p)
               await new Promise<void>((resolve, reject) => {
                 getFFmpegInstance()(localSourcePath)
                   .outputOptions([
                     "-c:v libx264",
-                    "-crf 24",
+                    "-pix_fmt yuv420p",
+                    "-crf 23",
                     `-maxrate ${targetVariant.bitrateKbps}k`,
                     `-bufsize ${targetVariant.bitrateKbps * 2}k`,
                     "-preset veryfast",
@@ -507,6 +579,7 @@ export const handleResolution = onMessagePublished(
                     "-c:a aac",
                     `-b:a ${targetVariant.audioBitrateKbps}k`,
                     "-ar 44100",
+                    "-ac 2",
                     `-r ${targetVariant.fps}`,
                     "-threads 2",
                     "-movflags +faststart",
@@ -519,6 +592,9 @@ export const handleResolution = onMessagePublished(
               });
             }
 
+            // Generate Firebase Storage download token for direct, auth-free client playback
+            const downloadToken = uuidv4();
+
             // Upload processed file to Firebase Storage
             console.log(`[Resolution Worker] Uploading: ${variantLabel}`, { videoId });
             await bucket.upload(localOutputPath, {
@@ -526,6 +602,7 @@ export const handleResolution = onMessagePublished(
               metadata: {
                 contentType: "video/mp4",
                 metadata: {
+                  firebaseStorageDownloadTokens: downloadToken,
                   resolution: variantLabel,
                   height: String(targetVariant.height),
                   width: String(targetVariant.width),
@@ -534,17 +611,20 @@ export const handleResolution = onMessagePublished(
               },
             });
 
+            const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(targetPath)}?alt=media&token=${downloadToken}`;
+
             // Update Firestore resolution_jobs document
             await variantRef.update({
               [`variants.${variantLabel}.status`]: "completed",
               [`variants.${variantLabel}.outputPath`]: targetPath,
+              [`variants.${variantLabel}.downloadUrl`]: downloadUrl,
               [`variants.${variantLabel}.processedAt`]: Date.now(),
               completedVariants: admin.firestore.FieldValue.increment(1),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
 
             // Immediately expose new resolution to the main 'videos' collection in real-time
-            await syncVariantToVideoDoc(videoId, bucket.name, variantLabel, targetVariant, targetPath);
+            await syncVariantToVideoDoc(videoId, bucket.name, variantLabel, targetVariant, targetPath, downloadToken);
 
           } catch (variantErr) {
             console.error(`[Resolution Worker] Variant failed: ${variantLabel}`, {
@@ -570,7 +650,7 @@ export const handleResolution = onMessagePublished(
         const finalJobData = finalJobSnap.data();
         if (finalJobData) {
           const allVariants = Object.values(finalJobData.variants ?? {}) as any[];
-          const allDone = allVariants.length > 0 && allVariants.every(v => v.status === "completed" || v.status === "failed");
+          const allDone = allVariants.length > 0 && allVariants.every(v => v.status === "completed" || v.status === "failed" || v.status === "skipped");
           if (allDone) {
             const hasCompleted = allVariants.some(v => v.status === "completed");
             await variantRef.update({
@@ -620,13 +700,17 @@ async function syncVariantToVideoDoc(
   variantLabel: string,
   variant: ResolutionProfile,
   outputPath: string,
+  downloadToken?: string
 ): Promise<void> {
   try {
     const videoRef = db.collection("videos").doc(videoId);
     const videoDoc = await videoRef.get();
     if (!videoDoc.exists) return;
 
-    const directUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(outputPath)}?alt=media`;
+    const directUrl = downloadToken
+      ? `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(outputPath)}?alt=media&token=${downloadToken}`
+      : `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(outputPath)}?alt=media`;
+
     const data = videoDoc.data() || {};
     const existingAdaptive: Array<{ label: string; url: string; width: number; height: number; bitrate: number }> =
       Array.isArray(data.adaptiveResolutions) ? [...data.adaptiveResolutions] : [];
@@ -643,7 +727,7 @@ async function syncVariantToVideoDoc(
       bitrate: variant.bitrateKbps * 1000,
     });
 
-    // Sort ladder descending: 1040p -> 720p -> 480p -> 360p -> 240p -> 144p
+    // Sort ladder descending: 2160p -> 1440p -> 1080p -> 720p -> 480p -> 360p -> 240p -> 144p
     filtered.sort((a, b) => b.height - a.height);
 
     const mediaVariants: Record<string, string> = {
@@ -661,7 +745,7 @@ async function syncVariantToVideoDoc(
     };
 
     await videoRef.update(updatePayload);
-    console.log(`[Resolution Service] Synced ${variantLabel} to video doc in real-time: ${videoId}`);
+    console.log(`[Resolution Service] Synced ${variantLabel} with download token to video doc: ${videoId}`);
   } catch (err) {
     console.warn(`[Resolution Service] Failed to sync ${variantLabel} to video doc (non-fatal):`, err);
   }

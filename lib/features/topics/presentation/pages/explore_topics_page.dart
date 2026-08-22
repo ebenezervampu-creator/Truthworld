@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -16,6 +17,26 @@ import 'package:truthworld/features/topics/presentation/widgets/topic_card_widge
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
+// ==========================================================================
+// YOUTUBE-STYLE THEME COLORS (EXACT MATCH WITH LIBRARY SCREEN)
+// ==========================================================================
+
+const Color bgColor = AppColors.bgPage;
+const Color surfaceColor = AppColors.bgPage;
+const Color cardColor = Color(0xFF1E1E1E);
+const Color primaryText = AppColors.textPrimary;
+const Color secondaryText = AppColors.textSecondary;
+const Color accentColor = AppColors.textPrimary;
+const Color buttonBg = AppColors.bgSurfaceHover;
+
+// ==========================================================================
+// RESPONSIVE BREAKPOINTS (EXACT MATCH WITH LIBRARY SCREEN)
+// ==========================================================================
+
+const double kMobileBreakpoint = 600;
+const double kTabletBreakpoint = 1000;
+const double kDesktopBreakpoint = 1200;
+
 class ExploreTopicsPage extends StatefulWidget {
   const ExploreTopicsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
@@ -24,7 +45,8 @@ class ExploreTopicsPage extends StatefulWidget {
   State<ExploreTopicsPage> createState() => _ExploreTopicsPageState();
 }
 
-class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
+class _ExploreTopicsPageState extends State<ExploreTopicsPage>
+    with TickerProviderStateMixin {
   final ExploreTopicsController controller =
       Get.isRegistered<ExploreTopicsController>()
           ? Get.find<ExploreTopicsController>()
@@ -35,6 +57,14 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   late PageController _pageController;
   final RxInt _currentTopicIndex = 0.obs;
   late Worker _topicsWorker;
+
+  late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
+  late AnimationController _scaleAnimationController;
+
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
@@ -64,10 +94,58 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     _searchController.addListener(() {
       controller.updateSearchQuery(_searchController.text);
     });
+
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
+    _fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _scaleAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _fadeAnimationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _slideAnimationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
+      CurvedAnimation(
+        parent: _scaleAnimationController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+
+    _fadeAnimationController.forward();
+    _slideAnimationController.forward();
+    _scaleAnimationController.forward();
   }
 
   @override
   void dispose() {
+    _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
+    _scaleAnimationController.dispose();
     _topicsWorker.dispose();
     _scrollController.dispose();
     _searchController.dispose();
@@ -77,71 +155,73 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveBuilder(
-      builder: (context, deviceType) {
-        const backgroundColor = AppColors.bgPage;
-        const textColor = AppColors.textPrimary;
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: _buildResponsiveLayout(context),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResponsiveLayout(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+        final isTablet =
+            constraints.maxWidth >= kMobileBreakpoint &&
+            constraints.maxWidth < kDesktopBreakpoint;
+        final isMobile = constraints.maxWidth < kMobileBreakpoint;
 
         return Scaffold(
-          backgroundColor: backgroundColor,
-          appBar: (context.isMobile && !widget.isDashboard)
-              ? AppBar(
-                  title: const Text(
-                    'Explore Topics',
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  leading: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textPrimary,
-                    ),
-                    onPressed: Get.back,
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.refresh_rounded,
-                        color: AppColors.textPrimary,
-                      ),
-                      onPressed: controller.initialFetch,
-                    ),
-                    const SizedBox(width: 16),
-                  ],
+          backgroundColor: bgColor,
+          appBar: (!widget.isDashboard)
+              ? _buildModernAppBar(
+                  context,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
                 )
               : null,
           body: SafeArea(
             child: Padding(
-              padding: EdgeInsets.all(context.layoutSpacing),
+              padding: EdgeInsets.symmetric(
+                horizontal: isDesktop ? 32.0 : (isTablet ? 24.0 : 16.0),
+                vertical: 16.0,
+              ),
               child: CustomScrollView(
                 controller: _scrollController,
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                  if (!context.isMobile || widget.isDashboard)
+                  if (widget.isDashboard)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 24),
                         child: Row(
                           children: [
-                            const Text(
+                            Text(
                               'Explore Topics',
                               style: TextStyle(
-                                fontSize: 32,
+                                fontSize: isDesktop ? 32 : (isTablet ? 26 : 22),
                                 fontWeight: FontWeight.bold,
-                                color: textColor,
+                                color: primaryText,
                               ),
                             ),
                             const Spacer(),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.refresh_rounded,
-                                color: AppColors.textPrimary,
-                              ),
-                              onPressed: controller.initialFetch,
+                            _buildAppBarAction(
+                              icon: Icons.refresh_rounded,
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                controller.initialFetch();
+                              },
+                              tooltip: 'Refresh Topics',
                             ),
                           ],
                         ),
@@ -149,14 +229,22 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     ),
 
                   // Search Bar
-                  SliverToBoxAdapter(child: _buildSearchBar()),
+                  SliverToBoxAdapter(child: _buildSearchBar(isMobile: isMobile)),
 
                   // Categories (Grid when 'all', selected header otherwise)
                   Obx(
                     () =>
                         controller.selectedCategory.value.toLowerCase() == 'all'
-                        ? _buildCategoryGrid(context)
-                        : _buildSelectedCategoryHeader(context),
+                        ? _buildCategoryGrid(
+                            context,
+                            isDesktop: isDesktop,
+                            isTablet: isTablet,
+                            isMobile: isMobile,
+                          )
+                        : _buildSelectedCategoryHeader(
+                            context,
+                            isTablet: isTablet,
+                          ),
                   ),
 
                   // Filters Bar
@@ -167,12 +255,15 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     ),
                   ),
 
-                  // Topics feed matching FollowingTopicsPage structure
+                  // Topics feed
                   Obx(() {
-                    if (controller.isLoading &&
-                        controller.topics.isEmpty) {
+                    if (controller.isLoading && controller.topics.isEmpty) {
                       return SliverToBoxAdapter(
-                        child: _buildLoadingState(),
+                        child: _buildLoadingState(
+                          isMobile: isMobile,
+                          isTablet: isTablet,
+                          isDesktop: isDesktop,
+                        ),
                       );
                     }
 
@@ -201,7 +292,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final topic = controller.topics[index];
-                          return _buildTopicVideoSection(context, topic);
+                          return _buildTopicVideoSection(
+                            context,
+                            topic,
+                            isMobile: isMobile,
+                            isTablet: isTablet,
+                            isDesktop: isDesktop,
+                          );
                         },
                         childCount: controller.topics.length,
                       ),
@@ -216,36 +313,144 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildSearchBar() {
+  PreferredSizeWidget _buildModernAppBar(
+    BuildContext context, {
+    bool isTablet = false,
+    bool isDesktop = false,
+  }) {
+    return AppBar(
+      backgroundColor: surfaceColor.withValues(alpha: 0.95),
+      elevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      leading: Navigator.canPop(context)
+          ? Container(
+              margin: const EdgeInsets.only(left: 8),
+              child: _buildAppBarAction(
+                icon: Icons.arrow_back_rounded,
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Get.back();
+                },
+                tooltip: 'Back',
+              ),
+            )
+          : null,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.textPrimary,
+                  AppColors.textPrimary.withValues(alpha: 0.5),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.explore_rounded,
+              color: AppColors.textPrimary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Explore Topics',
+            style: TextStyle(
+              fontSize: isDesktop ? 26 : (isTablet ? 24 : 20),
+              fontWeight: FontWeight.bold,
+              color: primaryText,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        _buildAppBarAction(
+          icon: Icons.refresh_rounded,
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            controller.initialFetch();
+          },
+          tooltip: 'Refresh Topics',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildAppBarAction({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: buttonBg.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icon, color: secondaryText, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar({bool isMobile = false}) {
     final flipService = Get.find<FlipCoinService>();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Search topics by name...',
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: AppColors.textSecondary,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: buttonBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
                 ),
-                suffixIcon: Obx(
-                  () => controller.searchQuery.value.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.clear,
-                            color: AppColors.textSecondary,
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            controller.clearSearch();
-                          },
-                        )
-                      : const SizedBox.shrink(),
+              ),
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: primaryText, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search topics by name...',
+                  hintStyle: const TextStyle(
+                    color: secondaryText,
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  icon: const Icon(
+                    Icons.search_rounded,
+                    color: secondaryText,
+                    size: 20,
+                  ),
+                  suffixIcon: Obx(
+                    () => controller.searchQuery.value.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: secondaryText,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              controller.clearSearch();
+                            },
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
@@ -254,8 +459,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
           Obx(
             () => FlipCoinWidget(
               isFlipped: flipService.isTopicsFlipped.value,
-              showLabel: true,
+              showLabel: !isMobile,
               onTap: () {
+                HapticFeedback.lightImpact();
                 flipService.toggleTopicsFlip();
                 controller.loadTopics(reset: true);
               },
@@ -266,10 +472,20 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildCategoryGrid(BuildContext context) {
+  Widget _buildCategoryGrid(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+    bool isMobile = false,
+  }) {
     if (controller.isLoadingCategories.value &&
         controller.availableCategories.isEmpty) {
-      return _buildCategorySkeletonGrid(context);
+      return _buildCategorySkeletonGrid(
+        context,
+        isDesktop: isDesktop,
+        isTablet: isTablet,
+        isMobile: isMobile,
+      );
     }
     final categories = controller.availableCategories;
     if (categories.isEmpty) {
@@ -277,9 +493,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     }
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: context.isMobile
-            ? 2
-            : (ResponsiveContext(context).isTablet ? 3 : 4),
+        crossAxisCount: isMobile ? 2 : (isTablet ? 3 : 4),
         childAspectRatio: 1.6,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
@@ -291,23 +505,26 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildCategorySkeletonGrid(BuildContext context) {
+  Widget _buildCategorySkeletonGrid(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+    bool isMobile = false,
+  }) {
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: context.isMobile
-            ? 2
-            : (ResponsiveContext(context).isTablet ? 3 : 4),
+        crossAxisCount: isMobile ? 2 : (isTablet ? 3 : 4),
         childAspectRatio: 1.6,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
       delegate: SliverChildBuilderDelegate((context, index) {
         return Shimmer.fromColors(
-          baseColor: const Color(0xFF272727),
-          highlightColor: const Color(0xFF3F3F3F),
+          baseColor: cardColor,
+          highlightColor: buttonBg,
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.textPrimary,
+              color: cardColor,
               borderRadius: BorderRadius.circular(16),
             ),
           ),
@@ -317,68 +534,100 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildCategoryCard(BuildContext context, TopicCategory category) {
-    return InkWell(
-      onTap: () => controller.selectCategory(category.title),
-      borderRadius: BorderRadius.circular(16),
-      child: ClipRRect(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          controller.selectCategory(category.title);
+        },
         borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CachedNetworkImage(
-              imageUrl: category.imageUrl,
-              fit: BoxFit.cover,
-              errorWidget: (context, url, error) => Container(
-                color: AppColors.bgSurfaceHover,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: category.imageUrl,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => Container(
+                  color: cardColor,
+                ),
               ),
-            ),
-            Container(
-              color: AppColors.bgPage.withValues(alpha: 0.45),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: Text(
-                  category.title,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(
-                        color: AppColors.bgPage.withValues(alpha: 0.8),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      bgColor.withValues(alpha: 0.65),
                     ],
                   ),
                 ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    category.title,
+                    style: const TextStyle(
+                      color: primaryText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black87,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSelectedCategoryHeader(BuildContext context) {
+  Widget _buildSelectedCategoryHeader(
+    BuildContext context, {
+    bool isTablet = false,
+  }) {
     return SliverToBoxAdapter(
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-            onPressed: () => controller.selectCategory('All'),
-          ),
-          Text(
-            controller.selectedCategory.value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            _buildAppBarAction(
+              icon: Icons.arrow_back_rounded,
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                controller.selectCategory('All');
+              },
+              tooltip: 'Back to all categories',
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              controller.selectedCategory.value,
+              style: TextStyle(
+                fontSize: isTablet ? 24 : 22,
+                fontWeight: FontWeight.bold,
+                color: primaryText,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -392,21 +641,37 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             final isSelected = controller.exploreMode.value == mode;
             final label = mode.name.capitalizeFirst ?? mode.name;
             return Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: ChoiceChip(
-                label: Text(label),
-                selected: isSelected,
-                onSelected: (selected) {
-                  if (selected) controller.setExploreMode(mode);
+              padding: const EdgeInsets.only(right: 10),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  controller.setExploreMode(mode);
                 },
-                backgroundColor: AppColors.bgSurface,
-                selectedColor: AppColors.brand,
-                labelStyle: TextStyle(
-                  color: isSelected ? Colors.black : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.textPrimary : buttonBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.textPrimary
+                          : AppColors.textPrimary.withValues(alpha: 0.08),
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? AppColors.bgPage : primaryText,
+                    ),
+                  ),
                 ),
               ),
             );
@@ -416,29 +681,39 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildLoadingState() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    final isTablet = screenWidth >= 600 && screenWidth < 1024;
-    final isDesktop = screenWidth >= 1024;
+  Widget _buildLoadingState({
+    bool isMobile = false,
+    bool isTablet = false,
+    bool isDesktop = false,
+  }) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHorizontalVideoSkeleton(isMobile, isTablet, isDesktop),
+          _buildHorizontalVideoSkeleton(
+            isMobile: isMobile,
+            isTablet: isTablet,
+            isDesktop: isDesktop,
+          ),
           const SizedBox(height: 24),
-          _buildHorizontalVideoSkeleton(isMobile, isTablet, isDesktop),
+          _buildHorizontalVideoSkeleton(
+            isMobile: isMobile,
+            isTablet: isTablet,
+            isDesktop: isDesktop,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTopicVideoSection(BuildContext context, Topic topic) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    final isTablet = screenWidth >= 600 && screenWidth < 1024;
-    final isDesktop = screenWidth >= 1024;
+  Widget _buildTopicVideoSection(
+    BuildContext context,
+    Topic topic, {
+    bool isMobile = false,
+    bool isTablet = false,
+    bool isDesktop = false,
+  }) {
     final key = topic.id;
     final followingController = Get.isRegistered<FollowingTopicsController>()
         ? Get.find<FollowingTopicsController>()
@@ -452,9 +727,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
         // Explore Topic Header Row
         Padding(
           padding: EdgeInsets.fromLTRB(
-            16,
+            4,
             isMobile ? 16 : 24,
-            16,
+            4,
             isMobile ? 8 : 12,
           ),
           child: Row(
@@ -463,6 +738,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               Expanded(
                 child: GestureDetector(
                   onTap: () {
+                    HapticFeedback.lightImpact();
                     controller.preloadTopicDetails(topic);
                     Get.toNamed<void>(
                       topic.topicRoute,
@@ -473,22 +749,42 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       },
                     );
                   },
-                  child: Text(
-                    'Explore ${topic.title}',
-                    style: TextStyle(
-                      fontSize: isMobile ? 18 : (isTablet ? 22 : 24),
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Explore ${topic.title}',
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : (isTablet ? 22 : 24),
+                            fontWeight: FontWeight.bold,
+                            color: primaryText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: secondaryText,
+                        size: 22,
+                      ),
+                    ],
                   ),
                 ),
               ),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
-                color: const Color(0xFF212121),
+                icon: const Icon(Icons.more_vert, color: primaryText),
+                color: cardColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
+                  ),
+                ),
                 onSelected: (value) {
+                  HapticFeedback.lightImpact();
                   if (value == 'view_topic') {
                     controller.preloadTopicDetails(topic);
                     Get.toNamed<void>(
@@ -520,7 +816,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           SizedBox(width: 12),
                           Text(
                             'View Topic Details',
-                            style: TextStyle(color: AppColors.textPrimary),
+                            style: TextStyle(
+                              color: primaryText,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -540,7 +840,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           Text(
                             isFollowed ? 'Unfollow Topic' : 'Follow Topic',
                             style: const TextStyle(
-                              color: AppColors.textPrimary,
+                              color: primaryText,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -559,23 +861,30 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
           final videos = controller.topicVideosMap[key];
 
           if (isLoading && (videos == null || videos.isEmpty)) {
-            return _buildHorizontalVideoSkeleton(isMobile, isTablet, isDesktop);
+            return _buildHorizontalVideoSkeleton(
+              isMobile: isMobile,
+              isTablet: isTablet,
+              isDesktop: isDesktop,
+            );
           }
 
           if (videos == null || videos.isEmpty) {
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
+                  ),
                 ),
                 child: const Row(
                   children: [
                     Icon(
                       Icons.ondemand_video_rounded,
-                      color: AppColors.textTertiary,
+                      color: secondaryText,
                       size: 36,
                     ),
                     SizedBox(width: 16),
@@ -586,7 +895,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           Text(
                             'No videos found for this topic',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: primaryText,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
@@ -595,7 +904,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           Text(
                             'Check back later or tap to view details',
                             style: TextStyle(
-                              color: AppColors.textSecondary,
+                              color: secondaryText,
                               fontSize: 12,
                             ),
                           ),
@@ -612,7 +921,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             height: sectionHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
               itemCount: videos.length,
               itemBuilder: (context, index) {
                 final video = videos[index];
@@ -620,9 +929,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   context,
                   topic,
                   video,
-                  isMobile,
-                  isTablet,
-                  isDesktop,
+                  isMobile: isMobile,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
                 );
               },
             ),
@@ -635,11 +944,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   Widget _buildHorizontalVideoCard(
     BuildContext context,
     Topic topic,
-    Video video,
-    bool isMobile,
-    bool isTablet,
-    bool isDesktop,
-  ) {
+    Video video, {
+    bool isMobile = false,
+    bool isTablet = false,
+    bool isDesktop = false,
+  }) {
     final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
 
     return Container(
@@ -647,6 +956,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
       margin: const EdgeInsets.only(right: 16),
       child: GestureDetector(
         onTap: () {
+          HapticFeedback.lightImpact();
           MiniplayerNavigationHelper.navigateToVideoScreen(
             video: video,
             routeArguments: {
@@ -669,13 +979,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       imageUrl: video.thumbnailUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
-                        color: const Color(0xFF272727),
+                        color: buttonBg,
                       ),
                       errorWidget: (context, url, error) => const ColoredBox(
-                        color: Color(0xFF272727),
+                        color: cardColor,
                         child: Icon(
                           Icons.videocam_off_rounded,
-                          color: AppColors.textTertiary,
+                          color: secondaryText,
                           size: 36,
                         ),
                       ),
@@ -690,26 +1000,27 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     left: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
+                        horizontal: 8,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981),
-                        borderRadius: BorderRadius.circular(4),
+                        color: AppColors.successContainer,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.success),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             Icons.verified_rounded,
-                            color: AppColors.textPrimary,
-                            size: 10,
+                            color: Colors.white,
+                            size: 11,
                           ),
                           SizedBox(width: 4),
                           Text(
                             'Fact Checked',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: AppColors.success,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -729,13 +1040,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.bgPage.withValues(alpha: 0.85),
+                      color: bgColor.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       video.duration,
                       style: const TextStyle(
-                        color: AppColors.textPrimary,
+                        color: primaryText,
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
@@ -759,7 +1070,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     style: TextStyle(
                       fontSize: isMobile ? 14 : 15,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: primaryText,
                       height: 1.25,
                     ),
                   ),
@@ -768,11 +1079,14 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   icon: const Icon(
                     Icons.more_vert,
                     size: 18,
-                    color: AppColors.textSecondary,
+                    color: secondaryText,
                   ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  onPressed: () => VideoOptionsSheet.show(context, video),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    VideoOptionsSheet.show(context, video);
+                  },
                 ),
               ],
             ),
@@ -786,7 +1100,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: isMobile ? 12 : 13,
-                color: AppColors.textSecondary,
+                color: secondaryText,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -798,7 +1112,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               '${FormatUtils.formatCount(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
               style: TextStyle(
                 fontSize: isMobile ? 12 : 13,
-                color: AppColors.textTertiary,
+                color: secondaryText,
               ),
             ),
           ],
@@ -807,26 +1121,26 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildHorizontalVideoSkeleton(
-    bool isMobile,
-    bool isTablet,
-    bool isDesktop,
-  ) {
+  Widget _buildHorizontalVideoSkeleton({
+    bool isMobile = false,
+    bool isTablet = false,
+    bool isDesktop = false,
+  }) {
     final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
     final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
     return SizedBox(
       height: sectionHeight,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         itemCount: 4,
         itemBuilder: (context, index) {
           return Container(
             width: cardWidth,
             margin: const EdgeInsets.only(right: 16),
             child: Shimmer.fromColors(
-              baseColor: const Color(0xFF272727),
-              highlightColor: const Color(0xFF3F3F3F),
+              baseColor: cardColor,
+              highlightColor: buttonBg,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -834,7 +1148,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     aspectRatio: 16 / 9,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.textPrimary,
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
@@ -843,19 +1157,28 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   Container(
                     width: double.infinity,
                     height: 14,
-                    color: AppColors.textPrimary,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Container(
                     width: 140,
                     height: 12,
-                    color: AppColors.textPrimary,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Container(
                     width: 100,
                     height: 12,
-                    color: AppColors.textPrimary,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ],
               ),
@@ -867,7 +1190,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildTopicsPageView(BuildContext context) {
-    final isMobile = context.isMobile;
+    final isMobile = MediaQuery.of(context).size.width < kMobileBreakpoint;
     final bannerHeight = isMobile ? 360.0 : 540.0;
     final itemsCount = controller.topics.length;
     final totalPages = itemsCount + (controller.isLoadingMore.value ? 1 : 0);
@@ -898,7 +1221,6 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     }
                   }
 
-                  // Awesome transition effects
                   final scale = (1 - (pageOffset.abs() * 0.12)).clamp(
                     0.88,
                     1.0,
@@ -964,16 +1286,12 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       height: 8,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.textPrimary
-                            : AppColors.textTertiary,
+                        color: isSelected ? primaryText : secondaryText,
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: AppColors.textPrimary.withValues(
-                                    alpha: 0.5,
-                                  ),
+                                  color: primaryText.withValues(alpha: 0.5),
                                   blurRadius: 8,
                                 ),
                               ]
@@ -1005,16 +1323,16 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.bgPage.withValues(alpha: 0.5),
+                color: bgColor.withValues(alpha: 0.5),
                 border: Border.all(
-                  color: AppColors.textPrimary.withValues(alpha: 0.15),
+                  color: primaryText.withValues(alpha: 0.15),
                 ),
               ),
               child: Icon(
                 isLeft
                     ? Icons.chevron_left_rounded
                     : Icons.chevron_right_rounded,
-                color: AppColors.textPrimary,
+                color: primaryText,
                 size: 32,
               ),
             ),
@@ -1032,22 +1350,6 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     return TopicCardWidget(topic: topic);
   }
 
-  Widget _buildGradientBackground() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.brand.withValues(alpha: 0.3),
-            AppColors.brand.withValues(alpha: 0.15),
-            AppColors.bgPage,
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildErrorState() {
     return Center(
       child: Padding(
@@ -1061,18 +1363,47 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               size: 60,
             ),
             const SizedBox(height: 16),
+            const Text(
+              'Failed to load topics',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: primaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              controller.errorMessage,
+              controller.errorMessage.isNotEmpty
+                  ? controller.errorMessage
+                  : 'Please check your connection and try again.',
               textAlign: TextAlign.center,
               style: const TextStyle(
-                color: AppColors.textSecondary,
+                color: secondaryText,
                 fontSize: 14,
               ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: controller.initialFetch,
-              child: const Text('Try Again'),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                controller.initialFetch();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.textPrimary,
+                foregroundColor: AppColors.bgPage,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -1083,31 +1414,36 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   Widget _buildEmptyState() {
     final isSearch = controller.searchQuery.value.isNotEmpty;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            isSearch ? Icons.search_off_rounded : Icons.hub_outlined,
-            color: AppColors.textTertiary,
-            size: 80,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isSearch
-                ? 'No topics match "${controller.searchQuery.value}"'
-                : 'No topics available under this Category',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSearch ? Icons.search_off_rounded : Icons.explore_off_rounded,
+              color: secondaryText,
+              size: 64,
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Try switching explore modes or explore different categories.',
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              isSearch
+                  ? 'No topics match "${controller.searchQuery.value}"'
+                  : 'No topics available',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: primaryText,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Try switching explore modes or choose a different category.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: secondaryText, fontSize: 14),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1118,19 +1454,19 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < kMobileBreakpoint;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F0F0F),
+        color: cardColor,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.05),
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
         ),
       ),
       child: Shimmer.fromColors(
-        baseColor: const Color(0xFF161618),
-        highlightColor: const Color(0xFF28282C),
+        baseColor: cardColor,
+        highlightColor: buttonBg,
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 24.0 : 48.0),
           child: Column(
@@ -1140,7 +1476,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                 width: 100,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: AppColors.textPrimary,
+                  color: primaryText,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1149,7 +1485,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                 width: isMobile ? 200 : 400,
                 height: isMobile ? 28 : 40,
                 decoration: BoxDecoration(
-                  color: AppColors.textPrimary,
+                  color: primaryText,
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
@@ -1158,7 +1494,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                 width: 150,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: AppColors.textPrimary,
+                  color: primaryText,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1168,7 +1504,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                   width: 300,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: AppColors.textPrimary,
+                    color: primaryText,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1180,7 +1516,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                     width: 100,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: AppColors.textPrimary,
+                      color: primaryText,
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),
@@ -1189,7 +1525,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                     width: 100,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: AppColors.textPrimary,
+                      color: primaryText,
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),

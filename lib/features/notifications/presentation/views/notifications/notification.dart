@@ -486,44 +486,98 @@ class _VideoFeedNotificationScreenState
     );
   }
 
+  static String _getDisplayName(_UnifiedNotification item) {
+    if (item.video != null) {
+      return item.video!.channelName;
+    }
+    if (item.alert != null) {
+      final meta = item.alert!.metadata;
+      if (meta != null) {
+        final explicitName = meta['senderName'] as String? ??
+            meta['channelName'] as String? ??
+            meta['userName'] as String? ??
+            meta['displayName'] as String? ??
+            meta['subscriberName'] as String? ??
+            meta['commentAuthorName'] as String?;
+        if (explicitName != null && explicitName.trim().isNotEmpty) {
+          return explicitName.trim();
+        }
+      }
+      final message = item.alert!.message;
+      if (message.contains(' subscribed to your channel')) {
+        return message.split(' subscribed to your channel')[0].trim();
+      }
+      if (message.contains(' commented:')) {
+        return message.split(' commented:')[0].trim();
+      }
+      if (message.contains(' replied to your comment:')) {
+        return message.split(' replied to your comment:')[0].trim();
+      }
+      if (message.contains(' liked your comment:')) {
+        return message.split(' liked your comment:')[0].trim();
+      }
+      if (message.contains(' liked your reply:')) {
+        return message.split(' liked your reply:')[0].trim();
+      }
+      if (message.contains(' mentioned you:')) {
+        return message.split(' mentioned you:')[0].trim();
+      }
+      if (message.startsWith('@')) {
+        final words = message.split(' ');
+        if (words.isNotEmpty) return words[0].replaceAll('@', '');
+      }
+      if (item.alert!.title.isNotEmpty) {
+        return item.alert!.title;
+      }
+    }
+    return '';
+  }
+
+  static Color _getAvatarColor(String name) {
+    final clean = name.trim().replaceAll('@', '');
+    if (clean.isEmpty) return const Color(0xFF374151);
+    final colors = [
+      const Color(0xFFE11D48), // Rose
+      const Color(0xFFD97706), // Amber
+      const Color(0xFF059669), // Emerald
+      const Color(0xFF0D9488), // Teal
+      const Color(0xFF0284C7), // Sky
+      const Color(0xFF4F46E5), // Indigo
+      const Color(0xFF7C3AED), // Violet
+      const Color(0xFFC026D3), // Fuchsia
+      const Color(0xFFDB2777), // Pink
+      const Color(0xFF2563EB), // Blue
+    ];
+    var hash = 0;
+    for (var i = 0; i < clean.length; i++) {
+      hash = clean.codeUnitAt(i) + ((hash << 5) - hash);
+    }
+    return colors[hash.abs() % colors.length];
+  }
+
   Widget _buildAvatar(_UnifiedNotification item) {
     var avatarUrl = '';
-    IconData? fallbackIcon;
-    var fallbackBgColor = AppColors.textSecondary;
 
     if (item.video != null) {
       avatarUrl = item.video!.channelAvatarUrl.isNotEmpty
           ? item.video!.channelAvatarUrl
           : item.video!.channelImage;
-      fallbackIcon = Icons.video_library_rounded;
     } else if (item.alert != null) {
       final metadata = item.alert!.metadata;
       avatarUrl =
           metadata?['avatarUrl'] as String? ??
           metadata?['userAvatar'] as String? ??
+          metadata?['channelAvatarUrl'] as String? ??
+          metadata?['photoURL'] as String? ??
           '';
-
-      switch (item.alert!.severity) {
-        case NotificationSeverity.priority:
-          fallbackIcon = Icons.warning_rounded;
-          fallbackBgColor = const Color(0xFFEF4444);
-        case NotificationSeverity.warning:
-          fallbackIcon = Icons.error_outline_rounded;
-          fallbackBgColor = const Color(0xFFF59E0B);
-        case NotificationSeverity.success:
-          fallbackIcon = Icons.star_rounded;
-          fallbackBgColor = const Color(0xFF10B981);
-        case NotificationSeverity.info:
-          fallbackIcon = Icons.info_outline_rounded;
-          fallbackBgColor = const Color(0xFF6366F1);
-      }
     }
+
+    final displayName = _getDisplayName(item);
 
     return _DynamicAvatar(
       item: item,
       initialAvatarUrl: avatarUrl,
-      fallbackIcon: fallbackIcon,
-      fallbackBgColor: fallbackBgColor,
+      displayName: displayName,
     );
   }
 
@@ -531,49 +585,59 @@ class _VideoFeedNotificationScreenState
     if (item.video != null) {
       final video = item.video!;
       return RichText(
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
         text: TextSpan(
           style: const TextStyle(
             fontSize: 14,
-            height: 1.3,
+            height: 1.35,
             color: AppColors.textPrimary,
           ),
           children: [
             TextSpan(
               text: '${video.channelName} ',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
             const TextSpan(
               text: 'uploaded: ',
+              style: TextStyle(color: Color(0xFFCCCCCC)),
             ),
             TextSpan(
               text: video.title,
-              style: const TextStyle(color: Color(0xFFCCCCCC)),
+              style: const TextStyle(color: Colors.white),
             ),
           ],
         ),
       );
     } else if (item.alert != null) {
       final alert = item.alert!;
-      final isLike = alert.type.toLowerCase().contains('like');
+      final message = alert.message;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (alert.title.isNotEmpty && !message.startsWith(alert.title)) ...[
+            Text(
+              alert.title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+          ],
           Text(
-            alert.title,
+            message.isNotEmpty ? message : alert.title,
             style: const TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            alert.message,
-            style: TextStyle(
-              fontSize: 14,
-              color: isLike ? const Color(0xFF8E8E8E) : const Color(0xFFCCCCCC),
-              fontStyle: isLike ? FontStyle.italic : FontStyle.normal,
+              height: 1.3,
+              color: Color(0xFFE0E0E0),
             ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
@@ -1122,67 +1186,62 @@ class _DynamicAvatarController extends BaseController {
   }
 
   Future<String> _performFetch(String targetId) async {
-    // Check if channel exists
-    final channelDoc = await FirebaseFirestore.instance
-        .collection(FirestoreCollections.channels)
-        .doc(targetId)
-        .get();
+    try {
+      // 1. Check user document first (performer of action)
+      final userDoc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.users)
+          .doc(targetId)
+          .get();
 
-    if (channelDoc.exists) {
-      final data = channelDoc.data();
-      if (data != null) {
-        return data['avatarUrl'] as String? ??
-            (data['profile'] as Map<String, dynamic>?)?['photoUrl']
-                as String? ??
-            '';
-      }
-    }
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+        if (userData != null) {
+          final photo = userData['avatarUrl'] as String? ??
+              userData['photoURL'] as String? ??
+              userData['photoUrl'] as String? ??
+              '';
+          if (photo.isNotEmpty) return photo;
 
-    // Check user document
-    final userDoc = await FirebaseFirestore.instance
-        .collection(FirestoreCollections.users)
-        .doc(targetId)
-        .get();
-
-    if (userDoc.exists) {
-      final userData = userDoc.data();
-      if (userData != null) {
-        final userChannelId = userData['channelId'] as String?;
-        if (userChannelId != null && userChannelId.isNotEmpty) {
-          final userChannelDoc = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.channels)
-              .doc(userChannelId)
-              .get();
-          if (userChannelDoc.exists) {
-            final chanData = userChannelDoc.data();
-            if (chanData != null) {
-              return chanData['avatarUrl'] as String? ??
-                  (chanData['profile'] as Map<String, dynamic>?)?['photoUrl']
-                      as String? ??
-                  '';
+          final userChannelId = userData['channelId'] as String?;
+          if (userChannelId != null && userChannelId.isNotEmpty) {
+            final userChannelDoc = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.channels)
+                .doc(userChannelId)
+                .get();
+            if (userChannelDoc.exists) {
+              final chanData = userChannelDoc.data();
+              if (chanData != null) {
+                final chanPhoto = chanData['avatarUrl'] as String? ??
+                    chanData['channelImage'] as String? ??
+                    (chanData['profile'] as Map<String, dynamic>?)?['photoUrl']
+                        as String? ??
+                    '';
+                if (chanPhoto.isNotEmpty) return chanPhoto;
+              }
             }
           }
-          return '';
-        } else {
-          final channelsQuery = await FirebaseFirestore.instance
-              .collection(FirestoreCollections.channels)
-              .where('ownerId', isEqualTo: targetId)
-              .limit(1)
-              .get();
-
-          if (channelsQuery.docs.isNotEmpty) {
-            final chanData = channelsQuery.docs.first.data();
-            return chanData['avatarUrl'] as String? ??
-                (chanData['profile'] as Map<String, dynamic>?)?['photoUrl']
-                    as String? ??
-                '';
-          }
         }
-
-        return userData['avatarUrl'] as String? ??
-            userData['photoURL'] as String? ??
-            '';
       }
+
+      // 2. Check channel document
+      final channelDoc = await FirebaseFirestore.instance
+          .collection(FirestoreCollections.channels)
+          .doc(targetId)
+          .get();
+
+      if (channelDoc.exists) {
+        final data = channelDoc.data();
+        if (data != null) {
+          final photo = data['avatarUrl'] as String? ??
+              data['channelImage'] as String? ??
+              (data['profile'] as Map<String, dynamic>?)?['photoUrl']
+                  as String? ??
+              '';
+          if (photo.isNotEmpty) return photo;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error performing avatar fetch for $targetId: $e');
     }
 
     return '';
@@ -1200,13 +1259,11 @@ class _DynamicAvatar extends StatefulWidget {
   const _DynamicAvatar({
     required this.item,
     required this.initialAvatarUrl,
-    required this.fallbackIcon,
-    required this.fallbackBgColor,
+    required this.displayName,
   });
   final _UnifiedNotification item;
   final String initialAvatarUrl;
-  final IconData? fallbackIcon;
-  final Color fallbackBgColor;
+  final String displayName;
 
   @override
   State<_DynamicAvatar> createState() => _DynamicAvatarState();
@@ -1239,99 +1296,58 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.rxIsLoading.value) {
-        return Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: widget.fallbackBgColor.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  AppColors.textTertiary,
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-
-      if (controller.avatarUrl.value.isNotEmpty) {
+      final url = controller.avatarUrl.value;
+      if (url.isNotEmpty) {
         return Container(
           width: 40,
           height: 40,
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: AppColors.textSecondary,
+            color: Color(0xFF272727),
           ),
           clipBehavior: Clip.antiAlias,
           child: CachedNetworkImage(
-            imageUrl: controller.avatarUrl.value,
+            imageUrl: url,
             fit: BoxFit.cover,
-            placeholder: (context, url) => const ColoredBox(
-              color: AppColors.textSecondary,
-              child: Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.textTertiary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            errorWidget: (context, url, error) => _buildFallback(),
+            placeholder: (context, url) => _buildPlaceholderAvatar(),
+            errorWidget: (context, url, error) => _buildPlaceholderAvatar(),
           ),
         );
       }
 
-      return _buildFallback();
+      return _buildPlaceholderAvatar();
     });
   }
 
-  Widget _buildFallback() {
-    final typeLower = widget.item.alert?.type.toLowerCase() ?? '';
-    if (typeLower.contains('like')) {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE50914),
-          shape: BoxShape.circle,
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.play_arrow_rounded,
-            color: AppColors.textPrimary,
-            size: 24,
-          ),
-        ),
-      );
-    }
+  Widget _buildPlaceholderAvatar() {
+    final cleanName = widget.displayName.trim().replaceAll('@', '');
+    final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : '';
+    final bgColor =
+        _VideoFeedNotificationScreenState._getAvatarColor(cleanName);
 
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: widget.fallbackBgColor.withValues(alpha: 0.2),
+        color: bgColor,
         shape: BoxShape.circle,
       ),
-      child: Center(
-        child: Icon(
-          widget.fallbackIcon ?? Icons.notifications,
-          color: widget.fallbackBgColor,
-          size: 20,
-        ),
-      ),
+      alignment: Alignment.center,
+      child: initial.isNotEmpty
+          ? Text(
+              initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                height: 1.0,
+              ),
+            )
+          : const Icon(
+              Icons.person_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
     );
   }
 }

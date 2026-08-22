@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:rive/rive.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -44,7 +45,7 @@ class _TruthworldRiveLikeButtonState extends State<TruthworldRiveLikeButton> {
   SMITrigger? _burstTrigger;
   SMIBool? _hoverInput;
   StateMachineController? _controller;
-  bool _hasError = false;
+  final RxBool _hasError = false.obs;
 
   void _onRiveInit(Artboard artboard) {
     try {
@@ -63,16 +64,14 @@ class _TruthworldRiveLikeButtonState extends State<TruthworldRiveLikeButton> {
         _isLikedInput?.value = widget.isLiked;
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _hasError = true);
-      }
+      _hasError.value = true;
     }
   }
 
   @override
   void didUpdateWidget(covariant TruthworldRiveLikeButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isLiked != oldWidget.isLiked && !_hasError) {
+    if (widget.isLiked != oldWidget.isLiked && !_hasError.value) {
       _isLikedInput?.value = widget.isLiked;
       if (widget.isLiked) {
         _burstTrigger?.fire();
@@ -107,19 +106,21 @@ class _TruthworldRiveLikeButtonState extends State<TruthworldRiveLikeButton> {
           child: SizedBox(
             width: widget.size,
             height: widget.size,
-            child: _hasError
-                ? Icon(
-                    widget.isLiked
-                        ? Icons.thumb_up_rounded
-                        : Icons.thumb_up_outlined,
-                    size: widget.size,
-                    color: widget.isLiked ? activeColor : inactiveColor,
-                  )
-                : RiveAnimation.asset(
-                    'assets/rive/interactions/like.riv',
-                    onInit: _onRiveInit,
-                    fit: BoxFit.contain,
-                  ),
+            child: Obx(
+              () => _hasError.value
+                  ? Icon(
+                      widget.isLiked
+                          ? Icons.thumb_up_rounded
+                          : Icons.thumb_up_outlined,
+                      size: widget.size,
+                      color: widget.isLiked ? activeColor : inactiveColor,
+                    )
+                  : RiveAnimation.asset(
+                      'assets/rive/interactions/like.riv',
+                      onInit: _onRiveInit,
+                      fit: BoxFit.contain,
+                    ),
+            ),
           ),
         ),
       ),
@@ -152,7 +153,7 @@ class _TruthworldRiveSubscribeButtonState
   SMIBool? _subscribedInput;
   SMINumber? _stateInput;
   StateMachineController? _controller;
-  bool _hasError = false;
+  final RxBool _hasError = false.obs;
 
   int _getOptionIndex(String option) {
     switch (option) {
@@ -184,16 +185,14 @@ class _TruthworldRiveSubscribeButtonState
         _stateInput?.value = _getOptionIndex(widget.notificationOption).toDouble();
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _hasError = true);
-      }
+      _hasError.value = true;
     }
   }
 
   @override
   void didUpdateWidget(covariant TruthworldRiveSubscribeButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_hasError) {
+    if (!_hasError.value) {
       _subscribedInput?.value = widget.isSubscribed;
       _stateInput?.value = _getOptionIndex(widget.notificationOption).toDouble();
     }
@@ -240,23 +239,27 @@ class _TruthworldRiveSubscribeButtonState
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (isSub && !_hasError)
-                  SizedBox(
-                    width: fontSize + 6,
-                    height: fontSize + 6,
-                    child: RiveAnimation.asset(
-                      'assets/rive/interactions/subscribe.riv',
-                      onInit: _onRiveInit,
-                    ),
-                  )
-                else if (isSub)
-                  Icon(
-                    widget.notificationOption == 'none'
-                        ? Icons.notifications_off_rounded
-                        : Icons.notifications_active_rounded,
-                    size: fontSize + 3,
-                    color: fgColor,
-                  ),
+                Obx(() {
+                  if (isSub && !_hasError.value) {
+                    return SizedBox(
+                      width: fontSize + 6,
+                      height: fontSize + 6,
+                      child: RiveAnimation.asset(
+                        'assets/rive/interactions/subscribe.riv',
+                        onInit: _onRiveInit,
+                      ),
+                    );
+                  } else if (isSub) {
+                    return Icon(
+                      widget.notificationOption == 'none'
+                          ? Icons.notifications_off_rounded
+                          : Icons.notifications_active_rounded,
+                      size: fontSize + 3,
+                      color: fgColor,
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
                 if (isSub) const SizedBox(width: 6),
                 Text(
                   isSub ? 'Subscribed' : 'Subscribe',
@@ -297,7 +300,7 @@ class _TruthworldRivePlayPauseButtonState
     extends State<TruthworldRivePlayPauseButton> {
   SMIBool? _isPlayingInput;
   StateMachineController? _controller;
-  bool _hasError = false;
+  final RxBool _hasError = false.obs;
 
   void _onRiveInit(Artboard artboard) {
     try {
@@ -313,16 +316,14 @@ class _TruthworldRivePlayPauseButtonState
         _isPlayingInput?.value = widget.isPlaying;
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _hasError = true);
-      }
+      _hasError.value = true;
     }
   }
 
   @override
   void didUpdateWidget(covariant TruthworldRivePlayPauseButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying != oldWidget.isPlaying && !_hasError) {
+    if (widget.isPlaying != oldWidget.isPlaying && !_hasError.value) {
       _isPlayingInput?.value = widget.isPlaying;
     }
   }
@@ -346,19 +347,21 @@ class _TruthworldRivePlayPauseButtonState
         child: SizedBox(
           width: widget.size,
           height: widget.size,
-          child: _hasError
-              ? Icon(
-                  widget.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: widget.size,
-                  color: AppColors.textPrimary,
-                )
-              : RiveAnimation.asset(
-                  'assets/rive/player/play_pause.riv',
-                  onInit: _onRiveInit,
-                  fit: BoxFit.contain,
-                ),
+          child: Obx(
+            () => _hasError.value
+                ? Icon(
+                    widget.isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: widget.size,
+                    color: AppColors.textPrimary,
+                  )
+                : RiveAnimation.asset(
+                    'assets/rive/player/play_pause.riv',
+                    onInit: _onRiveInit,
+                    fit: BoxFit.contain,
+                  ),
+          ),
         ),
       ),
     );
@@ -390,7 +393,7 @@ class _TruthworldRiveDownloadButtonState
   SMINumber? _progressInput;
   SMIBool? _completedInput;
   StateMachineController? _controller;
-  bool _hasError = false;
+  final RxBool _hasError = false.obs;
 
   void _onRiveInit(Artboard artboard) {
     try {
@@ -409,16 +412,14 @@ class _TruthworldRiveDownloadButtonState
         _completedInput?.value = widget.isCompleted;
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _hasError = true);
-      }
+      _hasError.value = true;
     }
   }
 
   @override
   void didUpdateWidget(covariant TruthworldRiveDownloadButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_hasError) {
+    if (!_hasError.value) {
       _progressInput?.value = (widget.progress * 100).clamp(0.0, 100.0);
       _completedInput?.value = widget.isCompleted;
     }
@@ -445,19 +446,21 @@ class _TruthworldRiveDownloadButtonState
         child: SizedBox(
           width: widget.size,
           height: widget.size,
-          child: _hasError
-              ? Icon(
-                  widget.isCompleted
-                      ? Icons.check_circle_rounded
-                      : Icons.download_rounded,
-                  size: widget.size,
-                  color: AppColors.textPrimary,
-                )
-              : RiveAnimation.asset(
-                  'assets/rive/interactions/download.riv',
-                  onInit: _onRiveInit,
-                  fit: BoxFit.contain,
-                ),
+          child: Obx(
+            () => _hasError.value
+                ? Icon(
+                    widget.isCompleted
+                        ? Icons.check_circle_rounded
+                        : Icons.download_rounded,
+                    size: widget.size,
+                    color: AppColors.textPrimary,
+                  )
+                : RiveAnimation.asset(
+                    'assets/rive/interactions/download.riv',
+                    onInit: _onRiveInit,
+                    fit: BoxFit.contain,
+                  ),
+          ),
         ),
       ),
     );

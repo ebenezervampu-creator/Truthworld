@@ -13,6 +13,7 @@ import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:profanity_filter/profanity_filter.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
@@ -1067,6 +1068,9 @@ class UploadController extends BaseController with ContentValidationMixin {
   Future<int> getVideoDurationMs(PlatformFile videoFile) async {
     try {
       if (kIsWeb) {
+        if (videoFile.bytes == null) {
+          return videoPlayerController?.value.duration.inMilliseconds ?? 0;
+        }
         final blob = html.Blob([videoFile.bytes]);
         final url = html.Url.createObjectUrlFromBlob(blob);
 
@@ -1074,16 +1078,44 @@ class UploadController extends BaseController with ContentValidationMixin {
           ..src = url
           ..preload = 'metadata';
 
-        final durationInSeconds = await videoElement.onLoadedMetadata.first
-            .then((_) => videoElement.duration);
+        try {
+          await videoElement.onLoadedMetadata.first.timeout(
+            const Duration(seconds: 4),
+          );
+        } catch (_) {
+          // Timeout or metadata load failure handled by fallback below
+        }
+
+        final durationInSeconds = videoElement.duration;
 
         html.Url.revokeObjectUrl(url);
 
+        if (durationInSeconds.isNaN ||
+            durationInSeconds.isInfinite ||
+            durationInSeconds <= 0) {
+          return videoPlayerController?.value.duration.inMilliseconds ?? 0;
+        }
+
         return (durationInSeconds * 1000).floor();
       } else {
-        final tempDir = await getTemporaryDirectory();
-        final tempFile = File('${tempDir.path}/${videoFile.name}');
-        await tempFile.writeAsBytes(videoFile.bytes!);
+        if (videoPlayerController != null &&
+            videoPlayerController!.value.isInitialized &&
+            videoPlayerController!.value.duration.inMilliseconds > 0) {
+          return videoPlayerController!.value.duration.inMilliseconds;
+        }
+        if (videoFile.bytes == null && videoFile.path == null) {
+          return 0;
+        }
+        final File tempFile;
+        if (videoFile.path != null && File(videoFile.path!).existsSync()) {
+          tempFile = File(videoFile.path!);
+        } else {
+          final tempDir = await getTemporaryDirectory();
+          tempFile = File('${tempDir.path}/${videoFile.name}');
+          if (videoFile.bytes != null) {
+            await tempFile.writeAsBytes(videoFile.bytes!);
+          }
+        }
 
         final controller = VideoPlayerController.file(tempFile);
         await controller.initialize();
@@ -1093,7 +1125,8 @@ class UploadController extends BaseController with ContentValidationMixin {
         return durationMs;
       }
     } catch (e) {
-      throw Exception('Failed to get video duration: $e');
+      debugPrint('⚠️ Non-fatal error getting video duration: $e');
+      return videoPlayerController?.value.duration.inMilliseconds ?? 0;
     }
   }
 
@@ -1399,13 +1432,35 @@ class UploadController extends BaseController with ContentValidationMixin {
       // --------------------------------------------------------
       // 4️⃣ Update Firestore with video URL
       // --------------------------------------------------------
-      await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(uniqueId)
-          .update({
-            'videoUrl': downloadUrl,
-            'status': 'processing', // Optional: hint for Cloud Function
-          });
+      try {
+        final latestDoc = await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(uniqueId)
+            .get();
+        final latestData = latestDoc.data();
+        final targetStatus = latestData?['targetStatus'] as String?;
+        final targetVisibility = latestData?['targetVisibility'] as String?;
+
+        await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(uniqueId)
+            .update({
+              'videoUrl': downloadUrl,
+              'status': targetStatus == 'draft'
+                  ? 'draft'
+                  : 'processing', // Optional: hint for Cloud Function
+              if (targetVisibility != null) 'visibility': targetVisibility,
+            });
+      } catch (e) {
+        debugPrint('⚠️ Error syncing upload completion to Firestore: $e');
+        await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(uniqueId)
+            .update({
+              'videoUrl': downloadUrl,
+              'status': 'processing',
+            });
+      }
 
       // --------------------------------------------------------
       // 5️⃣ Notify user that processing is in progress
@@ -1794,32 +1849,32 @@ class UploadController extends BaseController with ContentValidationMixin {
       'languages': selectedLanguages,
     };
 
-    if (pickedVideo.value == null) {
+    if (pickedVideo.value == null && resumedVideoDraft.value == null) {
       Get.snackbar('Error', 'Please select a video.');
-      return;
+      throw Exception('Please select a video.');
     }
 
-    if (videoUrl.value.isEmpty) {
-      Get.snackbar('Error', 'Video upload not complete.');
-      return;
-    }
+    final isStillUploading = videoUrl.value.isEmpty &&
+        (isUploading.value || pickedVideo.value != null);
 
     // All your validations...
     if (title.isEmpty || title.length > maxTitleLength) {
       Get.snackbar('Error', 'Invalid title.');
-      return;
+      throw Exception(
+        'Invalid title (length must be between 1 and $maxTitleLength characters).',
+      );
     }
 
     final titleValidation = await validateContent(title, fieldName: 'Title');
     if (!titleValidation.isValid) {
       Get.snackbar('Error', titleValidation.message);
-      return;
+      throw Exception(titleValidation.message);
     }
 
     // Description validation
     if (description.isEmpty || description.length > maxDescriptionLength) {
       Get.snackbar('Error', 'Invalid description.');
-      return;
+      throw Exception('Invalid description.');
     }
 
     final descValidation = await validateContent(
@@ -1829,7 +1884,7 @@ class UploadController extends BaseController with ContentValidationMixin {
     );
     if (!descValidation.isValid) {
       Get.snackbar('Error', descValidation.message);
-      return;
+      throw Exception(descValidation.message);
     }
 
     // Tags validation
@@ -1838,7 +1893,7 @@ class UploadController extends BaseController with ContentValidationMixin {
       final tagsValidation = await validateTags(validTags);
       if (!tagsValidation.isValid) {
         Get.snackbar('Error', tagsValidation.message);
-        return;
+        throw Exception(tagsValidation.message);
       }
     }
 
@@ -1847,7 +1902,9 @@ class UploadController extends BaseController with ContentValidationMixin {
         'Error',
         'Selected channel name is missing. Please select a valid channel.',
       );
-      return;
+      throw Exception(
+        'Selected channel name is missing. Please select a valid channel.',
+      );
     }
 
     if (channelId.trim().isEmpty) {
@@ -1855,7 +1912,9 @@ class UploadController extends BaseController with ContentValidationMixin {
         'Error',
         'Selected channel ID is missing. Please select a valid channel.',
       );
-      return;
+      throw Exception(
+        'Selected channel ID is missing. Please select a valid channel.',
+      );
     }
 
     try {
@@ -1875,9 +1934,14 @@ class UploadController extends BaseController with ContentValidationMixin {
       debugPrint('✅ User authenticated: $userId');
 
       // Get video duration in milliseconds
-      final durationMs = await getVideoDurationMs(
-        pickedVideo.value!,
-      );
+      var durationMs = 0;
+      if (pickedVideo.value != null) {
+        durationMs = await getVideoDurationMs(pickedVideo.value!);
+      } else if (resumedVideoDraft.value != null) {
+        durationMs = resumedVideoDraft.value!.durationMs > 0
+            ? resumedVideoDraft.value!.durationMs
+            : resumedVideoDraft.value!.durationValue.inMilliseconds;
+      }
 
       // Validate daily quota for selected channel before publishing
       final currentChan = selectedChannel.value;
@@ -1897,7 +1961,7 @@ class UploadController extends BaseController with ContentValidationMixin {
             colorText: Colors.white,
             duration: const Duration(seconds: 6),
           );
-          return;
+          throw Exception(validation.message);
         }
       }
 
@@ -1912,11 +1976,9 @@ class UploadController extends BaseController with ContentValidationMixin {
 
       final validLanguages = selectedLanguages.whereType<String>().toList();
 
-      // Use the ID that was created during video upload
-      final videoId = _currentVideoId;
-      if (videoId == null) {
-        throw Exception('No video ID found - upload may have failed');
-      }
+      // Use the ID that was created during video upload or generate a new one
+      _currentVideoId ??= const Uuid().v4();
+      final videoId = _currentVideoId!;
 
       debugPrint('📄 Video ID: $videoId');
       debugPrint('👤 Owner ID: $userId');
@@ -1925,25 +1987,6 @@ class UploadController extends BaseController with ContentValidationMixin {
       debugPrint('🔍 Checking if document exists...');
       final docRef = _firestore.collection('videos').doc(videoId);
       final docSnapshot = await docRef.get();
-
-      if (!docSnapshot.exists) {
-        debugPrint('❌ Document does not exist! This should not happen.');
-        throw Exception('Video document not found in Firestore');
-      }
-
-      debugPrint('✅ Document exists');
-      debugPrint('📋 Current document data: ${docSnapshot.data()}');
-
-      // Verify ownership
-      final existingOwnerId = docSnapshot.data()?['ownerId'];
-      if (existingOwnerId != userId) {
-        debugPrint('❌ OWNERSHIP MISMATCH!');
-        debugPrint('   Document ownerId: $existingOwnerId');
-        debugPrint('   Current user ID: $userId');
-        throw Exception('Ownership verification failed');
-      }
-
-      debugPrint('✅ Ownership verified');
 
       // Prepare update data
       final updateData = {
@@ -1965,6 +2008,7 @@ class UploadController extends BaseController with ContentValidationMixin {
         'tags': validTags,
         'languages': validLanguages,
         'visibility': isDraft ? 'private' : selectedVisibility.value,
+        'targetVisibility': isDraft ? 'private' : selectedVisibility.value,
         'isKidFriendly': isKidFriendly.value,
         'isShort': isShort.value,
         'uploadQuality': uploadQuality.value.isEmpty
@@ -1981,19 +2025,57 @@ class UploadController extends BaseController with ContentValidationMixin {
             (docSnapshot.data()?['fileName'] as String? ?? 'unnamed_video.mp4'),
         'status': isDraft
             ? 'draft'
+            : (isStillUploading
+                ? 'uploading'
+                : (isScheduled.value ? 'scheduled' : 'published')),
+        'targetStatus': isDraft
+            ? 'draft'
             : (isScheduled.value ? 'scheduled' : 'published'),
         'aiFeatures': buildFeaturesMap(
           pipelineStage: isDraft ? 'draft' : 'published',
         ),
       };
 
+      if (!docSnapshot.exists) {
+        debugPrint('📄 Creating initial Firestore document with metadata...');
+        await docRef.set({
+          'id': videoId,
+          'ownerId': userId,
+          'userId': userId,
+          'uploadedAt': Timestamp.now(),
+          'likes': 0,
+          'likeCount': 0,
+          'dislikes': 0,
+          'dislikeCount': 0,
+          'views': 0,
+          'viewCount': 0,
+          'shareCount': 0,
+          'downloads': 0,
+          'reportCount': 0,
+          'isBlocked': false,
+          ...updateData,
+        });
+      } else {
+        // Verify ownership if document exists
+        final existingOwnerId = docSnapshot.data()?['ownerId'];
+        if (existingOwnerId != null && existingOwnerId != userId) {
+          debugPrint('❌ OWNERSHIP MISMATCH!');
+          debugPrint('   Document ownerId: $existingOwnerId');
+          debugPrint('   Current user ID: $userId');
+          throw Exception('Ownership verification failed');
+        }
+        await docRef.update(updateData);
+      }
+
+      debugPrint('✅ Document updated with creator metadata');
+
       // Handle inline topic creation if needed
       if (newTopicData.isNotEmpty) {
         debugPrint('🆕 Creating new inline topic: ${newTopicData['title']}');
 
-        final newTitle = newTopicData['title'] as String;
+        final newTitle = (newTopicData['title'] as String?) ?? '';
         final newDescription = (newTopicData['description'] as String?) ?? '';
-        final newCategory = (newTopicData['category'] as String?) ?? 'Music';
+        final newCategory = (newTopicData['category'] as String?) ?? 'Science & Technology';
         final newVisibility =
             (newTopicData['visibilityType'] as TopicVisibilityType?) ??
             TopicVisibilityType.public;
@@ -2005,9 +2087,8 @@ class UploadController extends BaseController with ContentValidationMixin {
         if (thumbnailSource == 'custom' &&
             newTopicData['customThumbnailBytes'] != null) {
           final bytes = newTopicData['customThumbnailBytes'] as Uint8List;
-          final fileName =
-              (newTopicData['customThumbnailName'] as String?) ??
-              'custom_topic_thumb.jpg';
+          final customName = (newTopicData['customThumbnailName'] as String?) ?? 'thumb.jpg';
+          final fileName = 'topic_${const Uuid().v4().substring(0, 8)}_$customName';
           finalThumbnailUrl = await uploadTopicCustomThumbnail(bytes, fileName);
         } else {
           // Use first video's thumbnail
@@ -2063,7 +2144,7 @@ class UploadController extends BaseController with ContentValidationMixin {
           accessCode: newVisibility == TopicVisibilityType.private
               ? newAccessCode
               : null,
-          videoCount: 1, // Enforces the rule that it has 1 video now
+          videoCount: 1, // First video linked
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
           status: 'underReview',
@@ -2079,10 +2160,40 @@ class UploadController extends BaseController with ContentValidationMixin {
       }
 
       // Link video to topic if selected
-      if (selectedTopicId.value.isNotEmpty) {
+      if (selectedTopicId.value.isNotEmpty && selectedTopicId.value != 'new_topic_draft') {
         debugPrint('🔗 Linking video to topic: ${selectedTopicId.value}');
-        updateData['topicId'] = selectedTopicId.value;
-        updateData['topics'] = [selectedTopicId.value];
+        // Resolve canonical slug and increment video count on topic
+        DocumentSnapshot? topicDoc;
+        final bySlugQuery = await _firestore
+            .collection('topics')
+            .where('slug', isEqualTo: selectedTopicId.value)
+            .limit(1)
+            .get();
+        if (bySlugQuery.docs.isNotEmpty) {
+          topicDoc = bySlugQuery.docs.first;
+        } else {
+          final byIdDoc = await _firestore.collection('topics').doc(selectedTopicId.value).get();
+          if (byIdDoc.exists) {
+            topicDoc = byIdDoc;
+          }
+        }
+
+        var finalTopicSlug = selectedTopicId.value;
+        if (topicDoc != null && topicDoc.exists && topicDoc.data() != null) {
+          final tData = topicDoc.data()! as Map<String, dynamic>;
+          finalTopicSlug = (tData['slug'] as String?) ?? selectedTopicId.value;
+          final topicCreatedAt = (tData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          if (DateTime.now().difference(topicCreatedAt).inSeconds > 5) {
+            await topicDoc.reference.update({
+              'videoCount': FieldValue.increment(1),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            debugPrint('✅ Incremented videoCount for existing topic: $finalTopicSlug');
+          }
+        }
+
+        updateData['topicId'] = finalTopicSlug;
+        updateData['topics'] = [finalTopicSlug];
       }
 
       if (isScheduled.value) {
@@ -2111,57 +2222,98 @@ class UploadController extends BaseController with ContentValidationMixin {
 
       debugPrint('✅ Document updated successfully!');
 
-      if (selectedTopicId.value.isNotEmpty) {
-        final topicQuery = await _firestore
-            .collection('topics')
-            .where('slug', isEqualTo: selectedTopicId.value)
-            .limit(1)
-            .get();
-        if (topicQuery.docs.isNotEmpty) {
-          final topicDoc = topicQuery.docs.first;
-          final topicData = Topic.fromDocumentSnapshot(topicDoc);
-          if (DateTime.now().difference(topicData.createdAt).inSeconds > 5) {
-            await topicDoc.reference.update({
-              'videoCount': FieldValue.increment(1),
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-            debugPrint(
-              '✅ Incremented videoCount for existing topic: ${selectedTopicId.value}',
-            );
-          }
-        }
-      }
-
       // Add to playlist if selected
       if (selectedPlaylist.value.isNotEmpty) {
         debugPrint('📂 Adding to playlist: ${selectedPlaylist.value}');
         try {
-          final playlistController = Get.find<PlaylistController>();
+          final playlistController = Get.isRegistered<PlaylistController>()
+              ? Get.find<PlaylistController>()
+              : Get.put(PlaylistController());
+
+          final playlist = playlistController.allUserPlaylists.firstWhereOrNull((p) => p.id == selectedPlaylist.value)
+              ?? playlistController.playlists.firstWhereOrNull((p) => p.id == selectedPlaylist.value)
+              ?? playlistController.publicPlaylists.firstWhereOrNull((p) => p.id == selectedPlaylist.value);
+          final isPublic = playlist?.isPublic ?? true;
+
           await playlistController.addVideoToPlaylist(
             selectedPlaylist.value,
             videoId,
-            true, // We assume public_playlists based on the current upload flow
+            isPublic,
           );
           debugPrint(
             '✅ Successfully added video to playlist via PlaylistController',
           );
         } catch (e) {
           debugPrint('⚠️ Error adding to playlist via controller: $e');
-          // Fallback to manual update if controller not found or fails
-          await _firestore
-              .collection('public_playlists')
-              .doc(selectedPlaylist.value)
-              .update({
+          // Resilient direct Firestore update fallback
+          try {
+            final publicDoc = await _firestore.collection('public_playlists').doc(selectedPlaylist.value).get();
+            if (publicDoc.exists) {
+              await _firestore.collection('public_playlists').doc(selectedPlaylist.value).update({
                 'videoIds': FieldValue.arrayUnion([videoId]),
+                'videoCount': FieldValue.increment(1),
+                'updatedAt': FieldValue.serverTimestamp(),
               });
+              await _firestore.collection('public_playlists').doc(selectedPlaylist.value).collection('items').doc(videoId).set({
+                'videoId': videoId,
+                'addedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+            } else {
+              await _firestore
+                  .collection(FirestoreCollections.users)
+                  .doc(userId)
+                  .collection(FirestoreCollections.playlists)
+                  .doc(selectedPlaylist.value)
+                  .update({
+                    'videoIds': FieldValue.arrayUnion([videoId]),
+                    'videoCount': FieldValue.increment(1),
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  });
+              await _firestore
+                  .collection(FirestoreCollections.users)
+                  .doc(userId)
+                  .collection(FirestoreCollections.playlists)
+                  .doc(selectedPlaylist.value)
+                  .collection('items')
+                  .doc(videoId)
+                  .set({
+                    'videoId': videoId,
+                    'addedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
+            }
+          } catch (fallbackErr) {
+            debugPrint('⚠️ Direct Firestore update also encountered: $fallbackErr');
+          }
         }
       }
 
       // Move to publish stage
       setUploadStage(3);
 
-      debugPrint('🎉 Upload completed successfully!');
-      Get.snackbar('Success', 'Video uploaded successfully!');
+      if (isStillUploading) {
+        debugPrint('🎉 Video metadata updated! Video is uploading in background...');
+        Get.snackbar(
+          isDraft ? 'Draft Saved' : 'Publishing in Background',
+          isDraft
+              ? 'Your video was saved as a draft successfully.'
+              : 'Video details saved! Uploading in background; it will be published automatically once processing completes.',
+          backgroundColor: const Color(0xFF10B981),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 5),
+        );
+      } else {
+        debugPrint('🎉 Upload completed successfully!');
+        Get.snackbar(
+          isDraft ? 'Draft Saved' : 'Success',
+          isDraft
+              ? 'Your video was saved as a draft successfully.'
+              : 'Video uploaded successfully!',
+          backgroundColor: const Color(0xFF10B981),
+          colorText: AppColors.textPrimary,
+          duration: const Duration(seconds: 4),
+        );
+      }
+
       uploadProgress.value = 0.0;
       _resetUploads();
       if (Get.currentRoute != '/studio') {
@@ -2184,11 +2336,13 @@ class UploadController extends BaseController with ContentValidationMixin {
       }
 
       Get.snackbar('Error', errorMessage);
+      rethrow;
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR: Upload failed');
       debugPrint('Error: $e');
       debugPrint('Stack trace: $stackTrace');
       Get.snackbar('Error', 'Failed to complete video upload: $e');
+      rethrow;
     }
   }
   // ==========================================================================
@@ -2399,11 +2553,9 @@ class UploadController extends BaseController with ContentValidationMixin {
     isTopicsLoading.value = true;
     topicsError.value = '';
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        isTopicsLoading.value = false;
-        return;
-      }
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid ??
+          AuthService.to.currentUser.value?.uid ??
+          '';
 
       final snap = await _firestore
           .collection('topics')
@@ -2415,7 +2567,7 @@ class UploadController extends BaseController with ContentValidationMixin {
         try {
           final t = Topic.fromDocumentSnapshot(doc);
           if (t.visibilityType == TopicVisibilityType.public ||
-              t.creatorId == user.uid ||
+              (currentUserId.isNotEmpty && t.creatorId == currentUserId) ||
               (selectedChannel.value != null &&
                   t.channelId == selectedChannel.value!.id)) {
             fetched.add(t);

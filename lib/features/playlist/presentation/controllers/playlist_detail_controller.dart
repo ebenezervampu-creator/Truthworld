@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
 
 class PlaylistDetailController extends BaseController {
+  final Rxn<PlaylistModel> activePlaylist = Rxn<PlaylistModel>();
   RxBool rxIsLoading = true.obs;
   RxBool isReordering = false.obs;
   RxBool isDragging = false.obs;
@@ -14,6 +17,30 @@ class PlaylistDetailController extends BaseController {
   RxString selectedSort = 'Recent'.obs;
   RxBool isSearchVisible = false.obs;
   RxInt dragStartIndex = (-1).obs;
+
+  Future<void> loadPlaylistFromDeepLink(String playlistId) async {
+    final cached = DeepLinkService.instance.getPlaylistFromCache(playlistId);
+    if (cached != null) {
+      debugPrint('[PlaylistDetailController] ⚡ 0ms instant cache hit for playlist: $playlistId');
+      activePlaylist.value = cached;
+      rxIsLoading.value = false;
+      return;
+    }
+
+    try {
+      rxIsLoading.value = true;
+      debugPrint('[PlaylistDetailController] ⏳ Loading deep-linked playlist from Firestore: $playlistId');
+      final playlist = await DeepLinkService.instance.loadPlaylist(playlistId);
+      if (playlist != null) {
+        DeepLinkService.instance.cachePlaylist(playlist);
+        activePlaylist.value = playlist;
+      }
+    } catch (e) {
+      debugPrint('[PlaylistDetailController] Error loading deep link playlist: $e');
+    } finally {
+      rxIsLoading.value = false;
+    }
+  }
 
   void setLoading(bool value) {
     rxIsLoading.value = value;

@@ -4,7 +4,7 @@ class DownloadSettings {
     this.chargingRequired = false,
     this.deviceIdleRequired = false,
     this.minBatteryThresholdPercent = 20,
-    this.downloadQuality = 'Medium (720p)',
+    this.downloadQuality = 'Ask each time',
     this.smartDownloadsEnabled = false,
     this.maxStorageLimit = '5GB',
     this.downloadLocation = 'Automatic',
@@ -18,7 +18,7 @@ class DownloadSettings {
       deviceIdleRequired: json['deviceIdleRequired'] as bool? ?? false,
       minBatteryThresholdPercent:
           json['minBatteryThresholdPercent'] as int? ?? 20,
-      downloadQuality: json['downloadQuality'] as String? ?? 'Medium (720p)',
+      downloadQuality: json['downloadQuality'] as String? ?? 'Ask each time',
       smartDownloadsEnabled: json['smartDownloadsEnabled'] as bool? ?? false,
       maxStorageLimit: json['maxStorageLimit'] as String? ?? '5GB',
       downloadLocation: json['downloadLocation'] as String? ?? 'Automatic',

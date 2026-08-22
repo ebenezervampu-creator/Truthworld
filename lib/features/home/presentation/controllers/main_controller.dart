@@ -21,9 +21,15 @@ class MainController extends BaseController {
   @override
   void onInit() {
     super.onInit();
-    _stateCtrl = Get.put(AppStateController());
-    _sessionCtrl = Get.put(UserSessionController());
-    _navCtrl = Get.put(AppNavigationController());
+    _stateCtrl = Get.isRegistered<AppStateController>()
+        ? Get.find<AppStateController>()
+        : Get.put(AppStateController(), permanent: true);
+    _sessionCtrl = Get.isRegistered<UserSessionController>()
+        ? Get.find<UserSessionController>()
+        : Get.put(UserSessionController(), permanent: true);
+    _navCtrl = Get.isRegistered<AppNavigationController>()
+        ? Get.find<AppNavigationController>()
+        : Get.put(AppNavigationController(), permanent: true);
   }
 
   // FIREBASE SERVICES (from stateCtrl)
@@ -79,8 +85,42 @@ class MainController extends BaseController {
 
   // METADATA UPDATES (from navCtrl)
   Future<void> addShare(String videoId, String share) => _navCtrl.addShare(videoId, share);
-  Future<void> incrementViews({required String videoId, required String userId, required bool isQualified}) => _navCtrl.incrementViews(videoId: videoId, userId: userId, isQualified: isQualified);
-  Future<bool> trackWatchEvent({required String videoId, required String eventType, required int position, required int duration, int? watchTimeSecondsDelta, bool isSubscriber = false, bool isNotSubscriber = false, String trafficSource = 'direct', String? viewerHash, String? dedupKey}) => _navCtrl.trackWatchEvent(videoId: videoId, eventType: eventType, position: position, duration: duration, watchTimeSecondsDelta: watchTimeSecondsDelta, isSubscriber: isSubscriber, isNotSubscriber: isNotSubscriber, trafficSource: trafficSource, viewerHash: viewerHash, dedupKey: dedupKey);
+  Future<void> incrementViews({
+    required String videoId,
+    required String userId,
+    required bool isQualified,
+    String? channelId,
+  }) => _navCtrl.incrementViews(
+        videoId: videoId,
+        channelId: channelId,
+        userId: userId,
+        isQualified: isQualified,
+      );
+  Future<bool> trackWatchEvent({
+    required String videoId,
+    required String eventType,
+    required int position,
+    required int duration,
+    String? channelId,
+    int? watchTimeSecondsDelta,
+    bool isSubscriber = false,
+    bool isNotSubscriber = false,
+    String trafficSource = 'direct',
+    String? viewerHash,
+    String? dedupKey,
+  }) => _navCtrl.trackWatchEvent(
+        videoId: videoId,
+        channelId: channelId,
+        eventType: eventType,
+        position: position,
+        duration: duration,
+        watchTimeSecondsDelta: watchTimeSecondsDelta,
+        isSubscriber: isSubscriber,
+        isNotSubscriber: isNotSubscriber,
+        trafficSource: trafficSource,
+        viewerHash: viewerHash,
+        dedupKey: dedupKey,
+      );
   Future<void> recordWatchSession(Map<String, dynamic> sessionData) => _navCtrl.recordWatchSession(sessionData);
   Future<void> incrementShareCount(String videoId) => _navCtrl.incrementShareCount(videoId);
 

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -158,6 +159,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Logo & Header
+          const Center(
+            child: AppLogo(
+              size: 56,
+              borderRadius: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
           Center(
             child: ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(

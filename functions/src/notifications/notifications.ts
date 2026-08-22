@@ -32,6 +32,7 @@ export async function notifyUser(params: {
       metadata: params.metadata,
       read: false,
       createdAt: Date.now(),
+      pushSent: true,
     };
 
     await db.collection(COL_NOTIFICATIONS).doc(notificationId).set(notification);
@@ -40,7 +41,7 @@ export async function notifyUser(params: {
     // The Firestore write above is the critical path; FCM delivery can
     // happen asynchronously without delaying the caller. This is critical
     // during fan-out where hundreds of notifyUser() calls run in parallel.
-    _sendPushNotification(params, notificationId).catch(pushErr => {
+    sendPushNotificationForUser(params, notificationId).catch(pushErr => {
       logger.warn("[notifyUser] FCM push failed (non-critical):", { userId: params.userId, err: String(pushErr) });
     });
     
@@ -52,10 +53,10 @@ export async function notifyUser(params: {
 }
 
 /**
- * 🔔 INTERNAL: Send FCM push notification to user's registered devices.
+ * 🔔 INTERNAL / EXPORTED: Send FCM push notification to user's registered devices.
  * Separated from notifyUser to enable fire-and-forget pattern.
  */
-async function _sendPushNotification(
+export async function sendPushNotificationForUser(
   params: { userId: string; type: string; severity: string; title: string; message: string; actionUrl?: string },
   notificationId: string
 ): Promise<void> {

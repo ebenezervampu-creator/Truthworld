@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -23,11 +25,13 @@ class HoverVideoPlayer extends StatefulWidget {
     required this.video,
     required this.thumbnail,
     required this.borderRadius,
+    this.onTap,
     super.key,
   });
   final Video video;
   final Widget thumbnail;
   final BorderRadius borderRadius;
+  final VoidCallback? onTap;
 
   static bool isGlobalMuted = true;
 
@@ -154,8 +158,20 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
   }
 
   Future<void> _attemptInitWithUrl(String url) async {
+    var resolvedUrl = url;
+    if (resolvedUrl.startsWith('gs://') ||
+        resolvedUrl.startsWith('https://storage.googleapis.com/') ||
+        (resolvedUrl.contains('firebasestorage.googleapis.com') &&
+            !resolvedUrl.contains('token='))) {
+      try {
+        resolvedUrl = await FirebaseStorage.instance
+            .refFromURL(resolvedUrl)
+            .getDownloadURL();
+      } catch (_) {}
+    }
+
     final controller = VideoPlayerController.networkUrl(
-      Uri.parse(url),
+      Uri.parse(resolvedUrl),
       videoPlayerOptions: VideoPlayerOptions(
         mixWithOthers: true, // Allow other audio to play
       ),
@@ -192,6 +208,33 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
     }
   }
 
+  void _handleTap() {
+    final controller = _controller.value;
+    if (controller != null && _isInitialized.value) {
+      VideoPlaybackHandoff.registerActiveController(
+        widget.video.id,
+        controller,
+      );
+      _controller.value = null;
+      _isInitialized.value = false;
+      _isLoading.value = false;
+    } else {
+      VideoPlaybackHandoff.prewarmVideo(widget.video);
+    }
+
+    if (widget.onTap != null) {
+      widget.onTap!();
+    } else {
+      MiniplayerNavigationHelper.navigateToVideoScreen(
+        video: widget.video,
+        routeArguments: {
+          'video': widget.video,
+          'heroTag': 'hover_${widget.video.id}',
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // If the controller has been retrieved or cleared elsewhere (e.g., warm handover completed),
@@ -208,67 +251,72 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
         onEnter: (_) => _onEnter(),
         onExit: (_) => _onExit(),
         cursor: SystemMouseCursors.click,
-        child: ClipRRect(
-          borderRadius: widget.borderRadius,
-          child: Stack(
-            children: [
-              // Always show/render the thumbnail under the video player so transitions are flawless
-              widget.thumbnail,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _handleTap,
+          child: ClipRRect(
+            borderRadius: widget.borderRadius,
+            child: Stack(
+              children: [
+                // Always show/render the thumbnail under the video player so transitions are flawless
+                widget.thumbnail,
 
-              // Buffering Shimmer overlay
-              if (_isLoading.value)
-                const Positioned.fill(
-                  child: ColoredBox(
-                    color: Colors.black45,
-                    child: Center(
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.textSecondary,
+                // Buffering Shimmer overlay
+                if (_isLoading.value)
+                  const Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.black45,
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
 
-              // Muted video preview player
-              if (_isInitialized.value && _controller.value != null)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: AppColors.bgPage,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        FittedBox(
-                          fit: BoxFit.cover,
-                          child: SizedBox(
-                            width: _controller.value!.value.size.width > 0
-                                ? _controller.value!.value.size.width
-                                : 160,
-                            height: _controller.value!.value.size.height > 0
-                                ? _controller.value!.value.size.height
-                                : 90,
-                            child: MobileFriendlyVideoPlayer(
-                              controller: _controller.value!,
-                              looping: true,
+                // Muted video preview player
+                if (_isInitialized.value && _controller.value != null)
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: AppColors.bgPage,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          IgnorePointer(
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              child: SizedBox(
+                                width: _controller.value!.value.size.width > 0
+                                    ? _controller.value!.value.size.width
+                                    : 160,
+                                height: _controller.value!.value.size.height > 0
+                                    ? _controller.value!.value.size.height
+                                    : 90,
+                                child: MobileFriendlyVideoPlayer(
+                                  controller: _controller.value!,
+                                  looping: true,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
 
-                        // Brain / AI icon overlay in top left
-                        Positioned(
-                          top: 12,
-                          left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF0B1428,
-                              ), // Premium dark blue
+                          // Brain / AI icon overlay in top left
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF0B1428,
+                                ), // Premium dark blue
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: AppColors.textDisabled,
@@ -393,7 +441,8 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildProgressBar() {

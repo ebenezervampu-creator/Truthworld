@@ -39,10 +39,15 @@ import 'package:truthworld/features/analytics/data/services/geolocation_service.
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
+import 'package:truthworld/features/home/presentation/controllers/app_navigation_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/app_state_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/user_session_controller.dart';
 import 'package:truthworld/features/likedvideos/presentation/controllers/likedvideos_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
@@ -60,6 +65,12 @@ import 'package:truthworld/features/watchhistory/presentation/controllers/watch_
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
+    // Global Core App Controllers
+    Get.lazyPut(AppStateController.new, fenix: true);
+    Get.lazyPut(UserSessionController.new, fenix: true);
+    Get.lazyPut(AppNavigationController.new, fenix: true);
+    Get.lazyPut(MainController.new, fenix: true);
+
     // Fallback registration if AuthService was not initialized prior to route resolution
     if (!Get.isRegistered<AuthService>()) {
       Get.put(AuthService(), permanent: true);
@@ -121,6 +132,7 @@ class InitialBinding extends Bindings {
 
     // Core Feature Controllers
     Get.lazyPut(UserSettingsController.new, fenix: true);
+    Get.lazyPut(DigitalWellbeingService.new, fenix: true);
     Get.lazyPut(PlaylistController.new, fenix: true);
     Get.lazyPut(SubscriptionController.new, fenix: true);
     Get.lazyPut(WatchHistoryController.new, fenix: true);

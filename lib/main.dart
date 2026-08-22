@@ -13,14 +13,17 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
+import 'package:truthworld/core/utils/color_blind_matrices.dart';
 import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/core/widgets/truthworld_splash_screen.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/routes/app_pages.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -109,6 +112,7 @@ void main() {
             Get.find<AppService>().init(),
             Get.find<ConnectivityService>().init(),
             Get.find<PushNotificationService>().init(),
+            DeepLinkService.instance.initAppLinks(),
           ]).then((_) {
             logger.info('All background services initialized', tag: 'Startup');
           });
@@ -258,7 +262,7 @@ class Truthworld extends StatelessWidget {
           maxScaleFactor: 1.4,
         );
 
-        return MediaQuery(
+        final content = MediaQuery(
           data: mediaQueryData.copyWith(textScaler: clampedTextScaler),
           child: TruthworldSplashScreen(
             child: Stack(
@@ -269,6 +273,23 @@ class Truthworld extends StatelessWidget {
             ),
           ),
         );
+
+        if (Get.isRegistered<UserSettingsController>()) {
+          return Obx(() {
+            final colorBlindMode =
+                UserSettingsController.to.accessibility.value.colorBlindSupport;
+            final matrix = ColorBlindMatrices.getMatrix(colorBlindMode);
+            if (matrix != null) {
+              return ColorFiltered(
+                colorFilter: ColorFilter.matrix(matrix),
+                child: content,
+              );
+            }
+            return content;
+          });
+        }
+
+        return content;
       },
     );
   }

@@ -1,10 +1,14 @@
 import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
-
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as search_ctrl;
 import 'package:truthworld/features/settings/data/models/accessibility_settings.dart';
@@ -72,6 +76,9 @@ class UserSettingsController extends BaseController {
 
   void setBreakReminder(int minutes) {
     updateWellbeing(wellbeing.value.copyWith(breakReminderMinutes: minutes));
+    if (Get.isRegistered<DigitalWellbeingService>()) {
+      DigitalWellbeingService.to.resetBreakTimer();
+    }
   }
 
   void toggleBedtimeReminder(bool enabled) {
@@ -247,8 +254,10 @@ class UserSettingsController extends BaseController {
     _repository.updateAccessibility(updated);
   }
 
-  void toggleReduceMotion(bool val) =>
-      updateAccessibility(accessibility.value.copyWith(reduceMotion: val));
+  void toggleReduceMotion(bool val) {
+    updateAccessibility(accessibility.value.copyWith(reduceMotion: val));
+  }
+
   void toggleHighContrastSubtitles(bool val) => updateAccessibility(
     accessibility.value.copyWith(highContrastSubtitles: val),
   );
@@ -265,11 +274,35 @@ class UserSettingsController extends BaseController {
   void togglePushNotifications(bool value) {
     pushNotificationsEnabled.value = value;
     _repository.setPushEnabled(value);
+    _syncNotificationPreferenceToFirestore('pushEnabled', value);
   }
 
   void setChannelAlerts(String level) {
     channelAlerts.value = level;
     _repository.setChannelAlerts(level);
+    _syncNotificationPreferenceToFirestore('channelAlerts', level);
+  }
+
+  void _syncNotificationPreferenceToFirestore(String key, dynamic value) {
+    try {
+      if (Get.isRegistered<AuthService>()) {
+        final uid = AuthService.to.uid;
+        if (uid.isNotEmpty) {
+          FirebaseFirestore.instance
+              .collection(FirestoreCollections.users)
+              .doc(uid)
+              .set({
+                'notificationSettings': {
+                  key: value,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                },
+              }, SetOptions(merge: true))
+              .catchError((e) {
+                debugPrint('Error syncing notification preference: $e');
+              });
+        }
+      }
+    } catch (_) {}
   }
 
   void toggleSearchHistoryPaused() {

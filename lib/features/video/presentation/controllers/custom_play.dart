@@ -38,6 +38,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -277,15 +278,7 @@ class TowerPlayerController extends BaseController {
         final vc = Get.find<VideoController>(tag: tag);
         if (vc.availableResolutions.isNotEmpty) {
           ladder = vc.availableResolutions.reversed
-              .map(
-                (v) => ResolutionTier(
-                  label: v.label,
-                  url: v.url,
-                  height: v.height,
-                  bitrate: v.bitrate,
-                  minBandwidth: (v.bitrate * 1.2).toInt(),
-                ),
-              )
+              .map(ResolutionTier.fromVideoResolution)
               .toList();
         }
       }
@@ -317,8 +310,9 @@ class TowerPlayerController extends BaseController {
             );
 
             if (matchingRes != null) {
-              // Ensure we don't switch to the same URL
-              if (vc.currentResolution.value?.url != matchingRes.url) {
+              // Ensure we don't switch to the same URL or resolution
+              if (vc.currentResolution.value?.url != matchingRes.url ||
+                  vc.currentResolution.value?.label != matchingRes.label) {
                 vc.setResolution(matchingRes, isManual: isManual);
                 debugPrint(
                   '[TowerPlayer] Resolution switch triggered: ${selectedTier.label} (Index: $tierIndex) | Manual: $isManual',
@@ -368,9 +362,7 @@ class TowerPlayerController extends BaseController {
       // Update current subtitle based on position
       if (subtitlesEnabled.value && subtitleSegments.isNotEmpty) {
         final pos = val.position;
-        final segment = subtitleSegments.firstWhereOrNull(
-          (s) => pos >= s.start && pos <= s.end,
-        );
+        final segment = SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
         currentSubtitle.value = segment?.text ?? '';
       } else {
         currentSubtitle.value = '';
@@ -851,14 +843,8 @@ class TowerPlayerController extends BaseController {
           content = content.substring(1);
         }
 
-        final trimmed = content.trim();
-        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-          final segments = _parseJsonTranscript(trimmed);
-          subtitleSegments.assignAll(segments);
-        } else {
-          final segments = _parseSRT(content);
-          subtitleSegments.assignAll(segments);
-        }
+        final segments = SubtitleParser.parse(content);
+        subtitleSegments.assignAll(segments);
         debugPrint(
           '[TowerPlayer] Parsed ${subtitleSegments.length} subtitle segments',
         );
@@ -871,234 +857,6 @@ class TowerPlayerController extends BaseController {
     }
   }
 
-  List<SubtitleSegment> _parseJsonTranscript(String content) {
-    final segs = <SubtitleSegment>[];
-    try {
-      final decoded = jsonDecode(content);
-
-      if (decoded is List) {
-        for (final item in decoded) {
-          if (item is Map) {
-            final seg = _segmentFromMap(item);
-            if (seg != null) segs.add(seg);
-          }
-        }
-      } else if (decoded is Map) {
-        // 1. Check utterances (AssemblyAI speaker turns)
-        if (decoded['utterances'] is List &&
-            (decoded['utterances'] as List).isNotEmpty) {
-          for (final item in (decoded['utterances'] as List)) {
-            if (item is Map) {
-              final seg = _segmentFromMap(item);
-              if (seg != null) segs.add(seg);
-            }
-          }
-        }
-        // 2. Check segments (Whisper or standard pipeline)
-        else if (decoded['segments'] is List &&
-            (decoded['segments'] as List).isNotEmpty) {
-          for (final item in (decoded['segments'] as List)) {
-            if (item is Map) {
-              final seg = _segmentFromMap(item);
-              if (seg != null) segs.add(seg);
-            }
-          }
-        }
-        // 3. Check paragraphs
-        else if (decoded['paragraphs'] is List &&
-            (decoded['paragraphs'] as List).isNotEmpty) {
-          for (final item in (decoded['paragraphs'] as List)) {
-            if (item is Map) {
-              final seg = _segmentFromMap(item);
-              if (seg != null) segs.add(seg);
-            }
-          }
-        }
-        // 4. Check words (group consecutive words into sentence segments)
-        else if (decoded['words'] is List &&
-            (decoded['words'] as List).isNotEmpty) {
-          final wordsList = (decoded['words'] as List).whereType<Map>().toList();
-          final currentChunk = <Map>[];
-          for (var i = 0; i < wordsList.length; i++) {
-            final w = wordsList[i];
-            currentChunk.add(w);
-            final wordText = (w['text'] ?? w['word'] ?? '').toString().trim();
-            final isPunctuationEnd = wordText.endsWith('.') ||
-                wordText.endsWith('?') ||
-                wordText.endsWith('!') ||
-                wordText.endsWith(';') ||
-                currentChunk.length >= 8;
-            if (isPunctuationEnd || i == wordsList.length - 1) {
-              final startNum =
-                  (currentChunk.first['start'] as num?)?.toDouble() ?? 0.0;
-              final endNum =
-                  (currentChunk.last['end'] as num?)?.toDouble() ??
-                  (startNum + 2000);
-              final startMs =
-                  (startNum < 10000 ? startNum * 1000 : startNum).round();
-              final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
-              final sentenceText = currentChunk
-                  .map(
-                    (e) => (e['text'] ?? e['word'] ?? '').toString().trim(),
-                  )
-                  .where((t) => t.isNotEmpty)
-                  .join(' ');
-              if (sentenceText.isNotEmpty) {
-                segs.add(
-                  SubtitleSegment(
-                    start: Duration(milliseconds: startMs),
-                    end: Duration(milliseconds: endMs),
-                    text: sentenceText,
-                  ),
-                );
-              }
-              currentChunk.clear();
-            }
-          }
-        }
-        // 5. Fallback: single text / transcript string
-        else if (decoded['text'] is String &&
-            (decoded['text'] as String).isNotEmpty) {
-          final fullText = (decoded['text'] as String).trim();
-          segs.add(
-            SubtitleSegment(
-              start: Duration.zero,
-              end: const Duration(hours: 2),
-              text: fullText,
-            ),
-          );
-        } else if (decoded['transcript'] is String &&
-            (decoded['transcript'] as String).isNotEmpty) {
-          final fullText = (decoded['transcript'] as String).trim();
-          segs.add(
-            SubtitleSegment(
-              start: Duration.zero,
-              end: const Duration(hours: 2),
-              text: fullText,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] JSON transcript parse error: $e');
-    }
-    return segs;
-  }
-
-  SubtitleSegment? _segmentFromMap(Map item) {
-    final startVal = item['start'] ??
-        item['startMs'] ??
-        item['startTime'] ??
-        item['startTimeMs'];
-    final endVal = item['end'] ??
-        item['endMs'] ??
-        item['endTime'] ??
-        item['endTimeMs'];
-    final text = (item['text'] ??
-            item['sentence'] ??
-            item['content'] ??
-            item['transcript'] ??
-            item['word'] ??
-            '')
-        .toString()
-        .trim();
-    if (text.isEmpty) return null;
-
-    final startNum = (startVal is num)
-        ? startVal.toDouble()
-        : (double.tryParse(startVal?.toString() ?? '') ?? 0.0);
-    final endNum = (endVal is num)
-        ? endVal.toDouble()
-        : (double.tryParse(endVal?.toString() ?? '') ?? (startNum + 2.0));
-
-    final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
-    final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
-
-    return SubtitleSegment(
-      start: Duration(milliseconds: startMs),
-      end: Duration(milliseconds: endMs),
-      text: text,
-    );
-  }
-
-  List<SubtitleSegment> _parseSRT(String content) {
-    final segments = <SubtitleSegment>[];
-
-    // Normalize line endings and handle WebVTT header
-    var normalized = content.replaceAll('\r\n', '\n').trim();
-    if (normalized.startsWith('WEBVTT')) {
-      // Remove WEBVTT header and any metadata following it until the first blank line
-      normalized = normalized
-          .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
-          .trim();
-    }
-
-    // Split into blocks by double newline
-    final blocks = normalized.split('\n\n');
-
-    for (final block in blocks) {
-      final lines = block.trim().split('\n');
-      if (lines.length < 2) continue;
-
-      var timeLine = '';
-      var textStartIndex = 0;
-
-      // Identify if the first line is an index or the timestamp
-      if (lines[0].contains('-->')) {
-        timeLine = lines[0];
-        textStartIndex = 1;
-      } else if (lines.length >= 2 && lines[1].contains('-->')) {
-        timeLine = lines[1];
-        textStartIndex = 2;
-      } else {
-        continue;
-      }
-
-      final times = timeLine.split(' --> ');
-      if (times.length != 2) continue;
-
-      final start = _parseSRTTime(times[0]);
-      final end = _parseSRTTime(times[1]);
-
-      if (lines.length <= textStartIndex) continue;
-      final text = lines.sublist(textStartIndex).join('\n').trim();
-
-      if (text.isNotEmpty) {
-        segments.add(SubtitleSegment(start: start, end: end, text: text));
-      }
-    }
-    return segments;
-  }
-
-  Duration _parseSRTTime(String timeStr) {
-    // e.g. "00:00:20.000" or "00:00:20,000" or "00:20.000" or "00:00:20.000 align:start"
-    final cleanTime = timeStr.trim().split(RegExp(r'\s+'))[0].replaceAll(',', '.');
-    final parts = cleanTime.split(':');
-    if (parts.length < 2) return Duration.zero;
-
-    var h = 0;
-    var m = 0;
-    var sSec = '';
-
-    if (parts.length == 3) {
-      h = int.tryParse(parts[0]) ?? 0;
-      m = int.tryParse(parts[1]) ?? 0;
-      sSec = parts[2];
-    } else if (parts.length == 2) {
-      m = int.tryParse(parts[0]) ?? 0;
-      sSec = parts[1];
-    }
-
-    final sParts = sSec.split('.');
-    final s = int.tryParse(sParts[0]) ?? 0;
-    var ms = 0;
-    if (sParts.length > 1) {
-      final msStr = sParts[1].padRight(3, '0').substring(0, 3);
-      ms = int.tryParse(msStr) ?? 0;
-    }
-
-    return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
-  }
 
   void _disableWebVTT() {
     debugPrint('[TowerPlayer] Subtitles disabled');
@@ -1378,10 +1136,14 @@ class TowerCustomPlayer extends StatelessWidget {
       init: ctrl,
       tag: tag,
       builder: (c) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (c.isClosed) return;
-          c.sync(vpc, cc);
-        });
+        if (c.videoPlayerController != vpc) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (c.isClosed) return;
+            if (c.videoPlayerController != vpc) {
+              c.sync(vpc, cc);
+            }
+          });
+        }
         return MouseRegion(
           onHover: (_) => c.onInteraction(),
           child: KeyboardListener(

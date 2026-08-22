@@ -644,22 +644,18 @@ class SubscriptionController extends BaseController {
             var scoreA = a.algorithmicScore;
             var scoreB = b.algorithmicScore;
             if (a.video != null) {
-              final s =
-                  algorithm.scoreVideo(
-                        a.video!,
-                        RecommendationSurface.subscriptionFeed,
-                      )
-                      as num?;
-              if (s != null) scoreA += s.toDouble() * 5.0;
+              final s = algorithm.scoreVideo(
+                a.video!,
+                RecommendationSurface.subscriptionFeed,
+              );
+              if (s != null) scoreA += s.score * 5.0;
             }
             if (b.video != null) {
-              final s =
-                  algorithm.scoreVideo(
-                        b.video!,
-                        RecommendationSurface.subscriptionFeed,
-                      )
-                      as num?;
-              if (s != null) scoreB += s.toDouble() * 5.0;
+              final s = algorithm.scoreVideo(
+                b.video!,
+                RecommendationSurface.subscriptionFeed,
+              );
+              if (s != null) scoreB += s.score * 5.0;
             }
             return scoreB.compareTo(scoreA);
           });

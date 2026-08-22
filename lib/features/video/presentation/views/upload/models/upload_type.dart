@@ -8,6 +8,12 @@ enum UploadType {
 
   /// Community posts with text, images, and polls
   communityPost,
+
+  /// Playlists
+  playlist,
+
+  /// Topics
+  topic,
 }
 
 /// Extension methods for UploadType to provide UI-related properties
@@ -19,6 +25,10 @@ extension UploadTypeExtension on UploadType {
         return 'Upload Video';
       case UploadType.communityPost:
         return 'Community Post';
+      case UploadType.playlist:
+        return 'Create Playlist';
+      case UploadType.topic:
+        return 'Create Topic';
     }
   }
 
@@ -29,6 +39,10 @@ extension UploadTypeExtension on UploadType {
         return 'Record or upload long-form videos';
       case UploadType.communityPost:
         return 'Share text, images and polls';
+      case UploadType.playlist:
+        return 'Organize videos into shareable playlists';
+      case UploadType.topic:
+        return 'Build a topic to organize and curate videos around a theme';
     }
   }
 
@@ -39,6 +53,10 @@ extension UploadTypeExtension on UploadType {
         return Icons.video_call_outlined;
       case UploadType.communityPost:
         return Icons.article_outlined;
+      case UploadType.playlist:
+        return Icons.playlist_add;
+      case UploadType.topic:
+        return Icons.topic_outlined;
     }
   }
 
@@ -49,6 +67,10 @@ extension UploadTypeExtension on UploadType {
         return 'V';
       case UploadType.communityPost:
         return 'C';
+      case UploadType.playlist:
+        return 'P';
+      case UploadType.topic:
+        return 'T';
     }
   }
 
@@ -57,6 +79,8 @@ extension UploadTypeExtension on UploadType {
     switch (this) {
       case UploadType.video:
       case UploadType.communityPost:
+      case UploadType.playlist:
+      case UploadType.topic:
         return true;
     }
   }
@@ -68,6 +92,10 @@ extension UploadTypeExtension on UploadType {
         return '/upload/video';
       case UploadType.communityPost:
         return '/upload/community';
+      case UploadType.playlist:
+        return '/create-playlist';
+      case UploadType.topic:
+        return '/create-topic';
     }
   }
 }

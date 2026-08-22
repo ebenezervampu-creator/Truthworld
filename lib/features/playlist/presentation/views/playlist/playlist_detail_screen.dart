@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -51,7 +52,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         if (args is PlaylistModel) {
           activePlaylist = args;
         } else if (args is Map && args['playlist'] is PlaylistModel) {
-          activePlaylist = args['playlist'];
+          activePlaylist = args['playlist'] as PlaylistModel;
         }
       }
     }
@@ -63,7 +64,26 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       }
     }
 
-    if (activePlaylist == null) {
+    if (activePlaylist != null) {
+      controller.activePlaylist.value = activePlaylist;
+    } else {
+      final playlistId =
+          Get.parameters['playlistId'] ??
+          Get.parameters['list'] ??
+          Get.parameters['id'];
+      if (playlistId != null && playlistId.isNotEmpty) {
+        controller.loadPlaylistFromDeepLink(playlistId);
+      }
+    }
+
+    controller.reset();
+
+    return Obx(() {
+      final currentPlaylist = controller.activePlaylist.value;
+      if (currentPlaylist == null) {
+        return const ShimmerPlaylistDetail();
+      }
+
       return Scaffold(
         backgroundColor: ytBackground,
         appBar: AppBar(
@@ -73,41 +93,18 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             icon: const Icon(Icons.arrow_back, color: ytTextPrimary),
             onPressed: Get.back,
           ),
-          title: const Text(
-            'Playlist',
-            style: TextStyle(
+          title: Text(
+            currentPlaylist.playlistName,
+            style: const TextStyle(
               color: ytTextPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-        body: _buildErrorState('Playlist data is missing.', Get.back),
+        body: _buildContent(context, currentPlaylist),
       );
-    }
-
-    controller.reset();
-
-    return Scaffold(
-      backgroundColor: ytBackground,
-      appBar: AppBar(
-        backgroundColor: ytBackground,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: ytTextPrimary),
-          onPressed: Get.back,
-        ),
-        title: Text(
-          activePlaylist.playlistName,
-          style: const TextStyle(
-            color: ytTextPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: _buildContent(context, activePlaylist),
-    );
+    });
   }
 
   Widget _buildContent(BuildContext context, PlaylistModel playlist) {

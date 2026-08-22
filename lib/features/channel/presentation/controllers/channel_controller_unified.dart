@@ -13,6 +13,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
@@ -2225,7 +2226,36 @@ class ChannelController extends BaseController
   }
 
   // Methods for Channel Details Page
+  Future<void> loadChannelFromDeepLink(String channelIdOrHandle) async {
+    final cached = DeepLinkService.instance.getChannelFromCache(channelIdOrHandle);
+    if (cached != null) {
+      debugPrint('[ChannelController] ⚡ 0ms instant cache hit for channel: $channelIdOrHandle');
+      initForChannelDetails(cached);
+      return;
+    }
+
+    try {
+      debugPrint('[ChannelController] ⏳ Loading deep-linked channel from Firestore: $channelIdOrHandle');
+      final channel = await DeepLinkService.instance.loadChannel(channelIdOrHandle);
+      if (channel != null) {
+        DeepLinkService.instance.cacheChannel(channel);
+        initForChannelDetails(channel);
+      } else {
+        Get.snackbar(
+          'Channel Not Found',
+          'No channel found for $channelIdOrHandle',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.bgSurface,
+          colorText: AppColors.textPrimary,
+        );
+      }
+    } catch (e) {
+      debugPrint('[ChannelController] Error loading deep link channel: $e');
+    }
+  }
+
   void initForChannelDetails(Channel channel) {
+    DeepLinkService.instance.cacheChannel(channel);
     if (selectedChannel.value?.channelId == channel.channelId) {
       // Already initialized for this channel, just ensure listeners are attached
       _attachScrollListener();

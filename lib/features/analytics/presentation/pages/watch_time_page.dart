@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -103,14 +104,29 @@ class WatchTimePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            controller.totalWatchTime.value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 48,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-            ),
+          Builder(
+            builder: (context) {
+              var displayTime = controller.totalWatchTime.value;
+              if ((displayTime.isEmpty || displayTime == '0 mins') &&
+                  controller.channelVideos.isNotEmpty) {
+                final totalSec = controller.channelVideos.fold<int>(
+                  0,
+                  (sum, v) => sum + v.totalWatchTimeSeconds,
+                );
+                if (totalSec > 0) {
+                  displayTime = WatchTimeFormatter.format(totalSec);
+                }
+              }
+              return Text(
+                displayTime.isNotEmpty ? displayTime : '0 mins',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 48,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 4),
           Row(

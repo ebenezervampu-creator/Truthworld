@@ -65,11 +65,12 @@ class AppNavigationController extends BaseController {
     }
   }
 
-  /// Increment view count for a video (follows Unique User + Qualified View Strategy)
+  /// Increment view count for a video & channel (follows Unique User + Qualified View Strategy)
   Future<void> incrementViews({
     required String videoId,
     required String userId,
     required bool isQualified,
+    String? channelId,
   }) async {
     if (videoId.isEmpty) return;
 
@@ -97,6 +98,18 @@ class AppNavigationController extends BaseController {
                       'qualifiedViewCount': FieldValue.increment(1),
                   })
                   .timeout(_defaultTimeout);
+
+              if (channelId != null && channelId.isNotEmpty) {
+                _firestore
+                    .collection(FirestoreCollections.channels)
+                    .doc(channelId)
+                    .set({
+                      'metrics': {'totalViews': FieldValue.increment(1)},
+                      'viewCount': FieldValue.increment(1),
+                      'updatedAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true))
+                    .catchError((_) {});
+              }
             }
           } catch (e) {
             debugPrint('Error updating views on Web: $e');
@@ -116,6 +129,21 @@ class AppNavigationController extends BaseController {
                     if (isQualified)
                       'qualifiedViewCount': FieldValue.increment(1),
                   });
+
+                  if (channelId != null && channelId.isNotEmpty) {
+                    final channelRef = _firestore
+                        .collection(FirestoreCollections.channels)
+                        .doc(channelId);
+                    transaction.set(
+                      channelRef,
+                      {
+                        'metrics': {'totalViews': FieldValue.increment(1)},
+                        'viewCount': FieldValue.increment(1),
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      },
+                      SetOptions(merge: true),
+                    );
+                  }
                 }
               })
               .timeout(_defaultTimeout);
@@ -128,6 +156,18 @@ class AppNavigationController extends BaseController {
               if (isQualified) 'qualifiedViewCount': FieldValue.increment(1),
             })
             .timeout(_defaultTimeout);
+
+        if (channelId != null && channelId.isNotEmpty) {
+          _firestore
+              .collection(FirestoreCollections.channels)
+              .doc(channelId)
+              .set({
+                'metrics': {'totalViews': FieldValue.increment(1)},
+                'viewCount': FieldValue.increment(1),
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true))
+              .catchError((_) {});
+        }
       }
 
       if (kDebugMode) {
@@ -154,6 +194,7 @@ class AppNavigationController extends BaseController {
     required String eventType,
     required int position,
     required int duration,
+    String? channelId,
     int? watchTimeSecondsDelta,
     bool isSubscriber = false,
     bool isNotSubscriber = false,
@@ -167,13 +208,8 @@ class AppNavigationController extends BaseController {
       final userId = _auth.currentUser?.uid;
       final sessionId = "session_${videoId}_${userId ?? 'anon'}";
 
-      // Idempotency key: unique per event emission.
-      // If Cloud Function retries, it checks this key and skips duplicates.
-      // Format: {videoId}_{userId}_{eventType}_{positionBucket}_{timestamp}
-      final positionBucket =
-          (position ~/ 5) * 5; // 5s buckets for dedup tolerance
-      final idempotencyKey =
-          '${videoId}_${userId ?? viewerHash ?? 'anon'}_${eventType}_${positionBucket}_${DateTime.now().millisecondsSinceEpoch ~/ 1000}';
+      final timestampMs = DateTime.now().millisecondsSinceEpoch;
+      final eventId = '${sessionId}_${position}_${eventType}_$timestampMs';
 
       // URL for Gen 2 (Asia South 1): https://<service-name>-<hash>-<region-code>.a.run.app
       final response = await http
@@ -182,8 +218,10 @@ class AppNavigationController extends BaseController {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'videoId': videoId,
+              'channelId': channelId ?? '',
               'userId': userId ?? 'anonymous',
               'sessionId': sessionId,
+              'eventId': eventId,
               'eventType': eventType,
               'position': position,
               'duration': duration,
@@ -192,7 +230,7 @@ class AppNavigationController extends BaseController {
               'isNotSubscriber': isNotSubscriber,
               'trafficSource': trafficSource,
               // Anti-fraud / dedup fields
-              'idempotencyKey': idempotencyKey,
+              'idempotencyKey': eventId,
               'viewerHash': viewerHash, // Privacy-safe anonymous identity
               'dedupKey':
                   dedupKey, // Server creates qualified_views/{dedupKey} via tx

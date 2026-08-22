@@ -264,6 +264,7 @@ export const trackWatchEvent = onRequest(
 
       if (secondsDelta > 0 && targetChannelId) {
         const channelRef = db.collection("channels").doc(targetChannelId);
+        const videoRef = body.videoId ? db.collection("videos").doc(body.videoId) : null;
 
         await db.runTransaction(async (transaction) => {
           const eventSnap = await transaction.get(eventRef);
@@ -280,10 +281,22 @@ export const trackWatchEvent = onRequest(
             secondsDelta,
           });
 
+          if (videoRef) {
+            transaction.set(
+              videoRef,
+              {
+                totalWatchTimeSeconds: admin.firestore.FieldValue.increment(secondsDelta),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+
           transaction.set(
             channelRef,
             {
               totalWatchTimeSeconds: admin.firestore.FieldValue.increment(secondsDelta),
+              "metrics.totalWatchTimeMinutes": admin.firestore.FieldValue.increment(secondsDelta / 60),
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true }

@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as search_ctrl;
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -25,6 +21,7 @@ class VideoOptionsSheet extends StatelessWidget {
     this.onSaveToWatchLater,
     this.onSaveToPlaylist,
     this.onDownloadVideo,
+    this.onDownloadAudio,
     this.onNotInterested,
     this.onBlockChannel,
     this.onReport,
@@ -34,6 +31,7 @@ class VideoOptionsSheet extends StatelessWidget {
   final VoidCallback? onSaveToWatchLater;
   final VoidCallback? onSaveToPlaylist;
   final VoidCallback? onDownloadVideo;
+  final VoidCallback? onDownloadAudio;
   final VoidCallback? onNotInterested;
   final VoidCallback? onBlockChannel;
   final VoidCallback? onReport;
@@ -45,6 +43,7 @@ class VideoOptionsSheet extends StatelessWidget {
     VoidCallback? onSaveToWatchLater,
     VoidCallback? onSaveToPlaylist,
     VoidCallback? onDownloadVideo,
+    VoidCallback? onDownloadAudio,
     VoidCallback? onNotInterested,
     VoidCallback? onBlockChannel,
     VoidCallback? onReport,
@@ -56,6 +55,7 @@ class VideoOptionsSheet extends StatelessWidget {
         onSaveToWatchLater: onSaveToWatchLater,
         onSaveToPlaylist: onSaveToPlaylist,
         onDownloadVideo: onDownloadVideo,
+        onDownloadAudio: onDownloadAudio,
         onNotInterested: onNotInterested,
         onBlockChannel: onBlockChannel,
         onReport: onReport,
@@ -142,80 +142,42 @@ class VideoOptionsSheet extends StatelessWidget {
                     title: 'Download video',
                     onTap: () async {
                       Get.back();
-                      if (Get.isRegistered<VideoController>() &&
-                          Get.find<VideoController>().video.id == video.id) {
-                        final vc = Get.find<VideoController>();
-                        if (vc.currentResolution.value != null) {
-                          await vc.saveVideoOffline(
-                            vc.currentResolution.value!,
-                          );
-                          if (Get.isRegistered<DownloadsController>()) {
-                            Get.find<DownloadsController>().loadVideos();
-                          }
-                          return;
-                        }
+                      if (onDownloadVideo != null) {
+                        onDownloadVideo!();
+                        return;
                       }
-                      try {
-                        final offlineVideo = OfflineVideo(
-                          id: video.id,
-                          title: video.title,
-                          channelName: video.channelName,
-                          channelImage: video.channelImage.isNotEmpty
-                              ? video.channelImage
-                              : video.channelAvatarUrl,
-                          views: video.views.toString(),
-                          thumbnailUrl: video.thumbnailUrl,
-                          downloadedAt: DateTime.now(),
-                        );
-
-                        var videoBytes = Uint8List(0);
-                        final targetUrl = video.originalUrl.isNotEmpty
-                            ? video.originalUrl
-                            : video.videoUrl;
-                        if (targetUrl.isNotEmpty &&
-                            targetUrl.startsWith('http')) {
-                          final res = await http.get(Uri.parse(targetUrl));
-                          if (res.statusCode == 200) {
-                            videoBytes = res.bodyBytes;
-                          }
-                        }
-
-                        await saveOfflineVideoBytes(
-                          video.id,
-                          videoBytes,
-                          offlineVideo,
-                        );
-
-                        if (Get.isRegistered<DownloadsController>()) {
-                          Get.find<DownloadsController>().loadVideos();
-                        }
-
-                        if (!context.mounted) return;
-                        AppSnackbar.show(
-                          'Download Complete',
-                          "'${video.title}' downloaded successfully for offline viewing.",
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.success.withValues(
-                            alpha: 0.8,
-                          ),
-                          colorText: AppColors.textPrimary,
-                          margin: const EdgeInsets.all(20),
-                          borderRadius: 16,
-                        );
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        AppSnackbar.show(
-                          'Download Failed',
-                          'Could not download video: $e',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.error.withValues(
-                            alpha: 0.8,
-                          ),
-                          colorText: AppColors.textPrimary,
-                          margin: const EdgeInsets.all(20),
-                          borderRadius: 16,
-                        );
+                      await Future.delayed(const Duration(milliseconds: 100));
+                      final downloadsCtrl =
+                          Get.isRegistered<DownloadsController>()
+                              ? Get.find<DownloadsController>()
+                              : Get.put(DownloadsController());
+                      downloadsCtrl.showDownloadQualityDialog(
+                        null,
+                        video,
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(
+                      Icons.headphones_outlined,
+                      color: AppColors.textPrimary,
+                      size: 24,
+                    ),
+                    title: 'Download audio only',
+                    onTap: () async {
+                      Get.back();
+                      if (onDownloadAudio != null) {
+                        onDownloadAudio!();
+                        return;
                       }
+                      final downloadsCtrl =
+                          Get.isRegistered<DownloadsController>()
+                              ? Get.find<DownloadsController>()
+                              : Get.put(DownloadsController());
+                      await downloadsCtrl.downloadAudioOffline(
+                        video: video,
+                      );
                     },
                   ),
                   _buildMenuItem(
@@ -466,7 +428,7 @@ class VideoOptionsSheet extends StatelessWidget {
                         Navigator.of(context).pop();
                         final mainController = Get.isRegistered<MainController>()
                             ? Get.find<MainController>()
-                            : Get.put(MainController());
+                            : Get.put(MainController(), permanent: true);
                         mainController.reportVideo(
                           context: context,
                           videoId: video.id,

@@ -652,6 +652,8 @@ class Video {
   String get videoUrl => originalUrl;
   String get channelImage => channelAvatarUrl;
   String get duration => _formatDuration(durationValue);
+  int get durationMs => durationValue.inMilliseconds;
+  int get durationSeconds => durationValue.inSeconds;
   List<ResolutionV2> get resolutions => [ResolutionV2(originalUrl)];
   bool get isScheduled => status == VideoStatus.scheduled;
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,7 +13,6 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -22,11 +22,11 @@ import 'package:truthworld/core/services/algorithm/scored_video.dart';
 import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
-import 'package:truthworld/data/models/offline.dart';
+import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -34,6 +34,7 @@ import 'package:truthworld/features/community/data/models/community_post_model.d
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -45,6 +46,7 @@ import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/domain/repositories/video_repository.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_analytics_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_engagement_controller.dart';
@@ -54,6 +56,7 @@ import 'package:truthworld/features/video/presentation/views/player/models/playe
     hide LanguageRequest;
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
+import 'package:truthworld/services/video_hydration_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
@@ -117,6 +120,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   // Clips Support
   final Rx<VideoClip?> activeClip = Rx<VideoClip?>(null);
+  Duration? _initialSeekPosition;
 
   // State variables
   final RxBool isDownloading = false.obs;
@@ -169,6 +173,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   final Stopwatch _watchStopwatch = Stopwatch();
   bool _hasCountedQualifiedView = false;
   int _lastReportedWatchTime = 0;
+  int _lastPingWatchSeconds = 0;
   final RxBool isSwitchingResolution = false.obs;
   final RxBool isAutoSwitching = false.obs;
 
@@ -182,6 +187,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   // Milestone tracking — only fire each milestone once per session
   final Set<String> _firedMilestones = {};
   static const _milestoneThresholds = [25, 50, 75, 100];
+  static const int _watchPingIntervalSeconds = 20; // Cost-effective heartbeat interval
+  static const int _watchHistoryIntervalSeconds = 15; // Periodic history sync interval
 
   // Traffic source for this viewing session
   String _trafficSource = 'direct';
@@ -334,7 +341,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   late ChannelController channelController;
   MainController get mainController => Get.isRegistered<MainController>()
       ? Get.find<MainController>()
-      : Get.put(MainController());
+      : Get.put(MainController(), permanent: true);
   PlaylistController get playlistController =>
       Get.isRegistered<PlaylistController>()
       ? Get.find<PlaylistController>()
@@ -366,6 +373,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         : Get.put(VideoPlaylistController());
 
     rxIsOffline.value = (Get.arguments?['isOffline'] as bool?) ?? false;
+    if (Get.arguments?['isAudioOnly'] == true) {
+      isAudioOnly.value = true;
+    }
     _setupConnectivityListener();
 
     // Initialize tab controllers early to prevent UI paint null exceptions
@@ -384,15 +394,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
     });
 
-    // Safety check for arguments
-    if (Get.arguments == null) {
-      videoError.value = true;
-      rxErrorMessage.value = 'No arguments found';
-      rxIsLoading.value = false;
-      return;
-    }
-
-    final args = Get.arguments as Map<String, dynamic>?;
+    final rawArgs = Get.arguments;
+    final args = rawArgs is Map<String, dynamic>
+        ? rawArgs
+        : (rawArgs is Map ? Map<String, dynamic>.from(rawArgs) : null);
     final prevRoute = Get.previousRoute.toLowerCase();
     final currRoute = Get.currentRoute.toLowerCase();
 
@@ -407,7 +412,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         (args?['fromPlaylist'] == true) ||
         (args?['playlist'] != null) ||
         prevRoute.contains('playlist') ||
-        currRoute.contains('playlist');
+        currRoute.contains('playlist') ||
+        Get.parameters.containsKey('list');
 
     if (isTopicOrigin) {
       navigatedFromTopic.value = true;
@@ -421,26 +427,135 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       if (args?['playlist'] != null) {
         currentPlaylist.value = args!['playlist'] as PlaylistModel;
         fetchPlaylistVideos();
+      } else if (Get.parameters.containsKey('list')) {
+        final listId = Get.parameters['list']!;
+        DeepLinkService.instance.loadPlaylist(listId).then((pl) {
+          if (pl != null) {
+            currentPlaylist.value = pl;
+            fetchPlaylistVideos();
+          }
+        });
       }
     } else {
       navigatedFromPlaylist.value = false;
       navigatedFromTopic.value = false;
     }
 
+    // Handle initial seek timestamp from args or query params (t=120, t=1m30s, etc.)
+    if (args?['initialPosition'] != null && args!['initialPosition'] is Duration) {
+      _initialSeekPosition = args['initialPosition'] as Duration;
+    } else {
+      final timeStr = Get.parameters['t'] ?? Get.parameters['time'] ?? Get.parameters['start'];
+      final parsedTime = DeepLinkService.parseTimestamp(timeStr);
+      if (parsedTime != null) {
+        _initialSeekPosition = parsedTime;
+      }
+    }
+
     // Handle Video argument
     if (args?['video'] != null) {
-      _video.value = args!['video'] as Video;
+      final videoArg = args!['video'] as Video;
+      _video.value = videoArg;
+      DeepLinkService.instance.cacheVideo(videoArg);
+      _initLoadedVideo(args);
     } else if (currentPlaylist.value != null &&
         currentPlaylist.value!.videoIds.isNotEmpty) {
       _fetchFirstPlaylistVideo(currentPlaylist.value!.videoIds.first);
       return;
     } else {
-      videoError.value = true;
-      rxErrorMessage.value = 'Video data not found';
-      rxIsLoading.value = false;
+      // Direct deep link loading (/watch?v=ID or /watch/ID)
+      final videoId = Get.parameters['v'] ?? Get.parameters['videoId'] ?? Get.parameters['id'];
+      if (videoId != null && videoId.isNotEmpty) {
+        _loadVideoFromDeepLink(videoId, args);
+      } else {
+        videoError.value = true;
+        rxErrorMessage.value = 'Video data not found';
+        rxIsLoading.value = false;
+      }
+    }
+  }
+
+  Future<void> _loadVideoFromDeepLink(String videoId, Map<String, dynamic>? args) async {
+    rxIsLoading.value = true;
+    showThumbnail.value = true;
+
+    // 0. Check offline storage metadata (0ms instant offline startup)
+    try {
+      final offlineMeta = await getOfflineVideoMetadata(videoId);
+      if (offlineMeta != null) {
+        rxIsOffline.value = true;
+        if (offlineMeta.isAudioOnly) {
+          isAudioOnly.value = true;
+        }
+        final offlineVideo = Video.fromOffline(offlineMeta);
+        _video.value = offlineVideo;
+        _initLoadedVideo(args);
+        return;
+      }
+    } catch (_) {}
+
+    // 1. Check in-memory entity cache (0ms instant startup)
+    final cached = DeepLinkService.instance.getVideoFromCache(videoId);
+    if (cached != null) {
+      debugPrint('[VideoController] ⚡ 0ms instant cache hit for video: $videoId');
+      _video.value = cached;
+      _initLoadedVideo(args);
       return;
     }
 
+    // 2. Check prerendered web hydration
+    if (VideoHydrationService.hasInjectedData()) {
+      final injectedData = VideoHydrationService.getInjectedData();
+      if (injectedData != null) {
+        final hydVideo = Video(
+          id: injectedData['id'] as String? ?? videoId,
+          title: injectedData['title'] as String? ?? 'Video',
+          description: injectedData['description'] as String? ?? '',
+          thumbnailUrl: injectedData['thumbnail'] as String? ?? '',
+          videoUrl: injectedData['videoUrl'] as String?,
+          hlsUrl: injectedData['hlsUrl'] as String? ?? '',
+          dashUrl: injectedData['dashUrl'] as String? ?? '',
+          ownerId: injectedData['creatorId'] as String? ?? 'unknown',
+          channelId: injectedData['channelId'] as String? ?? (injectedData['creatorId'] as String? ?? 'unknown'),
+          channelName: injectedData['creatorName'] as String? ?? 'Creator',
+          category: injectedData['category'] as String? ?? 'General',
+          tags: List<String>.from(injectedData['tags'] as List? ?? []),
+          viewCount: injectedData['viewCount'] as int? ?? 0,
+          vDurationValue: Duration(
+            seconds: injectedData['duration'] as int? ?? 0,
+          ),
+          createdAt: Timestamp.now(),
+        );
+        VideoHydrationService.clearInjectedData();
+        _video.value = hydVideo;
+        DeepLinkService.instance.cacheVideo(hydVideo);
+        _initLoadedVideo(args);
+        return;
+      }
+    }
+
+    // 3. Fast background fetch with persistence
+    try {
+      debugPrint('[VideoController] ⏳ Loading deep-linked video from Firestore: $videoId');
+      final loadedVideo = await DeepLinkService.instance.loadVideo(videoId);
+      if (loadedVideo != null) {
+        _video.value = loadedVideo;
+        DeepLinkService.instance.cacheVideo(loadedVideo);
+        _initLoadedVideo(args);
+      } else {
+        videoError.value = true;
+        rxErrorMessage.value = 'Video not found or has been removed.';
+        rxIsLoading.value = false;
+      }
+    } catch (e) {
+      debugPrint('[VideoController] Deep link video load error: $e');
+      videoError.value = true;
+      rxErrorMessage.value = 'Unable to load video: $e';
+      rxIsLoading.value = false;
+    }
+  }
+
+  void _initLoadedVideo(Map<String, dynamic>? args) {
     final tag = 'video_${video.id}';
     if (!Get.isRegistered<VideoEngagementController>(tag: tag)) {
       engagementController = Get.put(VideoEngagementController(), tag: tag);
@@ -455,8 +570,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
 
     // Check if we are playing a specific clip BEFORE starting playback flow
-    if (args['clip'] != null) {
-      activeClip.value = args['clip'] as VideoClip;
+    if (args?['clip'] != null) {
+      activeClip.value = args!['clip'] as VideoClip;
       debugPrint(
         '[VideoController] 🎬 Starting in Clip Mode: ${activeClip.value?.title}',
       );
@@ -490,6 +605,12 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           );
         }
       }
+    }
+
+    // If we have an active handoff controller from miniplayer, avoid loading states
+    if (VideoPlaybackHandoff.isActive(video.id)) {
+      rxIsLoading.value = false;
+      showThumbnail.value = false;
     }
 
     // 1. Kick off playback immediately for YouTube-style low-latency startup
@@ -554,6 +675,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       channelController = Get.find<ChannelController>(tag: video.id);
     }
 
+    if (rxIsOffline.value) {
+      rxIsLoading.value = false;
+      return;
+    }
+
     if (hasInternet) {
       // Pre-fetch localization (subtitles, audio), credibility (summary, trust, claims), and streaming (chapters)
       final mediaService = VideoMediaService();
@@ -574,8 +700,6 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       _initializeCommentsController();
       _listenToVideoUpdates();
       _listenToLanguageRequests();
-    } else if (rxIsOffline.value) {
-      rxIsLoading.value = false;
     }
   }
 
@@ -677,6 +801,19 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   }
 
   Future<void> _startPlaybackFlow() async {
+    // 0. Check offline storage metadata first for instant 0ms offline playback
+    if (!rxIsOffline.value) {
+      try {
+        final offlineMeta = await getOfflineVideoMetadata(video.id);
+        if (offlineMeta != null) {
+          rxIsOffline.value = true;
+          if (offlineMeta.isAudioOnly) {
+            isAudioOnly.value = true;
+          }
+        }
+      } catch (_) {}
+    }
+
     if (rxIsOffline.value) {
       await _initializeOfflinePlayback();
       return;
@@ -696,6 +833,30 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         fetchAvailableAudioTracks(),
       ]);
     }();
+
+    // Check if we have an active handoff controller (from miniplayer or card hover)
+    final hasHandoff = VideoPlaybackHandoff.isActive(video.id);
+    if (hasHandoff) {
+      debugPrint(
+        '[VideoController] 🚀 Instant handoff playback from active controller for: ${video.id}',
+      );
+      rxIsLoading.value = false;
+      showThumbnail.value = false;
+      await initializeVideoPlayer();
+
+      // Once metadata finishes, update resolutions reactively without re-initializing player
+      metadataFuture.then((_) {
+        if (availableResolutions.isNotEmpty) {
+          final best = availableResolutions.firstWhereOrNull(
+            (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
+          ) ?? availableResolutions.first;
+          if (currentResolution.value?.url != best.url) {
+            currentResolution.value = best;
+          }
+        }
+      });
+      return;
+    }
 
     // 2. YouTube-style playback strategy:
     //    - On native (iOS/Android/Desktop): Use HLS adaptive streaming for instant start
@@ -764,34 +925,61 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   Future<void> _initializeOfflinePlayback() async {
     rxIsLoading.value = true;
     try {
+      final isAudio = isAudioOnly.value || (Get.arguments?['isAudioOnly'] == true);
+      if (isAudio) {
+        isAudioOnly.value = true;
+      }
+
+      // Sync isAudioOnly with TowerPlayerController
+      if (Get.isRegistered<TowerPlayerController>(tag: video.id)) {
+        Get.find<TowerPlayerController>(tag: video.id).isAudioOnly.value =
+            isAudio;
+      } else if (Get.isRegistered<TowerPlayerController>()) {
+        Get.find<TowerPlayerController>().isAudioOnly.value = isAudio;
+      }
+
       if (kIsWeb) {
         final bytes = await getVideoBytes(video.id);
-        if (bytes == null || bytes.isEmpty) {
-          throw Exception('Offline video content not found');
+        if (bytes == null || bytes.length < 512) {
+          throw Exception('Offline media content not found or corrupted');
         }
-        final blob = html.Blob([bytes], 'video/mp4');
+        // Check for M3U8 text playlist header '#EXTM3U'
+        if (bytes.length >= 7 &&
+            bytes[0] == 0x23 && // '#'
+            bytes[1] == 0x45 && // 'E'
+            bytes[2] == 0x58 && // 'X'
+            bytes[3] == 0x54 && // 'T'
+            bytes[4] == 0x4D && // 'M'
+            bytes[5] == 0x33 && // '3'
+            bytes[6] == 0x55) { // 'U'
+          throw Exception('Downloaded file is an HLS playlist rather than direct media. Please re-download.');
+        }
+
+        final mime = isAudio ? 'audio/mpeg' : 'video/mp4';
+        final blob = html.Blob([bytes], mime);
         _offlineBlobUrl = html.Url.createObjectUrl(blob);
       } else {
         final filePath = await getVideoFilePath(video.id);
-        if (filePath != null && File(filePath).existsSync()) {
+        if (filePath != null && File(filePath).existsSync() && (await File(filePath).length()) > 512) {
           _offlineBlobUrl = filePath;
         } else {
           final bytes = await getVideoBytes(video.id);
-          if (bytes == null || bytes.isEmpty) {
-            throw Exception('Offline video content not found');
+          if (bytes == null || bytes.length < 512) {
+            throw Exception('Offline media content not found or corrupted');
           }
-          final dir = await getApplicationDocumentsDirectory();
-          final videoFile = File('${dir.path}/offline_videos/${video.id}.mp4');
-          await videoFile.parent.create(recursive: true);
-          await videoFile.writeAsBytes(bytes);
-          _offlineBlobUrl = videoFile.path;
+          final dir = await getOfflineDirectory();
+          final ext = isAudio ? 'mp3' : 'mp4';
+          final mediaFile = File('${dir.path}/${video.id}.$ext');
+          await mediaFile.parent.create(recursive: true);
+          await mediaFile.writeAsBytes(bytes);
+          _offlineBlobUrl = mediaFile.path;
         }
       }
 
       // Create a dummy resolution for the UI
       availableResolutions.assignAll([
         VideoResolutionV2(
-          label: 'Offline',
+          label: isAudio ? 'Audio only' : 'Offline',
           url: _offlineBlobUrl!,
           width: 0,
           height: 0,
@@ -804,7 +992,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     } catch (e) {
       debugPrint('[VideoController] ❌ Offline init error: $e');
       videoError.value = true;
-      rxErrorMessage.value = 'Failed to load offline video';
+      rxErrorMessage.value = 'Failed to load offline media: $e';
     } finally {
       rxIsLoading.value = false;
     }
@@ -829,6 +1017,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           debugPrint('[VideoController] 📊 Variants count: ${variants.length}');
 
           final fetchTasks = <Future<VideoResolutionV2?>>[];
+          final foundVariants = <VideoResolutionV2>[];
 
           for (final entry in variants.entries) {
             final variantData = entry.value as Map<String, dynamic>;
@@ -838,73 +1027,77 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             debugPrint('[VideoController] 🛠️ Variant $label status: $status');
 
             if (status == 'completed') {
+              final directDownloadUrl = variantData['downloadUrl'] as String?;
               final outputPath = variantData['outputPath'] as String?;
-              if (outputPath == null) {
-                debugPrint('[VideoController] ⚠️ No outputPath for $label');
-                continue;
-              }
-
-              fetchTasks.add(() async {
-                try {
-                  String url;
-                  if (outputPath.startsWith('gs://')) {
-                    url = await FirebaseStorage.instance
-                        .refFromURL(outputPath)
-                        .getDownloadURL();
-                  } else {
-                    url = await FirebaseStorage.instance
-                        .ref(outputPath)
-                        .getDownloadURL();
-                  }
-                  return VideoResolutionV2(
+              
+              if (directDownloadUrl != null && directDownloadUrl.isNotEmpty) {
+                foundVariants.add(
+                  VideoResolutionV2(
                     label: label as String,
-                    url: url,
+                    url: directDownloadUrl,
                     width: (variantData['width'] as num?)?.toInt() ?? 0,
                     height: (variantData['height'] as num?)?.toInt() ?? 0,
                     bitrate: (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
-                  );
-                } catch (e) {
-                  debugPrint(
-                    '[VideoController] ❌ Failed to get URL for $label: $e',
-                  );
-                  return null;
-                }
-              }());
-            }
-          }
-
-          final results = await Future.wait(fetchTasks);
-          final found = results.whereType<VideoResolutionV2>().toList();
-
-          // Sort by height descending
-          found.sort((a, b) => b.height.compareTo(a.height));
-          availableResolutions.assignAll(found);
-
-          // Update ABR ladder with real variants
-          if (Get.isRegistered<AdaptiveBitrateController>()) {
-            final abr = Get.find<AdaptiveBitrateController>();
-            final ladder = found.reversed
-                .map(
-                  (v) => ResolutionTier(
-                    label: v.label,
-                    url: v.url,
-                    height: v.height,
-                    bitrate: v.bitrate,
-                    minBandwidth: (v.bitrate * 1.2).toInt(), // 20% margin
                   ),
-                )
-                .toList();
-
-            if (ladder.isNotEmpty) {
-              abr.resolutionLadder = ladder;
-              // Reset to a reasonable middle tier if we just loaded them
-              abr.currentTierIndex.value = (ladder.length / 2).floor();
+                );
+              } else if (outputPath != null && outputPath.isNotEmpty) {
+                fetchTasks.add(() async {
+                  try {
+                    String url;
+                    if (outputPath.startsWith('gs://')) {
+                      url = await FirebaseStorage.instance
+                          .refFromURL(outputPath)
+                          .getDownloadURL();
+                    } else {
+                      url = await FirebaseStorage.instance
+                          .ref(outputPath)
+                          .getDownloadURL();
+                    }
+                    return VideoResolutionV2(
+                      label: label as String,
+                      url: url,
+                      width: (variantData['width'] as num?)?.toInt() ?? 0,
+                      height: (variantData['height'] as num?)?.toInt() ?? 0,
+                      bitrate: (variantData['bitrateKbps'] as num?)?.toInt() ?? 0,
+                    );
+                  } catch (e) {
+                    debugPrint(
+                      '[VideoController] ❌ Failed to get URL for $label: $e',
+                    );
+                    return null;
+                  }
+                }());
+              }
             }
           }
 
-          debugPrint(
-            '[VideoController] ✅ Successfully loaded ${availableResolutions.length} resolutions',
-          );
+          if (fetchTasks.isNotEmpty) {
+            final results = await Future.wait(fetchTasks);
+            foundVariants.addAll(results.whereType<VideoResolutionV2>());
+          }
+
+          if (foundVariants.isNotEmpty) {
+            // Sort by height descending
+            foundVariants.sort((a, b) => b.height.compareTo(a.height));
+            availableResolutions.assignAll(foundVariants);
+
+            // Update ABR ladder with real variants
+            if (Get.isRegistered<AdaptiveBitrateController>()) {
+              final abr = Get.find<AdaptiveBitrateController>();
+              final ladder = foundVariants.reversed
+                  .map(ResolutionTier.fromVideoResolution)
+                  .toList();
+
+              if (ladder.isNotEmpty) {
+                abr.resolutionLadder = ladder;
+                abr.currentTierIndex.value = (ladder.length / 2).floor();
+              }
+            }
+
+            debugPrint(
+              '[VideoController] ✅ Successfully loaded ${availableResolutions.length} resolutions',
+            );
+          }
         } else {
           debugPrint('[VideoController] ⚠️ No variants field in document');
         }
@@ -912,9 +1105,44 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         debugPrint('[VideoController] ℹ️ No resolution job found for $docId');
       }
 
-      // FALLBACK: If no resolutions found in resolution_jobs, check the Video model itself
+      // FALLBACK 1: If no resolutions from resolution_jobs, check video.adaptiveResolutions
+      if (availableResolutions.isEmpty && video.adaptiveResolutions.isNotEmpty) {
+        final modelResolutions = video.adaptiveResolutions
+            .where((r) => r.url.trim().isNotEmpty)
+            .toList();
+        if (modelResolutions.isNotEmpty) {
+          modelResolutions.sort((a, b) => b.height.compareTo(a.height));
+          availableResolutions.assignAll(modelResolutions);
+
+          if (Get.isRegistered<AdaptiveBitrateController>()) {
+            final abr = Get.find<AdaptiveBitrateController>();
+            final ladder = modelResolutions.reversed
+                .map(ResolutionTier.fromVideoResolution)
+                .toList();
+            if (ladder.isNotEmpty) {
+              abr.resolutionLadder = ladder;
+              abr.currentTierIndex.value = (ladder.length / 2).floor();
+            }
+          }
+          debugPrint(
+            '[VideoController] 💡 Loaded ${availableResolutions.length} resolutions from video.adaptiveResolutions',
+          );
+        }
+      }
+
+      // FALLBACK 2: If still empty, fallback to HLS / Original & standard ladder
       if (availableResolutions.isEmpty) {
         debugPrint('[VideoController] 💡 Using model fallback for resolutions');
+        final baseMediaUrl = video.originalUrl.isNotEmpty &&
+                !video.originalUrl.contains('.m3u8') &&
+                !video.originalUrl.contains('.mpd')
+            ? video.originalUrl
+            : (video.videoUrl.isNotEmpty &&
+                    !video.videoUrl.contains('.m3u8') &&
+                    !video.videoUrl.contains('.mpd')
+                ? video.videoUrl
+                : '');
+
         if (video.hlsUrl.isNotEmpty) {
           availableResolutions.add(
             VideoResolutionV2(
@@ -925,7 +1153,55 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
               bitrate: 0,
             ),
           );
-        } else if (video.originalUrl.isNotEmpty) {
+        }
+
+        if (baseMediaUrl.isNotEmpty) {
+          availableResolutions.addAll([
+            VideoResolutionV2(
+              label: '1080p',
+              url: baseMediaUrl,
+              width: 1920,
+              height: 1080,
+              bitrate: 4500000,
+            ),
+            VideoResolutionV2(
+              label: '720p',
+              url: baseMediaUrl,
+              width: 1280,
+              height: 720,
+              bitrate: 2500000,
+            ),
+            VideoResolutionV2(
+              label: '480p',
+              url: baseMediaUrl,
+              width: 854,
+              height: 480,
+              bitrate: 1200000,
+            ),
+            VideoResolutionV2(
+              label: '360p',
+              url: baseMediaUrl,
+              width: 640,
+              height: 360,
+              bitrate: 800000,
+            ),
+            VideoResolutionV2(
+              label: '240p',
+              url: baseMediaUrl,
+              width: 426,
+              height: 240,
+              bitrate: 400000,
+            ),
+            VideoResolutionV2(
+              label: '144p',
+              url: baseMediaUrl,
+              width: 256,
+              height: 144,
+              bitrate: 200000,
+            ),
+          ]);
+        } else if (video.originalUrl.isNotEmpty &&
+            !availableResolutions.any((r) => r.label == 'Original')) {
           availableResolutions.add(
             VideoResolutionV2(
               label: 'Original',
@@ -1139,129 +1415,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   }
 
   List<SubtitleSegment> _parseTranscriptContent(String content) {
-    var raw = content;
-    if (raw.startsWith('\uFEFF')) raw = raw.substring(1);
-    final trimmed = raw.trim();
-
-    // 1. JSON
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      try {
-        final decoded = jsonDecode(trimmed);
-        final segs = <SubtitleSegment>[];
-        if (decoded is List) {
-          for (final item in decoded) {
-            if (item is Map) {
-              final startNum = (item['start'] ?? item['startMs'] ?? item['startTime'] ?? 0) as num;
-              final endNum = (item['end'] ?? item['endMs'] ?? item['endTime'] ?? (startNum + 2000)) as num;
-              final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
-              final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
-              final text = (item['text'] ?? item['sentence'] ?? item['transcript'] ?? '').toString().trim();
-              if (text.isNotEmpty) {
-                segs.add(SubtitleSegment(start: Duration(milliseconds: startMs), end: Duration(milliseconds: endMs), text: text));
-              }
-            }
-          }
-          if (segs.isNotEmpty) return segs;
-        } else if (decoded is Map) {
-          final list = (decoded['segments'] ?? decoded['utterances'] ?? decoded['paragraphs']) as List?;
-          if (list != null) {
-            for (final item in list) {
-              if (item is Map) {
-                final startNum = (item['start'] ?? item['startMs'] ?? item['startTime'] ?? 0) as num;
-                final endNum = (item['end'] ?? item['endMs'] ?? item['endTime'] ?? (startNum + 2000)) as num;
-                final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
-                final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
-                final text = (item['text'] ?? item['sentence'] ?? item['transcript'] ?? '').toString().trim();
-                if (text.isNotEmpty) {
-                  segs.add(SubtitleSegment(start: Duration(milliseconds: startMs), end: Duration(milliseconds: endMs), text: text));
-                }
-              }
-            }
-            if (segs.isNotEmpty) return segs;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 2. SRT / VTT
-    var normalized = raw.replaceAll('\r\n', '\n').trim();
-    if (normalized.startsWith('WEBVTT')) {
-      normalized = normalized.replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '').trim();
-    }
-    final srtSegs = <SubtitleSegment>[];
-    for (final block in normalized.split('\n\n')) {
-      final lines = block.trim().split('\n');
-      if (lines.length < 2) continue;
-      var timeLine = '';
-      var textStart = 0;
-      if (lines[0].contains('-->')) {
-        timeLine = lines[0];
-        textStart = 1;
-      } else if (lines.length >= 2 && lines[1].contains('-->')) {
-        timeLine = lines[1];
-        textStart = 2;
-      } else {
-        continue;
-      }
-      final times = timeLine.split(' --> ');
-      if (times.length != 2) continue;
-      if (lines.length <= textStart) continue;
-      final text = lines.sublist(textStart).join('\n').trim();
-      if (text.isNotEmpty) {
-        srtSegs.add(
-          SubtitleSegment(
-            start: _parseTimeDuration(times[0]),
-            end: _parseTimeDuration(times[1]),
-            text: text,
-          ),
-        );
-      }
-    }
-    if (srtSegs.isNotEmpty) return srtSegs;
-
-    // 3. Plain text fallback
-    final lines = raw
-        .replaceAll('\r\n', '\n')
-        .split(RegExp(r'\n{2,}|\n(?=[A-Z0-9])'))
-        .map((l) => l.replaceAll('\n', ' ').trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-    if (lines.isNotEmpty) {
-      final segs = <SubtitleSegment>[];
-      for (var i = 0; i < lines.length; i++) {
-        final startMs = i * 4000;
-        final endMs = (i + 1) * 4000;
-        segs.add(SubtitleSegment(start: Duration(milliseconds: startMs), end: Duration(milliseconds: endMs), text: lines[i]));
-      }
-      return segs;
-    }
-
-    return [];
-  }
-
-  Duration _parseTimeDuration(String t) {
-    final cleanTime = t.trim().split(RegExp(r'\s+'))[0].replaceAll(',', '.');
-    final parts = cleanTime.split(':');
-    if (parts.length < 2) return Duration.zero;
-    var h = 0;
-    var m = 0;
-    var sSec = '';
-    if (parts.length == 3) {
-      h = int.tryParse(parts[0]) ?? 0;
-      m = int.tryParse(parts[1]) ?? 0;
-      sSec = parts[2];
-    } else if (parts.length == 2) {
-      m = int.tryParse(parts[0]) ?? 0;
-      sSec = parts[1];
-    }
-    final sParts = sSec.split('.');
-    final s = int.tryParse(sParts[0]) ?? 0;
-    var ms = 0;
-    if (sParts.length > 1) {
-      final msStr = sParts[1].padRight(3, '0').substring(0, 3);
-      ms = int.tryParse(msStr) ?? 0;
-    }
-    return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
+    return SubtitleParser.parse(content);
   }
 
   /// Fetches the AI Summary from moderation.summary in the video document or credibility cache
@@ -1453,7 +1607,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
 
     // Manage thumbnail overlay & playing state
-    isPlayingRx.value = value.isPlaying;
+    if (isPlayingRx.value != value.isPlaying) {
+      isPlayingRx.value = value.isPlaying;
+    }
     if (value.isPlaying && showThumbnail.value) {
       showThumbnail.value = false;
     }
@@ -1462,7 +1618,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     if (value.isPlaying && !value.isBuffering) {
       if (!_watchStopwatch.isRunning) _watchStopwatch.start();
     } else {
-      if (_watchStopwatch.isRunning) _watchStopwatch.stop();
+      if (_watchStopwatch.isRunning) {
+        _watchStopwatch.stop();
+        _flushRemainingWatchTime();
+      }
     }
 
     if (!value.isInitialized) return;
@@ -1470,14 +1629,19 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     final currentWatchSeconds = _watchStopwatch.elapsed.inSeconds;
     final totalDuration = value.duration.inSeconds;
 
-    // 1. Qualified View at 20s — with 24h cooldown per user per video
-    const watchThreshold = 20;
+    // 1. Qualified View: 20s for standard videos, or min(20, duration * 0.8) for short videos (Industry Standard)
+    final effectiveWatchThreshold = totalDuration > 0
+        ? math.min(20, (totalDuration >= 5 ? (totalDuration * 0.8).round() : totalDuration))
+        : 20;
 
-    if (!_hasCountedQualifiedView && currentWatchSeconds >= watchThreshold) {
+    if (!_hasCountedQualifiedView &&
+        currentWatchSeconds >= effectiveWatchThreshold &&
+        effectiveWatchThreshold > 0) {
       if (_canCountQualifiedView()) {
         _hasCountedQualifiedView = true;
         mainController.incrementViews(
           videoId: video.id,
+          channelId: video.channelId,
           userId: _viewerHash.isNotEmpty
               ? _viewerHash
               : (AuthService.to.uid.isNotEmpty
@@ -1495,7 +1659,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         _markQualifiedViewTimestamp();
 
         debugPrint(
-          '[VideoController] ✅ Qualified view at $currentWatchSeconds s',
+          '[VideoController] ✅ Qualified view counted at $currentWatchSeconds s (threshold: $effectiveWatchThreshold s)',
         );
       }
     }
@@ -1513,21 +1677,66 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
     }
 
-    // 3. Update watch history periodically (every 5s - optimized for resume)
-    if (currentWatchSeconds - _lastReportedWatchTime >= 5) {
+    // 3. Cost-Effective Watch Time Heartbeat (every 20s) with auto-flush on pause/exit
+    final unpingedSeconds = currentWatchSeconds - _lastPingWatchSeconds;
+    if (unpingedSeconds >= _watchPingIntervalSeconds) {
+      _pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, unpingedSeconds);
+      _lastPingWatchSeconds = currentWatchSeconds;
+    }
+
+    // 4. Update watch history periodically (every 15s - optimized for resume)
+    if (currentWatchSeconds - _lastReportedWatchTime >= _watchHistoryIntervalSeconds) {
       _syncWatchHistory(currentWatchSeconds, totalDuration);
       _lastReportedWatchTime = currentWatchSeconds;
     }
 
-    // 4. Handle video completion for loop and autoplay next
+    // 5. Handle video completion for loop and autoplay next
     _handleVideoCompletion(value);
   }
 
-  /// Check 24h cooldown: 1 qualified view per user per video per 24h
+  /// Flush uncommitted watch time seconds to server on pause or exit
+  void _flushRemainingWatchTime() {
+    final currentWatchSeconds = _watchStopwatch.elapsed.inSeconds;
+    final delta = currentWatchSeconds - _lastPingWatchSeconds;
+    if (delta > 0 && isVpcInitialized) {
+      final totalDuration = _videoPlayerController!.value.duration.inSeconds;
+      _lastPingWatchSeconds = currentWatchSeconds;
+      _pingWatchEvent('watch_ping', currentWatchSeconds, totalDuration, delta);
+    }
+  }
+
+  /// Ping watch time delta to backend
+  Future<void> _pingWatchEvent(
+    String eventType,
+    int position,
+    int duration,
+    int deltaSeconds,
+  ) async {
+    if (deltaSeconds <= 0 && eventType == 'watch_ping') return;
+    final isSub = isSubscribed.value;
+
+    mainController.trackWatchEvent(
+      videoId: video.id,
+      channelId: video.channelId,
+      eventType: eventType,
+      position: position,
+      duration: duration,
+      watchTimeSecondsDelta: deltaSeconds,
+      isSubscriber: isSub,
+      isNotSubscriber: !isSub,
+      trafficSource: _trafficSource,
+      viewerHash: _viewerHash.isNotEmpty ? _viewerHash : null,
+    );
+  }
+
+  /// Check 24h cooldown: 1 qualified view per user/device per video per 24h
   bool _canCountQualifiedView() {
     try {
       final storage = GetStorage();
-      final key = 'qv_${video.id}_${AuthService.to.uid}';
+      final identifier = AuthService.to.uid.isNotEmpty
+          ? AuthService.to.uid
+          : (_viewerHash.isNotEmpty ? _viewerHash : 'device');
+      final key = 'qv_${video.id}_$identifier';
       final lastTimestamp = storage.read<int>(key);
       if (lastTimestamp == null) return true;
       final lastTime = DateTime.fromMillisecondsSinceEpoch(lastTimestamp);
@@ -1541,7 +1750,10 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   void _markQualifiedViewTimestamp() {
     try {
       final storage = GetStorage();
-      final key = 'qv_${video.id}_${AuthService.to.uid}';
+      final identifier = AuthService.to.uid.isNotEmpty
+          ? AuthService.to.uid
+          : (_viewerHash.isNotEmpty ? _viewerHash : 'device');
+      final key = 'qv_${video.id}_$identifier';
       storage.write(key, DateTime.now().millisecondsSinceEpoch);
     } catch (e) {
       debugPrint('[VideoController] Error writing view timestamp: $e');
@@ -1565,12 +1777,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       } catch (_) {}
     }
 
+    final delta = position - _lastPingWatchSeconds;
+    if (delta > 0) {
+      _lastPingWatchSeconds = position;
+    }
+
     mainController.trackWatchEvent(
       videoId: video.id,
+      channelId: video.channelId,
       eventType: eventType,
       position: position,
       duration: duration,
-      watchTimeSecondsDelta: position - _lastReportedWatchTime,
+      watchTimeSecondsDelta: delta > 0 ? delta : 0,
       isSubscriber: isSub,
       isNotSubscriber: !isSub,
       trafficSource: _trafficSource,
@@ -1623,8 +1841,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     final shouldAutoplayNext =
         towerPlayerController?.isAutoplay.value ?? isAutoplay.value;
 
-    // Track completion via watch history
+    // Track completion via watch history & flush final watch seconds
     final totalDuration = _videoPlayerController?.value.duration.inSeconds ?? 0;
+    _flushRemainingWatchTime();
     _syncWatchHistory(_watchStopwatch.elapsed.inSeconds, totalDuration);
 
     if (shouldLoop) {
@@ -2387,21 +2606,28 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         }
       }
 
-      // Resolve gs:// storage references to HTTPS download URLs
-      if (targetUrl != null && targetUrl.startsWith('gs://')) {
+      // Resolve gs:// and raw storage.googleapis.com references to HTTPS download URLs
+      if (targetUrl != null &&
+          (targetUrl.startsWith('gs://') ||
+              targetUrl.startsWith('https://storage.googleapis.com/') ||
+              (targetUrl.contains('firebasestorage.googleapis.com') &&
+                  !targetUrl.contains('token=')))) {
         debugPrint(
-          '[VideoController] ⚠️ Resolving gs:// URL to HTTPS download URL...',
+          '[VideoController] ⚠️ Resolving storage URL to authenticated HTTPS download URL...',
         );
         try {
           targetUrl = await FirebaseStorage.instance
               .refFromURL(targetUrl)
               .getDownloadURL();
+          final displayUrl = targetUrl.length > 60
+              ? '${targetUrl.substring(0, 60)}...'
+              : targetUrl;
           debugPrint(
-            '[VideoController] ✅ Resolved to: ${targetUrl.substring(0, 60)}...',
+            '[VideoController] ✅ Resolved to: $displayUrl',
           );
+
         } catch (e) {
-          debugPrint('[VideoController] ❌ Failed to resolve gs:// URL: $e');
-          targetUrl = null;
+          debugPrint('[VideoController] ❌ Failed to resolve storage URL: $e');
         }
       }
 
@@ -2451,24 +2677,38 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           false,
         ); // Disable looping which was enabled for hover previews
         await newVpc.setVolume(1); // Reset volume to unmute on watch screen
+        rxIsLoading.value = false;
+        showThumbnail.value = false;
       } else if (!kIsWeb &&
           rxIsOffline.value &&
           !targetUrl.startsWith('http') &&
           !targetUrl.startsWith('blob:')) {
         newVpc = VideoPlayerController.file(
           File(targetUrl),
-          videoPlayerOptions: VideoPlayerOptions(),
+          videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: true,
+            allowBackgroundPlayback: true,
+          ),
         );
       } else {
         newVpc = (rxIsOffline.value && targetUrl.startsWith('blob:'))
-            ? VideoPlayerController.networkUrl(Uri.parse(targetUrl))
+            ? VideoPlayerController.networkUrl(
+                Uri.parse(targetUrl),
+                videoPlayerOptions: VideoPlayerOptions(
+                  mixWithOthers: true,
+                  allowBackgroundPlayback: true,
+                ),
+              )
             : VideoPlayerController.networkUrl(
                 Uri.parse(targetUrl),
                 httpHeaders: const {
                   'Connection': 'keep-alive',
                   'Accept': '*/*',
                 },
-                videoPlayerOptions: VideoPlayerOptions(),
+                videoPlayerOptions: VideoPlayerOptions(
+                  mixWithOthers: true,
+                  allowBackgroundPlayback: true,
+                ),
               );
       }
 
@@ -2492,6 +2732,12 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         await newVpc.play();
       } catch (e) {
         debugPrint('[VideoController] Note: Immediate play trigger exception: $e');
+        if (kIsWeb) {
+          try {
+            await newVpc.setVolume(0);
+            await newVpc.play();
+          } catch (_) {}
+        }
       }
 
       // --- CLIP MODE & RESUME LOGIC ---
@@ -2501,6 +2747,12 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           '[VideoController] 🎬 Seeking player to clip start time: ${activeClip.value!.startTime}s ($startMs ms)',
         );
         await newVpc.seekTo(Duration(milliseconds: startMs));
+      } else if (_initialSeekPosition != null && _initialSeekPosition! > Duration.zero) {
+        debugPrint(
+          '[VideoController] ⏩ Seeking player to deep-link timestamp: ${_initialSeekPosition!.inSeconds}s',
+        );
+        await newVpc.seekTo(_initialSeekPosition!);
+        _initialSeekPosition = null; // Consume once
       } else {
         final lastPos = WatchHistoryService.to.getLastPosition(video.id);
         if (lastPos > 0 && lastPos < newVpc.value.duration.inSeconds - 10) {
@@ -2538,6 +2790,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
         mainController.trackWatchEvent(
           videoId: video.id,
+          channelId: video.channelId,
           eventType: 'video_start',
           position: 0,
           duration: newVpc.value.duration.inSeconds,
@@ -2676,27 +2929,20 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     try {
       if (_videoPlayerController?.value.hasError ?? false) {
         final error = _videoPlayerController?.value.errorDescription ?? '';
-        debugPrint('[VideoController] ❌ Video error: $error');
 
-        // If we are currently offline, don't show a fatal error yet,
-        // just wait for connectivity listener to trigger recovery.
-        if (!Get.find<ConnectivityService>().isConnected) {
-          debugPrint(
-            '[VideoController] ⏳ Offline during playback. Waiting for network...',
-          );
-          return;
-        }
-
-        // Ignore transient web race condition: play() interrupted because the
-        // <video> element was removed from the DOM during re-initialization.
-        // This is not a real playback failure and resolves itself.
+        // Ignore transient web race conditions / audio interruptions
         if (error.contains('removed from the document') ||
-            error.contains('play() request was interrupted')) {
+            error.contains('play() request was interrupted') ||
+            error.contains('The play() request was interrupted') ||
+            error.contains('AbortError') ||
+            error.contains('NotAllowedError')) {
           debugPrint(
             '[VideoController] ℹ️ Ignoring transient play() interruption (DOM lifecycle)',
           );
           return;
         }
+
+        debugPrint('[VideoController] ❌ Video error: $error');
 
         // If this is a format/source error and we haven't already tried recovery,
         // attempt to fall back to a transcoded MP4 resolution.
@@ -2882,6 +3128,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       try {
         final totalDuration = _videoPlayerController!.value.duration.inSeconds;
         final watchSeconds = _watchStopwatch.elapsed.inSeconds;
+        _flushRemainingWatchTime();
         _syncWatchHistory(watchSeconds, totalDuration);
       } catch (_) {}
     }
@@ -2988,7 +3235,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     VideoResolutionV2 res, {
     bool isManual = true,
   }) async {
-    if (currentResolution.value?.url == res.url) return;
+    if (currentResolution.value?.url == res.url &&
+        currentResolution.value?.label == res.label) {
+      return;
+    }
+
+    // If the active controller is already playing this exact dataSource URL, update metadata only
+    if (_videoPlayerController != null &&
+        _videoPlayerController!.value.isInitialized &&
+        _videoPlayerController!.dataSource == res.url) {
+      currentResolution.value = res;
+      return;
+    }
 
     final currentPosition =
         _videoPlayerController?.value.position ?? Duration.zero;
@@ -3042,11 +3300,150 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     }
   }
 
-  Future<void> saveVideoOffline(VideoResolutionV2 resolution) async {
-    final targetUrl = resolution.url;
-    if (targetUrl.isEmpty) {
-      Get.snackbar('Error', 'No video URL available to save offline.');
+  Future<String> _resolveDownloadableMediaUrl({required bool isAudioOnly}) async {
+    // 1. If audio only, check audio tracks first (non-m3u8)
+    if (isAudioOnly && video.audioTracks.isNotEmpty) {
+      final track = video.audioTracks.values.firstWhere(
+        (t) => t.isNotEmpty && !t.contains('.m3u8') && !t.contains('.mpd'),
+        orElse: () => '',
+      );
+      if (track.isNotEmpty) return StorageUtils.getFastDownloadUrl(track);
+    }
+
+    // 2. Check availableResolutions for progressive MP4s
+    if (availableResolutions.isNotEmpty) {
+      final mp4Res = availableResolutions
+          .where((r) => r.url.isNotEmpty && !r.url.contains('.m3u8') && !r.url.contains('.mpd'))
+          .toList();
+      if (mp4Res.isNotEmpty) {
+        if (isAudioOnly) {
+          // Lowest resolution is best for audio-only (fastest download & least bandwidth)
+          mp4Res.sort((a, b) => a.height.compareTo(b.height));
+        } else {
+          mp4Res.sort((a, b) => b.height.compareTo(a.height));
+        }
+        return StorageUtils.getFastDownloadUrl(mp4Res.first.url);
+      }
+    }
+
+    // 3. Check video.adaptiveResolutions
+    if (video.adaptiveResolutions.isNotEmpty) {
+      final mp4Res = video.adaptiveResolutions
+          .where((r) => r.url.isNotEmpty && !r.url.contains('.m3u8') && !r.url.contains('.mpd'))
+          .toList();
+      if (mp4Res.isNotEmpty) {
+        if (isAudioOnly) {
+          mp4Res.sort((a, b) => a.height.compareTo(b.height));
+        } else {
+          mp4Res.sort((a, b) => b.height.compareTo(a.height));
+        }
+        return StorageUtils.getFastDownloadUrl(mp4Res.first.url);
+      }
+    }
+
+    // 4. Check Firestore resolution_jobs variants
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('resolution_jobs')
+          .doc(video.id)
+          .getCacheFirst();
+      if (doc.exists && doc.data() != null && doc.data()!['variants'] != null) {
+        final variants = doc.data()!['variants'] as Map<String, dynamic>;
+        for (final entry in variants.entries) {
+          final vData = entry.value as Map<String, dynamic>;
+          if (vData['status'] == 'completed') {
+            final downloadUrl = vData['downloadUrl'] as String?;
+            if (downloadUrl != null &&
+                downloadUrl.isNotEmpty &&
+                !downloadUrl.contains('.m3u8') &&
+                !downloadUrl.contains('.mpd')) {
+              return downloadUrl;
+            }
+            final outputPath = vData['outputPath'] as String?;
+            if (outputPath != null &&
+                outputPath.isNotEmpty &&
+                !outputPath.contains('.m3u8') &&
+                !outputPath.contains('.mpd')) {
+              return StorageUtils.getFastDownloadUrl(outputPath);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 5. Check video.originalUrl (if not m3u8/mpd)
+    if (video.originalUrl.isNotEmpty &&
+        !video.originalUrl.contains('.m3u8') &&
+        !video.originalUrl.contains('.mpd')) {
+      return StorageUtils.getFastDownloadUrl(video.originalUrl);
+    }
+
+    // 6. Check video.videoUrl (if not m3u8/mpd)
+    if (video.videoUrl.isNotEmpty &&
+        !video.videoUrl.contains('.m3u8') &&
+        !video.videoUrl.contains('.mpd')) {
+      return StorageUtils.getFastDownloadUrl(video.videoUrl);
+    }
+
+    return '';
+  }
+
+  bool _validateDownloadSettings() {
+    if (!Get.isRegistered<UserSettingsController>()) return true;
+    final dl = UserSettingsController.to.downloads.value;
+
+    // 1. Wi-Fi Only Check
+    if (dl.wifiOnly) {
+      final isWifi = !Get.isRegistered<ConnectivityService>() ||
+          ConnectivityService.to.isWifi;
+      if (!isWifi) {
+        Get.snackbar(
+          'Wi-Fi Required',
+          'Downloads are restricted to Wi-Fi connections in Settings.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: const Color(0xFF1E1E1E),
+          colorText: Colors.white,
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> saveAudioOffline() async {
+    if (isDownloading.value) {
+      Get.snackbar('Info', 'Download is already in progress.');
       return;
+    }
+
+    final downloadsCtrl = Get.isRegistered<DownloadsController>()
+        ? Get.find<DownloadsController>()
+        : Get.put(DownloadsController());
+
+    isDownloading.value = true;
+    downloadProgress.value = 0.0;
+
+    try {
+      final success = await downloadsCtrl.downloadAudioOffline(
+        video: video,
+        onProgress: (p) => downloadProgress.value = p,
+      );
+      if (success) {
+        await downloadsCtrl.loadVideos();
+      }
+    } finally {
+      isDownloading.value = false;
+      downloadProgress.value = 0.0;
+    }
+  }
+
+  Future<void> saveVideoOffline(
+    VideoResolutionV2 resolution, {
+    bool isAudioOnly = false,
+  }) async {
+    if (isAudioOnly) {
+      return saveAudioOffline();
     }
 
     if (isDownloading.value) {
@@ -3054,54 +3451,22 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       return;
     }
 
+    final downloadsCtrl = Get.isRegistered<DownloadsController>()
+        ? Get.find<DownloadsController>()
+        : Get.put(DownloadsController());
+
     isDownloading.value = true;
     downloadProgress.value = 0.0;
 
     try {
-      final request = http.Request('GET', Uri.parse(targetUrl));
-      final response = await http.Client().send(request);
-      final contentLength = response.contentLength ?? 0;
-
-      final bytes = <int>[];
-      await for (final chunk in response.stream) {
-        bytes.addAll(chunk);
-        if (contentLength > 0) {
-          downloadProgress.value = bytes.length / contentLength;
-        }
+      final success = await downloadsCtrl.downloadVideoOffline(
+        video: video,
+        resolution: resolution,
+        onProgress: (p) => downloadProgress.value = p,
+      );
+      if (success) {
+        await downloadsCtrl.loadVideos();
       }
-
-      final offlineVideo = OfflineVideo(
-        id: video.id,
-        title: '${video.title} (${resolution.label})',
-        channelName: video.channelName,
-        channelImage: video.channelImage,
-        views: FormatUtils.formatCount(video.views),
-        thumbnailUrl: video.thumbnailUrl,
-        downloadedAt: DateTime.now(),
-      );
-
-      await saveOfflineVideoBytes(
-        video.id,
-        Uint8List.fromList(bytes),
-        offlineVideo,
-      );
-
-      Get.snackbar(
-        'Success',
-        'Video saved offline successfully!',
-        backgroundColor: const Color(0xFF10B981),
-        colorText: AppColors.textPrimary,
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-      );
-    } catch (e) {
-      debugPrint('[VideoController] Offline download error: $e');
-      Get.snackbar(
-        'Download Failed',
-        'Could not save video offline: $e',
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: AppColors.textPrimary,
-      );
     } finally {
       isDownloading.value = false;
       downloadProgress.value = 0.0;

@@ -149,6 +149,7 @@ export interface UserNotification {
   metadata?: Record<string, any>;
   read: boolean;
   createdAt: number;
+  pushSent?: boolean;
 }
 
 export interface StudioNotification {

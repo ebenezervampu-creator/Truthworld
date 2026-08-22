@@ -29,6 +29,7 @@ class HomeDiscoveryController extends BaseController {
   final AuthService _authService = Get.find<AuthService>();
 
   static const String _kFeaturedTopicsCacheKey = 'featured_topics_cache';
+  static const String _kQualifyingCategoriesCacheKey = 'qualifying_categories_cache';
   
   final RxList<Topic> featuredTopics = <Topic>[].obs;
   final RxBool isLoadingFeaturedTopics = true.obs;
@@ -41,11 +42,46 @@ class HomeDiscoveryController extends BaseController {
   final RxList<Map<String, dynamic>> subscribedChannelList = <Map<String, dynamic>>[].obs;
   final RxBool isLoadingSubscriptions = false.obs;
 
+  static List<String> getFixedCategories({required bool isAuthenticated}) {
+    return [
+      'All',
+      if (isAuthenticated) 'Subscriptions',
+      '🔥 Trending',
+      '✨ New',
+      '⭐ Popular',
+      'Posts',
+      '🪙 Flip Coin',
+    ];
+  }
+
   @override
   void onInit() {
     super.onInit();
     _loadCachedFeaturedTopics();
+    _loadCachedQualifyingCategories();
     fetchFeaturedTopics();
+    addWorker(
+      ever(_authService.isAuthenticated, (isAuth) {
+        if (!isAuth && selectedCategory.value == 'Subscriptions') {
+          selectCategory('All');
+        }
+        fetchAvailableCategories();
+      }),
+    );
+  }
+
+  void _loadCachedQualifyingCategories() {
+    try {
+      final cachedCats = _storage.read<List>(_kQualifyingCategoriesCacheKey);
+      if (cachedCats != null && cachedCats.isNotEmpty) {
+        final stringCats = cachedCats.map((e) => e.toString()).toList();
+        availableCategories.assignAll(_personalizedSortCategories(stringCats));
+        return;
+      }
+    } catch (e) {
+      debugPrint('HomeDiscoveryController: Error loading cached categories: $e');
+    }
+    availableCategories.assignAll(_personalizedSortCategories([]));
   }
 
   void _loadCachedFeaturedTopics() {
@@ -73,19 +109,21 @@ class HomeDiscoveryController extends BaseController {
   Future<void> fetchFeaturedTopics() async {
     try {
       if (featuredTopics.isEmpty) isLoadingFeaturedTopics.value = true;
-      final snapshot = await _firestore.collection('topics').where('isFeatured', isEqualTo: true).limit(6).get();
+      final snapshot = await _firestore.collection('topics').where('isFeatured', isEqualTo: true).limit(6).getCacheFirst();
       var topicsList = <Topic>[];
       if (snapshot.docs.isNotEmpty) {
         topicsList = snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
       }
       if (topicsList.isEmpty) {
-        final fallbackSnapshot = await _firestore.collection('topics').orderBy('videoCount', descending: true).limit(6).get();
+        final fallbackSnapshot = await _firestore.collection('topics').orderBy('videoCount', descending: true).limit(6).getCacheFirst();
         if (fallbackSnapshot.docs.isNotEmpty) {
           topicsList = fallbackSnapshot.docs.map(Topic.fromDocumentSnapshot).toList();
         }
       }
-      featuredTopics.assignAll(topicsList);
-      _saveFeaturedTopicsToCache();
+      if (topicsList.isNotEmpty) {
+        featuredTopics.assignAll(topicsList);
+        _saveFeaturedTopicsToCache();
+      }
     } catch (e) {
       debugPrint('HomeDiscoveryController: Error fetching featured topics: $e');
     } finally {
@@ -94,6 +132,10 @@ class HomeDiscoveryController extends BaseController {
   }
 
   void selectCategory(String category) {
+    if (category == 'Subscriptions' && !_authService.isAuthenticated.value) {
+      _authService.signInWithGoogle();
+      return;
+    }
     if (selectedCategory.value == category) return;
     selectedCategory.value = category;
     
@@ -147,8 +189,15 @@ class HomeDiscoveryController extends BaseController {
           }
         }
       }
+
+      // Check if we already have cached qualifying categories
+      final cachedCats = _storage.read<List>(_kQualifyingCategoriesCacheKey);
+      if (cachedCats != null && cachedCats.isNotEmpty && categoryCounts.isNotEmpty) {
+        _updateCategoriesFromLoadedVideos();
+        return;
+      }
       
-      final snapshot = await _firestore.collection('videos').where('status', isEqualTo: 'public').limit(500).get();
+      final snapshot = await _firestore.collection('videos').where('status', isEqualTo: 'public').limit(50).getCacheFirst();
       final firestoreCounts = <String, int>{};
       for (final doc in snapshot.docs) {
         final rawCat = (doc.data()['category'] as String?)?.trim();
@@ -161,13 +210,17 @@ class HomeDiscoveryController extends BaseController {
       final mergedCounts = firestoreCounts.isNotEmpty ? firestoreCounts : categoryCounts;
       final qualifyingCategories = <String>[];
       for (final cat in categories) {
-        if ((mergedCounts[cat] ?? 0) >= 2) qualifyingCategories.add(cat);
+        if ((mergedCounts[cat] ?? 0) >= 1) qualifyingCategories.add(cat);
       }
       
       mergedCounts.forEach((cat, count) {
-        if (count >= 2 && !qualifyingCategories.contains(cat) && cat != 'All') qualifyingCategories.add(cat);
+        if (count >= 1 && !qualifyingCategories.contains(cat) && cat != 'All') qualifyingCategories.add(cat);
       });
       
+      if (qualifyingCategories.isNotEmpty) {
+        _storage.write(_kQualifyingCategoriesCacheKey, qualifyingCategories);
+      }
+
       availableCategories.assignAll(_personalizedSortCategories(qualifyingCategories));
       if (Get.isRegistered<HomeNavigationController>()) {
         Get.find<HomeNavigationController>().reinitializeTabController();
@@ -200,7 +253,9 @@ class HomeDiscoveryController extends BaseController {
         });
       }
     }
-    final fixedHead = ['All', 'Subscriptions', '🔥 Trending', '✨ New', '⭐ Popular', 'Posts', '🪙 Flip Coin'];
+    final fixedHead = getFixedCategories(
+      isAuthenticated: _authService.isAuthenticated.value,
+    );
     final result = <String>[...fixedHead];
     for (final cat in watchHistoryCategories) {
       if (!result.contains(cat) && sorted.contains(cat)) result.add(cat);

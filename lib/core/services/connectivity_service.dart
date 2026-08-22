@@ -5,12 +5,15 @@ import 'package:get/get.dart';
 /// Service to monitor network connectivity across the entire application.
 /// Essential for high-scale apps to handle offline states and retry logic.
 class ConnectivityService extends GetxService {
+  static ConnectivityService get to => Get.find<ConnectivityService>();
+
   final Connectivity _connectivity = Connectivity();
   final Rx<ConnectivityResult> _connectionStatus = ConnectivityResult.none.obs;
   bool _isInitial = true;
 
   ConnectivityResult get connectionStatus => _connectionStatus.value;
   bool get isConnected => _connectionStatus.value != ConnectivityResult.none;
+  bool get isWifi => _connectionStatus.value == ConnectivityResult.wifi;
   Stream<List<ConnectivityResult>> get onConnectivityChanged =>
       _connectivity.onConnectivityChanged;
 

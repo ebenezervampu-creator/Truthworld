@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/storage_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
@@ -121,17 +122,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.campaign_rounded,
-              color: AppColors.warning,
-              size: 24,
-            ),
+          const AppLogo(
+            size: 32,
+            borderRadius: 8,
           ),
           const SizedBox(width: 12),
           Column(
@@ -1255,11 +1248,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
   }
 
   void _showAddSubtitlesTrackDialog(AdvertiserPortalController controller) {
-    String? selectedLang = 'hi';
+    final selectedLang = 'hi'.obs;
 
     Get.dialog(
-      StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      Obx(
+        () => AlertDialog(
           backgroundColor: const Color(0xFF161616),
           title: const Text(
             'Add Subtitles Track',
@@ -1288,7 +1281,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: selectedLang,
+                    value: selectedLang.value,
                     dropdownColor: const Color(0xFF161616),
                     iconEnabledColor: AppColors.warning,
                     isExpanded: true,
@@ -1306,9 +1299,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           ),
                     ],
                     onChanged: (val) {
-                      setDialogState(() {
-                        selectedLang = val;
-                      });
+                      if (val != null) {
+                        selectedLang.value = val;
+                      }
                     },
                   ),
                 ),
@@ -1326,15 +1319,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 Get.back();
-                if (selectedLang != null) {
-                  controller.startSubtitleTranslationSimulation(selectedLang!);
-                }
+                controller.startSubtitleTranslationSimulation(selectedLang.value);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: AppColors.bgPage,
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.white,
               ),
-              child: const Text('Translate Subtitles'),
+              child: const Text('Start AI Translation'),
             ),
           ],
         ),
@@ -1698,12 +1689,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
   }
 
   void _showRequestAudioDubDialog(AdvertiserPortalController controller) {
-    String? selectedLang = 'hi';
-    String? selectedVoice = 'natural';
+    final selectedLang = 'hi'.obs;
+    final selectedVoice = 'natural'.obs;
 
     Get.dialog(
-      StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      Obx(
+        () => AlertDialog(
           backgroundColor: const Color(0xFF161616),
           title: const Text(
             'Request AI Voice Dubbing',
@@ -1739,7 +1730,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: selectedLang,
+                    value: selectedLang.value,
                     dropdownColor: const Color(0xFF161616),
                     iconEnabledColor: AppColors.warning,
                     isExpanded: true,
@@ -1757,9 +1748,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           ),
                     ],
                     onChanged: (val) {
-                      setDialogState(() {
-                        selectedLang = val;
-                      });
+                      if (val != null) {
+                        selectedLang.value = val;
+                      }
                     },
                   ),
                 ),
@@ -1780,7 +1771,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: selectedVoice,
+                    value: selectedVoice.value,
                     dropdownColor: const Color(0xFF161616),
                     iconEnabledColor: AppColors.warning,
                     isExpanded: true,
@@ -1808,9 +1799,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ),
                     ],
                     onChanged: (val) {
-                      setDialogState(() {
-                        selectedVoice = val;
-                      });
+                      if (val != null) {
+                        selectedVoice.value = val;
+                      }
                     },
                   ),
                 ),
@@ -1828,13 +1819,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 Get.back();
-                if (selectedLang != null) {
-                  controller.startAudioDubbingSimulation(selectedLang!);
-                }
+                controller.startAudioDubbingSimulation(selectedLang.value);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: AppColors.bgPage,
+                backgroundColor: AppColors.brand,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Request Dubbing'),
             ),

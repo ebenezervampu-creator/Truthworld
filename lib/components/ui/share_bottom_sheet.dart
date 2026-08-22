@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:truthworld/core/services/clip_share_service.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -24,6 +27,11 @@ class ShareBottomSheet extends StatefulWidget {
     this.currentPosition,
     this.channelName,
     this.type,
+    this.clipStartTime,
+    this.clipEndTime,
+    this.videoUrl,
+    this.videoId,
+    this.videoTitle,
   });
   final String title;
   final String url;
@@ -39,6 +47,11 @@ class ShareBottomSheet extends StatefulWidget {
   final Duration? currentPosition;
   final String? channelName;
   final String? type;
+  final double? clipStartTime;
+  final double? clipEndTime;
+  final String? videoUrl;
+  final String? videoId;
+  final String? videoTitle;
 
   static void show({
     required String title,
@@ -55,6 +68,11 @@ class ShareBottomSheet extends StatefulWidget {
     Duration? currentPosition,
     String? channelName,
     String? type,
+    double? clipStartTime,
+    double? clipEndTime,
+    String? videoUrl,
+    String? videoId,
+    String? videoTitle,
   }) {
     Get.bottomSheet(
       ShareBottomSheet(
@@ -72,6 +90,11 @@ class ShareBottomSheet extends StatefulWidget {
         currentPosition: currentPosition,
         channelName: channelName,
         type: type,
+        clipStartTime: clipStartTime,
+        clipEndTime: clipEndTime,
+        videoUrl: videoUrl,
+        videoId: videoId,
+        videoTitle: videoTitle,
       ),
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -90,8 +113,476 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   final RxBool _showControls = true.obs;
   final RxBool _privacyMode = false.obs;
 
+  final RxBool _isPreparingClip = false.obs;
+  final Rxn<File> _clipFile = Rxn<File>();
+  final RxDouble _clipProgress = 0.0.obs;
+  final RxString _clipStatus = ''.obs;
+
+  @override
+  void initState() {
+    super.initState();
+    final contentType = _detectType();
+    if (contentType == 'clip') {
+      _prepareClipFile();
+    }
+  }
+
+  Future<File?> _prepareClipFile() async {
+    if (_clipFile.value != null && await _clipFile.value!.exists()) {
+      return _clipFile.value;
+    }
+    _isPreparingClip.value = true;
+    _clipProgress.value = 0.1;
+    _clipStatus.value = 'Preparing video clip...';
+
+    final start = widget.clipStartTime ?? 0.0;
+    final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+    final vId = widget.videoId ?? _extractVideoId();
+
+    try {
+      final file = await ClipShareService.instance.getOrGenerateClipFile(
+        videoId: vId,
+        videoUrl: widget.videoUrl,
+        startSeconds: start,
+        endSeconds: end,
+        onProgress: (progress, status) {
+          if (!mounted) return;
+          _clipProgress.value = progress;
+          _clipStatus.value = status;
+        },
+      );
+      if (!mounted) return file;
+      if (file != null && await file.exists()) {
+        _clipFile.value = file;
+        _clipProgress.value = 1.0;
+        _clipStatus.value = 'Clip ready!';
+        return file;
+      }
+    } catch (e) {
+      debugPrint('[ShareBottomSheet] Error preparing clip: $e');
+    } finally {
+      if (mounted) {
+        _isPreparingClip.value = false;
+      }
+    }
+    return null;
+  }
+
+  void _showTikTokExportDialog({
+    required String title,
+    required RxDouble progress,
+    required RxString status,
+    required VoidCallback onCancel,
+  }) {
+    Get.dialog<void>(
+      PopScope(
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) onCancel();
+        },
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E24),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Obx(() {
+              final percent = (progress.value * 100).toInt().clamp(0, 100);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 68,
+                        height: 68,
+                        child: CircularProgressIndicator(
+                          value: progress.value > 0 ? progress.value : null,
+                          color: AppColors.brand,
+                          backgroundColor: Colors.white12,
+                          strokeWidth: 4.5,
+                        ),
+                      ),
+                      Text(
+                        '$percent%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    status.value.isNotEmpty
+                        ? status.value
+                        : 'Processing Truthworld video clip...',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  TextButton(
+                    onPressed: () {
+                      onCancel();
+                      Get.back<void>();
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _exportAndShareClipVideo({String? target}) async {
+    final start = widget.clipStartTime ?? 0.0;
+    final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+    final vId = widget.videoId ?? _extractVideoId();
+
+    final shareUrl = ClipShareService.buildClipUrl(
+      videoId: vId,
+      startSeconds: start,
+      endSeconds: end,
+      clipTitle: widget.title,
+    );
+
+    final caption = ClipShareService.buildWatermarkCaption(
+      clipTitle: widget.title,
+      videoTitle: widget.videoTitle ?? widget.title,
+      channelName: widget.channelName,
+      startSeconds: start,
+      endSeconds: end,
+      clipUrl: shareUrl,
+    );
+
+    var file = _clipFile.value;
+    var cancelled = false;
+
+    if (file == null || !await file.exists()) {
+      _showTikTokExportDialog(
+        title: 'Saving video clip...',
+        progress: _clipProgress,
+        status: _clipStatus,
+        onCancel: () => cancelled = true,
+      );
+
+      file = await _prepareClipFile();
+
+      if (Get.isDialogOpen ?? false) {
+        Get.back<void>();
+      }
+    }
+
+    if (cancelled) return;
+
+    final xFile = (file != null && await file.exists())
+        ? XFile(
+            file.path,
+            mimeType: 'video/mp4',
+            name: '${widget.title} (Truthworld Clip).mp4',
+          )
+        : null;
+
+    // Notify user if clip video generation failed so they know why only a link was sent
+    if (xFile == null) {
+      Get.snackbar(
+        'Video Processing',
+        'Could not prepare the video file. Sharing link instead.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.85),
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    }
+
+    // App-specific share: closes bottom sheet first, then delivers video
+    Future<void> shareVideoFile() async {
+      if (Get.isBottomSheetOpen ?? false) Get.back<void>();
+      if (xFile != null) {
+        await SharePlus.instance.share(
+          ShareParams(files: [xFile], text: caption, subject: widget.title),
+        );
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(text: caption, subject: widget.title),
+        );
+      }
+    }
+
+    switch (target) {
+      case 'whatsapp_status':
+        await _showWhatsAppStatusGuideDialog();
+        await shareVideoFile();
+
+      case 'instagram':
+        await _showAppGuideDialog(
+          emoji: '📸',
+          appName: 'Instagram',
+          iconColor: const Color(0xFFDC2743),
+          steps: 'Your Truthworld clip will open in the share sheet.\n\n'
+              'In the share sheet:\n'
+              '1. Tap "Instagram"\n'
+              '2. Select "Reels" or "Story" to post the clip',
+          confirmText: 'Got it — Open Instagram',
+          confirmColor: const Color(0xFFBC1888),
+        );
+        await shareVideoFile();
+
+      case 'tiktok':
+        await _showAppGuideDialog(
+          emoji: '🎵',
+          appName: 'TikTok',
+          iconColor: const Color(0xFF010101),
+          steps: 'Your Truthworld watermarked clip will open in the share sheet.\n\n'
+              'In the share sheet:\n'
+              '1. Tap "TikTok"\n'
+              '2. TikTok opens the video in its editor — add caption and post!',
+          confirmText: 'Got it — Open TikTok',
+          confirmColor: const Color(0xFFFF0050),
+        );
+        await shareVideoFile();
+
+      default:
+        // WhatsApp chat, Telegram, Facebook, X, More — all attach video directly
+        await shareVideoFile();
+    }
+  }
+
+  Future<void> _showWhatsAppStatusGuideDialog() => _showAppGuideDialog(
+        emoji: '📲',
+        appName: 'WhatsApp Status',
+        iconColor: const Color(0xFF25D366),
+        steps: 'Your Truthworld watermarked video clip will open in WhatsApp.\n\n'
+            'To post it as a Status:\n'
+            '1. Tap the WhatsApp icon in the share sheet\n'
+            '2. Select "My Status" at the top',
+        confirmText: 'Got it — Open WhatsApp',
+        confirmColor: const Color(0xFF25D366),
+      );
+
+  Future<void> _showAppGuideDialog({
+    required String emoji,
+    required String appName,
+    required Color iconColor,
+    required String steps,
+    required String confirmText,
+    required Color confirmColor,
+  }) async {
+    await Get.dialog<void>(
+      Dialog(
+        backgroundColor: const Color(0xFF1E1E24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Share to $appName',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                steps,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13.5,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: Get.back<void>,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: confirmColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: Text(
+                    confirmText,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveClipToDevice() async {
+    final start = widget.clipStartTime ?? 0.0;
+    final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+    final vId = widget.videoId ?? _extractVideoId();
+    var cancelled = false;
+
+    _showTikTokExportDialog(
+      title: 'Saving video to gallery...',
+      progress: _clipProgress,
+      status: _clipStatus,
+      onCancel: () => cancelled = true,
+    );
+
+    final savedPath = await ClipShareService.instance.saveClipToDevice(
+      videoId: vId,
+      clipTitle: widget.title,
+      videoUrl: widget.videoUrl,
+      startSeconds: start,
+      endSeconds: end,
+      onProgress: (progress, status) {
+        _clipProgress.value = progress;
+        _clipStatus.value = status;
+      },
+    );
+
+    if (Get.isDialogOpen ?? false) {
+      Get.back<void>();
+    }
+
+    if (cancelled) return;
+
+    if (Get.isBottomSheetOpen ?? false) {
+      Get.back<void>();
+    }
+
+    if (savedPath != null) {
+      Get.snackbar(
+        'Saved to Gallery',
+        'Truthworld watermarked video clip saved successfully',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } else {
+      Get.snackbar(
+        'Save Failed',
+        'Could not save video clip to device',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
+      );
+    }
+  }
+
+  void _copyClipLink() {
+    final start = widget.clipStartTime ?? 0.0;
+    final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+    final vId = widget.videoId ?? _extractVideoId();
+    final clipUrl = ClipShareService.buildClipUrl(
+      videoId: vId,
+      startSeconds: start,
+      endSeconds: end,
+      clipTitle: widget.title,
+    );
+
+    Clipboard.setData(ClipboardData(text: clipUrl));
+    if (Get.isBottomSheetOpen ?? false) {
+      Get.back<void>();
+    }
+    Get.snackbar(
+      'Copied',
+      'Clip link copied to clipboard',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.success,
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  void _shareLinkOnly() {
+    final start = widget.clipStartTime ?? 0.0;
+    final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+    final vId = widget.videoId ?? _extractVideoId();
+    final clipUrl = ClipShareService.buildClipUrl(
+      videoId: vId,
+      startSeconds: start,
+      endSeconds: end,
+      clipTitle: widget.title,
+    );
+
+    if (Get.isBottomSheetOpen ?? false) {
+      Get.back<void>();
+    }
+
+    SharePlus.instance.share(
+      ShareParams(
+        text: 'Watch "${widget.title}" clip on Truthworld:\n$clipUrl',
+        subject: widget.title,
+      ),
+    );
+  }
+
   String _detectType() {
     if (widget.type != null) return widget.type!;
+    if (widget.url.contains('clipTitle') ||
+        (widget.url.contains('start=') && widget.url.contains('end='))) {
+      return 'clip';
+    }
     if (widget.currentPosition != null ||
         widget.durationMs != null ||
         widget.url.contains('/watch')) {
@@ -211,7 +702,304 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     );
   }
 
+  Widget _buildTikTokActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A30),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white12,
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClipAppIcon({
+    required String label,
+    required Gradient gradient,
+    required Widget child,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: gradient,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Center(child: child),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTikTokClipPanel(BuildContext context) {
+    return Column(
+      key: const ValueKey('tiktok_clip_panel'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Drag Handle
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.textSecondary.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+
+        // Header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: Row(
+            children: [
+              const Text(
+                'Share video clip to',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                onPressed: Get.back,
+              ),
+            ],
+          ),
+        ),
+
+        // Clip Preview Card
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+          child: _buildClipCard(),
+        ),
+
+        // Section 1: TikTok Style Social Apps Row
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: Text(
+            'Share Video',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+          child: Row(
+            children: [
+              _buildSocialIcon(
+                imageAsset: 'assets/icons/whatsapp.png',
+                label: 'WhatsApp',
+                onTap: () => _exportAndShareClipVideo(target: 'whatsapp'),
+              ),
+              _buildSocialIcon(
+                icon: Icons.camera_alt_rounded,
+                label: 'Status',
+                onTap: () => _exportAndShareClipVideo(target: 'whatsapp_status'),
+              ),
+              _buildClipAppIcon(
+                label: 'Instagram',
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFFF09433),
+                    Color(0xFFE6683C),
+                    Color(0xFFDC2743),
+                    Color(0xFFCC2366),
+                    Color(0xFFBC1888),
+                  ],
+                  begin: Alignment.bottomLeft,
+                  end: Alignment.topRight,
+                ),
+                child: const Icon(
+                  Icons.photo_camera_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+                onTap: () => _exportAndShareClipVideo(target: 'instagram'),
+              ),
+              _buildClipAppIcon(
+                label: 'TikTok',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF010101), Color(0xFF161616)],
+                ),
+                child: const Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned(
+                      left: 14,
+                      top: 13,
+                      child: Text(
+                        '♪',
+                        style: TextStyle(
+                          color: Color(0xFF00F2EA),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 13,
+                      top: 11,
+                      child: Text(
+                        '♪',
+                        style: TextStyle(
+                          color: Color(0xFFFF0050),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '♪',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                onTap: () => _exportAndShareClipVideo(target: 'tiktok'),
+              ),
+              _buildSocialIcon(
+                imageAsset: 'assets/icons/telegram.png',
+                label: 'Telegram',
+                onTap: () => _exportAndShareClipVideo(target: 'telegram'),
+              ),
+              _buildSocialIcon(
+                imageAsset: 'assets/icons/facebook.png',
+                label: 'Facebook',
+                onTap: () => _exportAndShareClipVideo(target: 'facebook'),
+              ),
+              _buildSocialIcon(
+                imageAsset: 'assets/icons/x.png',
+                label: 'X',
+                onTap: () => _exportAndShareClipVideo(target: 'x'),
+              ),
+              _buildSocialIcon(
+                icon: Icons.more_horiz_rounded,
+                label: 'More',
+                onTap: () => _exportAndShareClipVideo(target: 'more'),
+              ),
+            ],
+          ),
+        ),
+
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Divider(color: AppColors.bgDivider, height: 16),
+        ),
+
+        // Section 2: Actions Row (Save Video, Copy Link, Share Link)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: Text(
+            'Actions',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
+          child: Row(
+            children: [
+              _buildTikTokActionButton(
+                icon: Icons.download_rounded,
+                label: 'Save Video',
+                onTap: _saveClipToDevice,
+              ),
+              _buildTikTokActionButton(
+                icon: Icons.link_rounded,
+                label: 'Copy Link',
+                onTap: _copyClipLink,
+              ),
+              _buildTikTokActionButton(
+                icon: Icons.share_outlined,
+                label: 'Share Link',
+                onTap: _shareLinkOnly,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMainPanel(BuildContext context, String contentType) {
+    if (contentType == 'clip') {
+      return _buildTikTokClipPanel(context);
+    }
+
     return Column(
       key: const ValueKey('main_panel'),
       mainAxisSize: MainAxisSize.min,
@@ -676,6 +1464,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   Widget _buildPreviewCard(String contentType) {
     switch (contentType) {
+      case 'clip':
+        return _buildClipCard();
       case 'channel':
         return _buildChannelCard();
       case 'playlist':
@@ -686,6 +1476,274 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       default:
         return _buildVideoCard();
     }
+  }
+
+  Widget _buildClipCard() {
+    final start = widget.clipStartTime ?? 0.0;
+    final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+    final segment = ClipShareService.formatClipSegment(start, end);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgSurfaceHover,
+            AppColors.bgSurfaceHover.withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.bgPage.withValues(alpha: 0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Clip Thumbnail with overlay
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 124,
+                      height: 124 * 9 / 16,
+                      color: AppColors.bgInput,
+                      child: widget.thumbnailUrl != null &&
+                              widget.thumbnailUrl!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: widget.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  Container(color: AppColors.bgInput),
+                              errorWidget: (context, url, err) => const Center(
+                                child: Icon(
+                                  Icons.content_cut_rounded,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                              ),
+                            )
+                          : const Center(
+                              child: Icon(
+                                Icons.content_cut_rounded,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 5,
+                    right: 5,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgPage.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: AppColors.bgDivider,
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.content_cut,
+                            color: Colors.white,
+                            size: 9,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            FormatUtils.formatDuration(
+                              Duration(seconds: (end - start).toInt()),
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+
+              // Clip Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.brand.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: AppColors.brand.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: const Text(
+                            'CLIP',
+                            style: TextStyle(
+                              color: AppColors.brand,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            widget.channelName ?? 'TruthWorld Creator',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      widget.title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Segment: $segment',
+                      style: const TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Verified Truthworld Watermark Banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.bgPage.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.brand.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.verified_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    '✨ Truthworld Watermarked Video Clip',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Obx(() {
+                  if (_isPreparingClip.value) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 1.5,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _clipStatus.value.isNotEmpty
+                              ? _clipStatus.value
+                              : 'Preparing...',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  if (_clipFile.value != null) {
+                    return const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Ready to share',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildVideoCard() {
@@ -1539,7 +2597,18 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   String _buildShareMessage(String shareUrl) {
     final contentType = _detectType();
-    if (contentType == 'channel') {
+    if (contentType == 'clip') {
+      final start = widget.clipStartTime ?? 0.0;
+      final end = widget.clipEndTime ?? ((widget.durationMs ?? 15000) / 1000.0);
+      return ClipShareService.buildWatermarkCaption(
+        clipTitle: widget.title,
+        videoTitle: widget.videoTitle ?? widget.title,
+        channelName: widget.channelName,
+        startSeconds: start,
+        endSeconds: end,
+        clipUrl: shareUrl,
+      );
+    } else if (contentType == 'channel') {
       final cleanHandle = (widget.handle ?? '').replaceAll(RegExp('^@'), '').trim();
       final handleStr = cleanHandle.isNotEmpty ? ' (@$cleanHandle)' : '';
       return 'Check out ${widget.title}$handleStr on TruthWorld:\n$shareUrl';
@@ -1561,6 +2630,12 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Future<void> _shareToSocial(String platform) async {
+    final contentType = _detectType();
+    if (contentType == 'clip') {
+      await _exportAndShareClipVideo(target: platform);
+      return;
+    }
+
     final shareUrl = _getShareUrl();
     final text = _buildShareMessage(shareUrl);
     final encodedText = Uri.encodeComponent(text);
@@ -1658,6 +2733,12 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   Future<void> _shareNative() async {
+    final contentType = _detectType();
+    if (contentType == 'clip') {
+      await _exportAndShareClipVideo();
+      return;
+    }
+
     final shareUrl = _getShareUrl();
     await SharePlus.instance.share(
       ShareParams(

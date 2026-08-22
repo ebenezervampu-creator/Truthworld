@@ -89,6 +89,8 @@ class CommunityPostUploadController extends BaseController
   final RxBool isDislikeEnabled = true.obs;
   final RxBool showDislikeCount = true.obs;
   final RxBool isCommentsEnabled = true.obs;
+  final RxBool isPinnedPost = false.obs;
+  final RxString descriptionText = ''.obs;
 
   // DRAFT MANAGEMENT
   final currentDraft = Rx<CommunityDraft?>(null);

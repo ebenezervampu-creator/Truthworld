@@ -489,123 +489,122 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
   ) {
     final titleController = TextEditingController(text: playlist.name);
     final descController = TextEditingController(text: playlist.description);
-    var selectedVisibility = playlist.visibility;
+    final selectedVisibility = playlist.visibility.obs;
 
     showDialog<void>(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: isDarkMode
-                  ? AppColors.bgSurface
-                  : AppColors.textPrimary,
-              title: Text(
-                'Edit Playlist',
-                style: TextStyle(
-                  color: isDarkMode ? AppColors.textPrimary : Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
+        return Obx(() {
+          return AlertDialog(
+            backgroundColor: isDarkMode
+                ? AppColors.bgSurface
+                : AppColors.textPrimary,
+            title: Text(
+              'Edit Playlist',
+              style: TextStyle(
+                color: isDarkMode ? AppColors.textPrimary : Colors.black,
+                fontWeight: FontWeight.bold,
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    style: TextStyle(
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  style: TextStyle(
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : Colors.black,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Playlist Name',
+                    labelStyle: TextStyle(
                       color: isDarkMode
-                          ? AppColors.textPrimary
+                          ? AppColors.textSecondary
                           : Colors.black,
                     ),
-                    decoration: InputDecoration(
-                      labelText: 'Playlist Name',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode
-                          ? AppColors.bgInput
-                          : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                    filled: true,
+                    fillColor: isDarkMode
+                        ? AppColors.bgInput
+                        : const Color(0xFFF1F5F9),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descController,
-                    maxLines: 3,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Description',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode
-                          ? AppColors.bgInput
-                          : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<PlaylistVisibility>(
-                    value: selectedVisibility,
-                    dropdownColor: isDarkMode
-                        ? AppColors.bgSurface
-                        : AppColors.textPrimary,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppColors.textPrimary
-                          : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Visibility',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppColors.textSecondary
-                            : Colors.black,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode
-                          ? AppColors.bgInput
-                          : const Color(0xFFF1F5F9),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    items: PlaylistVisibility.values.map((vis) {
-                      return DropdownMenuItem(
-                        value: vis,
-                        child: Text(vis.name.toUpperCase()),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setDialogState(() => selectedVisibility = val);
-                      }
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descController,
+                  maxLines: 3,
+                  style: TextStyle(
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : Colors.black,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Description',
+                    labelStyle: TextStyle(
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : Colors.black,
+                    ),
+                    filled: true,
+                    fillColor: isDarkMode
+                        ? AppColors.bgInput
+                        : const Color(0xFFF1F5F9),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<PlaylistVisibility>(
+                  value: selectedVisibility.value,
+                  dropdownColor: isDarkMode
+                      ? AppColors.bgSurface
+                      : AppColors.textPrimary,
+                  style: TextStyle(
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : Colors.black,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Visibility',
+                    labelStyle: TextStyle(
+                      color: isDarkMode
+                          ? AppColors.textSecondary
+                          : Colors.black,
+                    ),
+                    filled: true,
+                    fillColor: isDarkMode
+                        ? AppColors.bgInput
+                        : const Color(0xFFF1F5F9),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  items: PlaylistVisibility.values.map((vis) {
+                    return DropdownMenuItem(
+                      value: vis,
+                      child: Text(vis.name.toUpperCase()),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      selectedVisibility.value = val;
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
                 ElevatedButton(
                   onPressed: () async {
                     final name = titleController.text.trim();
@@ -649,9 +648,9 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
                           'name': name,
                           'playlistName': name,
                           'description': description,
-                          'visibility': selectedVisibility.name,
+                          'visibility': selectedVisibility.value.name,
                           'isPublic':
-                              selectedVisibility == PlaylistVisibility.public,
+                              selectedVisibility.value == PlaylistVisibility.public,
                           'updatedAt': Timestamp.now(),
                         });
 
@@ -682,7 +681,7 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
     PlaylistModel playlist,
     bool isDarkMode,
   ) {
-    final videoIds = List<String>.from(playlist.videoIds);
+    final rxVideoIds = List<String>.from(playlist.videoIds).obs;
 
     showModalBottomSheet<void>(
       context: context,
@@ -692,141 +691,136 @@ class _PlaylistsManagementScreenState extends State<PlaylistsManagementScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Reorder & Manage Videos',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkMode
-                              ? AppColors.textPrimary
-                              : Colors.black,
-                        ),
+        return Obx(() {
+          final videoIds = rxVideoIds.toList();
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.75,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Reorder & Manage Videos',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode
+                            ? AppColors.textPrimary
+                            : Colors.black,
                       ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.close,
-                          color: isDarkMode
-                              ? AppColors.textPrimary
-                              : Colors.black,
-                        ),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    'Drag items to reorder or remove videos from "${playlist.name}".',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (videoIds.isEmpty)
-                    const Expanded(
-                      child: Center(
-                        child: Text(
-                          'No videos currently added to this playlist.',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.close,
+                        color: isDarkMode
+                            ? AppColors.textPrimary
+                            : Colors.black,
                       ),
-                    )
-                  else
-                    Expanded(
-                      child: ReorderableListView.builder(
-                        itemCount: videoIds.length,
-                        onReorder: (oldIndex, newIndex) {
-                          setModalState(() {
-                            if (newIndex > oldIndex) newIndex -= 1;
-                            final item = videoIds.removeAt(oldIndex);
-                            videoIds.insert(newIndex, item);
-                          });
-                        },
-                        itemBuilder: (context, index) {
-                          final vId = videoIds[index];
-                          return Card(
-                            key: ValueKey(vId),
-                            color: isDarkMode
-                                ? AppColors.bgInput
-                                : const Color(0xFFF1F5F9),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: Icon(
-                                Icons.drag_handle_rounded,
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Drag items to reorder or remove videos from "${playlist.name}".',
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (videoIds.isEmpty)
+                  const Expanded(
+                    child: Center(
+                      child: Text(
+                        'No videos currently added to this playlist.',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      itemCount: videoIds.length,
+                      onReorder: (oldIndex, newIndex) {
+                        if (newIndex > oldIndex) newIndex -= 1;
+                        final item = rxVideoIds.removeAt(oldIndex);
+                        rxVideoIds.insert(newIndex, item);
+                      },
+                      itemBuilder: (context, index) {
+                        final vId = videoIds[index];
+                        return Card(
+                          key: ValueKey(vId),
+                          color: isDarkMode
+                              ? AppColors.bgInput
+                              : const Color(0xFFF1F5F9),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: Icon(
+                              Icons.drag_handle_rounded,
+                              color: isDarkMode
+                                  ? AppColors.textPrimary
+                                  : Colors.black,
+                            ),
+                            title: Text(
+                              'Video ID: $vId',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
                                 color: isDarkMode
                                     ? AppColors.textPrimary
                                     : Colors.black,
                               ),
-                              title: Text(
-                                'Video ID: $vId',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDarkMode
-                                      ? AppColors.textPrimary
-                                      : Colors.black,
-                                ),
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.remove_circle_outline,
-                                  color: AppColors.error,
-                                ),
-                                onPressed: () {
-                                  setModalState(() {
-                                    videoIds.removeAt(index);
-                                  });
-                                },
-                              ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        await _firestore
-                            .collection(FirestoreCollections.playlists)
-                            .doc(playlist.id)
-                            .update({
-                              'videoIds': videoIds,
-                              'videoCount': videoIds.length,
-                              'updatedAt': Timestamp.now(),
-                            });
-                        if (context.mounted) Navigator.pop(ctx);
-                        Get.snackbar(
-                          'Saved',
-                          'Playlist order updated successfully.',
-                          backgroundColor: AppColors.success,
-                          colorText: AppColors.textPrimary,
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: AppColors.error,
+                              ),
+                              onPressed: () {
+                                rxVideoIds.removeAt(index);
+                              },
+                            ),
+                          ),
                         );
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.textPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: const Text('Save Order & Changes'),
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        );
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await _firestore
+                          .collection(FirestoreCollections.playlists)
+                          .doc(playlist.id)
+                          .update({
+                            'videoIds': rxVideoIds.toList(),
+                            'videoCount': rxVideoIds.length,
+                            'updatedAt': Timestamp.now(),
+                          });
+                      if (context.mounted) Navigator.pop(ctx);
+                      Get.snackbar(
+                        'Saved',
+                        'Playlist order updated successfully.',
+                        backgroundColor: AppColors.success,
+                        colorText: AppColors.textPrimary,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.textPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Save Order & Changes'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
       },
     );
   }

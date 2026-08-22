@@ -118,10 +118,10 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0F141C),
+            color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
             ),
             boxShadow: [
               BoxShadow(
@@ -166,10 +166,10 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
                     // Title
                     Text(
                       currentTopic.title,
-                      style: AppTextStyles.titleMedium.copyWith(
+                      style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         height: 1.15,
                       ),
                       maxLines: 1,
@@ -192,7 +192,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF94A3B8),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         const Padding(
@@ -201,7 +201,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
                             '•',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Color(0xFF64748B),
+                              color: AppColors.textTertiary,
                             ),
                           ),
                         ),
@@ -217,7 +217,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF94A3B8),
+                              color: AppColors.textSecondary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -275,7 +275,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+          colors: [Color(0xFF272727), Color(0xFF1E1E1E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -299,29 +299,29 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         icon: Icon(
           isFollowed ? Icons.check_rounded : Icons.add_rounded,
           size: 14,
-          color: Colors.white,
+          color: isFollowed ? Colors.white : AppColors.bgPage,
         ),
         label: Text(
           isFollowed ? 'Following' : 'Follow',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
           ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: isFollowed
-              ? const Color(0xFF1E293B)
-              : const Color(0xFF1A2232),
-          foregroundColor: Colors.white,
+              ? AppColors.bgSurfaceHover
+              : AppColors.textPrimary,
+          foregroundColor: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(
               color: isFollowed
-                  ? const Color(0xFF38BDF8)
-                  : Colors.white.withValues(alpha: 0.12),
+                  ? AppColors.textPrimary.withValues(alpha: 0.15)
+                  : Colors.transparent,
             ),
           ),
         ),
@@ -352,17 +352,17 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: AppColors.textPrimary,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF1E293B),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.bgSurfaceHover,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+          side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.15)),
         ),
       ),
     );
@@ -374,10 +374,10 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A2232),
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
         ),
       ),
       child: IconButton(
@@ -428,18 +428,18 @@ class TopicSectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: AppTextStyles.headlineSmall.copyWith(
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: AppTextStyles.caption.copyWith(
+                style: const TextStyle(
                   fontSize: 13,
-                  color: const Color(0xFF94A3B8),
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
@@ -452,12 +452,13 @@ class TopicSectionHeader extends StatelessWidget {
             icon: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 16),
             label: const Text(
               'View all topics',
-              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
             ),
             style: OutlinedButton.styleFrom(
+              backgroundColor: AppColors.bgSurfaceHover,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+              side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
             ),
           ),
         ],

@@ -11,8 +11,10 @@ import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/core/widgets/clickable_url_text.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -89,38 +91,37 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final args = Get.arguments;
     final Channel? targetChannel =
         channel ??
-        (args != null && args['channel'] is Channel ? args['channel'] : null);
-    if (targetChannel == null) {
-      return Scaffold(
-        backgroundColor: ytBackground,
-        body: _buildErrorState('Channel data is missing.', Get.back),
-      );
+        (args != null && args is Map && args['channel'] is Channel ? args['channel'] as Channel : null);
+
+    if (targetChannel != null) {
+      controller.initForChannelDetails(targetChannel);
+    } else {
+      final channelTarget =
+          Get.parameters['channelId'] ??
+          Get.parameters['handle'] ??
+          Get.parameters['id'];
+      if (channelTarget != null && channelTarget.isNotEmpty) {
+        controller.loadChannelFromDeepLink(channelTarget);
+      }
     }
 
-    controller.initForChannelDetails(targetChannel);
     controller.startPageAnimations();
 
-    return AnimatedBuilder(
-      animation: controller.pageFadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: controller.pageFadeAnimation,
-          child: _buildChannelContent(context, targetChannel),
-        );
-      },
-    );
-  }
-
-  Widget _buildChannelContent(BuildContext context, Channel channel) {
     return Obx(() {
-      if (controller.selectedChannel.value == null) {
-        return const Scaffold(
-          backgroundColor: ytBackground,
-          body: Center(child: CircularProgressIndicator(color: ytTextPrimary)),
-        );
+      final currentChannel = controller.selectedChannel.value;
+      if (currentChannel == null) {
+        return const ShimmerChannelDetailsScreen();
       }
-      final channel = controller.selectedChannel.value;
-      return _buildResponsiveLayout(context, channel!);
+
+      return AnimatedBuilder(
+        animation: controller.pageFadeAnimation,
+        builder: (context, child) {
+          return FadeTransition(
+            opacity: controller.pageFadeAnimation,
+            child: _buildResponsiveLayout(context, currentChannel),
+          );
+        },
+      );
     });
   }
 
@@ -2407,7 +2408,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     _buildStatItem(
                       icon: Icons.visibility_outlined,
                       label: 'Views',
-                      value: _formatViews(currentChannel.viewCount),
+                      value: _formatViews(
+                        currentChannel.viewCount > 0
+                            ? currentChannel.viewCount
+                            : (controller.videos.isNotEmpty
+                                ? controller.videos.fold<int>(
+                                    0,
+                                    (sum, v) => sum + v.viewCount,
+                                  )
+                                : 0),
+                      ),
                     ),
                   ],
                 );

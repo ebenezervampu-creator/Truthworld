@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -38,17 +39,9 @@ class AdvertiserSidebar extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.campaign_rounded,
-              color: AppColors.textPrimary,
-              size: 24,
-            ),
+          const AppLogo(
+            size: 32,
+            borderRadius: 8,
           ),
           const SizedBox(width: 12),
           Column(

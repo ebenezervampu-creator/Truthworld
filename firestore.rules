@@ -160,8 +160,13 @@ service cloud.firestore {
                         request.resource.data.userId == request.auth.uid ||
                         request.resource.data.ownerId == request.auth.uid);
       
-      // Allow owners to update their videos
-      allow update: if isVideoOwner(videoId);
+      // Allow owners or admins to update their videos, or authenticated users to update engagement / interaction counts
+      allow update: if isAuthenticated() && (
+        isVideoOwner(videoId) ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likeCount', 'dislikeCount', 'likes', 'dislikes', 'views', 'viewCount', 'shareCount', 'playCount', 'engagement', 'languageRequestsCount', 'commentCount', 'commentsCount'
+        ])
+      );
       
       // Allow owners to delete their videos
       allow delete: if isVideoOwner(videoId);
@@ -200,15 +205,33 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated() && 
-                                 resource.data.userId == request.auth.uid;
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          isVideoOwner(videoId) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'likeCount', 'dislikeCount', 'likes', 'dislikes', 'isHeartedByCreator', 'creatorHeartName', 'replyCount'
+          ])
+        );
+        allow delete: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          isVideoOwner(videoId)
+        );
 
         // Replies subcollection
         match /replies/{replyId} {
           allow read: if true;
           allow create: if isAuthenticated();
-          allow update, delete: if isAuthenticated() && 
-                                   resource.data.userId == request.auth.uid;
+          allow update: if isAuthenticated() && (
+            resource.data.userId == request.auth.uid ||
+            isVideoOwner(videoId) ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'likeCount', 'dislikeCount', 'likes', 'dislikes', 'isHeartedByCreator', 'creatorHeartName'
+            ])
+          );
+          allow delete: if isAuthenticated() && (
+            resource.data.userId == request.auth.uid ||
+            isVideoOwner(videoId)
+          );
 
           match /likes/{userId} {
             allow read: if true;
@@ -384,6 +407,19 @@ service cloud.firestore {
 
       // User Liked Videos subcollection
       match /likedVideos/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /liked_videos/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Disliked Videos subcollection
+      match /dislikedVideos/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /disliked_videos/{videoId} {
         allow read, write: if isOwner(userId);
       }
 

@@ -810,29 +810,57 @@ class VideoAnalyticsService extends GetxService {
 
       final data = doc.data()!;
       final metrics = data['metrics'] as Map<String, dynamic>? ?? {};
-      final views =
+      var views =
           (metrics['totalViews'] as num?)?.toInt() ??
           (data['viewCount'] as num?)?.toInt() ??
           0;
-      final watchTime =
-          (metrics['totalWatchTimeMinutes'] as num?)?.toInt() ?? 0;
+      var watchTimeSec =
+          (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
+          (metrics['totalWatchTimeSeconds'] as num?)?.toInt() ??
+          (((metrics['totalWatchTimeMinutes'] as num?)?.toDouble() ??
+                  (data['totalWatchTimeMinutes'] as num?)?.toDouble() ??
+                  0) *
+              60)
+              .round();
       final subCount = (data['subscriberCount'] as num?)?.toInt() ?? 0;
+
+      // If views or watch time are 0, aggregate from channel videos
+      if (views == 0 || watchTimeSec == 0) {
+        try {
+          final videosSnap = await _firestore
+              .collection('videos')
+              .where('channelId', isEqualTo: channelId)
+              .get();
+          var aggregatedViews = 0;
+          var aggregatedWatchSec = 0;
+          for (final vDoc in videosSnap.docs) {
+            final vData = vDoc.data();
+            aggregatedViews += (vData['viewCount'] as num?)?.toInt() ?? 0;
+            aggregatedWatchSec +=
+                (vData['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+          }
+          if (views == 0 && aggregatedViews > 0) views = aggregatedViews;
+          if (watchTimeSec == 0 && aggregatedWatchSec > 0) {
+            watchTimeSec = aggregatedWatchSec;
+          }
+        } catch (_) {}
+      }
 
       return ChannelAnalyticsSnapshot(
         channelId: channelId,
         channelName: data['name'] as String? ?? channelName,
         totalVideoWatches: views,
         totalUniqueViewers: views,
-        averageWatchDuration: views > 0 ? (watchTime * 60) / views : 0,
+        averageWatchDuration: views > 0 ? watchTimeSec / views : 0,
         averageWatchPercentage: 0,
-        totalWatchTimeSeconds: watchTime * 60,
+        totalWatchTimeSeconds: watchTimeSec,
         stateTraffic: {},
         stateTrafficPercentage: {},
         countryTraffic: {},
         countryTrafficPercentage: {},
         dailySubscribers: {DateTime.now(): subCount},
         dailyViews: {DateTime.now(): views},
-        dailyWatchTime: {DateTime.now(): watchTime * 60},
+        dailyWatchTime: {DateTime.now(): watchTimeSec},
         generatedAt: DateTime.now(),
         videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
         totalEngagementScore: 0,

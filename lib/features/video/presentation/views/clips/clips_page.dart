@@ -682,7 +682,7 @@ class _ClipVideoListCard extends StatelessWidget {
               onTap: () {
                 Get.back<void>();
                 ShareBottomSheet.show(
-                  title: '🎬 ${clip.title} (Truthworld Watermark Clip)',
+                  title: clip.title,
                   url: clipUrl,
                   thumbnailUrl: clip.thumbnailUrl,
                   subtitle:
@@ -693,6 +693,10 @@ class _ClipVideoListCard extends StatelessWidget {
                   channelName: clip.channelName,
                   durationMs: durationSec * 1000,
                   type: 'clip',
+                  clipStartTime: clip.startTime,
+                  clipEndTime: clip.endTime,
+                  videoId: clip.videoId,
+                  videoTitle: clip.videoTitle,
                 );
               },
             ),
@@ -1036,7 +1040,7 @@ class _ClipVideoGridCard extends StatelessWidget {
               onTap: () {
                 Get.back<void>();
                 ShareBottomSheet.show(
-                  title: '🎬 ${clip.title} (Truthworld Watermark Clip)',
+                  title: clip.title,
                   url: clipUrl,
                   thumbnailUrl: clip.thumbnailUrl,
                   subtitle:
@@ -1044,6 +1048,10 @@ class _ClipVideoGridCard extends StatelessWidget {
                   channelName: clip.channelName,
                   durationMs: durationSec * 1000,
                   type: 'clip',
+                  clipStartTime: clip.startTime,
+                  clipEndTime: clip.endTime,
+                  videoId: clip.videoId,
+                  videoTitle: clip.videoTitle,
                 );
               },
             ),

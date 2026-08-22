@@ -201,15 +201,41 @@ class CreatorAnalyticsController extends BaseController {
         customEnd: customEndDate.value,
       );
 
-      if (analytics.totalVideoWatches == 0) {
+      var finalAnalytics = analytics;
+      if (finalAnalytics.totalVideoWatches == 0 ||
+          finalAnalytics.totalWatchTimeSeconds == 0) {
+        if (channelVideos.isNotEmpty) {
+          final totalV = channelVideos.fold<int>(
+            0,
+            (sum, v) => sum + v.viewCount,
+          );
+          final totalW = channelVideos.fold<int>(
+            0,
+            (sum, v) => sum + v.totalWatchTimeSeconds,
+          );
+          if (totalV > 0 || totalW > 0) {
+            finalAnalytics = finalAnalytics.copyWith(
+              totalVideoWatches:
+                  totalV > 0 ? totalV : finalAnalytics.totalVideoWatches,
+              totalUniqueViewers:
+                  totalV > 0 ? totalV : finalAnalytics.totalUniqueViewers,
+              totalWatchTimeSeconds:
+                  totalW > 0 ? totalW : finalAnalytics.totalWatchTimeSeconds,
+            );
+          }
+        }
+      }
+
+      if (finalAnalytics.totalVideoWatches == 0 &&
+          finalAnalytics.totalWatchTimeSeconds == 0) {
         channelLoadingError.value =
             'No watch data available for this channel yet';
       }
 
-      channelAnalytics.value = analytics;
-      _updateChannelChartData(analytics);
-      _updateChannelInsights(analytics);
-      _updateChannelSummaryMetrics(analytics);
+      channelAnalytics.value = finalAnalytics;
+      _updateChannelChartData(finalAnalytics);
+      _updateChannelInsights(finalAnalytics);
+      _updateChannelSummaryMetrics(finalAnalytics);
     } catch (e, stackTrace) {
       logger.error(
         'Error loading channel analytics: $e',
@@ -673,6 +699,34 @@ class CreatorAnalyticsController extends BaseController {
       channelVideos.value = snapshot.docs
           .map(Video.fromDocumentSnapshot)
           .toList();
+
+      // If channelAnalytics has 0 totalVideoWatches or 0 totalWatchTime, aggregate from fetched videos
+      if (channelAnalytics.value != null &&
+          (channelAnalytics.value!.totalVideoWatches == 0 ||
+              channelAnalytics.value!.totalWatchTimeSeconds == 0) &&
+          channelVideos.isNotEmpty) {
+        final totalV = channelVideos.fold<int>(
+          0,
+          (sum, v) => sum + v.viewCount,
+        );
+        final totalW = channelVideos.fold<int>(
+          0,
+          (sum, v) => sum + v.totalWatchTimeSeconds,
+        );
+        if (totalV > 0 || totalW > 0) {
+          final updated = channelAnalytics.value!.copyWith(
+            totalVideoWatches:
+                totalV > 0 ? totalV : channelAnalytics.value!.totalVideoWatches,
+            totalUniqueViewers:
+                totalV > 0 ? totalV : channelAnalytics.value!.totalUniqueViewers,
+            totalWatchTimeSeconds:
+                totalW > 0 ? totalW : channelAnalytics.value!.totalWatchTimeSeconds,
+          );
+          channelAnalytics.value = updated;
+          channelLoadingError.value = '';
+          _updateChannelSummaryMetrics(updated);
+        }
+      }
     } catch (e) {
       logger.error('Error fetching channel videos: $e', tag: _tag);
     }

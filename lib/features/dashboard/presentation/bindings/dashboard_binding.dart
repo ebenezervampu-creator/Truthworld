@@ -26,7 +26,7 @@ class DashboardBinding extends Bindings {
     Get.lazyPut(AudioTracksController.new, fenix: true);
     Get.lazyPut(() => CustomizationController(channelId: '', ownerId: ''), fenix: true);
     Get.lazyPut(TopicManagementController.new, fenix: true);
-    Get.lazyPut(() => AudienceController(channelId: ''), fenix: true);
+    Get.lazyPut(AudienceController.new, fenix: true);
     Get.lazyPut(CategoryInsightsController.new, fenix: true);
     Get.lazyPut(() => CreatorIntelligenceController(channelId: '', creatorId: ''), fenix: true);
     Get.lazyPut(MultiAudioPlayerController.new, fenix: true);

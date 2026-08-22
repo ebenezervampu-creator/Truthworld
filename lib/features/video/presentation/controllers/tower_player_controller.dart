@@ -15,8 +15,10 @@ import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
@@ -37,7 +39,7 @@ import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/js.dart' as js;
 import 'package:video_player/video_player.dart';
 
-class TowerPlayerController extends BaseController {
+class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   bool _isClosed = false;
   @override
   bool get isClosed => _isClosed;
@@ -259,6 +261,10 @@ class TowerPlayerController extends BaseController {
   final Rx<Duration> dragPos = Duration.zero.obs;
   final RxBool showDoubleTapLeft = false.obs;
   final RxBool showDoubleTapRight = false.obs;
+  final RxInt doubleTapSeconds = 0.obs;
+  Timer? _singleTapTimer;
+  DateTime? _lastTapTime;
+  double _lastTapX = 0;
   final RxString toastMessage = ''.obs;
   final RxBool isFullScreen = false.obs;
   final RxBool userExitedFullscreen = false.obs;
@@ -427,6 +433,33 @@ class TowerPlayerController extends BaseController {
   final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
   final RxBool isLoadingSubtitles = false.obs;
   final RxString currentSubtitle = ''.obs;
+  Timer? _subtitleSyncTimer;
+
+  void _syncActiveSubtitle() {
+    if (_isClosed || !subtitlesEnabled.value || subtitleSegments.isEmpty) {
+      if (currentSubtitle.value.isNotEmpty) currentSubtitle.value = '';
+      return;
+    }
+    final pos = activePlayback.position;
+    final seg = SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
+    final text = seg?.text ?? '';
+    if (currentSubtitle.value != text) {
+      currentSubtitle.value = text;
+    }
+  }
+
+  void _startSubtitleSyncTimer() {
+    if (_subtitleSyncTimer != null && _subtitleSyncTimer!.isActive) return;
+    _subtitleSyncTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _syncActiveSubtitle(),
+    );
+  }
+
+  void _stopSubtitleSyncTimer() {
+    _subtitleSyncTimer?.cancel();
+    _subtitleSyncTimer = null;
+  }
 
   // ── Global Subtitle Appearance Options (Industry Standards) ──
   static final RxString globalSubtitleFontSizeOption = 'Normal'.obs;
@@ -603,6 +636,7 @@ class TowerPlayerController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
 
     // Pause all other players first
     for (final p in _activePlayers) {
@@ -630,7 +664,9 @@ class TowerPlayerController extends BaseController {
     // Load global media preferences
     subtitlesEnabled.value = TowerPlayerController.globalSubtitlesEnabled;
     activeSubLang.value = TowerPlayerController.globalActiveSubLang;
-    isAudioOnly.value = TowerPlayerController.globalAudioOnly;
+    final shouldAudioOnly = TowerPlayerController.globalAudioOnly ||
+        (Get.arguments is Map && Get.arguments['isAudioOnly'] == true);
+    isAudioOnly.value = shouldAudioOnly;
     playbackSpeed.value = TowerPlayerController.globalPlaybackSpeed;
 
     // Apply preferred playback speed
@@ -638,7 +674,7 @@ class TowerPlayerController extends BaseController {
       videoPlayerController.setPlaybackSpeed(playbackSpeed.value);
     }
 
-    if (TowerPlayerController.globalAudioOnly) {
+    if (shouldAudioOnly) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         toggleAudioOnly();
       });
@@ -693,15 +729,7 @@ class TowerPlayerController extends BaseController {
         final vc = Get.find<VideoController>(tag: tag);
         if (vc.availableResolutions.isNotEmpty) {
           ladder = vc.availableResolutions.reversed
-              .map(
-                (v) => ResolutionTier(
-                  label: v.label,
-                  url: v.url,
-                  height: v.height,
-                  bitrate: v.bitrate,
-                  minBandwidth: (v.bitrate * 1.2).toInt(),
-                ),
-              )
+              .map(ResolutionTier.fromVideoResolution)
               .toList();
         }
       }
@@ -719,7 +747,9 @@ class TowerPlayerController extends BaseController {
           final match = vc.availableResolutions.firstWhereOrNull(
             (r) => r.height == tier.height,
           );
-          if (match != null && vc.currentResolution.value?.url != match.url) {
+          if (match != null &&
+              (vc.currentResolution.value?.url != match.url ||
+                  vc.currentResolution.value?.label != match.label)) {
             vc.setResolution(match, isManual: isManual);
           }
         }
@@ -728,14 +758,36 @@ class TowerPlayerController extends BaseController {
       }
     };
 
-    // Apply global quality preference
-    final pref = TowerPlayerController.globalQualityPreference;
+    // Apply network-aware User Settings quality preference or global quality preference
+    var pref = TowerPlayerController.globalQualityPreference;
+    if (pref == null || pref == 'Auto') {
+      if (Get.isRegistered<UserSettingsController>()) {
+        final pb = UserSettingsController.to.playback.value;
+        final isWifi = !Get.isRegistered<ConnectivityService>() ||
+            ConnectivityService.to.isWifi;
+        final targetQualityStr = isWifi ? pb.wifiQuality : pb.cellularQuality;
+        if (targetQualityStr.contains('1080p')) {
+          pref = '1080p';
+        } else if (targetQualityStr.contains('720p')) {
+          pref = '720p';
+        } else if (targetQualityStr.contains('480p') ||
+            targetQualityStr.contains('Data Saver')) {
+          pref = '480p';
+        } else if (targetQualityStr.contains('360p') ||
+            targetQualityStr.contains('Low')) {
+          pref = '360p';
+        } else {
+          pref = 'Auto';
+        }
+      }
+    }
+
     if (pref != null) {
       if (pref == 'Auto') {
         abr.enableAutoMode();
       } else {
         final matchIdx = abr.resolutionLadder.indexWhere(
-          (t) => t.label == pref,
+          (t) => t.label.contains(pref!),
         );
         if (matchIdx != -1) {
           abr.setManualTier(matchIdx);
@@ -761,6 +813,27 @@ class TowerPlayerController extends BaseController {
     _videoPlaybackSource = VideoPlaybackSource(videoPlayerController);
     sleepTimerService.setActivePlayback(activePlayback);
     videoPlayerController.addListener(_onVpcUpdate);
+
+    // Apply Volume Normalization (Stable Volume)
+    if (Get.isRegistered<UserSettingsController>()) {
+      final mode =
+          UserSettingsController.to.playback.value.volumeNormalizationMode;
+      var volumeScale = 1.0;
+      switch (mode) {
+        case 'Light':
+          volumeScale = 0.90;
+        case 'Standard':
+          volumeScale = 0.80;
+        case 'Aggressive':
+          volumeScale = 0.70;
+        case 'Off':
+        default:
+          volumeScale = 1.0;
+      }
+      try {
+        videoPlayerController.setVolume(volumeScale);
+      } catch (_) {}
+    }
   }
 
   // ── VPC listener — optimised ──────────────────────────────
@@ -871,14 +944,13 @@ class TowerPlayerController extends BaseController {
         }
       }
 
-      // Subtitle lookup
-      if (subtitlesEnabled.value && subtitleSegments.isNotEmpty) {
-        final pos = val.position;
-        final seg = _findSubtitle(pos);
-        currentSubtitle.value = seg?.text ?? '';
+      // Subtitle lookup & 50ms ticker management
+      if (val.isPlaying && subtitlesEnabled.value && subtitleSegments.isNotEmpty) {
+        _startSubtitleSyncTimer();
       } else {
-        currentSubtitle.value = '';
+        _stopSubtitleSyncTimer();
       }
+      _syncActiveSubtitle();
 
       // Chapter lookup — binary search O(log n)
       if (chapters.isNotEmpty) {
@@ -944,13 +1016,9 @@ class TowerPlayerController extends BaseController {
     }
   }
 
-  // O(n/2) subtitle lookup — good enough given small segment count
+  // Precision subtitle lookup with gap tolerance
   SubtitleSegment? _findSubtitle(Duration pos) {
-    for (final s in subtitleSegments) {
-      if (pos >= s.start && pos <= s.end) return s;
-      if (s.start > pos) break; // segments are sorted
-    }
-    return null;
+    return SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
   }
 
   // Binary search chapters by start time
@@ -974,6 +1042,8 @@ class TowerPlayerController extends BaseController {
   @override
   void onClose() {
     _isClosed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    _stopSubtitleSyncTimer();
     _stopCommentsAutoPlay();
     try {
       chewieController?.removeListener(_onInternalChewieChanged);
@@ -1020,6 +1090,7 @@ class TowerPlayerController extends BaseController {
         SystemChrome.setPreferredOrientations(DeviceOrientation.values);
       }
     }
+    _singleTapTimer?.cancel();
     focusNode.dispose();
     try {
       videoPlayerController.removeListener(_onVpcUpdate);
@@ -1032,6 +1103,21 @@ class TowerPlayerController extends BaseController {
       _pipChannel.setMethodCallHandler(null);
     }
     super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      if (Get.isRegistered<UserSettingsController>()) {
+        final mode =
+            UserSettingsController.to.playback.value.backgroundPlaybackMode;
+        if (mode == 'Off' && !isPiP.value) {
+          if (videoPlayerController.value.isPlaying) {
+            videoPlayerController.pause();
+          }
+        }
+      }
+    }
   }
 
   // ── Controller sync ──────────────────────────────────────
@@ -1056,6 +1142,12 @@ class TowerPlayerController extends BaseController {
       isPlaying.value = vpc.value.isPlaying;
       hasError.value = vpc.value.hasError;
       errorDescription.value = vpc.value.errorDescription ?? '';
+      if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
+        isAudioOnly.value =
+            Get.find<VideoController>(tag: tag).isAudioOnly.value;
+      } else if (Get.isRegistered<VideoController>()) {
+        isAudioOnly.value = Get.find<VideoController>().isAudioOnly.value;
+      }
     } catch (_) {
       isInitialized.value = false;
     }
@@ -1221,6 +1313,67 @@ class TowerPlayerController extends BaseController {
     });
   }
 
+  /// Cancel any pending single-tap when a drag, pinch, or other gesture begins.
+  void cancelPendingTap() {
+    _singleTapTimer?.cancel();
+    _singleTapTimer = null;
+    _lastTapTime = null;
+  }
+
+  /// Exactly like YouTube: unified tap engine supporting single tap, double tap, and rapid multi-tap accumulation.
+  void handlePlayerTap(double tapX, double playerWidth, bool isDesktop) {
+    focusNode.requestFocus();
+    if (settingsOpen.value) {
+      closeSettings();
+      return;
+    }
+    if (isShowingAd.value) return;
+
+    final now = DateTime.now();
+    final half = playerWidth / 2;
+    final isLeft = tapX < half;
+
+    // Case 1: Double-tap seek overlay is already actively visible on screen
+    if (showDoubleTapLeft.value || showDoubleTapRight.value) {
+      if (isLeft && showDoubleTapLeft.value) {
+        _executeDoubleTapSeek(isLeft: true);
+        return;
+      } else if (!isLeft && showDoubleTapRight.value) {
+        _executeDoubleTapSeek(isLeft: false);
+        return;
+      } else {
+        // Swapped sides while seeking
+        _executeDoubleTapSeek(isLeft: isLeft, resetAccumulator: true);
+        return;
+      }
+    }
+
+    // Case 2: Double-tap seek is NOT active yet. Check if this is the 2nd tap of a double tap.
+    final isRecentTap = _lastTapTime != null &&
+        now.difference(_lastTapTime!).inMilliseconds < 350;
+    final isSameHalf = (tapX < half) == (_lastTapX < half);
+
+    if (isRecentTap && isSameHalf) {
+      // DOUBLE TAP TRIGGERED!
+      _singleTapTimer?.cancel();
+      _singleTapTimer = null;
+      _lastTapTime = null;
+
+      _executeDoubleTapSeek(isLeft: isLeft, resetAccumulator: true);
+    } else {
+      // 1st tap: record tap position and schedule single-tap action after a short disambiguation delay
+      _lastTapTime = now;
+      _lastTapX = tapX;
+
+      _singleTapTimer?.cancel();
+      _singleTapTimer = Timer(const Duration(milliseconds: 260), () {
+        _singleTapTimer = null;
+        _lastTapTime = null;
+        onTap(isDesktop);
+      });
+    }
+  }
+
   /// YouTube behaviour: single tap = toggle controls on Mobile, Play/Pause on Desktop.
   void onTap(bool isDesktop) {
     focusNode.requestFocus();
@@ -1228,7 +1381,10 @@ class TowerPlayerController extends BaseController {
       closeSettings();
       return;
     }
-    if (kIsWeb && isDesktop) {
+    final isTouch = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    if (!isTouch && isDesktop) {
       togglePlayPause();
     } else {
       if (controlsVisible.value) {
@@ -1250,10 +1406,8 @@ class TowerPlayerController extends BaseController {
   // Store double-tap X for left/right detection
   void onDoubleTapDown(double x) => _doubleTapX = x;
 
-  // Called AFTER disambiguation — single tap will NOT fire when this fires
-  // YouTube: double-tap seek only works when controls are HIDDEN
+  // Fallback for direct double-tap invocation
   void onDoubleTap(double playerWidth) {
-    if (controlsVisible.value) return;
     final half = playerWidth / 2;
     if (_doubleTapX < half) {
       doubleTapLeft();
@@ -1265,6 +1419,7 @@ class TowerPlayerController extends BaseController {
   // ─── Playback ────────────────────────────────────────────
 
   Future<void> togglePlayPause() async {
+    cancelPendingTap();
     try {
       if (activePlayback.isPlaying) {
         await activePlayback.pause();
@@ -1304,6 +1459,7 @@ class TowerPlayerController extends BaseController {
     try {
       _hasEnded = false; // Reset ended guard on seek
       await activePlayback.seek(pos);
+      _syncActiveSubtitle();
       if (_audioTrackController != null &&
           _audioTrackController!.value.isInitialized) {
         final audioDur = _audioTrackController!.value.duration;
@@ -1319,7 +1475,7 @@ class TowerPlayerController extends BaseController {
     }
   }
 
-  Future<void> seekRelative(int seconds) async {
+  Future<void> seekRelative(int seconds, {bool showFeedbackToast = true}) async {
     final current = activePlayback.position;
     final total = activePlayback.duration;
     final maxSecs = total.inSeconds > 0 ? total.inSeconds : 1;
@@ -1327,7 +1483,9 @@ class TowerPlayerController extends BaseController {
       seconds: (current.inSeconds + seconds).clamp(0, maxSecs),
     );
     await seekTo(newPos);
-    showToast(seconds > 0 ? '+${seconds}s' : '${seconds}s');
+    if (showFeedbackToast) {
+      showToast(seconds > 0 ? '+${seconds}s' : '${seconds}s');
+    }
   }
 
   void playNext() {
@@ -1687,262 +1845,14 @@ class TowerPlayerController extends BaseController {
   }
 
   void parseSubtitleContent(String content) {
-    var raw = content;
-    if (raw.startsWith('\uFEFF')) raw = raw.substring(1);
-    final trimmed = raw.trim();
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      final jsonSegs = _parseJsonTranscript(trimmed);
-      if (jsonSegs.isNotEmpty) {
-        subtitleSegments.assignAll(jsonSegs);
-        return;
-      }
-    }
-    final srtSegs = _parseSRT(raw);
-    if (srtSegs.isNotEmpty) {
-      subtitleSegments.assignAll(srtSegs);
-      return;
-    }
-
-    // Fallback: If not formatted with timestamps, parse raw text lines into readable segments
-    final lines = raw
-        .replaceAll('\r\n', '\n')
-        .split(RegExp(r'\n{2,}|\n(?=[A-Z0-9])'))
-        .map((l) => l.replaceAll('\n', ' ').trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-    if (lines.isNotEmpty) {
-      final segs = <SubtitleSegment>[];
-      for (var i = 0; i < lines.length; i++) {
-        final startMs = i * 4000;
-        final endMs = (i + 1) * 4000;
-        segs.add(
-          SubtitleSegment(
-            start: Duration(milliseconds: startMs),
-            end: Duration(milliseconds: endMs),
-            text: lines[i],
-          ),
-        );
-      }
+    final segs = SubtitleParser.parse(content);
+    if (segs.isNotEmpty) {
       subtitleSegments.assignAll(segs);
+      _syncActiveSubtitle();
+    } else {
+      subtitleSegments.clear();
+      currentSubtitle.value = '';
     }
-  }
-
-  List<SubtitleSegment> _parseJsonTranscript(String content) {
-    final segs = <SubtitleSegment>[];
-    try {
-      final decoded = jsonDecode(content);
-
-      if (decoded is List) {
-        for (final item in decoded) {
-          if (item is Map) {
-            final seg = _segmentFromMap(item);
-            if (seg != null) segs.add(seg);
-          }
-        }
-      } else if (decoded is Map) {
-        // 1. Check utterances (AssemblyAI speaker turns)
-        if (decoded['utterances'] is List &&
-            (decoded['utterances'] as List).isNotEmpty) {
-          for (final item in (decoded['utterances'] as List)) {
-            if (item is Map) {
-              final seg = _segmentFromMap(item);
-              if (seg != null) segs.add(seg);
-            }
-          }
-        }
-        // 2. Check segments (Whisper or standard pipeline)
-        else if (decoded['segments'] is List &&
-            (decoded['segments'] as List).isNotEmpty) {
-          for (final item in (decoded['segments'] as List)) {
-            if (item is Map) {
-              final seg = _segmentFromMap(item);
-              if (seg != null) segs.add(seg);
-            }
-          }
-        }
-        // 3. Check paragraphs
-        else if (decoded['paragraphs'] is List &&
-            (decoded['paragraphs'] as List).isNotEmpty) {
-          for (final item in (decoded['paragraphs'] as List)) {
-            if (item is Map) {
-              final seg = _segmentFromMap(item);
-              if (seg != null) segs.add(seg);
-            }
-          }
-        }
-        // 4. Check words (group consecutive words into sentence segments)
-        else if (decoded['words'] is List &&
-            (decoded['words'] as List).isNotEmpty) {
-          final wordsList = (decoded['words'] as List).whereType<Map>().toList();
-          final currentChunk = <Map>[];
-          for (var i = 0; i < wordsList.length; i++) {
-            final w = wordsList[i];
-            currentChunk.add(w);
-            final wordText = (w['text'] ?? w['word'] ?? '').toString().trim();
-            final isPunctuationEnd = wordText.endsWith('.') ||
-                wordText.endsWith('?') ||
-                wordText.endsWith('!') ||
-                wordText.endsWith(';') ||
-                currentChunk.length >= 8;
-            if (isPunctuationEnd || i == wordsList.length - 1) {
-              final startNum =
-                  (currentChunk.first['start'] as num?)?.toDouble() ?? 0.0;
-              final endNum =
-                  (currentChunk.last['end'] as num?)?.toDouble() ??
-                  (startNum + 2000);
-              final startMs =
-                  (startNum < 10000 ? startNum * 1000 : startNum).round();
-              final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
-              final sentenceText = currentChunk
-                  .map(
-                    (e) => (e['text'] ?? e['word'] ?? '').toString().trim(),
-                  )
-                  .where((t) => t.isNotEmpty)
-                  .join(' ');
-              if (sentenceText.isNotEmpty) {
-                segs.add(
-                  SubtitleSegment(
-                    start: Duration(milliseconds: startMs),
-                    end: Duration(milliseconds: endMs),
-                    text: sentenceText,
-                  ),
-                );
-              }
-              currentChunk.clear();
-            }
-          }
-        }
-        // 5. Fallback: single text / transcript string
-        else if (decoded['text'] is String &&
-            (decoded['text'] as String).isNotEmpty) {
-          final fullText = (decoded['text'] as String).trim();
-          segs.add(
-            SubtitleSegment(
-              start: Duration.zero,
-              end: const Duration(hours: 2),
-              text: fullText,
-            ),
-          );
-        } else if (decoded['transcript'] is String &&
-            (decoded['transcript'] as String).isNotEmpty) {
-          final fullText = (decoded['transcript'] as String).trim();
-          segs.add(
-            SubtitleSegment(
-              start: Duration.zero,
-              end: const Duration(hours: 2),
-              text: fullText,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] JSON transcript parse error: $e');
-    }
-    return segs;
-  }
-
-  SubtitleSegment? _segmentFromMap(Map item) {
-    final startVal = item['start'] ??
-        item['startMs'] ??
-        item['startTime'] ??
-        item['startTimeMs'];
-    final endVal = item['end'] ??
-        item['endMs'] ??
-        item['endTime'] ??
-        item['endTimeMs'];
-    final text = (item['text'] ??
-            item['sentence'] ??
-            item['content'] ??
-            item['transcript'] ??
-            item['word'] ??
-            '')
-        .toString()
-        .trim();
-    if (text.isEmpty) return null;
-
-    final startNum = (startVal is num)
-        ? startVal.toDouble()
-        : (double.tryParse(startVal?.toString() ?? '') ?? 0.0);
-    final endNum = (endVal is num)
-        ? endVal.toDouble()
-        : (double.tryParse(endVal?.toString() ?? '') ?? (startNum + 2.0));
-
-    final startMs = (startNum < 10000 ? startNum * 1000 : startNum).round();
-    final endMs = (endNum < 10000 ? endNum * 1000 : endNum).round();
-
-    return SubtitleSegment(
-      start: Duration(milliseconds: startMs),
-      end: Duration(milliseconds: endMs),
-      text: text,
-    );
-  }
-
-  List<SubtitleSegment> _parseSRT(String content) {
-    final segs = <SubtitleSegment>[];
-    var normalized = content.replaceAll('\r\n', '\n').trim();
-    if (normalized.startsWith('WEBVTT')) {
-      normalized = normalized
-          .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
-          .trim();
-    }
-    for (final block in normalized.split('\n\n')) {
-      final lines = block.trim().split('\n');
-      if (lines.length < 2) continue;
-      var timeLine = '';
-      var textStart = 0;
-      if (lines[0].contains('-->')) {
-        timeLine = lines[0];
-        textStart = 1;
-      } else if (lines.length >= 2 && lines[1].contains('-->')) {
-        timeLine = lines[1];
-        textStart = 2;
-      } else {
-        continue;
-      }
-      final times = timeLine.split(' --> ');
-      if (times.length != 2) continue;
-      if (lines.length <= textStart) continue;
-      final text = lines.sublist(textStart).join('\n').trim();
-      if (text.isNotEmpty) {
-        segs.add(
-          SubtitleSegment(
-            start: _parseSRTTime(times[0]),
-            end: _parseSRTTime(times[1]),
-            text: text,
-          ),
-        );
-      }
-    }
-    return segs;
-  }
-
-  Duration _parseSRTTime(String t) {
-    final cleanTime = t.trim().split(RegExp(r'\s+'))[0].replaceAll(',', '.');
-    final parts = cleanTime.split(':');
-    if (parts.length < 2) return Duration.zero;
-
-    var h = 0;
-    var m = 0;
-    var sSec = '';
-
-    if (parts.length == 3) {
-      h = int.tryParse(parts[0]) ?? 0;
-      m = int.tryParse(parts[1]) ?? 0;
-      sSec = parts[2];
-    } else if (parts.length == 2) {
-      m = int.tryParse(parts[0]) ?? 0;
-      sSec = parts[1];
-    }
-
-    final sParts = sSec.split('.');
-    final s = int.tryParse(sParts[0]) ?? 0;
-    var ms = 0;
-    if (sParts.length > 1) {
-      final msStr = sParts[1].padRight(3, '0').substring(0, 3);
-      ms = int.tryParse(msStr) ?? 0;
-    }
-
-    return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
   }
 
   // ─── Audio language ──────────────────────────────────────
@@ -2009,25 +1919,49 @@ class TowerPlayerController extends BaseController {
     return 10;
   }
 
-  void doubleTapLeft() {
-    seekRelative(-_seekStepSeconds);
-    showDoubleTapLeft.value = true;
-    _timers.set(
-      'dtLeft',
-      Duration(milliseconds: PT.kDoubleTapRippleMs.toInt()),
-      () => showDoubleTapLeft.value = false,
-    );
+  void _executeDoubleTapSeek({
+    required bool isLeft,
+    bool resetAccumulator = false,
+  }) {
+    final step = _seekStepSeconds;
+    if (resetAccumulator ||
+        (isLeft ? !showDoubleTapLeft.value : !showDoubleTapRight.value)) {
+      doubleTapSeconds.value = step;
+    } else {
+      doubleTapSeconds.value += step;
+    }
+
+    if (isLeft) {
+      showDoubleTapRight.value = false;
+      showDoubleTapLeft.value = true;
+      seekRelative(-step, showFeedbackToast: false);
+      _timers.set(
+        'doubleTapDismiss',
+        const Duration(milliseconds: 750),
+        () {
+          showDoubleTapLeft.value = false;
+          doubleTapSeconds.value = 0;
+        },
+      );
+    } else {
+      showDoubleTapLeft.value = false;
+      showDoubleTapRight.value = true;
+      seekRelative(step, showFeedbackToast: false);
+      _timers.set(
+        'doubleTapDismiss',
+        const Duration(milliseconds: 750),
+        () {
+          showDoubleTapRight.value = false;
+          doubleTapSeconds.value = 0;
+        },
+      );
+    }
   }
 
-  void doubleTapRight() {
-    seekRelative(_seekStepSeconds);
-    showDoubleTapRight.value = true;
-    _timers.set(
-      'dtRight',
-      Duration(milliseconds: PT.kDoubleTapRippleMs.toInt()),
-      () => showDoubleTapRight.value = false,
-    );
-  }
+  void doubleTapLeft() => _executeDoubleTapSeek(isLeft: true);
+  void doubleTapRight() => _executeDoubleTapSeek(isLeft: false);
+  void handleKeyJ() => _executeDoubleTapSeek(isLeft: true);
+  void handleKeyL() => _executeDoubleTapSeek(isLeft: false);
 
   // ─── Seek preview ────────────────────────────────────────
 
@@ -2220,11 +2154,11 @@ class TowerPlayerController extends BaseController {
     if (key == LogicalKeyboardKey.space || key == LogicalKeyboardKey.keyK) {
       togglePlayPause();
     } else if (key == LogicalKeyboardKey.keyJ) {
-      // YouTube: J = −10 s
-      seekRelative(-10);
+      // YouTube: J = −10 s seek with double-tap ripple animation
+      handleKeyJ();
     } else if (key == LogicalKeyboardKey.keyL) {
-      // YouTube: L = +10 s
-      seekRelative(10);
+      // YouTube: L = +10 s seek with double-tap ripple animation
+      handleKeyL();
     } else if (key == LogicalKeyboardKey.arrowRight) {
       seekRelative(5);
     } else if (key == LogicalKeyboardKey.arrowLeft) {

@@ -20,11 +20,9 @@ import 'package:truthworld/features/analytics/presentation/pages/views_page.dart
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/category/presentation/bindings/category_binding.dart';
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
     deferred as channel_details;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
-import 'package:truthworld/features/channel/presentation/views/channel/channelloader_screen.dart';
 import 'package:truthworld/features/community/community_post_upload_binding.dart';
 import 'package:truthworld/features/community/community_post_upload_screen.dart';
 import 'package:truthworld/features/community/presentation/bindings/saved_comments_binding.dart';
@@ -37,7 +35,6 @@ import 'package:truthworld/features/content/presentation/views/mvp/privacy-polic
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart'
     deferred as dashboard;
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
-import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart';
 import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/features/library/presentation/bindings/library_binding.dart';
 import 'package:truthworld/features/library/presentation/views/library/library_screen.dart';
@@ -49,10 +46,8 @@ import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_vide
     deferred as my_videos;
 import 'package:truthworld/features/notifications/presentation/bindings/notifications_binding.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_loader_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
     deferred as playlist_screen;
 import 'package:truthworld/features/premium/presentation/bindings/premium_binding.dart';
@@ -68,6 +63,7 @@ import 'package:truthworld/features/subscriptions/presentation/bindings/subscrip
 import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart'
     deferred as subscriptions;
 import 'package:truthworld/features/topics/presentation/bindings/topics_binding.dart';
+import 'package:truthworld/features/topics/presentation/pages/create_topic_screen.dart';
 import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart'
     deferred as explore_topics;
 import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart'
@@ -84,7 +80,6 @@ import 'package:truthworld/features/video/presentation/views/upload/models/uploa
 import 'package:truthworld/features/video/presentation/views/upload/upload_selection_screen.dart';
 import 'package:truthworld/features/video/presentation/views/video_screen.dart'
     deferred as video_screen;
-import 'package:truthworld/features/video/presentation/views/videoloader_screen.dart';
 import 'package:truthworld/features/watchhistory/presentation/bindings/watch_history_binding.dart';
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
@@ -241,10 +236,14 @@ class AppPages {
       name: '/videoscreen',
       page: () {
         final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['v'] ??
+            Get.parameters['videoId'] ??
+            Get.parameters['id'];
         return DeferredWidget(
           loader: video_screen.loadLibrary,
           builder: () =>
-              video_screen.VideoScreen(videoTag: video?.id as String?),
+              video_screen.VideoScreen(videoTag: videoId as String?),
         );
       },
       preventDuplicates: false,
@@ -255,15 +254,66 @@ class AppPages {
       name: '/watch',
       page: () {
         final video = Get.arguments?['video'];
-        if (video != null) {
-          return DeferredWidget(
-            loader: video_screen.loadLibrary,
-            builder: () =>
-                video_screen.VideoScreen(videoTag: video.id as String?),
-          );
-        } else {
-          return const VideoLoaderScreen();
-        }
+        final videoId = video?.id ??
+            Get.parameters['v'] ??
+            Get.parameters['videoId'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/watch/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/v/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
+      },
+      preventDuplicates: false,
+      binding: VideoBinding(),
+    ),
+    GetPage(
+      name: '/shorts/:videoId',
+      page: () {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ??
+            Get.parameters['videoId'] ??
+            Get.parameters['v'] ??
+            Get.parameters['id'];
+        return DeferredWidget(
+          loader: video_screen.loadLibrary,
+          builder: () =>
+              video_screen.VideoScreen(videoTag: videoId as String?),
+        );
       },
       preventDuplicates: false,
       binding: VideoBinding(),
@@ -301,6 +351,24 @@ class AppPages {
       binding: PlaylistBinding(),
       middlewares: [AuthGuard()],
     ),
+    GetPage(
+      name: '/upload/playlist',
+      page: () => const CreatePlaylistScreen(),
+      binding: PlaylistBinding(),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/create-topic',
+      page: () => const CreateTopicScreen(),
+      binding: TopicsBinding(),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/upload/topic',
+      page: () => const CreateTopicScreen(),
+      binding: TopicsBinding(),
+      middlewares: [AuthGuard()],
+    ),
     // Backward compatibility - redirect old route to selection screen
     GetPage(
       name: '/uploadscreen',
@@ -334,13 +402,8 @@ class AppPages {
       middlewares: [AuthGuard()],
     ),
     GetPage(
-      name: '/watch/:videoId',
-      page: VideoLoaderScreen.new,
-      binding: VideoBinding(),
-    ),
-    GetPage(
       name: '/playlist/:playlistId',
-      page: PlaylistLoaderScreen.new,
+      page: () => const PlaylistDetailScreen(),
       binding: PlaylistBinding(),
     ),
     GetPage(
@@ -356,28 +419,20 @@ class AppPages {
     GetPage(
       name: '/playlist-detail',
       page: () => const PlaylistDetailScreen(),
-      binding: BindingsBuilder(() {
-        Get.lazyPut<PlaylistDetailController>(PlaylistDetailController.new);
-      }),
+      binding: PlaylistBinding(),
     ),
     GetPage(
       name: '/channel/:channelId',
       page: () {
         final channel = Get.arguments?['channel'];
-        if (channel != null) {
-          return DeferredWidget(
-            loader: channel_details.loadLibrary,
-            builder: () => channel_details.ChannelDetailsPage(
-              channel: channel as Channel?,
-            ),
-          );
-        } else {
-          return const ChannelLoaderScreen();
-        }
+        return DeferredWidget(
+          loader: channel_details.loadLibrary,
+          builder: () => channel_details.ChannelDetailsPage(
+            channel: channel as Channel?,
+          ),
+        );
       },
-      binding: BindingsBuilder(() {
-        Get.lazyPut<ChannelController>(ChannelController.new);
-      }),
+      binding: ChannelBinding(),
     ),
     GetPage(
       name: '/category',
@@ -397,6 +452,12 @@ class AppPages {
       binding: TopicsBinding(),
     ),
     GetPage(
+      name: '/t/:slug',
+      page: () => const TopicPage(),
+      middlewares: [TopicRedirectMiddleware()],
+      binding: TopicsBinding(),
+    ),
+    GetPage(
       name: '/settings',
       page: () => DeferredWidget(
         loader: settings.loadLibrary,
@@ -411,10 +472,6 @@ class AppPages {
       binding: BindingsBuilder(() {
         Get.lazyPut(SendFeedbackController.new);
       }),
-    ),
-    GetPage(
-      name: '/help',
-      page: HelpPage.new,
     ),
     GetPage(
       name: '/notifications',
@@ -563,20 +620,14 @@ class AppPages {
       name: '/:handle',
       page: () {
         final channel = Get.arguments?['channel'];
-        if (channel != null) {
-          return DeferredWidget(
-            loader: channel_details.loadLibrary,
-            builder: () => channel_details.ChannelDetailsPage(
-              channel: channel as Channel?,
-            ),
-          );
-        } else {
-          return const ChannelLoaderScreen();
-        }
+        return DeferredWidget(
+          loader: channel_details.loadLibrary,
+          builder: () => channel_details.ChannelDetailsPage(
+            channel: channel as Channel?,
+          ),
+        );
       },
-      binding: BindingsBuilder(() {
-        Get.lazyPut<ChannelController>(ChannelController.new);
-      }),
+      binding: ChannelBinding(),
     ),
   ];
 }

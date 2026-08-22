@@ -1522,174 +1522,176 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
   // UPLOAD TRACK DIALOG MODAL
   // ---------------------------------------------------------------------------
   void _showUploadTrackDialog(BuildContext context) {
-    var selectedLangCode = 'es';
-    var selectedRole = 'Dubbed Audio';
-    PlatformFile? selectedFile;
+    final selectedLangCode = 'es'.obs;
+    final selectedRole = 'Dubbed Audio'.obs;
+    final Rx<PlatformFile?> selectedFile = Rx<PlatformFile?>(null);
 
     showDialog<void>(
       context: context,
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(
-                'Upload Audio Dub Track',
-                style: GoogleFonts.roboto(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: widget.isDarkMode ? Colors.white : Colors.black,
-                ),
+        return Obx(() {
+          final file = selectedFile.value;
+          return AlertDialog(
+            backgroundColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text(
+              'Upload Audio Dub Track',
+              style: GoogleFonts.roboto(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: widget.isDarkMode ? Colors.white : Colors.black,
               ),
-              content: SizedBox(
-                width: 440,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Language Dropdown
-                    Text(
-                      'Language',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
-                      ),
+            ),
+            content: SizedBox(
+              width: 440,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Language Dropdown
+                  Text(
+                    'Language',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
                     ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: selectedLangCode,
-                      dropdownColor: widget.isDarkMode ? const Color(0xFF262626) : Colors.white,
-                      style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
-                      items: const [
-                        DropdownMenuItem(value: 'es', child: Text('Spanish (Español)')),
-                        DropdownMenuItem(value: 'fr', child: Text('French (Français)')),
-                        DropdownMenuItem(value: 'de', child: Text('German (Deutsch)')),
-                        DropdownMenuItem(value: 'te', child: Text('Telugu (తెలుగు)')),
-                        DropdownMenuItem(value: 'hi', child: Text('Hindi (हिन्दी)')),
-                        DropdownMenuItem(value: 'ja', child: Text('Japanese (日本語)')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedLangCode = val);
-                      },
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Track Type Dropdown
-                    Text(
-                      'Track Type / Role',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: selectedRole,
-                      dropdownColor: widget.isDarkMode ? const Color(0xFF262626) : Colors.white,
-                      style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
-                      items: const [
-                        DropdownMenuItem(value: 'Dubbed Audio', child: Text('Dubbed Audio Track')),
-                        DropdownMenuItem(value: 'AI Voiceover', child: Text('AI Voiceover Stream')),
-                        DropdownMenuItem(value: 'Director Commentary', child: Text('Director Commentary')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedRole = val);
-                      },
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // File Picker Dropzone
-                    InkWell(
-                      onTap: () async {
-                        final result = await FilePicker.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
-                        );
-                        if (result != null && result.files.isNotEmpty) {
-                          setDialogState(() => selectedFile = result.files.first);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: selectedFile != null ? AppColors.success : AppColors.brand.withValues(alpha: 0.5),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              selectedFile != null ? Icons.check_circle_rounded : Icons.cloud_upload_rounded,
-                              size: 32,
-                              color: selectedFile != null ? AppColors.success : AppColors.brand,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              selectedFile != null ? selectedFile!.name : 'Click to Pick Audio File (.mp3, .wav, .m4a)',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: widget.isDarkMode ? Colors.white : Colors.black,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(
-                    'Cancel',
+                  ),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: selectedLangCode.value,
+                    dropdownColor: widget.isDarkMode ? const Color(0xFF262626) : Colors.white,
                     style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                    items: const [
+                      DropdownMenuItem(value: 'es', child: Text('Spanish (Español)')),
+                      DropdownMenuItem(value: 'fr', child: Text('French (Français)')),
+                      DropdownMenuItem(value: 'de', child: Text('German (Deutsch)')),
+                      DropdownMenuItem(value: 'te', child: Text('Telugu (తెలుగు)')),
+                      DropdownMenuItem(value: 'hi', child: Text('Hindi (हिन्दी)')),
+                      DropdownMenuItem(value: 'ja', child: Text('Japanese (日本語)')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) selectedLangCode.value = val;
+                    },
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Track Type Dropdown
+                  Text(
+                    'Track Type / Role',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF4B5563),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: selectedRole.value,
+                    dropdownColor: widget.isDarkMode ? const Color(0xFF262626) : Colors.white,
+                    style: TextStyle(color: widget.isDarkMode ? Colors.white : Colors.black),
+                    items: const [
+                      DropdownMenuItem(value: 'Dubbed Audio', child: Text('Dubbed Audio Track')),
+                      DropdownMenuItem(value: 'AI Voiceover', child: Text('AI Voiceover Stream')),
+                      DropdownMenuItem(value: 'Director Commentary', child: Text('Director Commentary')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) selectedRole.value = val;
+                    },
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // File Picker Dropzone
+                  InkWell(
+                    onTap: () async {
+                      final result = await FilePicker.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: ['mp3', 'wav', 'm4a', 'aac'],
+                      );
+                      if (result != null && result.files.isNotEmpty) {
+                        selectedFile.value = result.files.first;
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: widget.isDarkMode ? const Color(0xFF141414) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: file != null ? AppColors.success : AppColors.brand.withValues(alpha: 0.5),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            file != null ? Icons.check_circle_rounded : Icons.cloud_upload_rounded,
+                            size: 32,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            file != null ? file.name : 'Click to Pick Audio File (.mp3, .wav, .m4a)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: widget.isDarkMode ? Colors.white : Colors.black,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: widget.isDarkMode ? AppColors.textSecondary : const Color(0xFF6B7280),
                   ),
                 ),
-                ElevatedButton(
-                  onPressed: selectedFile == null
-                      ? null
-                      : () {
-                          Navigator.of(context).pop();
-                          final config = BatchTrackUploadConfig(
-                            file: selectedFile!,
-                            title: 'Dub Track - $selectedLangCode',
-                            role: selectedRole,
-                            type: 'Audio',
-                            langCode: selectedLangCode,
-                          );
-                          controller.uploadMultipleTrackFiles(items: [config]);
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.black,
-                  ),
-                  child: const Text('Upload & Attach'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ],
-            );
-          },
-        );
+                onPressed: file == null
+                    ? null
+                    : () {
+                        Navigator.of(context).pop();
+                        final config = BatchTrackUploadConfig(
+                          file: file,
+                          title: 'Dub Track - ${selectedLangCode.value}',
+                          role: selectedRole.value,
+                          type: 'Audio',
+                          langCode: selectedLangCode.value,
+                        );
+                        controller.uploadMultipleTrackFiles(items: [config]);
+                      },
+                child: const Text('Upload & Attach'),
+              ),
+            ],
+          );
+        });
       },
     );
   }

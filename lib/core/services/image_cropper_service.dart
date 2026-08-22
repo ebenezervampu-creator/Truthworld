@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:truthworld/theme/app_colors.dart';
 
@@ -346,8 +347,8 @@ class _TruthworldWebCropperDialog extends StatefulWidget {
 }
 
 class _TruthworldWebCropperDialogState extends State<_TruthworldWebCropperDialog> {
-  bool _isCropping = false;
-  double _scaleValue = 1.0;
+  final RxBool _isCropping = false.obs;
+  final RxDouble _scaleValue = 1.0.obs;
 
   @override
   void initState() {
@@ -356,8 +357,8 @@ class _TruthworldWebCropperDialogState extends State<_TruthworldWebCropperDialog
   }
 
   Future<void> _handleCrop() async {
-    if (_isCropping) return;
-    setState(() => _isCropping = true);
+    if (_isCropping.value) return;
+    _isCropping.value = true;
     try {
       final result = await widget.crop();
       if (mounted) {
@@ -365,9 +366,7 @@ class _TruthworldWebCropperDialogState extends State<_TruthworldWebCropperDialog
       }
     } catch (e, stackTrace) {
       debugPrint('[ImageCropper] Web crop error: $e\n$stackTrace');
-      if (mounted) {
-        setState(() => _isCropping = false);
-      }
+      _isCropping.value = false;
     }
   }
 
@@ -493,14 +492,16 @@ class _TruthworldWebCropperDialogState extends State<_TruthworldWebCropperDialog
                           thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
                           trackHeight: 3.0,
                         ),
-                        child: Slider(
-                          value: _scaleValue,
-                          min: 1.0,
-                          max: 3.0,
-                          onChanged: (val) {
-                            setState(() => _scaleValue = val);
-                            widget.scale(val);
-                          },
+                        child: Obx(
+                          () => Slider(
+                            value: _scaleValue.value,
+                            min: 1.0,
+                            max: 3.0,
+                            onChanged: (val) {
+                              _scaleValue.value = val;
+                              widget.scale(val);
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -520,44 +521,47 @@ class _TruthworldWebCropperDialogState extends State<_TruthworldWebCropperDialog
                 const SizedBox(height: 16.0),
 
                 // Footer Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                      ),
-                      onPressed: _isCropping ? null : () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8.0),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: AppColors.bgPage,
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.0),
+                Obx(() {
+                  final isCropping = _isCropping.value;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                         ),
+                        onPressed: isCropping ? null : () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
                       ),
-                      onPressed: _isCropping ? null : _handleCrop,
-                      child: _isCropping
-                          ? const SizedBox(
-                              width: 18.0,
-                              height: 18.0,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.0,
-                                color: AppColors.bgPage,
+                      const SizedBox(width: 8.0),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppColors.bgPage,
+                          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                        onPressed: isCropping ? null : _handleCrop,
+                        child: isCropping
+                            ? const SizedBox(
+                                width: 18.0,
+                                height: 18.0,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.0,
+                                  color: AppColors.bgPage,
+                                ),
+                              )
+                            : const Text(
+                                'Crop & Save',
+                                style: TextStyle(fontWeight: FontWeight.w600),
                               ),
-                            )
-                          : const Text(
-                              'Crop & Save',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  );
+                }),
               ],
             ),
           ),

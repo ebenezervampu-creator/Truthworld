@@ -348,9 +348,17 @@ class _SummaryCardsGrid extends StatelessWidget {
       final va = controller.videoAnalytics.value;
       final ca = controller.channelAnalytics.value;
 
-      final views = va?.totalViews ?? ca?.totalVideoWatches ?? 0;
+      final totalV = (ca?.totalVideoWatches ?? 0) > 0
+          ? ca!.totalVideoWatches
+          : (controller.channelVideos.isNotEmpty
+              ? controller.channelVideos.fold<int>(
+                  0,
+                  (sum, v) => sum + v.viewCount,
+                )
+              : 0);
+      final views = va?.totalViews ?? totalV;
       final uniqueViewers =
-          va?.totalUniqueViewers ?? ca?.totalUniqueViewers ?? 0;
+          va?.totalUniqueViewers ?? (ca?.totalUniqueViewers ?? (totalV > 0 ? totalV : 0));
 
       return Wrap(
         spacing: 12,

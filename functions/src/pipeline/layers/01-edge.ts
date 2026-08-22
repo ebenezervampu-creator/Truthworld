@@ -21,6 +21,7 @@ import { costEngine } from "../services/cost-engine";
 import { pipelineEstimator } from "../services/pipeline-estimator";
 import { logger } from "../utils/logger";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const db = () => admin.firestore();
 
@@ -101,10 +102,15 @@ export class EdgeLayer {
       };
 
       if (plan.enablePath2 || plan.enableReachEngine) {
-        const targetLanguages = (plan.languages || []).filter(l => l !== "en"); 
+        const targetLanguages = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== "en"); 
         for (const lang of targetLanguages) {
-          stages[`translating_${lang}`] = this.stagePending();
-          stages[`dubbing_${lang}`] = this.stagePending();
+          const normLang = normalizeLanguageCode(lang);
+          stages[`translating_${normLang}`] = this.stagePending();
+          if (lang !== normLang) stages[`translating_${lang}`] = this.stagePending();
+          if (plan.generateDubbing) {
+            stages[`dubbing_${normLang}`] = this.stagePending();
+            if (lang !== normLang) stages[`dubbing_${lang}`] = this.stagePending();
+          }
         }
       }
 
@@ -187,15 +193,16 @@ export class EdgeLayer {
       }
 
       if (job.executionPlan?.enablePath2 || job.executionPlan?.enableReachEngine) {
-        const targetLanguages = job.executionPlan.languages.filter(l => l !== "en");
+        const targetLanguages = (job.executionPlan.languages || []).filter(l => normalizeLanguageCode(l) !== "en");
         if (targetLanguages.length > 0) {
           const weightPerLang = LOCALIZATION_TOTAL_WEIGHT / targetLanguages.length;
           const translationWeight = weightPerLang * 0.4;
           const dubbingWeight = weightPerLang * 0.6;
 
           for (const lang of targetLanguages) {
-            const ts = stages[`translating_${lang}`];
-            const ds = stages[`dubbing_${lang}`];
+            const normLang = normalizeLanguageCode(lang);
+            const ts = stages[`translating_${normLang}`] || stages[`translating_${lang}`];
+            const ds = stages[`dubbing_${normLang}`] || stages[`dubbing_${lang}`];
 
             if (ts) {
               if (ts.status === "completed" || ts.status === "skipped") overall += translationWeight * 100;

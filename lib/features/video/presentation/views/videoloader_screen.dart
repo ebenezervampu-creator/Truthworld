@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/services/video_hydration_service.dart';
@@ -175,25 +176,9 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
           children: [
             ScaleTransition(
               scale: _animation,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(kBorderRadius * 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.primary.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.play_arrow_rounded,
-                  color: colorScheme.onPrimary,
-                  size: 48,
-                ),
+              child: const AppLogo(
+                size: 80,
+                borderRadius: 20,
               ),
             ),
             const SizedBox(height: kLargePadding),

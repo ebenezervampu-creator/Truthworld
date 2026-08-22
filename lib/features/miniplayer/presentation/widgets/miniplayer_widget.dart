@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 /// Production-grade YouTube-style floating miniplayer.
 ///
@@ -222,9 +222,7 @@ class _VideoFrame extends StatelessWidget {
             child: SizedBox(
               width: w,
               height: h,
-              child: MobileFriendlyVideoPlayer(
-                controller: vpc,
-              ),
+              child: VideoPlayer(vpc),
             ),
           );
         }),
@@ -744,6 +742,11 @@ class _ExpandedView extends StatelessWidget {
         shortcuts: <ShortcutActivator, Intent>{
           LogicalKeySet(LogicalKeyboardKey.escape): const _CollapseIntent(),
           LogicalKeySet(LogicalKeyboardKey.space): const _TogglePlayIntent(),
+          LogicalKeySet(LogicalKeyboardKey.keyK): const _TogglePlayIntent(),
+          LogicalKeySet(LogicalKeyboardKey.keyJ): const _SeekBackwardIntent(),
+          LogicalKeySet(LogicalKeyboardKey.keyL): const _SeekForwardIntent(),
+          LogicalKeySet(LogicalKeyboardKey.arrowLeft): const _SeekBackwardIntent(),
+          LogicalKeySet(LogicalKeyboardKey.arrowRight): const _SeekForwardIntent(),
         },
         actions: <Type, Action<Intent>>{
           _CollapseIntent: CallbackAction<_CollapseIntent>(
@@ -755,6 +758,18 @@ class _ExpandedView extends StatelessWidget {
           _TogglePlayIntent: CallbackAction<_TogglePlayIntent>(
             onInvoke: (_) {
               controller.togglePlayPause();
+              return null;
+            },
+          ),
+          _SeekBackwardIntent: CallbackAction<_SeekBackwardIntent>(
+            onInvoke: (_) {
+              controller.seekBackward();
+              return null;
+            },
+          ),
+          _SeekForwardIntent: CallbackAction<_SeekForwardIntent>(
+            onInvoke: (_) {
+              controller.seekForward();
               return null;
             },
           ),
@@ -852,14 +867,28 @@ class _ExpandedVideo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: controller.togglePlayPause,
-      child: Container(
-        color: AppColors.bgPage,
-        alignment: Alignment.center,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final half = constraints.maxWidth / 2;
+        var doubleTapX = 0.0;
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: controller.togglePlayPause,
+          onDoubleTapDown: (details) => doubleTapX = details.localPosition.dx,
+          onDoubleTap: () {
+            if (doubleTapX < half) {
+              controller.seekBackward();
+            } else {
+              controller.seekForward();
+            }
+          },
+          child: Container(
+            color: AppColors.bgPage,
+            alignment: Alignment.center,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
             Obx(() {
               final url = controller.videoInfo.value?.thumbnailUrl ?? '';
               if (url.isEmpty) return const SizedBox.shrink();
@@ -884,9 +913,7 @@ class _ExpandedVideo extends StatelessWidget {
               return Center(
                 child: AspectRatio(
                   aspectRatio: vpc.value.aspectRatio,
-                  child: MobileFriendlyVideoPlayer(
-                    controller: vpc,
-                  ),
+                  child: VideoPlayer(vpc),
                 ),
               );
             }),
@@ -895,7 +922,7 @@ class _ExpandedVideo extends StatelessWidget {
               return const Center(
                 child: Icon(
                   Icons.play_circle_rounded,
-                  color: AppColors.textSecondary,
+                  color: AppColors.textPrimary,
                   size: 72,
                 ),
               );
@@ -942,6 +969,8 @@ class _ExpandedVideo extends StatelessWidget {
           ],
         ),
       ),
+    );
+      },
     );
   }
 }
@@ -1115,4 +1144,12 @@ class _CollapseIntent extends Intent {
 
 class _TogglePlayIntent extends Intent {
   const _TogglePlayIntent();
+}
+
+class _SeekBackwardIntent extends Intent {
+  const _SeekBackwardIntent();
+}
+
+class _SeekForwardIntent extends Intent {
+  const _SeekForwardIntent();
 }

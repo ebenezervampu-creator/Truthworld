@@ -9,6 +9,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/notification_service.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
@@ -204,6 +205,15 @@ class PushNotificationService extends GetxService {
 
   /// Display a styled in-app banner for notifications received while using the app
   void _showForegroundInAppNotification(RemoteMessage message) {
+    if (Get.isRegistered<UserSettingsController>() &&
+        !UserSettingsController.to.pushNotificationsEnabled.value) {
+      logger.info(
+        'Push notifications disabled in User Settings - suppressing foreground banner',
+        tag: 'PUSH_NOTIFICATIONS',
+      );
+      return;
+    }
+
     final title =
         message.notification?.title ??
         message.data['title'] as String? ??

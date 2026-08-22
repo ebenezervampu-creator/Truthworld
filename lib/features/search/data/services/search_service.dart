@@ -392,7 +392,7 @@ class SearchService {
     try {
       final snapshot = await _firestore
           .collection('videos')
-          .where('status', whereIn: const ['processed', 'published'])
+          .where('status', whereIn: const ['ready', 'processed', 'published', 'public'])
           .orderBy('views', descending: true)
           .limit(20)
           .get();
@@ -405,15 +405,16 @@ class SearchService {
           .toList();
     } catch (e) {
       debugPrint('⚠️ [Search] Recommended fetch failed: $e');
-      // Secondary fallback: query without ordering if index is missing
+      // Secondary fallback: query without composite ordering (and sort locally) if index is building or missing
       try {
         final snapshot = await _firestore.collection('videos').limit(30).get();
-        return snapshot.docs
+        final results = snapshot.docs
             .where((doc) => VideoVisibilityPolicy.isMapValid(doc.data()))
             .map(SearchResult.fromFirestore)
             .where((item) => item.isValid)
-            .take(12)
             .toList();
+        results.sort((a, b) => b.views.compareTo(a.views));
+        return results.take(12).toList();
       } catch (err) {
         debugPrint('⚠️ [Search] Fallback recommended fetch failed: $err');
         return [];

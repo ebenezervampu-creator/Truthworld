@@ -50,16 +50,16 @@ class VideoEngagementController extends BaseController {
     try {
       final futures = await Future.wait([
         _firestore
-            .collection(FirestoreCollections.videos)
-            .doc(videoId)
-            .collection('likes')
+            .collection(FirestoreCollections.users)
             .doc(userId)
+            .collection('likedVideos')
+            .doc(videoId)
             .getCacheFirst(),
         _firestore
-            .collection(FirestoreCollections.videos)
-            .doc(videoId)
-            .collection('dislikes')
+            .collection(FirestoreCollections.users)
             .doc(userId)
+            .collection('dislikedVideos')
+            .doc(videoId)
             .getCacheFirst(),
         _firestore
             .collection(FirestoreCollections.subscriptions)

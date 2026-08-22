@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:chewie/chewie.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +12,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/utils/subtitle_parser.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -105,7 +106,6 @@ class MiniplayerController extends BaseController
   // ═══════════════════════════════════════════════════════════════════════════
 
   VideoPlayerController? _vpc;
-  ChewieController? _chewie;
   Timer? _positionTimer;
   Timer? _hideControlsTimer;
   bool _isClosed = false;
@@ -113,7 +113,6 @@ class MiniplayerController extends BaseController
 
   // ── Public read-only accessors ──
   VideoPlayerController? get videoPlayerController => _vpc;
-  ChewieController? get chewieController => _chewie;
   bool get isVisible => mode.value != MiniplayerMode.dismissed;
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -156,6 +155,88 @@ class MiniplayerController extends BaseController
   // CORE OPERATIONS
   // ═══════════════════════════════════════════════════════════════════════════
 
+  Future<String> _resolvePlayableUrl(Video video, String? overrideUrl) async {
+    String? targetUrl;
+
+    if (overrideUrl != null && overrideUrl.isNotEmpty) {
+      targetUrl = overrideUrl;
+    }
+
+    if (kIsWeb) {
+      // On web, avoid .m3u8 HLS if MP4 resolutions are available
+      if (targetUrl == null || targetUrl.isEmpty || targetUrl.contains('.m3u8')) {
+        final mp4Res = video.adaptiveResolutions.firstWhereOrNull(
+          (r) => !r.url.contains('.m3u8') && r.url.isNotEmpty,
+        );
+        if (mp4Res != null) {
+          targetUrl = mp4Res.url;
+        } else if (video.originalUrl.isNotEmpty &&
+            !video.originalUrl.contains('.m3u8')) {
+          targetUrl = video.originalUrl;
+        } else if (video.videoUrl.isNotEmpty &&
+            !video.videoUrl.contains('.m3u8')) {
+          targetUrl = video.videoUrl;
+        }
+      }
+    } else {
+      // On native, prefer HLS or adaptive resolutions
+      if (targetUrl == null || targetUrl.isEmpty) {
+        if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+          targetUrl = video.hlsUrl;
+        } else if (video.adaptiveResolutions.isNotEmpty) {
+          targetUrl = video.adaptiveResolutions.first.url;
+        } else if (video.originalUrl.isNotEmpty) {
+          targetUrl = video.originalUrl;
+        } else if (video.videoUrl.isNotEmpty) {
+          targetUrl = video.videoUrl;
+        }
+      }
+    }
+
+    // Absolute fallback
+    if (targetUrl == null || targetUrl.isEmpty) {
+      targetUrl = video.videoUrl.isNotEmpty ? video.videoUrl : video.originalUrl;
+    }
+
+    // Fast-download CDN resolution for storage paths
+    if (targetUrl.isNotEmpty) {
+      final fast = StorageUtils.getFastDownloadUrl(targetUrl);
+      if (fast.isNotEmpty) targetUrl = fast;
+    }
+
+    // Resolve gs:// or unauthenticated storage paths via FirebaseStorage if still un-resolved
+    if (targetUrl.startsWith('gs://') ||
+        (targetUrl.startsWith('https://storage.googleapis.com/') &&
+            !targetUrl.contains('token='))) {
+      try {
+        targetUrl = await FirebaseStorage.instance
+            .refFromURL(targetUrl)
+            .getDownloadURL();
+      } catch (e) {
+        debugPrint('[MiniplayerController] Storage resolution error: $e');
+      }
+    }
+
+    return targetUrl ?? '';
+  }
+
+  void _vpcListener() {
+    final vpc = _vpc;
+    if (vpc == null || _isClosed) return;
+    try {
+      final val = vpc.value;
+      isPlaying.value = val.isPlaying;
+      currentPosition.value = val.position;
+      isBuffering.value = val.isBuffering;
+      if (val.duration > Duration.zero) {
+        totalDuration.value = val.duration;
+      }
+      if (val.hasError && error.value.isEmpty) {
+        error.value = val.errorDescription ?? 'Video playback error';
+      }
+    } catch (_) {}
+  }
+
   /// Load a [video] into the miniplayer and begin playback.
   ///
   /// If [resumeFromPosition] is provided the player will seek after init.
@@ -169,16 +250,14 @@ class MiniplayerController extends BaseController
     // Reset error state
     error.value = '';
 
-    var url = overrideUrl ?? video.videoUrl;
-    if (url.isEmpty) {
-      error.value = 'Video URL is empty';
-      return;
-    }
-
-    // If same video is already loaded, just ensure visibility
-    if (videoInfo.value?.id == video.id && _vpc != null) {
+    // If same video is already loaded and active, just ensure visibility and play
+    if (videoInfo.value?.id == video.id && _vpc != null && isVideoReady.value) {
       mode.value = MiniplayerMode.collapsed;
-      _vpc!.play();
+      try {
+        HoverPreviewCoordinator.globalMute.value = true;
+        await _vpc!.play();
+        isPlaying.value = true;
+      } catch (_) {}
       return;
     }
 
@@ -193,7 +272,7 @@ class MiniplayerController extends BaseController
     isPlaying.value = false;
     isBuffering.value = true;
     isVideoReady.value = false;
-    currentPosition.value = Duration.zero;
+    currentPosition.value = resumeFromPosition ?? Duration.zero;
     totalDuration.value = video.durationValue;
 
     // Sync and load subtitles if global subtitles are enabled
@@ -217,29 +296,35 @@ class MiniplayerController extends BaseController
     try {
       final handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
       final VideoPlayerController vpc;
-      final wasHandoff = handoffVpc != null;
+      final wasHandoff = handoffVpc != null && !handoffVpc.value.hasError;
 
       if (wasHandoff) {
         debugPrint(
           '[MiniplayerController] Found active handoff controller for: ${video.id}',
         );
         vpc = handoffVpc;
-        await vpc.setLooping(
-          false,
-        ); // Disable looping which was enabled for hover previews
-        await vpc.setVolume(1); // Reset volume to unmute
+        try {
+          await vpc.setLooping(false);
+          await vpc.setVolume(1.0);
+        } catch (_) {}
       } else {
-        // Resolve gs:// URLs if needed
-        if (url.startsWith('gs://')) {
+        if (handoffVpc != null) {
           try {
-            url = await FirebaseStorage.instance
-                .refFromURL(url)
-                .getDownloadURL();
-          } catch (_) {
-            // If import fails or resolution fails, let it fall through to networkUrl to fail naturally
-          }
+            handoffVpc.dispose();
+          } catch (_) {}
         }
-        vpc = VideoPlayerController.networkUrl(Uri.parse(url));
+        final targetUrl = await _resolvePlayableUrl(video, overrideUrl);
+        if (targetUrl.isEmpty) {
+          error.value = 'Video URL is empty';
+          isBuffering.value = false;
+          return;
+        }
+
+        debugPrint('[MiniplayerController] Initializing player for: $targetUrl');
+        vpc = VideoPlayerController.networkUrl(
+          Uri.parse(targetUrl),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
         await vpc.initialize();
       }
 
@@ -249,13 +334,7 @@ class MiniplayerController extends BaseController
       }
 
       _vpc = vpc;
-      _chewie = ChewieController(
-        videoPlayerController: vpc,
-        autoPlay: true,
-        showControls: false, // We render our own controls in the widget
-        aspectRatio: vpc.value.aspectRatio,
-        errorBuilder: (_, msg) => _errorWidget(msg),
-      );
+      vpc.addListener(_vpcListener);
 
       totalDuration.value = vpc.value.duration;
       isBuffering.value = false;
@@ -266,11 +345,26 @@ class MiniplayerController extends BaseController
           resumeFromPosition > Duration.zero &&
           resumeFromPosition < vpc.value.duration) {
         await vpc.seekTo(resumeFromPosition);
+        currentPosition.value = resumeFromPosition;
       }
 
       // Explicitly start playback so the miniplayer plays when appearing
       HoverPreviewCoordinator.globalMute.value = true;
-      await vpc.play();
+      try {
+        await vpc.play();
+        isPlaying.value = true;
+      } catch (e) {
+        debugPrint(
+          '[MiniplayerController] Play error, attempting muted autoplay fallback: $e',
+        );
+        try {
+          await vpc.setVolume(0);
+          await vpc.play();
+          isPlaying.value = true;
+        } catch (e2) {
+          debugPrint('[MiniplayerController] Play fallback failed: $e2');
+        }
+      }
 
       _startPositionTimer();
     } catch (e) {
@@ -335,12 +429,33 @@ class MiniplayerController extends BaseController
   Future<void> fetchAndParseSubtitles(String url) async {
     if (url.isEmpty) return;
     try {
-      final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
-      final response = await http.get(Uri.parse(resolvedUrl));
-      if (response.statusCode == 200) {
-        var content = utf8.decode(response.bodyBytes, allowMalformed: true);
-        if (content.startsWith('\uFEFF')) content = content.substring(1);
-        subtitleSegments.assignAll(_parseSRT(content));
+      String? content;
+      try {
+        final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
+        final response = await http.get(Uri.parse(resolvedUrl));
+        if (response.statusCode == 200) {
+          content = utf8.decode(response.bodyBytes, allowMalformed: true);
+        }
+      } catch (_) {}
+
+      if (content == null || content.isEmpty) {
+        try {
+          Uint8List? data;
+          if (url.startsWith('gs://') ||
+              url.startsWith('https://storage.googleapis.com/') ||
+              url.startsWith('https://firebasestorage.googleapis.com/')) {
+            data = await FirebaseStorage.instance.refFromURL(url).getData();
+          } else if (url.startsWith('subtitles/') || url.startsWith('transcripts/')) {
+            data = await FirebaseStorage.instance.ref(url).getData();
+          }
+          if (data != null && data.isNotEmpty) {
+            content = utf8.decode(data, allowMalformed: true);
+          }
+        } catch (_) {}
+      }
+
+      if (content != null && content.isNotEmpty) {
+        subtitleSegments.assignAll(SubtitleParser.parse(content));
       }
     } catch (e) {
       debugPrint('[MiniplayerController] Subtitle error: $e');
@@ -348,100 +463,62 @@ class MiniplayerController extends BaseController
     }
   }
 
-  List<SubtitleSegment> _parseSRT(String content) {
-    final segs = <SubtitleSegment>[];
-    var normalized = content.replaceAll('\r\n', '\n').trim();
-    if (normalized.startsWith('WEBVTT')) {
-      normalized = normalized
-          .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
-          .trim();
-    }
-    for (final block in normalized.split('\n\n')) {
-      final lines = block.trim().split('\n');
-      if (lines.length < 2) continue;
-      var timeLine = '';
-      var textStart = 0;
-      if (lines[0].contains('-->')) {
-        timeLine = lines[0];
-        textStart = 1;
-      } else if (lines.length >= 2 && lines[1].contains('-->')) {
-        timeLine = lines[1];
-        textStart = 2;
-      } else {
-        continue;
-      }
-      final times = timeLine.split(' --> ');
-      if (times.length != 2) continue;
-      if (lines.length <= textStart) continue;
-      final text = lines.sublist(textStart).join('\n').trim();
-      if (text.isNotEmpty) {
-        segs.add(
-          SubtitleSegment(
-            start: _parseSRTTime(times[0]),
-            end: _parseSRTTime(times[1]),
-            text: text,
-          ),
-        );
-      }
-    }
-    return segs;
-  }
-
-  Duration _parseSRTTime(String t) {
-    final parts = t.trim().replaceAll(',', '.').split(':');
-    if (parts.length != 3) return Duration.zero;
-    final sParts = parts[2].split('.');
-    return Duration(
-      hours: int.parse(parts[0]),
-      minutes: int.parse(parts[1]),
-      seconds: int.parse(sParts[0]),
-      milliseconds: sParts.length > 1 ? int.parse(sParts[1]) : 0,
-    );
-  }
-
   SubtitleSegment? _findSubtitle(Duration pos) {
-    for (final s in subtitleSegments) {
-      if (pos >= s.start && pos <= s.end) return s;
-      if (s.start > pos) break; // segments are sorted
-    }
-    return null;
+    return SubtitleParser.findActiveSubtitle(subtitleSegments, pos);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PLAYBACK CONTROLS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  void togglePlayPause() {
+  Future<void> togglePlayPause() async {
     final vpc = _vpc;
     if (vpc == null) return;
     if (vpc.value.isPlaying) {
-      vpc.pause();
+      await vpc.pause();
+      isPlaying.value = false;
     } else {
       HoverPreviewCoordinator.globalMute.value = true;
-      vpc.play();
+      try {
+        await vpc.play();
+        isPlaying.value = true;
+      } catch (e) {
+        debugPrint('[MiniplayerController] togglePlayPause error: $e');
+        try {
+          await vpc.setVolume(0);
+          await vpc.play();
+          isPlaying.value = true;
+        } catch (_) {}
+      }
     }
   }
 
-  void seekForward({int seconds = 10}) {
+  Future<void> seekForward({int seconds = 10}) async {
     final vpc = _vpc;
     if (vpc == null) return;
     final target = vpc.value.position + Duration(seconds: seconds);
-    vpc.seekTo(target > vpc.value.duration ? vpc.value.duration : target);
+    final clamped = target > vpc.value.duration ? vpc.value.duration : target;
+    currentPosition.value = clamped;
+    await vpc.seekTo(clamped);
   }
 
-  void seekBackward({int seconds = 10}) {
+  Future<void> seekBackward({int seconds = 10}) async {
     final vpc = _vpc;
     if (vpc == null) return;
     final target = vpc.value.position - Duration(seconds: seconds);
-    vpc.seekTo(target < Duration.zero ? Duration.zero : target);
+    final clamped = target < Duration.zero ? Duration.zero : target;
+    currentPosition.value = clamped;
+    await vpc.seekTo(clamped);
   }
 
-  void seekTo(Duration position) {
+  Future<void> seekTo(Duration position) async {
+    final vpc = _vpc;
+    if (vpc == null) return;
     currentPosition.value = position;
-    _vpc?.seekTo(position);
+    await vpc.seekTo(position);
   }
 
-  void seekToRatio(double ratio) {
+  Future<void> seekToRatio(double ratio) async {
     final vpc = _vpc;
     if (vpc == null) return;
     final totalMs = totalDuration.value.inMilliseconds;
@@ -449,7 +526,7 @@ class MiniplayerController extends BaseController
     final targetMs = (totalMs * ratio.clamp(0.0, 1.0)).toInt();
     final targetDuration = Duration(milliseconds: targetMs);
     currentPosition.value = targetDuration;
-    vpc.seekTo(targetDuration);
+    await vpc.seekTo(targetDuration);
   }
 
   void toggleMobileControls() {
@@ -582,6 +659,9 @@ class MiniplayerController extends BaseController
 
     // Register active controller for handoff BEFORE navigating
     if (_vpc != null) {
+      try {
+        _vpc!.removeListener(_vpcListener);
+      } catch (_) {}
       VideoPlaybackHandoff.registerActiveController(video.id, _vpc!);
       // Set to null so dismiss() / _disposeVideoControllers() won't dispose it!
       _vpc = null;
@@ -668,16 +748,10 @@ class MiniplayerController extends BaseController
 
   void _disposeVideoControllers() {
     _stopPositionTimer();
-    if (_chewie != null) {
-      try {
-        _chewie!.pause();
-      } catch (_) {}
-      try {
-        _chewie!.dispose();
-      } catch (_) {}
-      _chewie = null;
-    }
     if (_vpc != null) {
+      try {
+        _vpc!.removeListener(_vpcListener);
+      } catch (_) {}
       try {
         _vpc!.pause();
       } catch (_) {}
@@ -694,7 +768,7 @@ class MiniplayerController extends BaseController
       child: Center(
         child: Icon(
           Icons.error_outline,
-          color: AppColors.textSecondary,
+          color: AppColors.textPrimary,
           size: 32,
         ),
       ),

@@ -17,7 +17,6 @@ class TopicPopupMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isOwner =
         Get.isRegistered<AuthService>() &&
         ((topic.channelId != null &&
@@ -31,10 +30,10 @@ class TopicPopupMenu extends StatelessWidget {
       icon: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: AppColors.bgPage.withValues(alpha: 0.35),
+          color: AppColors.bgSurfaceHover,
           shape: BoxShape.circle,
           border: Border.all(
-            color: AppColors.textPrimary.withValues(alpha: 0.2),
+            color: AppColors.textPrimary.withValues(alpha: 0.1),
           ),
         ),
         child: const Icon(
@@ -45,11 +44,11 @@ class TopicPopupMenu extends StatelessWidget {
       ),
       tooltip: 'Topic Options',
       elevation: 8,
-      color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+      color: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
         ),
       ),
       onSelected: (action) {
@@ -66,70 +65,64 @@ class TopicPopupMenu extends StatelessWidget {
       },
       itemBuilder: (ctx) => [
         if (isOwner)
-          PopupMenuItem<String>(
+          const PopupMenuItem<String>(
             value: 'edit',
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.edit_rounded,
                   size: 18,
-                  color: Color(0xFF3B82F6),
+                  color: AppColors.textPrimary,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Text(
                   'Edit Topic',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDark
-                        ? AppColors.textPrimary
-                        : const Color(0xFF111827),
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
             ),
           ),
-        PopupMenuItem<String>(
+        const PopupMenuItem<String>(
           value: 'view',
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.visibility_rounded,
                 size: 18,
-                color: Color(0xFF10B981),
+                color: AppColors.textPrimary,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Text(
                 'View Topic',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF111827),
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
           ),
         ),
-        PopupMenuItem<String>(
+        const PopupMenuItem<String>(
           value: 'copy',
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.link_rounded,
                 size: 18,
-                color: Color(0xFF8B5CF6),
+                color: AppColors.textPrimary,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Text(
                 'Copy Link',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? AppColors.textPrimary
-                      : const Color(0xFF111827),
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],

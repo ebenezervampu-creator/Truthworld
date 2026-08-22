@@ -317,7 +317,9 @@ export class TranscriptionLayer {
         { label: "1080p", url: httpVideoUrl, width: 1920, height: 1080, bitrate: 4500000 },
         { label: "720p", url: httpVideoUrl, width: 1280, height: 720, bitrate: 2500000 },
         { label: "480p", url: httpVideoUrl, width: 854, height: 480, bitrate: 1200000 },
-        { label: "360p", url: httpVideoUrl, width: 640, height: 360, bitrate: 800000 }
+        { label: "360p", url: httpVideoUrl, width: 640, height: 360, bitrate: 800000 },
+        { label: "240p", url: httpVideoUrl, width: 426, height: 240, bitrate: 400000 },
+        { label: "144p", url: httpVideoUrl, width: 256, height: 144, bitrate: 200000 }
       ];
 
       const publicationData = {

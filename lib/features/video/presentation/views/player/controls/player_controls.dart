@@ -38,53 +38,27 @@ class MainControls extends StatelessWidget {
       final isNarrow = maxControlsWidth < 550;
       final isMedium = maxControlsWidth >= 550 && maxControlsWidth < 800;
 
-      final isMobileDevice =
-          Theme.of(context).platform == TargetPlatform.android ||
-          Theme.of(context).platform == TargetPlatform.iOS;
-
       return Stack(
         children: [
-          // Top controls
+          // Top controls (Fullscreen Top Bar)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: isMobileDevice
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        IconBtn(
-                          icon: Icons.keyboard_arrow_down_rounded,
-                          size: 30,
-                          onTap: () {
-                            if (ctrl.isFullScreen.value) {
-                              ctrl.toggleFullscreen();
-                            } else {
-                              Get.back();
-                            }
-                          },
+            child: Obx(
+              () => ctrl.isFullScreen.value
+                  ? Center(
+                      child: SizedBox(
+                        width: maxControlsWidth,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {}, // Absorb taps
+                          child: PlayerTopBar(ctrl: ctrl),
                         ),
-                      ],
-                    ),
-                  )
-                : Obx(
-                    () => ctrl.isFullScreen.value
-                        ? Center(
-                            child: SizedBox(
-                              width: maxControlsWidth,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {}, // Absorb taps
-                                child: PlayerTopBar(ctrl: ctrl),
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ),
 
           // Centre controls — play / prev / next
@@ -466,42 +440,38 @@ class CenterRow extends StatelessWidget {
     final skipSize = isMobile ? 32.0 : 44.0;
     final spacing = isMobile ? 24.0 : 40.0;
 
-    // Absorb taps so the outer player GestureDetector (togglePlayPause) doesn't fire
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {},
-      child: Obx(
-        () => Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Opacity(
-              opacity: ctrl.hasPreviousVideo ? 1.0 : 0.3,
-              child: CenterBtn(
-                icon: Icons.skip_previous_rounded,
-                onTap: ctrl.hasPreviousVideo ? ctrl.playPrevious : null,
-                size: skipSize,
-              ),
+    return Obx(
+      () => Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Opacity(
+            opacity: ctrl.hasPreviousVideo ? 1.0 : 0.3,
+            child: CenterBtn(
+              icon: Icons.skip_previous_rounded,
+              onTap: ctrl.hasPreviousVideo ? ctrl.playPrevious : null,
+              size: skipSize,
             ),
-            SizedBox(width: spacing),
-            CenterBtn(
-              icon: ctrl.isPlaying.value
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-              onTap: ctrl.togglePlayPause,
-              size: playSize,
-              isPrimary: true,
+          ),
+          SizedBox(width: spacing),
+          CenterBtn(
+            icon: ctrl.isPlaying.value
+                ? Icons.pause_rounded
+                : Icons.play_arrow_rounded,
+            onTap: ctrl.togglePlayPause,
+            size: playSize,
+            isPrimary: true,
+          ),
+          SizedBox(width: spacing),
+          Opacity(
+            opacity: ctrl.hasNextVideo ? 1.0 : 0.3,
+            child: CenterBtn(
+              icon: Icons.skip_next_rounded,
+              onTap: ctrl.hasNextVideo ? ctrl.playNext : null,
+              size: skipSize,
             ),
-            SizedBox(width: spacing),
-            Opacity(
-              opacity: ctrl.hasNextVideo ? 1.0 : 0.3,
-              child: CenterBtn(
-                icon: Icons.skip_next_rounded,
-                onTap: ctrl.hasNextVideo ? ctrl.playNext : null,
-                size: skipSize,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -867,7 +837,7 @@ class NetworkBadge extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.network_check_rounded, color: col, size: 14),
+            const Icon(Icons.network_check_rounded, color: AppColors.textPrimary, size: 14),
             const SizedBox(width: 6),
             Text(
               label,
@@ -891,11 +861,14 @@ class AbrBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final label = ctrl.abr.isAutoMode.value
-          ? 'AUTO·${ctrl.abr.currentTier.label}'
+      final shortTier = ctrl.abr.currentTier.height > 0
+          ? '${ctrl.abr.currentTier.height}p'
           : ctrl.abr.currentTier.label;
+      final label = ctrl.abr.isAutoMode.value
+          ? 'AUTO·$shortTier'
+          : shortTier;
       return InkWell(
-        onTap: ctrl.openSettings,
+        onTap: () => ctrl.openSettings(context),
         child: Container(
           margin: const EdgeInsets.only(right: 4),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

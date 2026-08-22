@@ -15,6 +15,7 @@ import { reputationService } from "../services/reputationService";
 import { SpeakerReputationService } from "../services/speakerReputationService";
 import { CredibilityResult } from "../types";
 import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const db = () => admin.firestore();
 
@@ -133,17 +134,31 @@ export class AggregationLayer {
       reachEngineDone = isDone(stages.dubbing);
       
       // Also verify all individual language stages if they exist
-      const targetLangs = (plan.languages || []).filter(l => l !== "en");
+      const targetLangs = (plan.languages || []).filter(l => normalizeLanguageCode(l) !== "en");
       for (const lang of targetLangs) {
+        const normLang = normalizeLanguageCode(lang);
+        const transStage = stages[`translating_${normLang}`] || stages[`translating_${lang}`];
         // Translation stage is always required for non-source languages
-        if (!isDone(stages[`translating_${lang}`])) {
-          reachEngineDone = false;
-          break;
+        if (transStage && !isDone(transStage)) {
+          // If translation stage has been stuck in 'running' for > 3 minutes, treat it as auto-advanced
+          if (transStage.status === "running" && transStage.startedAt && Date.now() - transStage.startedAt > 3 * 60 * 1000) {
+            logger.warn("[Aggregation] Translation stage stuck in running > 3m — auto-advancing", { jobId, lang, normLang });
+          } else {
+            reachEngineDone = false;
+            break;
+          }
         }
         // Dubbing stage is only required if dubbing is explicitly enabled
-        if (plan.generateDubbing && !isDone(stages[`dubbing_${lang}`])) {
-          reachEngineDone = false;
-          break;
+        if (plan.generateDubbing) {
+          const dubStage = stages[`dubbing_${normLang}`] || stages[`dubbing_${lang}`];
+          if (dubStage && !isDone(dubStage)) {
+            if (dubStage.status === "running" && dubStage.startedAt && Date.now() - dubStage.startedAt > 3 * 60 * 1000) {
+              logger.warn("[Aggregation] Dubbing stage stuck in running > 3m — auto-advancing", { jobId, lang, normLang });
+            } else {
+              reachEngineDone = false;
+              break;
+            }
+          }
         }
       }
     }
@@ -188,18 +203,19 @@ export class AggregationLayer {
         const jobOutputsSnap = await transaction.get(jobOutputsRef);
         const jobOutputsData = jobOutputsSnap.exists ? jobOutputsSnap.data() : {};
         
-        // 3.5. Fetch localization artifacts (Dubbing) per language
-        const [dubbingSnaps, subtitleSnaps] = await Promise.all([
-          Promise.all((plan.languages || []).map(lang => transaction.get(db().collection("dubbing_results").doc(`${jobId}_${lang}`)))),
-          Promise.all((plan.languages || []).map(lang => transaction.get(db().collection("subtitle_results").doc(`${jobId}_${lang}`))))
-        ]);
-
-        // 3.6. Fetch source language subtitle if not already in the list
+        // 3.5. Fetch localization artifacts (Dubbing) per language (resolving both raw and normalized codes)
         const sourceLang = jobData.sourceLanguage || "en";
-        let sourceSubSnap = null;
-        if (!(plan.languages || []).includes(sourceLang)) {
-          sourceSubSnap = await transaction.get(db().collection("subtitle_results").doc(`${jobId}_${sourceLang}`));
-        }
+        const uniqueLangs = Array.from(new Set([
+          ...(plan.languages || []),
+          ...((plan.languages || []).map(normalizeLanguageCode)),
+          sourceLang,
+          normalizeLanguageCode(sourceLang)
+        ])).filter(Boolean);
+
+        const [dubbingSnaps, subtitleSnaps] = await Promise.all([
+          Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("dubbing_results").doc(`${jobId}_${lang}`)))),
+          Promise.all(uniqueLangs.map(lang => transaction.get(db().collection("subtitle_results").doc(`${jobId}_${lang}`))))
+        ]);
 
         // Note: Partial results might be missing if stages were skipped
         const trans = transSnap.exists ? transSnap.data() as any : null;
@@ -245,25 +261,6 @@ export class AggregationLayer {
         }
         
         // 2. Merge from subtitle_results snaps (ReachEngine results)
-        if (sourceSubSnap?.exists) {
-          const data = sourceSubSnap.data();
-          const url = data?.subtitleUrl;
-          if (url) {
-            const directUrl = getDownloadUrl(url);
-            subtitlesMap[sourceLang] = {
-              ...data,
-              url: directUrl,
-              srtPath: data?.srtPath ? getDownloadUrl(data.srtPath) : directUrl,
-              vttPath: data?.vttPath ? getDownloadUrl(data.vttPath) : directUrl.replace(/\.srt$/, ".vtt"),
-              jsonPath: data?.jsonPath ? getDownloadUrl(data.jsonPath) : directUrl.replace(/\.srt$/, ".json"),
-              format: data?.subtitleFormat || "srt",
-              language: sourceLang,
-              updatedAt: data?.createdAt || Date.now(),
-            };
-            flatSubtitles[sourceLang] = directUrl;
-          }
-        }
-
         subtitleSnaps.forEach(snap => {
           if (snap.exists) {
             const data = snap.data();

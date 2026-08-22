@@ -6,6 +6,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelPlanSelectionController extends BaseController
@@ -319,24 +320,28 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 // Header
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [gradientStart, primaryColor],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                    if (isStandard)
+                      const AppLogo(
+                        size: 52,
+                        borderRadius: 26,
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [gradientStart, primaryColor],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
                         ),
-                        shape: BoxShape.circle,
+                        child: const Icon(
+                          Icons.rocket_launch,
+                          color: AppColors.textPrimary,
+                          size: 28,
+                        ),
                       ),
-                      child: Icon(
-                        isStandard
-                            ? Icons.play_circle_filled
-                            : Icons.rocket_launch,
-                        color: AppColors.textPrimary,
-                        size: 28,
-                      ),
-                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(

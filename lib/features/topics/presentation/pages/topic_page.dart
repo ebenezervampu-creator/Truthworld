@@ -1,11 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
-import 'package:truthworld/core/constants/firestore_collections.dart';
-import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/related_topics_widget.dart';
@@ -63,33 +61,13 @@ class _TopicPageState extends State<TopicPage> {
     });
   }
 
-  Future<void> _navigateToChannel(String? channelId) async {
+  void _navigateToChannel(String? channelId) {
     if (channelId == null || channelId.isEmpty) return;
-    try {
-      Get.dialog(
-        const Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
-        barrierDismissible: false,
-      );
-      final doc = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.channels)
-          .doc(channelId)
-          .get();
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
-      if (doc.exists) {
-        final channel = Channel.fromDocumentSnapshot(doc);
-        Get.toNamed(channel.channelRoute, arguments: {'channel': channel});
-      } else {
-        Get.snackbar('Error', 'Channel not found');
-      }
-    } catch (e) {
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
-      debugPrint('Error navigating to channel: $e');
+    final cached = DeepLinkService.instance.getChannelFromCache(channelId);
+    if (cached != null) {
+      Get.toNamed(cached.channelRoute, arguments: {'channel': cached});
+    } else {
+      DeepLinkService.instance.handleUrl('/channel/$channelId');
     }
   }
 

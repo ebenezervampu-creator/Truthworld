@@ -42,6 +42,7 @@ import {
   DubbingCompleteData,
 } from "./pipeline/types";
 import { logger } from "./pipeline/utils/logger";
+import { normalizeLanguageCode, normalizeLanguageCodes } from "./shared/language-normalizer";
 
 
 
@@ -49,7 +50,7 @@ import { logger } from "./pipeline/utils/logger";
 setGlobalOptions({
   region: "asia-south1",
   invoker: "public",
-  cpu: "gcf_gen1",
+  maxInstances: 2,
 });
 
 /**
@@ -1095,9 +1096,10 @@ export {
  *   - finalTranscription   → transcription with full accuracy
  *   - genLangSubs          → enablePath2 / enableReachEngine
  *   - generateDubbing      → dubbing mode in execution plan
- *   - translationLanguages → plan.languages
+ *   - translationLanguages → plan.languages (auto-normalized to ISO 639-1)
  *   - tts                  → TTS voice config
  *   - diarization          → expectedSpeakerCount routing
+
  *   - speakerCount         → expectedSpeakerCount
  *   - summary              → enableAuxiliary (summary generation)
  */
@@ -1240,7 +1242,8 @@ export const onVideoPublished = onDocumentUpdated(
       const eventId = uuidv4();
 
       // ── Map ALL aiFeatures → ExecutionPlan ──────────────────────────────────
-      const requestedLanguages: string[] = getTranslationLangs(afterData);
+      const rawRequestedLanguages: string[] = getTranslationLangs(afterData);
+      const requestedLanguages: string[] = normalizeLanguageCodes(rawRequestedLanguages);
       const hasTargetLanguages = requestedLanguages.length > 0;
       const enableFactChecking = aiFeatures.factChecking ?? false;
       const enableGenLangSubs = aiFeatures.genLangSubs ?? (hasTargetLanguages || (aiFeatures.generateSubtitles ?? false));
@@ -1327,11 +1330,14 @@ export const onVideoPublished = onDocumentUpdated(
 
       // Add per-language stages for localization tracking
       if (enablePath2) {
-        const targetLangs = (requestedLanguages || []).filter(l => l !== "en");
+        const targetLangs = (requestedLanguages || []).filter(l => normalizeLanguageCode(l) !== "en");
         for (const lang of targetLangs) {
-          stages[`translating_${lang}`] = { status: "pending", progress: 0 };
+          const normLang = normalizeLanguageCode(lang);
+          stages[`translating_${normLang}`] = { status: "pending", progress: 0 };
+          if (lang !== normLang) stages[`translating_${lang}`] = { status: "pending", progress: 0 };
           if (enableDubbing) {
-            stages[`dubbing_${lang}`] = { status: "pending", progress: 0 };
+            stages[`dubbing_${normLang}`] = { status: "pending", progress: 0 };
+            if (lang !== normLang) stages[`dubbing_${lang}`] = { status: "pending", progress: 0 };
           }
         }
       }
@@ -1445,9 +1451,11 @@ export const onVideoPublished = onDocumentUpdated(
       }
 
       // Update execution plan with new languages + current aiFeatures
+      const rawRelangs = getTranslationLangs(afterData);
+      const normRelangs = normalizeLanguageCodes(rawRelangs);
       const updatedPlan: ExecutionPlan = {
         ...jobData.executionPlan,
-        languages: Array.from(new Set(["en", ...getTranslationLangs(afterData)])),
+        languages: Array.from(new Set(["en", ...normRelangs])),
         generateDubbing: aiFeatures.generateDubbing ?? jobData.executionPlan.generateDubbing,
         genLangSubs: aiFeatures.genLangSubs ?? jobData.executionPlan.genLangSubs,
         enablePath2: true,
@@ -1477,7 +1485,7 @@ export const onVideoPublished = onDocumentUpdated(
         updatedAt: Date.now(),
       };
 
-      const targetLangs = ((getTranslationLangs(afterData) as string[]) || []).filter((l: string) => l !== "en");
+      const targetLangs = (normRelangs || []).filter((l: string) => l !== "en");
       for (const lang of targetLangs) {
         updatePayload[`stages.translating_${lang}`] = { status: "pending", progress: 0 };
         updatePayload[`stages.dubbing_${lang}`] = { status: "pending", progress: 0 };
@@ -1684,7 +1692,8 @@ export {
 export {
   onCommentCreated,
   onNewSubscription,
-  onCommunityPostCreated
+  onCommunityPostCreated,
+  onUserNotificationCreated
 } from "./notifications/triggers";
 
 export { onFactCheckCompleted } from "./channels/reputation_triggers";

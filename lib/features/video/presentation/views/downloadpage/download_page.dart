@@ -1,16 +1,11 @@
-import 'dart:typed_data';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:truthworld/core/utils/format_utils.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -340,7 +335,7 @@ class _DownloadsPageState extends State<DownloadsPage>
               children: [
                 Icon(
                   Icons.auto_awesome_rounded,
-                  color: AppColors.brand,
+                  color: AppColors.textPrimary,
                   size: 22,
                 ),
                 SizedBox(width: 8),
@@ -387,70 +382,24 @@ class _DownloadsPageState extends State<DownloadsPage>
 
   Future<void> _downloadRecommendedVideo(
     Video video,
-    BuildContext context,
-  ) async {
-    try {
-      final offlineVideo = OfflineVideo(
-        id: video.id,
-        title: video.title,
-        channelName: video.channelName,
-        channelImage: video.channelImage.isNotEmpty
-            ? video.channelImage
-            : video.channelAvatarUrl,
-        views: FormatUtils.formatCount(video.views),
-        thumbnailUrl: video.thumbnailUrl,
-        downloadedAt: DateTime.now(),
+    BuildContext context, {
+    bool isAudioOnly = false,
+  }) async {
+    if (isAudioOnly) {
+      await controller.downloadAudioOffline(
+        context: context,
+        video: video,
       );
-
-      AppSnackbar.show(
-        'Downloading...',
-        "Starting download for '${video.title}'",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.brand.withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-      );
-
-      var videoBytes = Uint8List(0);
-      final targetUrl = video.originalUrl.isNotEmpty
-          ? video.originalUrl
-          : video.videoUrl;
-      if (targetUrl.isNotEmpty && targetUrl.startsWith('http')) {
-        final res = await http.get(Uri.parse(targetUrl));
-        if (res.statusCode == 200) {
-          videoBytes = res.bodyBytes;
-        }
-      }
-
-      await saveOfflineVideoBytes(
-        video.id,
-        videoBytes,
-        offlineVideo,
-      );
-
-      if (Get.isRegistered<DownloadsController>()) {
-        await Get.find<DownloadsController>().loadVideos();
-      }
-
-      AppSnackbar.show(
-        'Download Complete',
-        "'${video.title}' downloaded successfully.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.success.withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
-      );
-    } catch (e) {
-      AppSnackbar.show(
-        'Download Failed',
-        'Could not download video: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppColors.error.withValues(alpha: 0.8),
-        colorText: AppColors.textPrimary,
+    } else {
+      controller.showDownloadQualityDialog(
+        context,
+        video,
       );
     }
   }
 
   Widget _buildCategoryChips() {
-    final categories = ['All', 'Videos', 'Offline', 'Recent'];
+    final categories = ['All', 'Videos', 'Audio', 'Recent'];
     return SizedBox(
       height: 40,
       child: ListView.builder(
@@ -518,7 +467,7 @@ class _DownloadVideoListCard extends StatelessWidget {
                         Container(color: AppTheme.secondaryBackground),
                   ),
                 ),
-                // Offline badge
+                // Offline / Audio badge
                 Positioned(
                   bottom: 4,
                   right: 4,
@@ -531,17 +480,19 @@ class _DownloadVideoListCard extends StatelessWidget {
                       color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(
-                          Icons.download_done,
+                          video.isAudioOnly
+                              ? Icons.headphones_rounded
+                              : Icons.download_done,
                           color: AppColors.textPrimary,
                           size: 12,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
-                          'OFFLINE',
-                          style: TextStyle(
+                          video.isAudioOnly ? 'AUDIO' : 'OFFLINE',
+                          style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
@@ -744,7 +695,21 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Get.toNamed('/watch?v=${widget.video.id}');
+        if (widget.isDownloaded) {
+          final downloadsCtrl = Get.isRegistered<DownloadsController>()
+              ? Get.find<DownloadsController>()
+              : Get.put(DownloadsController());
+          final offline = downloadsCtrl.videos
+              .firstWhereOrNull((v) => v.id == widget.video.id);
+          if (offline != null) {
+            downloadsCtrl.playVideo(offline);
+            return;
+          }
+        }
+        Get.toNamed(
+          '/watch?v=${widget.video.id}',
+          arguments: {'video': widget.video},
+        );
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -845,9 +810,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                         widget.isDownloaded
                             ? Icons.download_done_rounded
                             : Icons.download_for_offline_outlined,
-                        color: widget.isDownloaded
-                            ? AppColors.brand
-                            : AppColors.textPrimary,
+                        color: AppColors.textPrimary,
                         size: 26,
                       ),
               );

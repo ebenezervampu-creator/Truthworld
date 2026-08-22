@@ -1,10 +1,7 @@
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -28,8 +25,7 @@ class VideoAnalysisBottomSheet extends StatefulWidget {
 
 class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
   late final VideoController videoCtrl;
-  bool _showRawJson = false;
-  final Set<int> _expandedClaimIndices = {};
+  final RxSet<int> _expandedClaimIndices = <int>{}.obs;
 
   @override
   void initState() {
@@ -118,7 +114,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     const SizedBox(width: 6),
                     Text(
                       'AI CREDIBILITY & ANALYSIS',
-                      style: GoogleFonts.outfit(
+                      style: context.twTypography.overline.copyWith(
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
                         color: AppColors.brand,
@@ -132,7 +128,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                   widget.video.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
+                  style: context.twTypography.title.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -174,139 +170,12 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
         return _buildNoFactCheckFallback();
       }
 
-      final jsonString = const JsonEncoder.withIndent('  ').convert(reportData);
-
-      return Column(
-        children: [
-          _buildViewToggleBar(jsonString),
-          Expanded(
-            child: _showRawJson
-                ? _buildRawJsonView(jsonString)
-                : _buildFormattedDashboard(reportData, jsonString),
-          ),
-        ],
-      );
+      return _buildFormattedDashboard(reportData);
     });
-  }
-
-  Widget _buildViewToggleBar(String jsonString) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.25),
-        border: const Border(
-          bottom: BorderSide(color: AppColors.bgDivider, width: 0.8),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // View mode toggle
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: AppColors.bgSurface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.bgDivider),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildToggleButton(
-                  label: 'Analysis View',
-                  icon: Icons.analytics_outlined,
-                  isSelected: !_showRawJson,
-                  onTap: () => setState(() => _showRawJson = false),
-                ),
-                _buildToggleButton(
-                  label: 'Raw JSON',
-                  icon: Icons.code_rounded,
-                  isSelected: _showRawJson,
-                  onTap: () => setState(() => _showRawJson = true),
-                ),
-              ],
-            ),
-          ),
-
-          // Copy JSON button
-          TextButton.icon(
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: jsonString));
-              Get.snackbar(
-                'Copied',
-                'Credibility report JSON copied to clipboard',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppColors.bgSurface,
-                colorText: AppColors.textPrimary,
-                duration: const Duration(seconds: 2),
-                margin: const EdgeInsets.all(16),
-              );
-            },
-            icon: const Icon(
-              Icons.copy_rounded,
-              size: 14,
-              color: Colors.white,
-            ),
-            label: Text(
-              'Copy JSON',
-              style: GoogleFonts.roboto(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleButton({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.brand : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.roboto(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildFormattedDashboard(
     Map<String, dynamic> data,
-    String jsonString,
   ) {
     final analysisState =
         (data['analysisState'] ?? data['state'] ?? 'VERIFIED').toString();
@@ -464,7 +333,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                           ),
                           child: Text(
                             analysisState.toUpperCase(),
-                            style: GoogleFonts.outfit(
+                            style: context.twTypography.overline.copyWith(
                               fontSize: 10,
                               fontWeight: FontWeight.w900,
                               color: stateColor,
@@ -476,10 +345,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                           const SizedBox(width: 8),
                           Text(
                             '${confidenceTier.toUpperCase()} CONFIDENCE',
-                            style: GoogleFonts.roboto(
+                            style: context.twTypography.caption.copyWith(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white54,
+                              color: AppColors.textTertiary,
                               letterSpacing: 0.8,
                             ),
                           ),
@@ -489,10 +358,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     const SizedBox(height: 4),
                     Text(
                       trustLabel,
-                      style: GoogleFonts.outfit(
+                      style: context.twTypography.title.copyWith(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
@@ -519,7 +388,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         trustScore <= 5.0
                             ? '${trustScore.toStringAsFixed(1)} / 5.0'
                             : '${trustScore.toInt()}%',
-                        style: GoogleFonts.outfit(
+                        style: context.twTypography.title.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                           color: _getScoreColor(trustScore > 5 ? trustScore : trustScore * 20),
@@ -527,10 +396,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       ),
                       Text(
                         'TRUST INDEX',
-                        style: GoogleFonts.roboto(
+                        style: context.twTypography.caption.copyWith(
                           fontSize: 8,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white54,
+                          color: AppColors.textTertiary,
                         ),
                       ),
                     ],
@@ -569,7 +438,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
               const SizedBox(width: 8),
               Text(
                 'AI VIEWER ADVISORY & SUMMARY',
-                style: GoogleFonts.outfit(
+                style: context.twTypography.overline.copyWith(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   color: AppColors.brand,
@@ -581,8 +450,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
           const SizedBox(height: 10),
           Text(
             note,
-            style: GoogleFonts.roboto(
-              color: Colors.white.withValues(alpha: 0.9),
+            style: context.twTypography.body.copyWith(
+              color: AppColors.textPrimary,
               fontSize: 13,
               height: 1.45,
             ),
@@ -605,10 +474,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
         children: [
           Text(
             'CREDIBILITY FACTORS',
-            style: GoogleFonts.outfit(
+            style: context.twTypography.overline.copyWith(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Colors.white54,
+              color: AppColors.textTertiary,
               letterSpacing: 1.1,
             ),
           ),
@@ -625,8 +494,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                   Expanded(
                     child: Text(
                       label,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white70,
+                      style: context.twTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -635,10 +504,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     numVal <= 5.0 && numVal > 0
                         ? '${numVal.toStringAsFixed(1)} / 5.0'
                         : (numVal > 5 ? '${numVal.toInt()}%' : val.toString()),
-                    style: GoogleFonts.robotoMono(
-                      color: Colors.white,
+                    style: context.twTypography.label.copyWith(
+                      color: AppColors.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
+                      fontFamily: TWTypography.uiFamily,
                     ),
                   ),
                 ],
@@ -664,10 +534,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             const SizedBox(width: 8),
             Text(
               'CHAPTER CREDIBILITY & KEY TOPICS (${chapters.length})',
-              style: GoogleFonts.outfit(
+              style: context.twTypography.overline.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.white54,
+                color: AppColors.textTertiary,
                 letterSpacing: 1.1,
               ),
             ),
@@ -684,21 +554,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             if (item == null) return const SizedBox.shrink();
 
             final title = (item['title'] ?? 'Chapter ${index + 1}').toString();
-            final startMs = (item['start'] ?? 0) as num;
-            final endMs = (item['end'] ?? 0) as num;
+            final rawStart = item['start'] ?? item['startMs'] ?? item['startTime'] ?? item['startTimeMs'] ?? 0;
+            final rawEnd = item['end'] ?? item['endMs'] ?? item['endTime'] ?? item['endTimeMs'] ?? 0;
+            final isSecStart = rawStart is double || (rawStart is num && rawStart % 1 != 0) || item.containsKey('startTime');
+            final isSecEnd = rawEnd is double || (rawEnd is num && rawEnd % 1 != 0) || item.containsKey('endTime');
+            final startVal = (rawStart is num) ? (isSecStart ? (rawStart * 1000).toInt() : rawStart.toInt()) : 0;
+            final endVal = (rawEnd is num) ? (isSecEnd ? (rawEnd * 1000).toInt() : rawEnd.toInt()) : 0;
+
+            final startDuration = Duration(milliseconds: startVal);
+            final endDuration = Duration(milliseconds: endVal);
             final trustIndex = item['trustIndex'] as num?;
             final topics = (item['primaryTopics'] ?? item['topics']) as List? ?? [];
-
-            final startDuration = Duration(
-              milliseconds: (startMs < 10000 && startMs > 0)
-                  ? (startMs * 1000).toInt()
-                  : startMs.toInt(),
-            );
-            final endDuration = Duration(
-              milliseconds: (endMs < 10000 && endMs > 0)
-                  ? (endMs * 1000).toInt()
-                  : endMs.toInt(),
-            );
 
             return Container(
               padding: const EdgeInsets.all(14),
@@ -724,10 +590,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         ),
                         child: Text(
                           '${FormatUtils.formatDuration(startDuration)} - ${FormatUtils.formatDuration(endDuration)}',
-                          style: GoogleFonts.robotoMono(
+                          style: context.twTypography.caption.copyWith(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white70,
+                            color: AppColors.textSecondary,
+                            fontFamily: TWTypography.uiFamily,
                           ),
                         ),
                       ),
@@ -753,12 +620,13 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                               const SizedBox(width: 3),
                               Text(
                                 trustIndex <= 5.0
-                                    ? '${trustIndex.toStringAsFixed(1)}'
+                                    ? trustIndex.toStringAsFixed(1)
                                     : '${trustIndex.toInt()}%',
-                                style: GoogleFonts.robotoMono(
+                                style: context.twTypography.caption.copyWith(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
+                                  fontFamily: TWTypography.uiFamily,
                                 ),
                               ),
                             ],
@@ -770,7 +638,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                   const SizedBox(height: 8),
                   Text(
                     title,
-                    style: GoogleFonts.outfit(
+                    style: context.twTypography.title.copyWith(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -796,10 +664,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                           ),
                           child: Text(
                             t.toString(),
-                            style: GoogleFonts.roboto(
+                            style: context.twTypography.caption.copyWith(
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         );
@@ -832,10 +700,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                 const SizedBox(width: 8),
                 Text(
                   'FACT-CHECKED CLAIMS (${claims.length})',
-                  style: GoogleFonts.outfit(
+                  style: context.twTypography.overline.copyWith(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white54,
+                    color: AppColors.textTertiary,
                     letterSpacing: 1.1,
                   ),
                 ),
@@ -844,9 +712,9 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             if (claims.isNotEmpty)
               Text(
                 'Tap to inspect sources',
-                style: GoogleFonts.roboto(
+                style: context.twTypography.caption.copyWith(
                   fontSize: 10,
-                  color: Colors.white54,
+                  color: AppColors.textTertiary,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -882,10 +750,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             const SizedBox(width: 8),
             Text(
               'VERIFIED SOURCES & CITATIONS (${sources.length})',
-              style: GoogleFonts.outfit(
+              style: context.twTypography.overline.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.white54,
+                color: AppColors.textTertiary,
                 letterSpacing: 1.1,
               ),
             ),
@@ -907,32 +775,6 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildRawJsonView(String jsonString) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.bgDivider),
-        ),
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: SelectableText(
-            jsonString,
-            style: GoogleFonts.robotoMono(
-              fontSize: 12,
-              height: 1.4,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildConfidenceBar(double value) {
     final clamped = value.clamp(0.0, 1.0);
     final color = clamped >= 0.75
@@ -946,16 +788,16 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
           children: [
             Text(
               'SYSTEM CONFIDENCE',
-              style: GoogleFonts.outfit(
+              style: context.twTypography.overline.copyWith(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: Colors.white54,
+                color: AppColors.textTertiary,
                 letterSpacing: 1.0,
               ),
             ),
             Text(
               '${(clamped * 100).toInt()}%',
-              style: GoogleFonts.roboto(
+              style: context.twTypography.label.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: color,
@@ -998,7 +840,6 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     List<dynamic> allClaims,
     List<dynamic> allSources,
   ) {
-    final isExpanded = _expandedClaimIndices.contains(index);
     final status = (claim['status'] ?? claim['verificationStatus'] ?? '')
         .toString()
         .toLowerCase();
@@ -1040,17 +881,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     final responseText = resolved.response;
     final effectiveSources = resolved.sources;
 
-    return InkWell(
-      onTap: () {
-        setState(() {
+    return Obx(() {
+      final isExpanded = _expandedClaimIndices.contains(index);
+      return InkWell(
+        onTap: () {
           if (_expandedClaimIndices.contains(index)) {
             _expandedClaimIndices.remove(index);
           } else {
             _expandedClaimIndices.add(index);
           }
-        });
-      },
-      borderRadius: BorderRadius.circular(16),
+        },
+        borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(14),
@@ -1092,10 +933,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                   child: Center(
                     child: Text(
                       '${index + 1}',
-                      style: TextStyle(
+                      style: context.twTypography.caption.copyWith(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: color,
+                        fontFamily: TWTypography.uiFamily,
                       ),
                     ),
                   ),
@@ -1127,7 +969,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                                 const SizedBox(width: 4),
                                 Text(
                                   statusBadgeText,
-                                  style: GoogleFonts.outfit(
+                                  style: context.twTypography.overline.copyWith(
                                     fontSize: 9,
                                     fontWeight: FontWeight.bold,
                                     color: color,
@@ -1142,7 +984,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       const SizedBox(height: 6),
                       Text(
                         cleanClaimText,
-                        style: GoogleFonts.outfit(
+                        style: context.twTypography.title.copyWith(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                           color: AppColors.textPrimary,
@@ -1191,7 +1033,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         const SizedBox(width: 6),
                         Text(
                           'AI VERIFICATION RESPONSE & EVIDENCE ANALYSIS',
-                          style: GoogleFonts.outfit(
+                          style: context.twTypography.overline.copyWith(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: AppColors.brand,
@@ -1203,8 +1045,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     const SizedBox(height: 6),
                     Text(
                       responseText,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: context.twTypography.body.copyWith(
+                        color: AppColors.textPrimary,
                         fontSize: 12.5,
                         height: 1.45,
                       ),
@@ -1225,10 +1067,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                   const SizedBox(width: 6),
                   Text(
                     'SUPPORTING CITATIONS & PROVENANCE (${effectiveSources.length})',
-                    style: GoogleFonts.outfit(
+                    style: context.twTypography.overline.copyWith(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white70,
+                      color: AppColors.textSecondary,
                       letterSpacing: 1.0,
                     ),
                   ),
@@ -1262,7 +1104,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       ),
                       label: Text(
                         'Search Web',
-                        style: GoogleFonts.roboto(
+                        style: context.twTypography.button.copyWith(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -1293,7 +1135,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       ),
                       label: Text(
                         'Provide Source',
-                        style: GoogleFonts.roboto(
+                        style: context.twTypography.button.copyWith(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -1316,6 +1158,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
         ),
       ),
     );
+    });
   }
 
   ({String cleanText, String response, List<Map<dynamic, dynamic>> sources})
@@ -1603,18 +1446,18 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.outfit(
+                      style: context.twTypography.title.copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     if (domain.isNotEmpty) ...[
                       Text(
                         domain,
-                        style: GoogleFonts.roboto(
+                        style: context.twTypography.caption.copyWith(
                           fontSize: 10,
-                          color: AppColors.brand,
+                          color: AppColors.textLink,
                           decoration: TextDecoration.underline,
                         ),
                       ),
@@ -1625,10 +1468,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         '"$snippet"',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: context.twTypography.caption.copyWith(
                           fontSize: 10,
                           fontStyle: FontStyle.italic,
-                          color: Colors.white54,
+                          color: AppColors.textTertiary,
                         ),
                       ),
                     ],
@@ -1742,7 +1585,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                 children: [
                   Text(
                     author ?? title ?? 'Source Reference',
-                    style: GoogleFonts.outfit(
+                    style: context.twTypography.title.copyWith(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -1752,7 +1595,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     const SizedBox(height: 4),
                     Text(
                       citationText,
-                      style: GoogleFonts.roboto(
+                      style: context.twTypography.bodySmall.copyWith(
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -1764,7 +1607,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       '"$snippet"',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
+                      style: context.twTypography.caption.copyWith(
                         fontSize: 11,
                         fontStyle: FontStyle.italic,
                         color: AppColors.textTertiary,
@@ -1786,7 +1629,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                         const SizedBox(width: 4),
                         Text(
                           trustLevel.toUpperCase(),
-                          style: GoogleFonts.roboto(
+                          style: context.twTypography.caption.copyWith(
                             fontSize: 9,
                             color: trustColor,
                             fontWeight: FontWeight.bold,
@@ -1800,7 +1643,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                             domain,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: context.twTypography.caption.copyWith(
                               fontSize: 10,
                               color: AppColors.textTertiary,
                             ),
@@ -1846,17 +1689,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
             const SizedBox(height: 24),
             Text(
               'Not Fact-Checked Yet',
-              style: GoogleFonts.outfit(
+              style: context.twTypography.headline.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 12),
             Text(
               'Artificial intelligence and fact-checking engines are deployed for popular or requested streams to verify authenticity.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.roboto(
+              style: context.twTypography.body.copyWith(
                 color: AppColors.textSecondary,
                 fontSize: 13,
                 height: 1.5,
@@ -1881,7 +1724,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
               ),
               label: Text(
                 'Request AI Verification',
-                style: GoogleFonts.outfit(
+                style: context.twTypography.button.copyWith(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -1930,3 +1773,4 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
     return 'LOW INTEGRITY';
   }
 }
+

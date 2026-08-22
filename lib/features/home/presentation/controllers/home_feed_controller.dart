@@ -58,7 +58,6 @@ class HomeFeedController extends BaseController {
     _bindScrollListener();
     _loadCachedVideos();
     fetchInitialVideos();
-    fetchCarouselVideos();
   }
 
   @override
@@ -120,6 +119,7 @@ class HomeFeedController extends BaseController {
       final cachedVideos = _feedCacheManager.getValidCachedVideos(FeedCacheManager.keyHomeFeed);
       if (cachedVideos != null && cachedVideos.isNotEmpty && videos.isEmpty) {
         videos.assignAll(cachedVideos);
+        mixHomeFeed();
         isLoadingVideos.value = false;
       }
     } catch (e) {

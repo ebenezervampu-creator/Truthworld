@@ -15,6 +15,8 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/image_cropper_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -23,7 +25,9 @@ import 'package:truthworld/features/community/community_post_upload_controller.d
 import 'package:truthworld/features/community/community_post_upload_screen.dart';
 import 'package:truthworld/features/dashboard/data/models/draft_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/create_playlist_screen.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/pages/create_topic_screen.dart';
 import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -103,9 +107,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     _communityDescriptionController.addListener(_validateForm);
     _communityTagsController.addListener(_validateForm);
 
-    // Initialize playlist controller and load public playlists
+    // Initialize playlist controller and load public and user playlists
+    _playlistController.fetchPlaylists();
     _playlistController.fetchPublicPlaylists();
-    debugPrint('🎵 Playlist controller initialized with public playlists');
+    _uploadController.fetchAvailableTopics();
+    debugPrint('🎵 Playlist & Topic controllers initialized');
 
     _loadDraftFromArguments();
   }
@@ -157,7 +163,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               }
             }
 
-            if (mounted) setState(() {});
+            _uploadController.update();
             debugPrint('🎬 Resumed Video Draft from Firestore ID: $videoId');
           }
         }).catchError((e) {
@@ -224,7 +230,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       maxLength: 500,
     ).isValid;
     final isTagsClean = rawTags.isEmpty ||
-        ContentValidator.validateTags(rawTags, maxTags: 15).isValid;
+        ContentValidator.validateTags(
+          rawTags,
+          maxTags: ContentValidator.defaultMaxTags,
+        ).isValid;
 
     final isValid = isTitleClean && isDescClean && isTagsClean;
     _uploadController.setFormValid(isValid);
@@ -270,6 +279,12 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         CommunityPostUploadBinding().dependencies();
       }
       return const CommunityPostUploadScreen();
+    }
+    if (widget.uploadType == UploadType.playlist) {
+      return const CreatePlaylistScreen();
+    }
+    if (widget.uploadType == UploadType.topic) {
+      return const CreateTopicScreen();
     }
 
     return Scaffold(
@@ -1695,26 +1710,19 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     return Obx(() {
       final canPublish = _canPublishVideo();
       final isUploading = _uploadController.isUploading.value;
+      final isProcessing = _uploadController.isProcessing.value;
 
-      if (isUploading) {
+      if (isProcessing) {
+        return _buildProcessingButton(
+          isDark,
+          _uploadController.processingMessage.value.isNotEmpty
+              ? _uploadController.processingMessage.value
+              : 'Publishing Video...',
+        );
+      }
+
+      if (isUploading && !canPublish) {
         return _buildUploadingButton(isDark);
-      }
-
-      // Check if we're waiting for the backend to sync URLs
-      final isVideoUrlEmpty = _uploadController.videoUrl.value.isEmpty;
-      final isThumbnailUrlEmpty = _uploadController.thumbnailUrl.value.isEmpty;
-
-      // Only show finalizing if we've picked a file but don't have the URL and the upload task is done
-      if (isVideoUrlEmpty &&
-          _uploadController.pickedVideo.value != null &&
-          !isUploading) {
-        return _buildProcessingButton(isDark, 'Finalizing Video...');
-      }
-
-      if (isThumbnailUrlEmpty &&
-          _uploadController.pickedImage.value != null &&
-          !isUploading) {
-        return _buildProcessingButton(isDark, 'Finalizing Thumbnail...');
       }
 
       return AnimatedContainer(
@@ -1762,7 +1770,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   Icon(
                     _uploadController.isScheduled.value
                         ? Icons.schedule_rounded
-                        : Icons.cloud_upload_rounded,
+                        : (isUploading
+                            ? Icons.cloud_sync_rounded
+                            : Icons.cloud_upload_rounded),
                     size: 22,
                     color: canPublish
                         ? AppColors.textPrimary
@@ -1774,7 +1784,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   Text(
                     _uploadController.isScheduled.value
                         ? 'Schedule Upload'
-                        : 'Publish Now',
+                        : (isUploading
+                            ? 'Publish (Uploading in background)'
+                            : 'Publish Now'),
                     style: context.themeTypography.title.copyWith(
                       color: canPublish
                           ? AppColors.textPrimary
@@ -1794,10 +1806,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   Widget _buildSaveDraftButton(bool isDark) {
     return Obx(() {
-      final isUploading = _uploadController.isUploading.value;
-      final hasVideo = _uploadController.videoUrl.value.isNotEmpty;
+      final hasVideo = _uploadController.videoUrl.value.isNotEmpty ||
+          _uploadController.pickedVideo.value != null ||
+          _uploadController.resumedVideoDraft.value != null;
       final hasTitle = _titleController.text.trim().isNotEmpty;
-      final canSaveDraft = hasVideo && hasTitle && !isUploading;
+      final canSaveDraft = hasVideo && hasTitle;
 
       return Container(
         height: 56,
@@ -2425,7 +2438,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final pickedVideo = _uploadController.pickedVideo.value;
     final selectedChannel = _uploadController.selectedChannel.value;
     final selectedCategory = _uploadController.selectedCategory.value;
-    final isUploading = _uploadController.isUploading.value;
     final finalStatus = _uploadController.finalstatus.value.toUpperCase();
 
     final hasVideo = videoUrl.isNotEmpty ||
@@ -2460,19 +2472,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     ).isValid;
 
     final isTagsValid = rawTags.isEmpty ||
-        ContentValidator.validateTags(rawTags, maxTags: 15).isValid;
+        ContentValidator.validateTags(
+          rawTags,
+          maxTags: ContentValidator.defaultMaxTags,
+        ).isValid;
 
     final hasCategory = selectedCategory.isNotEmpty;
-    final isNotUploading = !isUploading;
-    final isThumbnailApproved = (thumbnailUrl.isNotEmpty && pickedImage == null) ||
-        finalStatus == 'APPROVED' ||
-        finalStatus.isEmpty;
+    final isThumbnailApproved =
+        (thumbnailUrl.isNotEmpty && pickedImage == null) ||
+            finalStatus == 'APPROVED' ||
+            finalStatus.isEmpty;
     final isDailyLimitValid = !(selectedChannel != null &&
         selectedChannel.channelType == ChannelType.standard &&
         _uploadController.isDailyLimitReached.value);
 
-    final result =
-        hasVideo &&
+    final result = hasVideo &&
         hasThumbnail &&
         hasChannel &&
         isChannelActive &&
@@ -2480,7 +2494,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         isDescValid &&
         isTagsValid &&
         hasCategory &&
-        isNotUploading &&
         isThumbnailApproved &&
         isDailyLimitValid;
 
@@ -2871,8 +2884,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       }
 
       if (rawTags.isNotEmpty) {
-        final tagsValidation =
-            ContentValidator.validateTags(rawTags, maxTags: 15);
+        final tagsValidation = ContentValidator.validateTags(
+          rawTags,
+          maxTags: ContentValidator.defaultMaxTags,
+        );
         if (!tagsValidation.isValid) {
           Get.snackbar(
             'Profanity / Invalid Tags',
@@ -2903,9 +2918,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         }
         if (_uploadController.selectedChannel.value == null) {
           errorMessage += '- Channel not selected.\n';
-        }
-        if (_uploadController.isUploading.value) {
-          errorMessage += '- An upload is already in progress.\n';
         }
 
         Get.snackbar(
@@ -2960,7 +2972,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
       final channel = _uploadController.selectedChannel.value;
       if (channel == null) {
-        throw Exception('Channel selection failed - please try again');
+        throw Exception('Channel selection failed - please select a channel');
       }
 
       final rawTags = _tagsController.text
@@ -2969,11 +2981,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           .where((tag) => tag.isNotEmpty)
           .toList();
 
-      if (rawTags.length > 5) {
-        throw Exception('Maximum 5 tags allowed (currently ${rawTags.length})');
+      if (rawTags.length > ContentValidator.defaultMaxTags) {
+        throw Exception(
+          'Maximum ${ContentValidator.defaultMaxTags} tags allowed (currently ${rawTags.length})',
+        );
       }
 
-      final tags = rawTags.take(5).toList();
+      final tags = rawTags.take(ContentValidator.defaultMaxTags).toList();
       final selectedLanguages = _uploadController.aiTranslationLanguages
           .toList();
 
@@ -3002,11 +3016,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     } catch (e) {
       var errorMessage = 'Failed to upload video. Please try again.';
       if (e is FirebaseException) {
-        errorMessage = 'Firebase error: ${e.message}';
+        errorMessage = 'Firebase error: ${e.message ?? e.code}';
       } else if (e is io.IOException) {
         errorMessage = 'Network error: Check your internet connection.';
       } else if (e is FormatException) {
         errorMessage = 'Invalid data format. Please check your input.';
+      } else {
+        final cleanMsg = e.toString().replaceFirst('Exception: ', '').trim();
+        if (cleanMsg.isNotEmpty) {
+          errorMessage = cleanMsg;
+        }
       }
       Get.snackbar(
         'Upload Error',
@@ -3076,11 +3095,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           .where((tag) => tag.isNotEmpty)
           .toList();
 
-      if (rawCommunityTags.length > 5) {
-        throw Exception('Maximum 5 tags allowed (currently ${rawCommunityTags.length})');
+      if (rawCommunityTags.length > ContentValidator.defaultMaxTags) {
+        throw Exception(
+          'Maximum ${ContentValidator.defaultMaxTags} tags allowed (currently ${rawCommunityTags.length})',
+        );
       }
 
-      final tags = rawCommunityTags.take(5).toList();
+      final tags = rawCommunityTags.take(ContentValidator.defaultMaxTags).toList();
 
       await _uploadController.uploadCommunityPost(
         _communityTitleController.text.trim(),
@@ -3105,11 +3126,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       // Enhanced error handling
       var errorMessage = 'Failed to publish community post. Please try again.';
       if (e is FirebaseException) {
-        errorMessage = 'Firebase error: ${e.message}';
+        errorMessage = 'Firebase error: ${e.message ?? e.code}';
       } else if (e is io.IOException) {
         errorMessage = 'Network error: Check your internet connection.';
       } else if (e is FormatException) {
         errorMessage = 'Invalid data format. Please check your input.';
+      } else {
+        final cleanMsg = e.toString().replaceFirst('Exception: ', '').trim();
+        if (cleanMsg.isNotEmpty) {
+          errorMessage = cleanMsg;
+        }
       }
       Get.snackbar(
         'Publish Error',
@@ -3388,7 +3414,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                   ),
                                   const SizedBox(width: 32),
 
-                                  // Right Column (Sections 6-9)
+                                  // Right Column (Sections 6-10)
                                   Expanded(
                                     flex: 6,
                                     child: Column(
@@ -3398,9 +3424,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                         const SizedBox(height: 20),
                                         _buildSection7Thumbnail(context),
                                         const SizedBox(height: 20),
-                                        _buildSection8TopicAndPlaylist(context),
+                                        _buildSection8Playlist(context),
                                         const SizedBox(height: 20),
-                                        _buildSection9AIFeatures(context),
+                                        _buildSection9Topic(context),
+                                        const SizedBox(height: 20),
+                                        _buildSection10AIFeatures(context),
                                       ],
                                     ),
                                   ),
@@ -3424,9 +3452,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                   const SizedBox(height: 20),
                                   _buildSection7Thumbnail(context),
                                   const SizedBox(height: 20),
-                                  _buildSection8TopicAndPlaylist(context),
+                                  _buildSection8Playlist(context),
                                   const SizedBox(height: 20),
-                                  _buildSection9AIFeatures(context),
+                                  _buildSection9Topic(context),
+                                  const SizedBox(height: 20),
+                                  _buildSection10AIFeatures(context),
                                 ],
                               ),
                             const SizedBox(height: 32),
@@ -3464,17 +3494,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.black,
-                  size: 16,
-                ),
+              const AppLogo(
+                size: 26,
+                borderRadius: 6,
               ),
               const SizedBox(width: 8),
               Text(
@@ -3853,7 +3875,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   .where((t) => t.isNotEmpty)
                   .toList();
               final validation = rawTags.isNotEmpty
-                  ? ContentValidator.validateTags(rawTags, maxTags: 15)
+                  ? ContentValidator.validateTags(
+                      rawTags,
+                      maxTags: ContentValidator.defaultMaxTags,
+                    )
                   : null;
               final hasError = validation != null && !validation.isValid;
 
@@ -3899,7 +3924,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         const Icon(
                           Icons.warning_amber_rounded,
                           size: 14,
-                          color: Color(0xFFEF4444),
+                          color: Colors.white,
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -4390,12 +4415,213 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     });
   }
 
-  // Section 8: Topic & Playlist
-    Widget _buildSection8TopicAndPlaylist(BuildContext context) {
+  void _showCreatePlaylistModal(BuildContext context) {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final isPublic = false.obs;
+    final isSubmitting = false.obs;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF161618),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Create New Playlist',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                          onPressed: () => Navigator.of(dialogCtx).pop(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: nameCtrl,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        labelText: 'Playlist Name *',
+                        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                        hintText: 'Enter playlist title',
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        fillColor: const Color(0xFF0F0F11),
+                        filled: true,
+                        prefixIcon: const Icon(Icons.playlist_add, color: Colors.white, size: 20),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.white),
+                        ),
+                      ),
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Please enter a playlist name';
+                        }
+                        final res = ContentValidator.validate(val.trim(), fieldName: 'Playlist Name', minLength: 2, maxLength: 80);
+                        if (!res.isValid) return res.message;
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: descCtrl,
+                      maxLines: 2,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        labelText: 'Description (Optional)',
+                        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                        hintText: 'Enter playlist description',
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                        fillColor: const Color(0xFF0F0F11),
+                        filled: true,
+                        prefixIcon: const Icon(Icons.description_outlined, color: Colors.white, size: 20),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Obx(() => Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F0F11),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      ),
+                      child: SwitchListTile(
+                        value: isPublic.value,
+                        onChanged: (val) => isPublic.value = val,
+                        title: const Text('Public Playlist', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                          isPublic.value ? 'Anyone can view this playlist' : 'Only you can view this playlist',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                        ),
+                        activeColor: Colors.white,
+                        secondary: Icon(
+                          isPublic.value ? Icons.public : Icons.lock_outline,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                    )),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => Navigator.of(dialogCtx).pop(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 12),
+                        Obx(() => ElevatedButton(
+                          onPressed: isSubmitting.value
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  isSubmitting.value = true;
+                                  try {
+                                    final created = await _playlistController.createPlayList(
+                                      nameCtrl.text.trim(),
+                                      isPublic: isPublic.value,
+                                      description: descCtrl.text.trim(),
+                                    );
+                                    if (created != null) {
+                                      _uploadController.selectedPlaylist.value = created.id;
+                                      await _playlistController.refreshPlaylists();
+                                      await _playlistController.refreshPublicPlaylists();
+                                      if (dialogCtx.mounted) {
+                                        Navigator.of(dialogCtx).pop();
+                                      }
+                                    }
+                                  } catch (e) {
+                                    debugPrint('Error creating inline playlist: $e');
+                                  } finally {
+                                    isSubmitting.value = false;
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          ),
+                          child: isSubmitting.value
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                                )
+                              : const Text('Create Playlist', style: TextStyle(fontWeight: FontWeight.bold)),
+                        )),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Section 8: Playlist
+  Widget _buildSection8Playlist(BuildContext context) {
     return Obx(() {
-      final selectedTopicId = _uploadController.selectedTopicId.value;
-      final selectedPlaylist = _uploadController.selectedPlaylist.value;
-      final playlists = _playlistController.playlists;
+      final selectedPlaylistId = _uploadController.selectedPlaylist.value;
+
+      // Combine playlists from user's playlists and public playlists without duplicates
+      final combinedMap = <String, PlaylistModel>{};
+      for (final p in _playlistController.allUserPlaylists) {
+        combinedMap[p.id] = p;
+      }
+      for (final p in _playlistController.playlists) {
+        combinedMap[p.id] = p;
+      }
+      for (final p in _playlistController.publicPlaylists) {
+        combinedMap[p.id] = p;
+      }
+      final playlists = combinedMap.values.toList();
+      final currentPlaylist = playlists.firstWhereOrNull((p) => p.id == selectedPlaylistId);
 
       return Container(
         padding: const EdgeInsets.all(20),
@@ -4411,22 +4637,30 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '8. Playlist & Topic',
+                  '8. Playlist',
                   style: context.themeTypography.title.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => Get.toNamed('/create-playlist'),
+                  onPressed: () => _showCreatePlaylistModal(context),
                   icon: const Icon(Icons.add, color: Colors.white, size: 16),
-                  label: const Text('+ Create Playlist', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Create Playlist',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: playlists.any((p) => p.id == selectedPlaylist) ? selectedPlaylist : null,
+              value: playlists.any((p) => p.id == selectedPlaylistId) ? selectedPlaylistId : '',
+              isExpanded: true,
               decoration: InputDecoration(
                 hintText: 'Select Playlist to save video (Optional)',
                 hintStyle: TextStyle(
@@ -4435,7 +4669,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 ),
                 fillColor: const Color(0xFF0F0F11),
                 filled: true,
-                prefixIcon: const Icon(Icons.playlist_add, color: Colors.white, size: 20),
+                prefixIcon: const Icon(Icons.playlist_play_rounded, color: Colors.white, size: 20),
+                suffixIcon: selectedPlaylistId.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white, size: 16),
+                        onPressed: () => _uploadController.selectedPlaylist.value = '',
+                      )
+                    : null,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -4451,68 +4691,344 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               dropdownColor: const Color(0xFF161618),
               icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
               style: const TextStyle(color: Colors.white, fontSize: 13),
-              items: playlists.map((p) {
-                return DropdownMenuItem<String>(
-                  value: p.id,
-                  child: Text(p.name, style: const TextStyle(color: Colors.white)),
-                );
-              }).toList(),
+              items: [
+                const DropdownMenuItem<String>(
+                  value: '',
+                  child: Text(
+                    'None (Do not save to playlist)',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ),
+                ...playlists.map((p) {
+                  return DropdownMenuItem<String>(
+                    value: p.id,
+                    child: Row(
+                      children: [
+                        Icon(
+                          p.isPublic ? Icons.public : Icons.lock_outline,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            p.playlistName,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (p.videoCount > 0)
+                          Text(
+                            ' ${p.videoCount}v',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
               onChanged: (val) {
-                if (val != null) {
-                  _uploadController.selectedPlaylist.value = val;
-                }
+                _uploadController.selectedPlaylist.value = val ?? '';
               },
             ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: () {
-                TopicSelectionBottomSheet.show(
-                  context,
-                  _uploadController,
-                  onCreateNewTopic: (isDarkTheme) {
-                    CreateTopicDialog.show(
-                      context: context,
-                      isDarkMode: isDarkTheme,
-                      channelVideosFuture: Future.value([]),
-                      onCreateTopicSubmitted: (c) async {},
-                    );
-                  },
-                );
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F0F11),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.topic, color: Colors.white, size: 20),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        selectedTopicId.isNotEmpty ? selectedTopicId : 'Select Topic (Optional)',
-                        style: TextStyle(
-                          color: selectedTopicId.isNotEmpty ? Colors.white : Colors.white.withValues(alpha: 0.5),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Colors.white, size: 20),
-                  ],
+            if (currentPlaylist != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '✓ Video will be automatically added to "${currentPlaylist.playlistName}" upon publishing.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 11,
                 ),
               ),
-            ),
+            ],
           ],
         ),
       );
     });
   }
 
-  // Section 9: AI Features
-      Widget _buildSection9AIFeatures(BuildContext context) {
+  // Section 9: Topic
+  Widget _buildSection9Topic(BuildContext context) {
+    return Obx(() {
+      final selectedTopicId = _uploadController.selectedTopicId.value;
+      final newTopicData = _uploadController.newTopicData;
+      final hasNewTopicDraft = newTopicData.isNotEmpty;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+
+      // Look up selected topic model if any
+      Topic? selectedTopic;
+      if (selectedTopicId.isNotEmpty && !hasNewTopicDraft && selectedTopicId != 'new_topic_draft') {
+        selectedTopic = _uploadController.availableTopics.firstWhereOrNull(
+          (t) => t.slug == selectedTopicId || t.id == selectedTopicId,
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '9. Topic',
+                  style: context.themeTypography.title.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => _showCreateTopicModal(isDark),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 16),
+                  label: const Text(
+                    'Create Topic',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (hasNewTopicDraft)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                newTopicData['title'] ?? 'New Topic Draft',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Draft',
+                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${newTopicData['handle'] ?? ''} • ${newTopicData['category'] ?? ''}',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                      tooltip: 'Change Topic',
+                      onPressed: () {
+                        TopicSelectionBottomSheet.show(
+                          context,
+                          _uploadController,
+                          onCreateNewTopic: _showCreateTopicModal,
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                      tooltip: 'Remove Topic',
+                      onPressed: () {
+                        _uploadController.newTopicData.clear();
+                        _uploadController.selectedTopicId.value = '';
+                      },
+                    ),
+                  ],
+                ),
+              )
+            else if (selectedTopic != null)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F0F11),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    if (selectedTopic.thumbnailUrl != null && selectedTopic.thumbnailUrl!.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: CachedNetworkImage(
+                          imageUrl: selectedTopic.thumbnailUrl!,
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) => Container(
+                            width: 42,
+                            height: 42,
+                            color: Colors.white.withValues(alpha: 0.1),
+                            child: const Icon(Icons.topic, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.topic, color: Colors.white, size: 20),
+                      ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            selectedTopic.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${selectedTopic.handle} • ${FormatUtils.formatCount(selectedTopic.followerCount)} followers • ${FormatUtils.formatCount(selectedTopic.videoCount)} videos',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.6),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.swap_horiz, color: Colors.white, size: 20),
+                      tooltip: 'Change Topic',
+                      onPressed: () {
+                        TopicSelectionBottomSheet.show(
+                          context,
+                          _uploadController,
+                          onCreateNewTopic: _showCreateTopicModal,
+                        );
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                      tooltip: 'Remove Topic',
+                      onPressed: () {
+                        _uploadController.selectedTopicId.value = '';
+                      },
+                    ),
+                  ],
+                ),
+              )
+            else
+              InkWell(
+                onTap: () {
+                  TopicSelectionBottomSheet.show(
+                    context,
+                    _uploadController,
+                    onCreateNewTopic: _showCreateTopicModal,
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F0F11),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.topic, color: Colors.white, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              selectedTopicId.isNotEmpty ? selectedTopicId : 'Select Topic (Optional)',
+                              style: TextStyle(
+                                color: selectedTopicId.isNotEmpty
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.5),
+                                fontSize: 13,
+                              ),
+                            ),
+                            if (selectedTopicId.isEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Connect your video to a topic hub or category community',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (selectedTopicId.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white, size: 16),
+                          onPressed: () => _uploadController.selectedTopicId.value = '',
+                        )
+                      else
+                        const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+
+  // Section 10: AI Features
+  Widget _buildSection10AIFeatures(BuildContext context) {
     final subtitleSearchQuery = ''.obs;
     final dubbingSearchQuery = ''.obs;
 
@@ -4561,7 +5077,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '9. AI Features',
+                '10. AI Features',
                 style: context.themeTypography.title.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
@@ -4775,7 +5291,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           ),
           const SizedBox(width: 12),
           OutlinedButton(
-            onPressed: !isUploading ? () => _handleVideoUpload(isDraft: true) : null,
+            onPressed: () => _handleVideoUpload(isDraft: true),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
               side: BorderSide(
@@ -4790,7 +5306,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           ),
           const SizedBox(width: 12),
           ElevatedButton(
-            onPressed: (canPublish && !isUploading) ? () => _handleVideoUpload() : null,
+            onPressed: canPublish ? () => _handleVideoUpload() : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -4800,7 +5316,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
             ),
             child: Text(
-              isUploading ? 'Publishing...' : 'Publish Video',
+              _uploadController.isProcessing.value
+                  ? 'Publishing...'
+                  : (isUploading
+                      ? 'Publish (Uploading...)'
+                      : 'Publish Video'),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
               ),
@@ -4831,7 +5351,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: (canPublish && !isUploading) ? () => _handleVideoUpload() : null,
+            onPressed: canPublish ? () => _handleVideoUpload() : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -4840,7 +5360,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
             ),
             child: Text(
-              isUploading ? 'Publishing...' : 'Publish Video',
+              _uploadController.isProcessing.value
+                  ? 'Publishing...'
+                  : (isUploading
+                      ? 'Publish (Uploading...)'
+                      : 'Publish Video'),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -6858,7 +7382,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                 ).withValues(alpha: 0.15),
                                 child: const Icon(
                                   Icons.topic_rounded,
-                                  color: Color(0xFF3B82F6),
+                                  color: Colors.white,
                                   size: 22,
                                 ),
                               ),
@@ -6874,11 +7398,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                             : const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.topic_rounded,
-                        color: isDark
-                            ? AppColors.textSecondary
-                            : const Color(0xFF6B7280),
+                        color: Colors.white,
                         size: 22,
                       ),
                     ),
@@ -6923,20 +7445,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                 const Icon(
                                   Icons.lock_rounded,
                                   size: 14,
-                                  color: AppColors.warning,
+                                  color: Colors.white,
                                 )
                               else if (selectedTopic.visibilityType ==
                                   TopicVisibilityType.channelOnly)
                                 const Icon(
                                   Icons.group_rounded,
                                   size: 14,
-                                  color: AppColors.info,
+                                  color: Colors.white,
                                 )
                               else
                                 const Icon(
                                   Icons.public_rounded,
                                   size: 14,
-                                  color: AppColors.success,
+                                  color: Colors.white,
                                 ),
                             ],
                           ),
@@ -7059,9 +7581,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         };
 
         _uploadController.selectedTopicId.value = 'new_topic_draft';
-        Get.snackbar(
+        AppSnackbar.show(
           'Success',
           'Topic draft created! It will be published along with your video.',
+          backgroundColor: AppColors.success,
+          colorText: AppColors.textPrimary,
         );
       },
     );

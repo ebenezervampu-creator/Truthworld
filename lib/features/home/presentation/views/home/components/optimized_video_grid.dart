@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/features/home/presentation/views/home/components/avatar.dart';
 import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
@@ -259,9 +260,9 @@ class OptimizedVideoGrid extends StatelessWidget {
             icon: const Icon(
               Icons.more_vert_rounded,
               size: 20,
-              color: HomeTheme.darkOnSurfaceVariant,
+              color: Colors.white,
             ),
-            onPressed: () {},
+            onPressed: () => VideoOptionsSheet.show(context, video),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),

@@ -16,6 +16,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
@@ -31,7 +32,6 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyr
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/drafts_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/memberships_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
@@ -170,6 +170,16 @@ class DashboardController extends BaseController {
                 totalWatchTimeSeconds.value =
                     (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60)
                         .toInt();
+              } else if (data['metrics'] is Map &&
+                  (data['metrics'] as Map)['totalWatchTimeMinutes'] != null) {
+                totalWatchTimeSeconds.value =
+                    ((((data['metrics'] as Map)['totalWatchTimeMinutes'] as num).toDouble()) * 60)
+                        .toInt();
+              } else if (data['metrics'] is Map &&
+                  (data['metrics'] as Map)['totalWatchTimeSeconds'] != null) {
+                totalWatchTimeSeconds.value =
+                    ((data['metrics'] as Map)['totalWatchTimeSeconds'] as num)
+                        .toInt();
               }
             }
 
@@ -212,15 +222,16 @@ class DashboardController extends BaseController {
       (snapshot) {
         if (snapshot.exists) {
           final data = snapshot.data()!;
-          if (data.containsKey('totalWatchTimeSeconds')) {
-            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num)
-                .toInt();
+          final summaryWatchSeconds =
+              (data['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0;
+          if (summaryWatchSeconds > 0) {
+            totalWatchTimeSeconds.value = summaryWatchSeconds;
           }
           channelStats.value = {
             ...channelStats,
-            'views': _formatNumber(data['totalViews'] ?? 0),
+            'views': _formatNumber(data['totalViews'] ?? channelStats['views'] ?? 0),
             'watchTime': formattedWatchTime,
-            'subscribers': _formatNumber(data['subscribers'] ?? 0),
+            'subscribers': _formatNumber(data['subscribers'] ?? channelStats['subscribers'] ?? 0),
             'revenue': r'$0.00',
             'viewsChange': '+0%',
             'watchTimeChange': '+0%',
@@ -240,7 +251,7 @@ class DashboardController extends BaseController {
         .collection(FirestoreCollections.videos)
         .where('channelId', isEqualTo: channelId)
         .orderBy('uploadedAt', descending: true)
-        .limit(10); // Fetch more for better fallback
+        .limit(20); // Fetch more for better fallback
     trackSubscription(_videosSubscription = videosRef.snapshots().listen(
       (snapshot) {
         recentVideos.value = snapshot.docs
@@ -258,6 +269,21 @@ class DashboardController extends BaseController {
             channelStats.value = {
               ...channelStats,
               'views': _formatNumber(totalViews),
+            };
+          }
+        }
+
+        // Fallback watch time from recent videos if channel watch time is zero
+        if (totalWatchTimeSeconds.value == 0 && recentVideos.isNotEmpty) {
+          final totalVideoWatchSeconds = recentVideos.fold<int>(
+            0,
+            (acc, v) => acc + v.totalWatchTimeSeconds,
+          );
+          if (totalVideoWatchSeconds > 0) {
+            totalWatchTimeSeconds.value = totalVideoWatchSeconds;
+            channelStats.value = {
+              ...channelStats,
+              'watchTime': formattedWatchTime,
             };
           }
         }
@@ -434,9 +460,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (ch != null) {
         if (Get.isRegistered<DashboardController>()) {
           controller.currentChannel.value = ch;
-        }
-        if (mounted) {
-          setState(() {});
         }
       }
     });
@@ -774,29 +797,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             tooltip: 'Back to Home',
           ),
           if (!isMobile) ...[
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.dashboard_rounded,
-                color: AppColors.textPrimary,
-                size: 20,
-              ),
+            const AppLogo(
+              size: 34,
+              borderRadius: 8,
             ),
             const SizedBox(width: 12),
           ],
@@ -1338,13 +1341,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         'action': 'select',
         'target': 15,
       },
-      {
-        'icon': Icons.drafts_rounded,
-        'label': 'Drafts',
-        'color': const Color(0xFF6366F1),
-        'action': 'select',
-        'target': 20,
-      },
     ];
 
     return ListView.builder(
@@ -1654,11 +1650,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                 );
               case 19:
                 return CategoryInsightsScreen(
-                  channelId: channelId,
-                  isDarkMode: isDarkMode,
-                );
-              case 20:
-                return DraftsScreen(
                   channelId: channelId,
                   isDarkMode: isDarkMode,
                 );

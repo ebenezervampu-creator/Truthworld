@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/create_topic_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -138,17 +139,9 @@ class CreateTopicDialog extends StatelessWidget {
           // Logo
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.black,
-                  size: 16,
-                ),
+              const AppLogo(
+                size: 26,
+                borderRadius: 6,
               ),
               const SizedBox(width: 8),
               Text(
@@ -1270,7 +1263,11 @@ class CreateTopicDialog extends StatelessWidget {
                     try {
                       await onCreateTopicSubmitted(controller);
                       if (context.mounted) {
-                        Get.back();
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          Get.back();
+                        }
                       }
                     } catch (e) {
                       AppSnackbar.show('Error', e.toString());
@@ -1334,7 +1331,11 @@ class CreateTopicDialog extends StatelessWidget {
                     try {
                       await onCreateTopicSubmitted(controller);
                       if (context.mounted) {
-                        Get.back();
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          Get.back();
+                        }
                       }
                     } catch (e) {
                       AppSnackbar.show('Error', e.toString());

@@ -17,6 +17,7 @@ import { SpeakerProfile } from "./speaker-profiling";
 import { costEngine } from "./cost-engine";
 import { PIPELINE_CONFIG } from "../config";
 import { getVertexAI } from "../utils/ai-client";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || "truthworld-1";
 
@@ -37,15 +38,13 @@ export class TranslationService {
   private get v3Client(): v3.TranslationServiceClient | null {
     if (this._v3Client === undefined) {
       const key = PIPELINE_CONFIG.GOOGLE_TRANSLATION_API_KEY;
-      if (key) {
-        try {
-          const { v3 } = require("@google-cloud/translate");
-          this._v3Client = new v3.TranslationServiceClient({ key });
-        } catch (err) {
-          console.warn("[Translation] v3 client init failed — falling back to v2", err);
-          this._v3Client = null;
-        }
-      } else {
+      try {
+        const { v3 } = require("@google-cloud/translate");
+        this._v3Client = key 
+          ? new v3.TranslationServiceClient({ apiKey: key }) 
+          : new v3.TranslationServiceClient();
+      } catch (err) {
+        console.warn("[Translation] v3 client init failed — falling back to v2", err);
         this._v3Client = null;
       }
     }
@@ -55,15 +54,13 @@ export class TranslationService {
   private get v2Client(): v2.Translate | null {
     if (this._v2Client === undefined) {
       const key = PIPELINE_CONFIG.GOOGLE_TRANSLATION_API_KEY;
-      if (key) {
-        try {
-          const { v2 } = require("@google-cloud/translate");
-          this._v2Client = new v2.Translate({ projectId, key });
-        } catch (err) {
-          console.warn("[Translation] v2 client init failed", err);
-          this._v2Client = null;
-        }
-      } else {
+      try {
+        const { v2 } = require("@google-cloud/translate");
+        this._v2Client = key 
+          ? new v2.Translate({ projectId, key }) 
+          : new v2.Translate({ projectId });
+      } catch (err) {
+        console.warn("[Translation] v2 client init failed", err);
         this._v2Client = null;
       }
     }
@@ -91,6 +88,9 @@ export class TranslationService {
     sourceLanguage: string,
     targetLanguage: string
   ): Promise<string> {
+    const src = normalizeLanguageCode(sourceLanguage);
+    const tgt = normalizeLanguageCode(targetLanguage);
+
     // ── v3 path ────────────────────────────────────────────────────────────
     if (this.v3Client) {
       try {
@@ -98,8 +98,8 @@ export class TranslationService {
           parent: this.parent,
           contents: [text],
           mimeType: "text/plain",
-          sourceLanguageCode: sourceLanguage,
-          targetLanguageCode: targetLanguage,
+          sourceLanguageCode: src,
+          targetLanguageCode: tgt,
         });
 
         const translated = response.translations?.[0]?.translatedText;
@@ -111,14 +111,30 @@ export class TranslationService {
 
     // ── v2 fallback ────────────────────────────────────────────────────────
     if (this.v2Client) {
-      const [translations] = await this.v2Client.translate(text, {
-        from: sourceLanguage,
-        to: targetLanguage,
-      });
-      return Array.isArray(translations) ? translations[0] : translations;
+      try {
+        const [translations] = await this.v2Client.translate(text, {
+          from: src,
+          to: tgt,
+        });
+        return Array.isArray(translations) ? translations[0] : translations;
+      } catch (error) {
+        console.error("[Translation] v2 translateText error — falling back to Gemini:", error);
+      }
     }
 
-    throw new Error("No translation client available");
+    // ── Gemini fallback ────────────────────────────────────────────────────
+    if (this.gemini) {
+      try {
+        const geminiRes = await this.translatePremiumBatch([text], src, tgt, 'formal', 'neutral', 'youtube');
+        if (geminiRes.translations?.[0]) return geminiRes.translations[0];
+      } catch (error) {
+        console.error("[Translation] Gemini fallback translateText error:", error);
+      }
+    }
+
+    // Graceful fallback to original text
+    console.warn("[Translation] All translation engines failed — returning original text");
+    return text;
   }
 
   // ─── Batch segment translation ─────────────────────────────────────────────
@@ -138,6 +154,8 @@ export class TranslationService {
       speakerProfiles?: SpeakerProfile[] 
     }
   ): Promise<TranslationResult> {
+    const normSourceLang = normalizeLanguageCode(sourceLanguage);
+    const normTargetLang = normalizeLanguageCode(targetLanguage);
     try {
       const texts = segments.map((s) => s.text);
       let translatedTexts: string[] = new Array(texts.length);
@@ -168,7 +186,7 @@ export class TranslationService {
       // ── Execution: Standard Lane (Google) ────────────────────────────────
       if (standardIndices.length > 0) {
         const standardTexts = standardIndices.map(i => texts[i]);
-        const standardTranslated = await this.batchTranslateStandard(standardTexts, sourceLanguage, targetLanguage);
+        const standardTranslated = await this.batchTranslateStandard(standardTexts, normSourceLang, normTargetLang);
         standardIndices.forEach((idx, i) => {
           translatedTexts[idx] = standardTranslated[i];
           confidenceScores[idx] = 0.90;
@@ -185,8 +203,8 @@ export class TranslationService {
           }));
           const premiumResult = await this.translatePremiumBatch(
             premiumSegments.map(s => s.text), 
-            sourceLanguage, 
-            targetLanguage, 
+            normSourceLang, 
+            normTargetLang, 
             options?.tone || 'formal',
             options?.localeStyle || 'neutral',
             options?.targetPlatform || 'youtube',
@@ -203,7 +221,7 @@ export class TranslationService {
         } catch (error) {
           console.error("[Translation] Premium lane failed — falling back to standard:", error);
           const remainingTexts = premiumIndices.map(i => texts[i]);
-          const fallbackTranslated = await this.batchTranslateStandard(remainingTexts, sourceLanguage, targetLanguage);
+          const fallbackTranslated = await this.batchTranslateStandard(remainingTexts, normSourceLang, normTargetLang);
           premiumIndices.forEach((idx, i) => {
             translatedTexts[idx] = fallbackTranslated[i];
           });
@@ -330,6 +348,7 @@ export class TranslationService {
 
   /**
    * Internal helper for batching standard translations with fallback logic.
+   * Multi-tier hierarchy: Google v3 -> Google v2 -> Vertex AI Gemini -> Safe fallback
    */
   private async batchTranslateStandard(texts: string[], source: string, target: string): Promise<string[]> {
     if (this.v3Client) {
@@ -340,10 +359,26 @@ export class TranslationService {
       }
     }
     if (this.v2Client) {
-      const [translations] = await this.v2Client.translate(texts, { from: source, to: target });
-      return Array.isArray(translations) ? translations : [translations];
+      try {
+        const [translations] = await this.v2Client.translate(texts, { from: source, to: target });
+        return Array.isArray(translations) ? translations : [translations];
+      } catch (err) {
+        console.warn("[Translation] v2 batch fallback to Gemini", err);
+      }
     }
-    throw new Error("Standard translation engine unavailable");
+    if (this.gemini) {
+      try {
+        console.info(`[Translation] Using Gemini Vertex AI translation fallback for ${texts.length} segments (${source} -> ${target})`);
+        const geminiRes = await this.translatePremiumBatch(texts, source, target, 'formal', 'neutral', 'youtube');
+        if (geminiRes.translations && geminiRes.translations.length === texts.length) {
+          return geminiRes.translations;
+        }
+      } catch (err) {
+        console.error("[Translation] Gemini standard translation fallback failed:", err);
+      }
+    }
+    console.warn("[Translation] All translation services failed — returning original texts as graceful fallback");
+    return texts;
   }
 
   /**
@@ -379,7 +414,10 @@ export class TranslationService {
     speakersInBatch?: (string | undefined)[],
     hooksInBatch?: (boolean | undefined)[]
   ): Promise<{ translations: string[], confidences: number[], variants?: any[] }> {
-    const model = this.gemini!.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash" });
+    if (!this.gemini) {
+      throw new Error("Gemini client not initialized for premium translation");
+    }
+    const model = this.gemini.getGenerativeModel({ model: PIPELINE_CONFIG.GEMINI_MODELS?.translation || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash" });
 
     // We translate in chunks to avoid prompt limits
     const CHUNK_SIZE = 20;

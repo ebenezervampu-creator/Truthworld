@@ -26,7 +26,6 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
   static const int indexPlaylistDetail = 99;
   static const int indexChannelDetail = 100;
   static const int indexSettings = 11;
-  static const int indexHelp = 12;
   static const int indexFeedback = 13;
   static const int indexAbout = 14;
   static const int indexPrivacy = 15;

@@ -66,31 +66,42 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
               _navigateToUpload(UploadType.communityPost);
               return KeyEventResult.handled;
             }
+            if (event.logicalKey == LogicalKeyboardKey.keyP) {
+              _navigateToUpload(UploadType.playlist);
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.keyT) {
+              _navigateToUpload(UploadType.topic);
+              return KeyEventResult.handled;
+            }
           }
           return KeyEventResult.ignored;
         },
         child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: context.layoutTokens.contentMaxWidth,
-              ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: context.layoutSpacing,
-                  vertical: context.layoutSpacing * 2,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: context.layoutTokens.contentMaxWidth,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(context),
-                    const SizedBox(height: 32),
-                    if (_lastUsedType != null) ...[
-                      _buildLastUsedSection(context),
-                      const SizedBox(height: 24),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: context.layoutSpacing,
+                    vertical: context.layoutSpacing * 2,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(context),
+                      const SizedBox(height: 32),
+                      if (_lastUsedType != null) ...[
+                        _buildLastUsedSection(context),
+                        const SizedBox(height: 24),
+                      ],
+                      _buildUploadOptions(context),
                     ],
-                    _buildUploadOptions(context),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -105,7 +116,7 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
       backgroundColor: context.colors.background,
       elevation: 0,
       leading: IconButton(
-        icon: Icon(Icons.close, color: context.colors.textPrimary),
+        icon: const Icon(Icons.close, color: Colors.white),
         onPressed: Get.back,
       ),
       title: Text(
@@ -173,62 +184,6 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
             child: _buildUploadOptionCard(context, type),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => Get.toNamed('/create-playlist'),
-              borderRadius: context.radius.md,
-              splashColor: context.colors.brandContainer,
-              hoverColor: context.colors.hoverOverlay,
-              child: Container(
-                padding: EdgeInsets.all(context.layoutSpacing),
-                decoration: BoxDecoration(
-                  color: context.colors.surface,
-                  borderRadius: context.radius.md,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: context.colors.surfaceContainer,
-                        borderRadius: context.radius.sm,
-                      ),
-                      child: const Icon(
-                        Icons.playlist_add,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Create Playlist',
-                            style: context.themeTypography.title,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Organize videos into shareable playlists',
-                            style: context.themeTypography.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: context.colors.textTertiary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -272,9 +227,7 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
                 ),
                 child: Icon(
                   type.icon,
-                  color: isLastUsed
-                      ? context.colors.brand
-                      : context.colors.textPrimary,
+                  color: Colors.white,
                   size: 24,
                 ),
               ),
@@ -320,9 +273,9 @@ class _UploadSelectionScreenState extends State<UploadSelectionScreen>
               ],
 
               // Chevron
-              Icon(
+              const Icon(
                 Icons.chevron_right,
-                color: context.colors.textTertiary,
+                color: Colors.white,
               ),
             ],
           ),

@@ -10,9 +10,12 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
@@ -159,6 +162,7 @@ class _VideoCardState extends State<VideoCard> {
   final RxBool _isLoadingVideo = false.obs;
   late final Worker _muteWorker;
 
+  static final Map<String, Map<String, String>> _channelCache = {};
   final RxString _realChannelAvatarUrl = ''.obs;
   final RxString _realChannelName = ''.obs;
 
@@ -183,22 +187,39 @@ class _VideoCardState extends State<VideoCard> {
         _realChannelName.value.isNotEmpty) {
       return;
     }
+
+    // Check in-memory cache first
+    final cached = _channelCache[widget.video.channelId];
+    if (cached != null) {
+      if (cached['avatar']?.isNotEmpty ?? false) {
+        _realChannelAvatarUrl.value = cached['avatar']!;
+      }
+      if (cached['name']?.isNotEmpty ?? false) {
+        _realChannelName.value = cached['name']!;
+      }
+      return;
+    }
+
     try {
       final doc = await FirebaseFirestore.instance
           .collection(FirestoreCollections.channels)
           .doc(widget.video.channelId)
-          .get();
+          .getCacheFirst();
       if (doc.exists && mounted) {
         final data = doc.data();
         if (data != null) {
-          final avatar = data['avatarUrl'] as String?;
-          final name = data['name'] as String?;
-          if (avatar != null && avatar.isNotEmpty) {
+          final avatar = data['avatarUrl'] as String? ?? '';
+          final name = data['name'] as String? ?? '';
+          if (avatar.isNotEmpty) {
             _realChannelAvatarUrl.value = avatar;
           }
-          if (name != null && name.isNotEmpty) {
+          if (name.isNotEmpty) {
             _realChannelName.value = name;
           }
+          _channelCache[widget.video.channelId] = {
+            'avatar': avatar,
+            'name': name,
+          };
         }
       }
     } catch (e) {
@@ -294,18 +315,22 @@ class _VideoCardState extends State<VideoCard> {
       return;
     }
 
-    // Resolve gs:// storage references to HTTPS download URLs
-    if (previewUrl.startsWith('gs://')) {
+    // Resolve gs:// and raw storage.googleapis.com references to authenticated HTTPS download URLs
+    if (previewUrl.startsWith('gs://') ||
+        previewUrl.startsWith('https://storage.googleapis.com/') ||
+        (previewUrl.contains('firebasestorage.googleapis.com') &&
+            !previewUrl.contains('token='))) {
       try {
         previewUrl = await FirebaseStorage.instance
             .refFromURL(previewUrl)
             .getDownloadURL();
       } catch (e) {
-        debugPrint('Error resolving gs:// preview URL: $e');
-        if (mounted) {
-          _isLoadingVideo.value = false;
+        debugPrint('Error resolving storage preview URL ($previewUrl): $e');
+        // Fallback: try StorageUtils
+        final fallback = StorageUtils.getFastDownloadUrl(previewUrl);
+        if (fallback.isNotEmpty && fallback != previewUrl) {
+          previewUrl = fallback;
         }
-        return;
       }
     }
 
@@ -362,7 +387,9 @@ class _VideoCardState extends State<VideoCard> {
 
   void _handleVisibilityChanged(double visibleFraction) {
     if (!mounted || widget.disableHoverPreview) return;
-    // Only apply visibility-based preview on mobile platforms (Android/iOS)
+    // On web platforms (including mobile web), disable scroll-triggered video auto-preview
+    // to prevent browser video decoder exhaustion, memory spikes, and scroll freezing.
+    if (kIsWeb) return;
     final isMobile =
         defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
@@ -380,6 +407,7 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   void _handleTap(BuildContext context) {
+    DeepLinkService.instance.cacheVideo(widget.video);
     // Register controller in handoff if initialized to prevent re-buffering
     final controller = _videoPlayerController.value;
     if (controller != null && _isControllerInitialized.value) {
@@ -413,21 +441,14 @@ class _VideoCardState extends State<VideoCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return VisibilityDetector(
-      key: Key('video_card_${widget.video.id}_${widget.heroPrefix}'),
-      onVisibilityChanged: (info) {
-        if (mounted) {
-          _handleVisibilityChanged(info.visibleFraction);
-        }
-      },
-      child: MouseRegion(
-        onEnter: (_) => _handleHoverEnter(),
-        onExit: (_) => _handleHoverExit(),
-        child: Semantics(
-          button: true,
-          enabled: true,
-          label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
-          onTap: () => _handleTap(context),
+    final cardContent = MouseRegion(
+      onEnter: (_) => _handleHoverEnter(),
+      onExit: (_) => _handleHoverExit(),
+      child: Semantics(
+        button: true,
+        enabled: true,
+        label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
+        onTap: () => _handleTap(context),
           child: Obx(() {
             if (!VideoVisibilityPolicy.isValidVideo(widget.video)) {
               return const SizedBox.shrink();
@@ -482,7 +503,20 @@ class _VideoCardState extends State<VideoCard> {
             );
           }),
         ),
-      ),
+      );
+
+    if (kIsWeb) {
+      return cardContent;
+    }
+
+    return VisibilityDetector(
+      key: Key('video_card_${widget.video.id}_${widget.heroPrefix}'),
+      onVisibilityChanged: (info) {
+        if (mounted) {
+          _handleVisibilityChanged(info.visibleFraction);
+        }
+      },
+      child: cardContent,
     );
   }
 
@@ -568,36 +602,43 @@ class _VideoCardState extends State<VideoCard> {
             final isMutedVal = HoverPreviewCoordinator.globalMute.value;
             final hovered = _isHovered.value;
 
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                if (isInitialized && controller != null)
-                  ClipRect(
-                    child: FittedBox(
-                      fit: BoxFit.cover,
-                      child: SizedBox(
-                        width: controller.value.size.width > 0
-                            ? controller.value.size.width
-                            : 160,
-                        height: controller.value.size.height > 0
-                            ? controller.value.size.height
-                            : 90,
-                        child: VideoPlayer(controller),
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => _handleTap(context),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (isInitialized && controller != null)
+                    IgnorePointer(
+                      child: ClipRect(
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width: controller.value.size.width > 0
+                                ? controller.value.size.width
+                                : 160,
+                            height: controller.value.size.height > 0
+                                ? controller.value.size.height
+                                : 90,
+                            child: VideoPlayer(controller),
+                          ),
+                        ),
                       ),
+                    )
+                  else
+                    CachedNetworkImage(
+                      imageUrl: widget.video.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 720,
+                      maxWidthDiskCache: 720,
+                      placeholder: (context, url) =>
+                          _buildThumbnailShimmer(theme),
+                      errorWidget: (context, url, error) =>
+                          _buildThumbnailError(theme),
                     ),
-                  )
-                else
-                  CachedNetworkImage(
-                    imageUrl: widget.video.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        _buildThumbnailShimmer(theme),
-                    errorWidget: (context, url, error) =>
-                        _buildThumbnailError(theme),
-                  ),
-                if (!isInitialized)
-                  Container(
-                    decoration: BoxDecoration(
+                  if (!isInitialized)
+                    Container(
+                      decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -725,9 +766,6 @@ class _VideoCardState extends State<VideoCard> {
                                 icon: isSaved
                                     ? Icons.check_circle_rounded
                                     : Icons.watch_later_outlined,
-                                iconColor: isSaved
-                                    ? theme.colorScheme.primary
-                                    : AppColors.textPrimary,
                                 tooltip: isSaved
                                     ? 'Saved to Watch Later'
                                     : 'Watch later',
@@ -793,12 +831,13 @@ class _VideoCardState extends State<VideoCard> {
                   ),
                 ),
               ],
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildGridVideoInfo(BuildContext context, ThemeData theme) {
     return Padding(

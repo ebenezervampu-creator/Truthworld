@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
-import { notifyUser } from "./notifications";
+import { notifyUser, sendPushNotificationForUser } from "./notifications";
 
 const db = admin.firestore();
 
@@ -272,3 +272,46 @@ export async function notifyMentions(params: {
     logger.error("[notifyMentions] Error:", err);
   }
 }
+
+/**
+ * 🔔 TRIGGER: ON USER NOTIFICATION CREATED (Universal Safety Net)
+ * Ensures every single notification written to user_notifications (including direct
+ * client-side writes, triggers, and external calls) receives a push notification on all user devices.
+ */
+export const onUserNotificationCreated = onDocumentCreated(
+  {
+    document: "user_notifications/{notificationId}",
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 2,
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+
+    // Skip if already sent directly by notifyUser
+    if (data.pushSent === true) return;
+
+    const { userId, type, severity, title, message, actionUrl } = data;
+    if (!userId || userId === "guest_user" || !title) return;
+
+    try {
+      await sendPushNotificationForUser(
+        {
+          userId,
+          type: type || "info",
+          severity: severity || "info",
+          title: title || "Notification",
+          message: message || "",
+          actionUrl: actionUrl || "",
+        },
+        event.params.notificationId
+      );
+
+      // Flag as push sent to prevent double delivery
+      await event.data?.ref.update({ pushSent: true });
+    } catch (err) {
+      logger.error("[onUserNotificationCreated] Error sending push notification:", err);
+    }
+  }
+);

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/features/home/presentation/views/home/components/home_theme.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -173,9 +174,9 @@ class VideoCard extends StatelessWidget {
             icon: const Icon(
               Icons.more_vert_rounded,
               size: 20,
-              color: HomeTheme.darkOnSurfaceVariant,
+              color: Colors.white,
             ),
-            onPressed: () {},
+            onPressed: () => VideoOptionsSheet.show(context, video),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),

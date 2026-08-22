@@ -456,6 +456,7 @@ class SettingsScreen extends StatelessWidget {
             title: 'Downloads & Smart Storage',
             settings: [
               _buildSmartDownloadsTile(context),
+              _buildDownloadQualityTile(context),
               _buildDownloadWifiOnlyTile(context),
               _buildStorageLimitTile(context),
               _buildDownloadLocationTile(context),
@@ -537,7 +538,6 @@ class SettingsScreen extends StatelessWidget {
                 route: '/community-guidelines',
               ),
               _buildVersionTile(context),
-              _buildHelpTile(context),
               _buildFeedbackTile(context),
             ],
           ),
@@ -1092,135 +1092,131 @@ class SettingsScreen extends StatelessWidget {
   void _showBedtimeScheduleDialog(BuildContext context) {
     final ctrl = UserSettingsController.to;
     Get.dialog(
-      StatefulBuilder(
-        builder: (context, setState) {
-          final wb = ctrl.wellbeing.value;
-          return AlertDialog(
-            backgroundColor: context.colors.surface,
-            title: const Text(
-              'Bedtime Schedule',
-              style: TextStyle(color: AppColors.textPrimary),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'TIME WINDOW',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+      Obx(() {
+        final wb = ctrl.wellbeing.value;
+        return AlertDialog(
+          backgroundColor: context.colors.surface,
+          title: const Text(
+            'Bedtime Schedule',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'TIME WINDOW',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton.icon(
-                      icon: const Icon(
-                        Icons.access_time,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton.icon(
+                    icon: const Icon(
+                      Icons.access_time,
+                      color: AppColors.textPrimary,
+                      size: 18,
+                    ),
+                    label: Text(
+                      'Start: ${wb.bedtimeStartTime}',
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
-                        size: 18,
+                        fontSize: 13,
                       ),
-                      label: Text(
-                        'Start: ${wb.bedtimeStartTime}',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      onPressed: () async {
-                        final dlgContext = context;
-                        final picked = await showTimePicker(
-                          context: dlgContext,
-                          initialTime: const TimeOfDay(hour: 23, minute: 0),
-                        );
-                        if (picked != null && dlgContext.mounted) {
-                          ctrl.setBedtimeSchedule(
-                            picked.format(dlgContext),
-                            wb.bedtimeEndTime,
-                            wb.bedtimeDaysSchedule,
-                          );
-                          ctrl.update();
-                        }
-                      },
                     ),
-                    TextButton.icon(
-                      icon: const Icon(
-                        Icons.access_time,
+                    onPressed: () async {
+                      final dlgContext = context;
+                      final picked = await showTimePicker(
+                        context: dlgContext,
+                        initialTime: const TimeOfDay(hour: 23, minute: 0),
+                      );
+                      if (picked != null && dlgContext.mounted) {
+                        ctrl.setBedtimeSchedule(
+                          picked.format(dlgContext),
+                          wb.bedtimeEndTime,
+                          wb.bedtimeDaysSchedule,
+                        );
+                        ctrl.update();
+                      }
+                    },
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(
+                      Icons.access_time,
+                      color: AppColors.textPrimary,
+                      size: 18,
+                    ),
+                    label: Text(
+                      'End: ${wb.bedtimeEndTime}',
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
-                        size: 18,
+                        fontSize: 13,
                       ),
-                      label: Text(
-                        'End: ${wb.bedtimeEndTime}',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                        ),
-                      ),
-                      onPressed: () async {
-                        final dlgContext = context;
-                        final picked = await showTimePicker(
-                          context: dlgContext,
-                          initialTime: const TimeOfDay(hour: 6, minute: 0),
+                    ),
+                    onPressed: () async {
+                      final dlgContext = context;
+                      final picked = await showTimePicker(
+                        context: dlgContext,
+                        initialTime: const TimeOfDay(hour: 6, minute: 0),
+                      );
+                      if (picked != null && dlgContext.mounted) {
+                        ctrl.setBedtimeSchedule(
+                          wb.bedtimeStartTime,
+                          picked.format(dlgContext),
+                          wb.bedtimeDaysSchedule,
                         );
-                        if (picked != null && dlgContext.mounted) {
-                          ctrl.setBedtimeSchedule(
-                            wb.bedtimeStartTime,
-                            picked.format(dlgContext),
-                            wb.bedtimeDaysSchedule,
-                          );
-                          ctrl.update();
-                        }
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'REPEAT DAYS',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                        ctrl.update();
+                      }
+                    },
                   ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'REPEAT DAYS',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
-                ...['Everyday', 'Weekdays', 'Weekends'].map(
-                  (sched) => Obx(
-                    () => RadioListTile<String>(
-                      title: Text(
-                        sched,
-                        style: const TextStyle(color: AppColors.textPrimary),
-                      ),
-                      value: sched,
-                      groupValue: ctrl.wellbeing.value.bedtimeDaysSchedule,
-                      onChanged: (val) {
-                        if (val != null) {
-                          ctrl.setBedtimeSchedule(
-                            ctrl.wellbeing.value.bedtimeStartTime,
-                            ctrl.wellbeing.value.bedtimeEndTime,
-                            val,
-                          );
-                        }
-                      },
-                    ),
+              ),
+              ...['Everyday', 'Weekdays', 'Weekends'].map(
+                (sched) => RadioListTile<String>(
+                  title: Text(
+                    sched,
+                    style: const TextStyle(color: AppColors.textPrimary),
                   ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: Get.back,
-                child: const Text(
-                  'Done',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  value: sched,
+                  groupValue: wb.bedtimeDaysSchedule,
+                  onChanged: (val) {
+                    if (val != null) {
+                      ctrl.setBedtimeSchedule(
+                        wb.bedtimeStartTime,
+                        wb.bedtimeEndTime,
+                        val,
+                      );
+                    }
+                  },
                 ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: Get.back,
+              child: const Text(
+                'Done',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -1693,6 +1689,71 @@ class SettingsScreen extends StatelessWidget {
         ),
         value: ctrl.downloads.value.smartDownloadsEnabled,
         onChanged: ctrl.toggleSmartDownloads,
+      ),
+    );
+  }
+
+  Widget _buildDownloadQualityTile(BuildContext context) {
+    final ctrl = UserSettingsController.to;
+    return Obx(
+      () => ListTile(
+        leading: const Icon(
+          Icons.file_download_outlined,
+          color: AppColors.textPrimary,
+        ),
+        title: const Text(
+          'Download Quality',
+          style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
+        ),
+        subtitle: Text(
+          'Quality: ${ctrl.downloads.value.downloadQuality}',
+          style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
+        onTap: () => _showDownloadQualitySettingDialog(context),
+      ),
+    );
+  }
+
+  void _showDownloadQualitySettingDialog(BuildContext context) {
+    final ctrl = UserSettingsController.to;
+    final options = [
+      'Ask each time',
+      'High (1080p)',
+      'Medium (720p)',
+      'Low (480p)',
+      'Audio only',
+    ];
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: const Text(
+          'Default Download Quality',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options
+              .map(
+                (q) => Obx(
+                  () => RadioListTile<String>(
+                    title: Text(
+                      q,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                    ),
+                    value: q,
+                    groupValue: ctrl.downloads.value.downloadQuality,
+                    onChanged: (val) {
+                      if (val != null) {
+                        ctrl.setDownloadQuality(val);
+                        Get.back();
+                      }
+                    },
+                  ),
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -2512,26 +2573,6 @@ class SettingsScreen extends StatelessWidget {
         '1.0.0 (Truthworld YouTube-Scale Release)',
         style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
       ),
-    );
-  }
-
-  Widget _buildHelpTile(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.help, color: AppColors.textPrimary),
-      title: const Text(
-        'Help & Support',
-        style: TextStyle(fontSize: 16, color: AppColors.textPrimary),
-      ),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
-      onTap: () {
-        if (Get.isRegistered<HomeController>()) {
-          Get.find<HomeController>().onSideNavItemSelect(
-            HomeController.indexHelp,
-          );
-        } else {
-          Get.toNamed('/help');
-        }
-      },
     );
   }
 

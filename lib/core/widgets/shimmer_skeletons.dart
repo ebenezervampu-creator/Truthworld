@@ -961,3 +961,115 @@ class ShimmerVideoGrid extends StatelessWidget {
     );
   }
 }
+
+/// Matches the shape of [ChannelDetailsPage].
+/// Used when loading channel from a deep link or direct URL.
+class ShimmerChannelDetailsScreen extends StatelessWidget {
+  const ShimmerChannelDetailsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      body: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: _ShimmerBase(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Banner Shimmer
+              Container(
+                width: double.infinity,
+                height: 140,
+                color: AppColors.textPrimary,
+              ),
+              const SizedBox(height: 16),
+              // Channel Header Info
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _bone(width: 80, height: 80, radius: 40),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _bone(width: 180, height: 22, radius: 6),
+                          const SizedBox(height: 8),
+                          _bone(width: 120, height: 14, radius: 4),
+                          const SizedBox(height: 8),
+                          _bone(width: 200, height: 12, radius: 4),
+                          const SizedBox(height: 12),
+                          _bone(width: 130, height: 36, radius: 18),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Tab Bar Bones
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    _bone(width: 60, height: 32, radius: 8),
+                    const SizedBox(width: 12),
+                    _bone(width: 70, height: 32, radius: 8),
+                    const SizedBox(width: 12),
+                    _bone(width: 70, height: 32, radius: 8),
+                    const SizedBox(width: 12),
+                    _bone(width: 60, height: 32, radius: 8),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: AppColors.bgDivider, height: 1),
+              const SizedBox(height: 16),
+              // Video Grid Bones
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isDesktop = constraints.maxWidth >= 900;
+                    final crossAxisCount = isDesktop ? 3 : 1;
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: isDesktop ? 16 / 13 : 16 / 10,
+                      ),
+                      itemCount: isDesktop ? 6 : 3,
+                      itemBuilder: (context, index) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _bone(
+                                width: double.infinity,
+                                radius: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _bone(width: double.infinity, height: 16),
+                            const SizedBox(height: 4),
+                            _bone(width: 140, height: 12),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

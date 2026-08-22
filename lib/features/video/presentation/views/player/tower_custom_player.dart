@@ -48,9 +48,12 @@ class TowerCustomPlayer extends StatelessWidget {
       init: ctrl,
       tag: tag,
       builder: (c) {
-        if (!c.isClosed) {
+        if (c.videoPlayerController != videoPlayerController) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!c.isClosed) c.sync(videoPlayerController);
+            if (!c.isClosed &&
+                c.videoPlayerController != videoPlayerController) {
+              c.sync(videoPlayerController);
+            }
           });
         }
 
@@ -73,95 +76,10 @@ class TowerCustomPlayer extends StatelessWidget {
                     absorbing: c.isPiP.value,
                     child: InteractionGate(
                       lockController: c.lockController,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        // YouTube-standard: single tap = controls toggle (mobile), play/pause (desktop)
-                        onTap: () => c.onTap(playerWidth > 1050),
-                        // Proper Flutter double-tap disambiguation:
-                        // onDoubleTapDown gives position, onDoubleTap executes — onTap will NOT fire
-                        onDoubleTapDown: (d) => c.isShowingAd.value
-                            ? null
-                            : c.onDoubleTapDown(d.localPosition.dx),
-                        onDoubleTap: () => c.isShowingAd.value
-                            ? null
-                            : c.onDoubleTap(playerWidth),
-                        onLongPressStart: (_) => c.isShowingAd.value
-                            ? null
-                            : c.startLongPressSpeedUp(),
-                        onLongPressEnd: (_) => c.isShowingAd.value
-                            ? null
-                            : c.endLongPressSpeedUp(),
-                        onScaleStart: (details) {
-                          if (c.isShowingAd.value) return;
-                          baseScale = c.zoomScale.value;
-                          if (details.pointerCount >= 2) {
-                            isPinching = true;
-                          } else {
-                            isPinching = false;
-                            c.onVerticalDragStart(
-                              DragStartDetails(
-                                globalPosition: details.focalPoint,
-                                localPosition: details.localFocalPoint,
-                              ),
-                              Size(playerWidth, playerHeight),
-                            );
-                          }
-                        },
-                        onScaleUpdate: (details) {
-                          if (c.isShowingAd.value) return;
-                          if (details.pointerCount >= 2 || isPinching) {
-                            isPinching = true;
-                            final newScale = (baseScale * details.scale).clamp(
-                              1.0,
-                              8.0,
-                            );
-                            c.isZoomToFill.value = false;
-                            c.zoomScale.value = newScale;
-                            final valStr = newScale % 1 == 0
-                                ? newScale.toInt().toString()
-                                : newScale.toStringAsFixed(1);
-                            c.showToast('${valStr}x');
-                          } else {
-                            c.onVerticalDragUpdate(
-                              DragUpdateDetails(
-                                globalPosition: details.focalPoint,
-                                localPosition: details.localFocalPoint,
-                                delta: details.focalPointDelta,
-                              ),
-                              Size(playerWidth, playerHeight),
-                            );
-                          }
-                        },
-                        onScaleEnd: (details) {
-                          if (c.isShowingAd.value) return;
-                          if (isPinching) {
-                            isPinching = false;
-                            if (c.zoomScale.value < 1.08) {
-                              c.zoomScale.value = 1.0;
-                              c.isZoomToFill.value = false;
-                              c.showToast('Original (1.0x)');
-                            } else {
-                              final scale = c.zoomScale.value;
-                              final valStr = scale % 1 == 0
-                                  ? scale.toInt().toString()
-                                  : scale.toStringAsFixed(1);
-                              c.showToast('${valStr}x');
-                            }
-                          } else {
-                            c.onVerticalDragEnd(
-                              DragEndDetails(
-                                velocity: Velocity(
-                                  pixelsPerSecond:
-                                      details.velocity.pixelsPerSecond,
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        child: Stack(
-                          children: [
-                            // ── Layer 0: Video ─────────────────────────────────────
-                            Obx(() {
+                      child: Stack(
+                        children: [
+                          // ── Layer 0: Video ─────────────────────────────────────
+                          Obx(() {
                               final showAd = c.isShowingAd.value;
                               final apc = c.adPlayerController;
 
@@ -242,6 +160,94 @@ class TowerCustomPlayer extends StatelessWidget {
                               );
                             }),
 
+                            // ── Layer 0.1: Video Viewport Gestures (Background tap/seek/drag) ──
+                            Positioned.fill(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTapDown: (d) => c.isShowingAd.value
+                                    ? null
+                                    : c.handlePlayerTap(
+                                        d.localPosition.dx,
+                                        playerWidth,
+                                        playerWidth > 1050,
+                                      ),
+                                onLongPressStart: (_) => c.isShowingAd.value
+                                    ? null
+                                    : c.startLongPressSpeedUp(),
+                                onLongPressEnd: (_) => c.isShowingAd.value
+                                    ? null
+                                    : c.endLongPressSpeedUp(),
+                                onScaleStart: (details) {
+                                  c.cancelPendingTap();
+                                  if (c.isShowingAd.value) return;
+                                  baseScale = c.zoomScale.value;
+                                  if (details.pointerCount >= 2) {
+                                    isPinching = true;
+                                  } else {
+                                    isPinching = false;
+                                    c.onVerticalDragStart(
+                                      DragStartDetails(
+                                        globalPosition: details.focalPoint,
+                                        localPosition: details.localFocalPoint,
+                                      ),
+                                      Size(playerWidth, playerHeight),
+                                    );
+                                  }
+                                },
+                                onScaleUpdate: (details) {
+                                  if (c.isShowingAd.value) return;
+                                  if (details.pointerCount >= 2 || isPinching) {
+                                    isPinching = true;
+                                    final newScale = (baseScale * details.scale).clamp(
+                                      1.0,
+                                      8.0,
+                                    );
+                                    c.isZoomToFill.value = false;
+                                    c.zoomScale.value = newScale;
+                                    final valStr = newScale % 1 == 0
+                                        ? newScale.toInt().toString()
+                                        : newScale.toStringAsFixed(1);
+                                    c.showToast('${valStr}x');
+                                  } else {
+                                    c.onVerticalDragUpdate(
+                                      DragUpdateDetails(
+                                        globalPosition: details.focalPoint,
+                                        localPosition: details.localFocalPoint,
+                                        delta: details.focalPointDelta,
+                                      ),
+                                      Size(playerWidth, playerHeight),
+                                    );
+                                  }
+                                },
+                                onScaleEnd: (details) {
+                                  if (c.isShowingAd.value) return;
+                                  if (isPinching) {
+                                    isPinching = false;
+                                    if (c.zoomScale.value < 1.08) {
+                                      c.zoomScale.value = 1.0;
+                                      c.isZoomToFill.value = false;
+                                      c.showToast('Original (1.0x)');
+                                    } else {
+                                      final scale = c.zoomScale.value;
+                                      final valStr = scale % 1 == 0
+                                          ? scale.toInt().toString()
+                                          : scale.toStringAsFixed(1);
+                                      c.showToast('${valStr}x');
+                                    }
+                                  } else {
+                                    c.onVerticalDragEnd(
+                                      DragEndDetails(
+                                        velocity: Velocity(
+                                          pixelsPerSecond:
+                                              details.velocity.pixelsPerSecond,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+
                             // ── Layer 0.5: Audio-only UI with 250ms Crossfade ───────────────
                             Obx(
                               () => AnimatedSwitcher(
@@ -290,7 +296,9 @@ class TowerCustomPlayer extends StatelessWidget {
                                   c.currentSubtitle.value.isEmpty) {
                                 return const SizedBox.shrink();
                               }
-                              return Positioned(
+                              return AnimatedPositioned(
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeOutCubic,
                                 bottom: c.controlsVisible.value ? 75 : 20,
                                 left: 16,
                                 right: 16,
@@ -301,12 +309,22 @@ class TowerCustomPlayer extends StatelessWidget {
                             // ── Layer 2: Double-tap ripples ────────────────────────
                             Obx(
                               () => c.showDoubleTapLeft.value && !c.isPiP.value
-                                  ? const DoubleTapRipple(isLeft: true)
+                                  ? DoubleTapRipple(
+                                      isLeft: true,
+                                      seconds: c.doubleTapSeconds.value > 0
+                                          ? c.doubleTapSeconds.value
+                                          : 10,
+                                    )
                                   : const SizedBox.shrink(),
                             ),
                             Obx(
                               () => c.showDoubleTapRight.value && !c.isPiP.value
-                                  ? const DoubleTapRipple(isLeft: false)
+                                  ? DoubleTapRipple(
+                                      isLeft: false,
+                                      seconds: c.doubleTapSeconds.value > 0
+                                          ? c.doubleTapSeconds.value
+                                          : 10,
+                                    )
                                   : const SizedBox.shrink(),
                             ),
 
@@ -658,14 +676,13 @@ class TowerCustomPlayer extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    );
+              );
+            },
+          );
+        },
+      );
+    }
   }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATS FOR NERDS

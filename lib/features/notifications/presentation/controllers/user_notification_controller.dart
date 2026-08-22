@@ -10,7 +10,6 @@ import 'package:truthworld/features/notifications/data/services/user_notificatio
 
 class UserNotificationController extends BaseController {
   final UserNotificationService _service = UserNotificationService();
-  final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
 
   RxList<UserNotification> notifications = <UserNotification>[].obs;
   RxBool rxIsLoading = true.obs;
@@ -20,25 +19,67 @@ class UserNotificationController extends BaseController {
   RxBool isSearching = false.obs;
 
   StreamSubscription<List<UserNotification>>? _subscription;
+  StreamSubscription<User?>? _authSubscription;
+  String _currentUserId = '';
+
+  String get userId {
+    if (_currentUserId.isNotEmpty) return _currentUserId;
+    return FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
+  }
 
   @override
   void onInit() {
     super.onInit();
-    _listenToCloudNotifications();
+    _listenToAuthChanges();
   }
 
   @override
   void onClose() {
+    _authSubscription?.cancel();
     _subscription?.cancel();
     super.onClose();
   }
 
+  void _listenToAuthChanges() {
+    _authSubscription =
+        FirebaseAuth.instance.authStateChanges().listen((user) {
+      final newUid = user?.uid ?? '';
+      if (newUid != _currentUserId) {
+        _currentUserId = newUid;
+        if (newUid.isEmpty || (user?.isAnonymous ?? false)) {
+          _subscription?.cancel();
+          _subscription = null;
+          notifications.clear();
+          rxIsLoading.value = false;
+        } else {
+          _listenToCloudNotifications();
+        }
+      }
+    });
+
+    final initialUser = FirebaseAuth.instance.currentUser;
+    if (initialUser != null && !initialUser.isAnonymous) {
+      _currentUserId = initialUser.uid;
+      _listenToCloudNotifications();
+    } else {
+      rxIsLoading.value = false;
+    }
+  }
+
   /// Real-time Firestore stream — notifications appear instantly without refresh
   void _listenToCloudNotifications() {
+    _subscription?.cancel();
+    final uid = userId;
+    if (uid == 'guest_user' || uid.isEmpty) {
+      notifications.clear();
+      rxIsLoading.value = false;
+      return;
+    }
+
     rxIsLoading.value = true;
 
     _subscription = _service
-        .getNotificationsStream(userId, limit: 100)
+        .getNotificationsStream(uid, limit: 100)
         .listen(
           (list) {
             notifications.value = list;

@@ -186,14 +186,13 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
 
   Widget _buildGradientFallback() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.brand.withValues(alpha: 0.4),
-            AppColors.brand.withValues(alpha: 0.15),
-            AppColors.bgSurface,
+            Color(0xFF272727),
+            Color(0xFF1E1E1E),
           ],
         ),
       ),
@@ -201,7 +200,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
         child: Icon(
           Icons.topic_rounded,
           size: 64,
-          color: AppColors.brand,
+          color: Colors.white,
         ),
       ),
     );
@@ -211,10 +210,10 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.brand.withValues(alpha: 0.15),
+        color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.3),
+          color: AppColors.textPrimary.withValues(alpha: 0.1),
         ),
       ),
       child: Text(
@@ -222,7 +221,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
         style: const TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          color: AppColors.brand,
+          color: AppColors.textPrimary,
           letterSpacing: 0.8,
         ),
       ),
@@ -249,12 +248,10 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.bgSurfaceContainerHighest.withValues(
-                  alpha: 0.6,
-                ),
+                color: AppColors.bgSurfaceHover,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: AppColors.bgDivider.withValues(alpha: 0.5),
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
                 ),
               ),
               child: Row(
@@ -263,7 +260,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                   const Icon(
                     Icons.video_collection_outlined,
                     size: 18,
-                    color: AppColors.brand,
+                    color: Colors.white,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -290,12 +287,10 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurfaceContainerHighest.withValues(
-                    alpha: 0.6,
-                  ),
+                  color: AppColors.bgSurfaceHover,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.bgDivider.withValues(alpha: 0.5),
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
                   ),
                 ),
                 child: Row(
@@ -304,7 +299,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                     const Icon(
                       Icons.chat_bubble_outline_rounded,
                       size: 18,
-                      color: AppColors.brand,
+                      color: Colors.white,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -335,7 +330,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                 height: 36,
                 width: 36,
                 decoration: const BoxDecoration(
-                  color: AppColors.bgSurfaceContainerHighest,
+                  color: AppColors.bgSurfaceHover,
                   shape: BoxShape.circle,
                 ),
                 child: Material(
@@ -377,7 +372,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
         : Get.put(FollowingTopicsController());
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgSurface,
+      backgroundColor: AppColors.bgPage,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -466,12 +461,12 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
       contentPadding: EdgeInsets.zero,
       leading: Icon(
         icon,
-        color: isSelected ? AppColors.brand : AppColors.textSecondary,
+        color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
       ),
       title: Text(
         title,
         style: TextStyle(
-          color: isSelected ? AppColors.brand : AppColors.textPrimary,
+          color: AppColors.textPrimary,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
         ),
       ),

@@ -1,179 +1,400 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class PremiumPlansScreen extends StatelessWidget {
-  const PremiumPlansScreen({super.key});
+// ==========================================================================
+// YOUTUBE-STYLE THEME COLORS (EXACT MATCH WITH LIBRARY SCREEN)
+// ==========================================================================
+
+const Color bgColor = AppColors.bgPage;
+const Color surfaceColor = AppColors.bgPage;
+const Color cardColor = Color(0xFF1E1E1E);
+const Color primaryText = AppColors.textPrimary;
+const Color secondaryText = AppColors.textSecondary;
+const Color accentColor = AppColors.textPrimary;
+const Color buttonBg = AppColors.bgSurfaceHover;
+
+// ==========================================================================
+// RESPONSIVE BREAKPOINTS
+// ==========================================================================
+
+const double kMobileBreakpoint = 600;
+const double kTabletBreakpoint = 1000;
+const double kDesktopBreakpoint = 1200;
+
+// ==========================================================================
+// MODERNIZED TRUTHWORLD PREMIUM PAGE
+// ==========================================================================
+
+class PremiumPlansScreen extends StatefulWidget {
+  const PremiumPlansScreen({super.key, this.isDashboard = false});
+  final bool isDashboard;
+
+  @override
+  State<PremiumPlansScreen> createState() => _PremiumPlansScreenState();
+}
+
+class _PremiumPlansScreenState extends State<PremiumPlansScreen>
+    with TickerProviderStateMixin {
+  late final PremiumController _controller;
+
+  late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
+  late AnimationController _scaleAnimationController;
+
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = Get.isRegistered<PremiumController>()
+        ? Get.find<PremiumController>()
+        : Get.put(PremiumController());
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
+    _fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _scaleAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _fadeAnimationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _slideAnimationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+    _scaleAnimation = Tween<double>(begin: 0.98, end: 1).animate(
+      CurvedAnimation(
+        parent: _scaleAnimationController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+
+    _fadeAnimationController.forward();
+    _slideAnimationController.forward();
+    _scaleAnimationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
+    _scaleAnimationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<PremiumController>();
-    final typo = context.twTypography;
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: _buildResponsiveLayout(context),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
+  Widget _buildResponsiveLayout(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+        final isTablet =
+            constraints.maxWidth >= kMobileBreakpoint &&
+            constraints.maxWidth < kDesktopBreakpoint;
+
+        if (isDesktop) {
+          return _buildDesktopLayout(context);
+        } else if (isTablet) {
+          return _buildTabletLayout(context);
+        } else {
+          return _buildMobileLayout(context);
+        }
+      },
+    );
+  }
+
+  Widget _buildDesktopLayout(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      appBar: AppBar(
-        backgroundColor: AppColors.bgPage,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: Get.back,
+      backgroundColor: bgColor,
+      appBar: _buildModernAppBar(context, isDesktop: true),
+      body: SafeArea(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Main Content Area
+            Expanded(
+              flex: 7,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                child: _buildMainContentSections(context, isDesktop: true),
+              ),
+            ),
+            // Right Sidebar for Membership Status & Quick Benefits
+            Expanded(
+              flex: 3,
+              child: _buildDesktopSidebar(context),
+            ),
+          ],
         ),
-        title: Text(
-          'Truthworld Premium',
-          style: typo.headline.copyWith(
-            color: AppColors.textPrimary,
-            letterSpacing: -0.5,
+      ),
+    );
+  }
+
+  Widget _buildTabletLayout(BuildContext context) {
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: _buildModernAppBar(context, isTablet: true),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: _buildMainContentSections(context, isTablet: true),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context) {
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: _buildModernAppBar(context),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: _buildMainContentSections(context),
+        ),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildModernAppBar(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
+    return AppBar(
+      backgroundColor: surfaceColor.withValues(alpha: 0.95),
+      elevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      leading: Navigator.canPop(context)
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Get.back();
+              },
+            )
+          : null,
+      title: Row(
+        children: [
+          const AppLogo(
+            size: 28,
+            borderRadius: 6,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Truthworld Premium',
+            style: TextStyle(
+              fontSize: isDesktop ? 22 : (isTablet ? 20 : 18),
+              fontWeight: FontWeight.bold,
+              color: primaryText,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        _buildAppBarAction(
+          icon: Icons.feedback_outlined,
+          onPressed: () => Get.toNamed('/feedback'),
+          tooltip: 'Feedback',
+        ),
+        _buildAppBarAction(
+          icon: Icons.more_vert_rounded,
+          onPressed: () => _showMoreOptionsBottomSheet(context),
+          tooltip: 'Options',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildAppBarAction({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: buttonBg.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onPressed();
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            child: Icon(icon, color: secondaryText, size: 20),
           ),
         ),
       ),
-      body: SafeArea(
-        child: Obx(() {
-          final auth = AuthService.to;
-          final isPremium = auth.isPremiumUser.value;
-          final currentPlanId = auth.premiumPlanId.value;
+    );
+  }
 
-          return Stack(
+  Widget _buildMainContentSections(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
+    return Obx(() {
+      final auth = AuthService.to;
+      final isPremium = auth.isPremiumUser.value;
+      final currentPlanId = auth.premiumPlanId.value;
+
+      return Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SingleChildScrollView(
-                child: Column(
-                  children: [
-                    // 1. YouTube Premium Style Hero Banner
-                    _buildHeroSection(
-                      context,
-                      controller,
-                      isPremium,
-                      currentPlanId,
-                    ),
-
-                    // 2. Feature Cards List
-                    _buildFeatureGrid(context),
-
-                    // 3. User Membership Status / Sandbox Panel
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                      child: _buildMembershipStatusCard(
-                        context,
-                        controller,
-                        isPremium,
-                        currentPlanId,
-                      ),
-                    ),
-
-                    // 4. Plan Selector ($2 Individual, $5 Family, $10 4K & Factchecked)
-                    if (!isPremium) ...[
-                      const SizedBox(height: 32),
-                      Text(
-                        'Choose the plan that fits you',
-                        style: typo.display.copyWith(
-                          fontSize: 22,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          'Ad-free videos, background play, offline downloads, and verified fact-checking.',
-                          textAlign: TextAlign.center,
-                          style: typo.body.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _buildPlansList(context, controller),
-                      ),
-                      const SizedBox(height: 24),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _buildCheckoutButton(context, controller),
-                      ),
-                    ],
-
-                    // 5. Compare Free vs Premium Table
-                    const SizedBox(height: 48),
-                    Text(
-                      'Compare Free vs Premium',
-                      style: typo.display.copyWith(
-                        fontSize: 22,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _buildComparisonTable(context),
-                    ),
-
-                    // 6. Frequently Asked Questions
-                    const SizedBox(height: 48),
-                    Text(
-                      'Frequently asked questions',
-                      style: typo.display.copyWith(
-                        fontSize: 22,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _buildFaqSection(context),
-                    ),
-
-                    const SizedBox(height: 80),
-                  ],
-                ),
+              // 1. YouTube Premium Style Hero Banner
+              _buildHeroSection(
+                context,
+                isPremium,
+                currentPlanId,
+                isDesktop: isDesktop,
+                isTablet: isTablet,
               ),
+              const SizedBox(height: 32),
 
-              // Loading overlay
-              if (controller.rxIsLoading.value || controller.isSimulating.value)
-                ColoredBox(
-                  color: AppColors.bgPage.withValues(alpha: 0.75),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+              // 2. Feature Cards Grid
+              _buildFeatureGrid(
+                context,
+                isDesktop: isDesktop,
+                isTablet: isTablet,
+              ),
+              const SizedBox(height: 32),
+
+              // 3. User Membership Status & Sandbox Panel (on Mobile/Tablet or Main flow)
+              if (!isDesktop) ...[
+                _buildMembershipStatusCard(context, isPremium, currentPlanId),
+                const SizedBox(height: 32),
+              ],
+
+              // 4. Plan Selector ($2 Individual, $5 Family, $10 4K & Factchecked)
+              if (!isPremium) ...[
+                _buildPlanSelectorSection(
+                  context,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                ),
+                const SizedBox(height: 48),
+              ],
+
+              // 5. Compare Free vs Premium Table
+              _buildComparisonSection(context),
+              const SizedBox(height: 48),
+
+              // 6. Frequently Asked Questions
+              _buildFaqSection(context),
+              const SizedBox(height: 60),
+            ],
+          ),
+
+          // Loading overlay
+          if (_controller.rxIsLoading.value || _controller.isSimulating.value)
+            Positioned.fill(
+              child: ColoredBox(
+                color: bgColor.withValues(alpha: 0.8),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.textPrimary.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const CircularProgressIndicator(
+                        CircularProgressIndicator(
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.error,
+                            Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         Text(
                           'Processing membership details...',
-                          style: typo.body.copyWith(
-                            color: AppColors.textSecondary,
+                          style: TextStyle(
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
+                            color: primaryText,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-            ],
-          );
-        }),
-      ),
-    );
+              ),
+            ),
+        ],
+      );
+    });
   }
+
+  // ==========================================================================
+  // HERO SECTION
+  // ==========================================================================
 
   Widget _buildHeroSection(
     BuildContext context,
-    PremiumController controller,
     bool isPremium,
-    String? planId,
-  ) {
-    final typo = context.twTypography;
-    final selectedId = controller.selectedPlanId.value;
+    String? planId, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
+    final selectedId = _controller.selectedPlanId.value;
 
     var trialText = r'7 days free • Then $2/month';
     if (selectedId == 'family_monthly') {
@@ -184,12 +405,23 @@ class PremiumPlansScreen extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.bgSurfaceHigh, AppColors.bgPage],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
+      padding: EdgeInsets.symmetric(
+        horizontal: isDesktop ? 40 : (isTablet ? 28 : 20),
+        vertical: isDesktop ? 44 : 32,
+      ),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
+        gradient: const LinearGradient(
+          colors: [
+            buttonBg,
+            cardColor,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: Column(
@@ -197,11 +429,18 @@ class PremiumPlansScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const AppLogo(
+                size: 34,
+                borderRadius: 8,
+              ),
+              const SizedBox(width: 10),
               Text(
                 'Truthworld',
-                style: typo.logo.copyWith(
-                  fontSize: 32,
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  fontSize: isDesktop ? 32 : (isTablet ? 28 : 24),
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -1.0,
+                  color: primaryText,
                 ),
               ),
               const SizedBox(width: 8),
@@ -209,12 +448,12 @@ class PremiumPlansScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.warning,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(
+                child: const Text(
                   'PREMIUM',
-                  style: typo.overline.copyWith(
-                    fontSize: 12,
+                  style: TextStyle(
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
                     color: Colors.black,
                     letterSpacing: 1.0,
@@ -223,80 +462,97 @@ class PremiumPlansScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           Text(
             'Ad-free, offline, 4K & Fact-Checked',
             textAlign: TextAlign.center,
-            style: typo.hero.copyWith(
-              fontSize: 26,
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              fontSize: isDesktop ? 28 : (isTablet ? 24 : 20),
+              fontWeight: FontWeight.bold,
+              color: primaryText,
+              height: 1.2,
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            'Enjoy uninterrupted Truthworld videos with ad-free playback, offline downloads, background play, 4K Ultra HD streaming, and real-time AI fact-checking on every video.',
-            textAlign: TextAlign.center,
-            style: typo.body.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.4,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: const Text(
+              'Enjoy uninterrupted Truthworld videos with ad-free playback, offline downloads, background play, 4K Ultra HD streaming, and real-time AI fact-checking on every video.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: secondaryText,
+                height: 1.5,
+              ),
             ),
           ),
+          const SizedBox(height: 24),
           if (!isPremium) ...[
-            const SizedBox(height: 28),
-            SizedBox(
-              width: 280,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () => controller.purchasePlan(selectedId),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.bgPage,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(26),
-                  ),
+            ElevatedButton(
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                _controller.purchasePlan(selectedId);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.textPrimary,
+                foregroundColor: AppColors.bgPage,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 36,
+                  vertical: 16,
                 ),
-                child: Text(
-                  'Try 7 Days Free',
-                  style: typo.button.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.bgPage,
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                elevation: 4,
+              ),
+              child: const Text(
+                'Try 7 Days Free',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.bgPage,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Text(
               trialText,
-              style: typo.bodySmall.copyWith(
-                color: AppColors.textTertiary,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: secondaryText,
               ),
             ),
             const SizedBox(height: 4),
-            Text(
+            const Text(
               'Only new members are eligible for trials. Cancel anytime.',
-              style: typo.caption.copyWith(color: AppColors.textTertiary),
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textTertiary,
+              ),
             ),
           ] else ...[
-            const SizedBox(height: 24),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.warningContainer,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.warning.withValues(alpha: 0.3),
-                ),
+                color: AppColors.successContainer,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.success),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.star_rounded, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.verified_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
                   Text(
                     'Active Premium Member',
-                    style: typo.label.copyWith(
-                      color: AppColors.warning,
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -309,20 +565,27 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureGrid(BuildContext context) {
-    final typo = context.twTypography;
+  // ==========================================================================
+  // FEATURE GRID
+  // ==========================================================================
+
+  Widget _buildFeatureGrid(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
     final features = [
       _FeatureItem(
         icon: Icons.play_disabled_rounded,
         title: 'Ad-free playback',
         description:
-            'Watch videos without ad interruptions. Enjoy Truthworld seamlessly across mobile, desktop, TV, and tablet.',
+            'Watch videos without ad interruptions across mobile, desktop, TV, and tablet.',
       ),
       _FeatureItem(
-        icon: Icons.verified_rounded,
+        icon: Icons.verified_outlined,
         title: 'Every Video Fact-Checked',
         description:
-            'Get real-time AI claim verification, source transparency badges, and truth-score breakdowns on every video.',
+            'Get real-time AI claim verification, source transparency badges, and truth-score breakdowns.',
       ),
       _FeatureItem(
         icon: Icons.hd_rounded,
@@ -331,10 +594,10 @@ class PremiumPlansScreen extends StatelessWidget {
             'Experience ultra-crisp 4K UHD streaming with enhanced bitrate audio and crystal clear visuals.',
       ),
       _FeatureItem(
-        icon: Icons.download_for_offline_rounded,
+        icon: Icons.file_download_outlined,
         title: 'Download and go',
         description:
-            'Save your favorite videos and playlists offline for uninterrupted viewing when traveling or low on data.',
+            'Save your favorite videos and playlists offline for uninterrupted viewing anywhere.',
       ),
       _FeatureItem(
         icon: Icons.picture_in_picture_rounded,
@@ -350,62 +613,131 @@ class PremiumPlansScreen extends StatelessWidget {
       ),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Column(
-        children: features.map((feat) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: Row(
+    if (isDesktop || isTablet) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'All-Inclusive Benefits',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: primaryText,
+            ),
+          ),
+          const SizedBox(height: 16),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: features.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isDesktop ? 3 : 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              mainAxisExtent: 145,
+            ),
+            itemBuilder: (context, index) {
+              return _buildFeatureCard(features[index]);
+            },
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'All-Inclusive Benefits',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: primaryText,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Column(
+          children: features.map((feat) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildFeatureCard(feat),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureCard(_FeatureItem feat) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: buttonBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Icon(
+              feat.icon,
+              color: Colors.white,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: AppColors.bgSurfaceHover,
-                    shape: BoxShape.circle,
+                Text(
+                  feat.title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: primaryText,
                   ),
-                  child: Icon(feat.icon, color: Colors.white, size: 28),
                 ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        feat.title,
-                        style: typo.title.copyWith(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        feat.description,
-                        style: typo.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 4),
+                Text(
+                  feat.description,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: secondaryText,
+                    height: 1.35,
                   ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          );
-        }).toList(),
+          ),
+        ],
       ),
     );
   }
 
+  // ==========================================================================
+  // MEMBERSHIP STATUS & SANDBOX PANEL
+  // ==========================================================================
+
   Widget _buildMembershipStatusCard(
     BuildContext context,
-    PremiumController controller,
     bool isPremium,
     String? planId,
   ) {
-    final typo = context.twTypography;
     final auth = AuthService.to;
 
     if (auth.isTrialExpired || (!isPremium && auth.premiumExpiresAt.value != null)) {
@@ -420,13 +752,18 @@ class PremiumPlansScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.timer_off_rounded, color: Colors.white, size: 24),
-                const SizedBox(width: 10),
+                Icon(
+                  Icons.timer_off_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                SizedBox(width: 10),
                 Text(
                   '7-Day Free Trial Expired',
-                  style: typo.title.copyWith(
+                  style: TextStyle(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: AppColors.error,
                   ),
@@ -436,17 +773,19 @@ class PremiumPlansScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Your 7-day free trial ended on ${auth.formattedExpiresDate}. Premium features (4K, ad-free streaming, background play, and fact-checking) have been paused.',
-              style: typo.bodySmall.copyWith(
-                color: AppColors.textPrimary,
+              style: const TextStyle(
+                fontSize: 14,
+                color: primaryText,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 14),
-            Text(
+            const SizedBox(height: 12),
+            const Text(
               'Choose a plan below to resume your Premium membership.',
-              style: typo.caption.copyWith(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
+                color: secondaryText,
               ),
             ),
           ],
@@ -467,61 +806,66 @@ class PremiumPlansScreen extends StatelessWidget {
 
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.bgSurface,
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppColors.warning.withValues(alpha: 0.3),
-            width: 1.5,
+            color: AppColors.textPrimary.withValues(alpha: 0.1),
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
                   color: Colors.white,
-                  size: 28,
+                  size: 24,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 10),
                 Text(
                   'Membership Details',
-                  style: typo.headline.copyWith(
-                    fontSize: 20,
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: primaryText,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const Divider(color: AppColors.bgDivider),
+            const Divider(color: AppColors.bgDivider, height: 1),
             const SizedBox(height: 12),
-            _buildInfoRow(context, 'Plan', planName),
-            _buildInfoRow(context, 'Price', planPrice),
-            _buildInfoRow(context, 'Billing Cycle', '7 Days Free Trial'),
-            _buildInfoRow(context, 'Activated On', auth.formattedStartedDate),
-            _buildInfoRow(context, 'Expires / Renews On', auth.formattedExpiresDate),
-            _buildInfoRow(context, 'Time Remaining', auth.formattedRemainingTime),
-            const SizedBox(height: 24),
+            _buildInfoRow('Plan', planName),
+            _buildInfoRow('Price', planPrice),
+            _buildInfoRow('Billing Cycle', '7 Days Free Trial'),
+            _buildInfoRow('Activated On', auth.formattedStartedDate),
+            _buildInfoRow('Expires / Renews On', auth.formattedExpiresDate),
+            _buildInfoRow('Time Remaining', auth.formattedRemainingTime),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              height: 48,
+              height: 44,
               child: OutlinedButton(
-                onPressed: () => controller.cancelSimulated(),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _controller.cancelSimulated();
+                },
                 style: OutlinedButton.styleFrom(
+                  backgroundColor: buttonBg,
                   side: const BorderSide(color: AppColors.error),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(22),
                   ),
                 ),
-                child: Text(
+                child: const Text(
                   'Cancel Membership',
-                  style: typo.button.copyWith(
-                    color: AppColors.error,
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
+                    color: AppColors.error,
                   ),
                 ),
               ),
@@ -536,29 +880,41 @@ class PremiumPlansScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
+              Icon(
+                Icons.auto_awesome,
+                color: Colors.white,
+                size: 20,
+              ),
+              SizedBox(width: 8),
               Text(
                 'Developer Sandbox Panel',
-                style: typo.title.copyWith(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: primaryText,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Instantly toggle Premium activation to verify ad-free playback, 4K quality, offline downloads, and fact-checking status locally.',
-            style: typo.caption.copyWith(color: AppColors.textTertiary),
+            style: TextStyle(
+              fontSize: 13,
+              color: secondaryText,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -568,15 +924,18 @@ class PremiumPlansScreen extends StatelessWidget {
               icon: const Icon(
                 Icons.offline_bolt_rounded,
                 color: Colors.white,
+                size: 18,
               ),
-              label: Text(
+              label: const Text(
                 'Simulate Premium Unlock',
-                style: typo.button.copyWith(
-                  color: AppColors.bgPage,
+                style: TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.bgPage,
                 ),
               ),
               onPressed: () async {
+                HapticFeedback.lightImpact();
                 final auth = AuthService.to;
                 if (!auth.isAuthenticated.value) {
                   AppSnackbar.show(
@@ -587,8 +946,8 @@ class PremiumPlansScreen extends StatelessWidget {
                     colorText: AppColors.textPrimary,
                   );
                 } else {
-                  await controller.upgradeSimulated(
-                    controller.selectedPlanId.value,
+                  await _controller.upgradeSimulated(
+                    _controller.selectedPlanId.value,
                   );
                 }
               },
@@ -605,11 +964,43 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPlansList(
-    BuildContext context,
-    PremiumController controller,
-  ) {
-    final typo = context.twTypography;
+  // ==========================================================================
+  // PLAN SELECTOR SECTION
+  // ==========================================================================
+
+  Widget _buildPlanSelectorSection(
+    BuildContext context, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Choose the plan that fits you',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: primaryText,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Ad-free videos, background play, offline downloads, and verified fact-checking.',
+          style: TextStyle(
+            fontSize: 14,
+            color: secondaryText,
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildPlansList(context),
+        const SizedBox(height: 24),
+        _buildCheckoutButton(context),
+      ],
+    );
+  }
+
+  Widget _buildPlansList(BuildContext context) {
     final plans = [
       _PlanDetails(
         id: 'individual_monthly',
@@ -644,21 +1035,24 @@ class PremiumPlansScreen extends StatelessWidget {
       separatorBuilder: (context, idx) => const SizedBox(height: 12),
       itemBuilder: (context, idx) {
         final plan = plans[idx];
-        final isSelected = controller.selectedPlanId.value == plan.id;
+        final isSelected = _controller.selectedPlanId.value == plan.id;
 
         return InkWell(
-          onTap: () => controller.selectPlan(plan.id),
-          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            _controller.selectPlan(plan.id);
+          },
+          borderRadius: BorderRadius.circular(16),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.bgSurfaceHover
-                  : AppColors.bgSurface,
-              borderRadius: BorderRadius.circular(12),
+              color: isSelected ? buttonBg : cardColor,
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isSelected ? AppColors.error : AppColors.bgDivider,
+                color: isSelected
+                    ? AppColors.textPrimary
+                    : AppColors.textPrimary.withValues(alpha: 0.08),
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -686,52 +1080,57 @@ class PremiumPlansScreen extends StatelessWidget {
                           Expanded(
                             child: Text(
                               plan.title,
-                              style: typo.title.copyWith(
+                              style: const TextStyle(
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
+                                color: primaryText,
                               ),
                             ),
                           ),
                           Text(
                             plan.priceLabel.split('/')[0],
-                            style: typo.title.copyWith(
+                            style: TextStyle(
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: isSelected
-                                  ? AppColors.error
-                                  : AppColors.textPrimary,
+                                  ? Colors.white
+                                  : primaryText,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
+                              horizontal: 8,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppColors.errorContainer
-                                  : AppColors.bgDivider,
-                              borderRadius: BorderRadius.circular(4),
+                                  ? AppColors.textPrimary.withValues(alpha: 0.15)
+                                  : buttonBg,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: AppColors.textPrimary.withValues(alpha: 0.1),
+                              ),
                             ),
                             child: Text(
                               plan.tagline,
-                              style: typo.caption.copyWith(
-                                color: isSelected
-                                    ? AppColors.error
-                                    : AppColors.textSecondary,
+                              style: const TextStyle(
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
+                                color: primaryText,
                               ),
                             ),
                           ),
                           Text(
                             '/${plan.priceLabel.split('/')[1]}',
-                            style: typo.caption.copyWith(
-                              color: AppColors.textTertiary,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: secondaryText,
                             ),
                           ),
                         ],
@@ -739,9 +1138,10 @@ class PremiumPlansScreen extends StatelessWidget {
                       const SizedBox(height: 10),
                       Text(
                         plan.description,
-                        style: typo.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                          height: 1.3,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: secondaryText,
+                          height: 1.35,
                         ),
                       ),
                     ],
@@ -755,12 +1155,8 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCheckoutButton(
-    BuildContext context,
-    PremiumController controller,
-  ) {
-    final typo = context.twTypography;
-    final selectedId = controller.selectedPlanId.value;
+  Widget _buildCheckoutButton(BuildContext context) {
+    final selectedId = _controller.selectedPlanId.value;
     var label = 'Start 7-Day Free Trial';
     if (selectedId == '4k_factchecked_monthly') {
       label = r'Get 4K & Fact-Checked Plan ($10/mo)';
@@ -774,17 +1170,21 @@ class PremiumPlansScreen extends StatelessWidget {
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: () => controller.purchasePlan(selectedId),
+        onPressed: () {
+          HapticFeedback.mediumImpact();
+          _controller.purchasePlan(selectedId);
+        },
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.textPrimary,
           foregroundColor: AppColors.bgPage,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(28),
           ),
+          elevation: 4,
         ),
         child: Text(
           label,
-          style: typo.button.copyWith(
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: AppColors.bgPage,
@@ -794,90 +1194,110 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildComparisonTable(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(2),
-            1: FlexColumnWidth(),
-            2: FlexColumnWidth(1.2),
-          },
-          children: [
-            _buildTableHeaderRow(context),
-            _buildTableRow(
-              context,
-              'Ad-free Video & Audio',
-              'With Ads',
-              'Ad-Free',
-            ),
-            _buildTableRow(context, 'Offline Downloads', 'No', 'Unlimited'),
-            _buildTableRow(context, 'Background & PiP Play', 'No', 'Included'),
-            _buildTableRow(
-              context,
-              'Stream Quality',
-              'Up to 1080p',
-              r'4K Ultra HD ($10)',
-            ),
-            _buildTableRow(
-              context,
-              'Fact-Checked Videos',
-              'Standard',
-              r'Every Video Verified ($10)',
-            ),
-            _buildTableRow(
-              context,
-              'Multilingual AI Dubbing',
-              'Basic',
-              'Unlocked',
-            ),
-            _buildTableRow(
-              context,
-              'Family Sharing (6 accounts)',
-              'No',
-              r'Family ($5)',
-            ),
-          ],
+  // ==========================================================================
+  // COMPARISON SECTION
+  // ==========================================================================
+
+  Widget _buildComparisonSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Compare Free vs Premium',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: primaryText,
+          ),
         ),
-      ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.textPrimary.withValues(alpha: 0.1),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Table(
+              columnWidths: const {
+                0: FlexColumnWidth(2),
+                1: FlexColumnWidth(),
+                2: FlexColumnWidth(1.2),
+              },
+              children: [
+                _buildTableHeaderRow(context),
+                _buildTableRow(
+                  'Ad-free Video & Audio',
+                  'With Ads',
+                  'Ad-Free',
+                ),
+                _buildTableRow('Offline Downloads', 'No', 'Unlimited'),
+                _buildTableRow('Background & PiP Play', 'No', 'Included'),
+                _buildTableRow(
+                  'Stream Quality',
+                  'Up to 1080p',
+                  r'4K Ultra HD ($10)',
+                ),
+                _buildTableRow(
+                  'Fact-Checked Videos',
+                  'Standard',
+                  r'Every Video Verified ($10)',
+                ),
+                _buildTableRow(
+                  'Multilingual AI Dubbing',
+                  'Basic',
+                  'Unlocked',
+                ),
+                _buildTableRow(
+                  'Family Sharing (6 accounts)',
+                  'No',
+                  r'Family ($5)',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   TableRow _buildTableHeaderRow(BuildContext context) {
-    final typo = context.twTypography;
-    return TableRow(
-      decoration: const BoxDecoration(color: AppColors.bgElevated),
+    return const TableRow(
+      decoration: BoxDecoration(color: buttonBg),
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: Text(
             'Features',
-            style: typo.title.copyWith(
+            style: TextStyle(
+              fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: primaryText,
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: Text(
             'Free',
-            style: typo.title.copyWith(color: AppColors.textSecondary),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: secondaryText,
+            ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: Text(
             'Premium',
-            style: typo.title.copyWith(
-              color: AppColors.error,
+            style: TextStyle(
+              fontSize: 15,
               fontWeight: FontWeight.bold,
+              color: primaryText,
             ),
           ),
         ),
@@ -886,21 +1306,26 @@ class PremiumPlansScreen extends StatelessWidget {
   }
 
   TableRow _buildTableRow(
-    BuildContext context,
     String feature,
     String freeVal,
     String premiumVal,
   ) {
-    final typo = context.twTypography;
     return TableRow(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+          ),
+        ),
+      ),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             feature,
-            style: typo.bodySmall.copyWith(
+            style: const TextStyle(
               fontSize: 14,
-              color: AppColors.textSecondary,
+              color: secondaryText,
             ),
           ),
         ),
@@ -908,7 +1333,7 @@ class PremiumPlansScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             freeVal,
-            style: typo.caption.copyWith(
+            style: const TextStyle(
               fontSize: 13,
               color: AppColors.textTertiary,
             ),
@@ -918,10 +1343,10 @@ class PremiumPlansScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             premiumVal,
-            style: typo.caption.copyWith(
+            style: const TextStyle(
               fontSize: 13,
-              color: AppColors.error,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
+              color: primaryText,
             ),
           ),
         ),
@@ -929,8 +1354,11 @@ class PremiumPlansScreen extends StatelessWidget {
     );
   }
 
+  // ==========================================================================
+  // FAQ SECTION
+  // ==========================================================================
+
   Widget _buildFaqSection(BuildContext context) {
-    final typo = context.twTypography;
     final faqs = [
       _FaqItem(
         q: 'What is Truthworld Premium?',
@@ -959,45 +1387,177 @@ class PremiumPlansScreen extends StatelessWidget {
     ];
 
     return Column(
-      children: faqs.map((faq) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: AppColors.bgSurface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.bgDivider),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Frequently Asked Questions',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: primaryText,
           ),
-          child: ExpansionTile(
-            title: Text(
-              faq.q,
-              style: typo.title.copyWith(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+        ),
+        const SizedBox(height: 16),
+        Column(
+          children: faqs.map((faq) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
+                ),
+              ),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  dividerColor: Colors.transparent,
+                ),
+                child: ExpansionTile(
+                  title: Text(
+                    faq.q,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: primaryText,
+                    ),
+                  ),
+                  iconColor: Colors.white,
+                  collapsedIconColor: Colors.white,
+                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: [
+                    Text(
+                      faq.a,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: secondaryText,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================================================
+  // DESKTOP SIDEBAR
+  // ==========================================================================
+
+  Widget _buildDesktopSidebar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(
+          left: BorderSide(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+          ),
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'MEMBERSHIP OVERVIEW',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: secondaryText,
+                letterSpacing: 1.2,
               ),
             ),
-            iconColor: Colors.white,
-            collapsedIconColor: Colors.white,
-            shape: const Border(),
-            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            const SizedBox(height: 16),
+            Obx(() {
+              final auth = AuthService.to;
+              return _buildMembershipStatusCard(
+                context,
+                auth.isPremiumUser.value,
+                auth.premiumPlanId.value,
+              );
+            }),
+            const SizedBox(height: 32),
+            const Text(
+              'QUICK SHORTCUTS',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: secondaryText,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildSidebarAction(
+              icon: Icons.history_rounded,
+              title: 'Watch History',
+              onTap: () => Get.toNamed('/watchhistory'),
+            ),
+            _buildSidebarAction(
+              icon: Icons.video_collection_rounded,
+              title: 'My Videos',
+              onTap: () => Get.toNamed('/myvideos'),
+            ),
+            _buildSidebarAction(
+              icon: Icons.file_download_outlined,
+              title: 'Offline Downloads',
+              onTap: () => Get.toNamed('/downloads'),
+            ),
+            _buildSidebarAction(
+              icon: Icons.settings_rounded,
+              title: 'Account Settings',
+              onTap: () => Get.toNamed('/settings'),
+            ),
+            _buildSidebarAction(
+              icon: Icons.feedback_outlined,
+              title: 'Send Feedback',
+              onTap: () => Get.toNamed('/feedback'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSidebarAction({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Row(
             children: [
+              Icon(icon, color: primaryText, size: 20),
+              const SizedBox(width: 16),
               Text(
-                faq.a,
-                style: typo.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                  height: 1.4,
+                title,
+                style: const TextStyle(
                   fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: primaryText,
                 ),
               ),
             ],
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
-    final typo = context.twTypography;
+  Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -1006,9 +1566,9 @@ class PremiumPlansScreen extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              style: typo.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+              style: const TextStyle(
                 fontSize: 13,
+                color: secondaryText,
               ),
             ),
           ),
@@ -1017,14 +1577,77 @@ class PremiumPlansScreen extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: typo.body.copyWith(
-                color: AppColors.textPrimary,
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
+                color: primaryText,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showMoreOptionsBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: secondaryText,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.feedback_outlined, color: Colors.white),
+              title: const Text(
+                'Send Feedback',
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Get.toNamed('/feedback');
+              },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_rounded, color: Colors.white),
+              title: const Text(
+                'Account Settings',
+                style: TextStyle(
+                  color: primaryText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                Get.toNamed('/settings');
+              },
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1061,3 +1684,4 @@ class _FaqItem {
   final String q;
   final String a;
 }
+

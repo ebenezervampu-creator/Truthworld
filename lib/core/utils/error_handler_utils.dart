@@ -80,7 +80,9 @@ bool _isTransientError(Object error, String errorStr) {
   }
 
   if (errorStr.contains('Bad state: Too many elements') ||
-      errorStr.contains('ScrollController attached to multiple scroll views')) {
+      errorStr.contains('ScrollController attached to multiple scroll views') ||
+      errorStr.contains('_handledContextLostEvent') ||
+      errorStr.contains('MissingPluginException')) {
     return true;
   }
 

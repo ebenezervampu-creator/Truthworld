@@ -15,6 +15,7 @@ import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart'; // Correct name
 import 'package:truthworld/features/search/data/services/search_service.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -1051,6 +1052,13 @@ class SearchController extends BaseController {
 
   /// Add query to recent searches (with deduplication)
   void _addToRecentSearches(String query) {
+    // Check if search history is paused in user settings
+    if (Get.isRegistered<UserSettingsController>() &&
+        UserSettingsController.to.isSearchHistoryPaused.value) {
+      debugPrint('⏸️ [Search] Search history is PAUSED - not saving query');
+      return;
+    }
+
     // Remove if already exists (to avoid duplicates)
     recentSearches.removeWhere((q) => q.toLowerCase() == query.toLowerCase());
 

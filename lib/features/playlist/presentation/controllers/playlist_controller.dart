@@ -9,6 +9,7 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -352,19 +353,21 @@ class PlaylistController extends BaseController with ContentValidationMixin {
         '✅ Created playlist: ${playlist.playlistName} (${playlist.id})',
       );
 
-      Get.snackbar(
+      AppSnackbar.show(
         'Success',
         'Playlist created successfully!',
-        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
 
       return playlist;
     } catch (e) {
       logger.debug('❌ Error creating playlist: $e');
-      Get.snackbar(
+      AppSnackbar.show(
         'Error',
         'Failed to create playlist!',
-        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return null;
     }
@@ -548,7 +551,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
     bool isPublic,
   ) async {
     try {
-      final ref = isPublic
+      var targetRef = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
                 .collection(FirestoreCollections.users)
@@ -556,13 +559,29 @@ class PlaylistController extends BaseController with ContentValidationMixin {
                 .collection(FirestoreCollections.playlists)
                 .doc(playlistId);
 
-      final snapshot = await ref.get();
-      if (!snapshot.exists) throw 'Playlist not found';
+      var snapshot = await targetRef.get();
+      if (!snapshot.exists) {
+        // Fallback: check the other collection in case isPublic flag was flipped
+        final altRef = !isPublic
+            ? _firestore.collection('public_playlists').doc(playlistId)
+            : _firestore
+                  .collection(FirestoreCollections.users)
+                  .doc(user)
+                  .collection(FirestoreCollections.playlists)
+                  .doc(playlistId);
+        final altSnapshot = await altRef.get();
+        if (altSnapshot.exists) {
+          targetRef = altRef;
+          snapshot = altSnapshot;
+        } else {
+          throw 'Playlist not found';
+        }
+      }
 
-      final itemDoc = await ref.collection('items').doc(videoId).get();
+      final itemDoc = await targetRef.collection('items').doc(videoId).get();
       if (!itemDoc.exists) {
         // Write to subcollection
-        await ref.collection('items').doc(videoId).set({
+        await targetRef.collection('items').doc(videoId).set({
           'videoId': videoId,
           'addedAt': FieldValue.serverTimestamp(),
           'position': (snapshot.data()?['videoCount'] ?? 0),
@@ -577,7 +596,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
         }
         final cappedVideoIds = currentVideoIds.take(10).toList();
 
-        await ref.update({
+        await targetRef.update({
           'videoIds': cappedVideoIds,
           'videoCount': FieldValue.increment(1),
           'updatedAt': FieldValue.serverTimestamp(),
@@ -586,7 +605,7 @@ class PlaylistController extends BaseController with ContentValidationMixin {
         // Always update thumbnail when first video added or if null
         if (currentVideoIds.length == 1 ||
             snapshot.data()?['thumbnailUrl'] == null) {
-          await _updateThumbnail(ref, currentVideoIds);
+          await _updateThumbnail(targetRef, currentVideoIds);
         }
 
         Get.snackbar(

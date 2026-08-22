@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_video_player_controller.dart';
 import 'package:truthworld/features/admin/presentation/views/ad_reports_tab.dart';
@@ -277,6 +278,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             padding: const EdgeInsets.all(24),
             child: Row(
               children: [
+                const AppLogo(
+                  size: 28,
+                  borderRadius: 6,
+                ),
+                const SizedBox(width: 10),
                 ShaderMask(
                   shaderCallback: (bounds) => const LinearGradient(
                     colors: [Color(0xFFE0B0FF), AppColors.brand],

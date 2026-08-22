@@ -11,6 +11,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/layout/global_app_bar.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_card.dart';
@@ -20,6 +21,7 @@ import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
@@ -41,8 +43,6 @@ import 'package:truthworld/features/discover/presentation/views/discover_channel
     deferred as discover;
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart'
     deferred as feedback;
-import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart'
-    deferred as help;
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/library/presentation/views/library/library_screen.dart'
     deferred as lib_feature;
@@ -50,7 +50,6 @@ import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/l
     deferred as liked_videos;
 import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
     deferred as my_videos;
-import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart'
     deferred as playlist_detail;
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
@@ -457,18 +456,20 @@ class Home extends GetView<HomeController> {
   const Home({super.key});
 
   void _preloadDeferredLibraries() {
-    subscriptions.loadLibrary().catchError(
-      (e) => debugPrint('Preload subscriptions error: $e'),
-    );
-    lib_feature.loadLibrary().catchError(
-      (e) => debugPrint('Preload library error: $e'),
-    );
-    saved_ads.loadLibrary().catchError(
-      (e) => debugPrint('Preload saved_ads error: $e'),
-    );
-    explore_topics.loadLibrary().catchError(
-      (e) => debugPrint('Preload explore_topics error: $e'),
-    );
+    Future.delayed(const Duration(seconds: 3), () {
+      subscriptions.loadLibrary().catchError(
+        (e) => debugPrint('Preload subscriptions error: $e'),
+      );
+      lib_feature.loadLibrary().catchError(
+        (e) => debugPrint('Preload library error: $e'),
+      );
+      saved_ads.loadLibrary().catchError(
+        (e) => debugPrint('Preload saved_ads error: $e'),
+      );
+      explore_topics.loadLibrary().catchError(
+        (e) => debugPrint('Preload explore_topics error: $e'),
+      );
+    });
   }
 
   @override
@@ -741,11 +742,6 @@ class Home extends GetView<HomeController> {
           loader: settings.loadLibrary,
           builder: () => settings.SettingsScreen(isDashboard: true),
         );
-      case HomeController.indexHelp:
-        return DeferredWidget(
-          loader: help.loadLibrary,
-          builder: () => help.HelpPage(isDashboard: true),
-        );
       case HomeController.indexFeedback:
         return DeferredWidget(
           loader: feedback.loadLibrary,
@@ -791,468 +787,16 @@ class Home extends GetView<HomeController> {
     bool isTablet,
     bool isDesktop,
   ) {
-    if (isMobile || isTablet) return _buildMobileAppBar(context);
-
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(kToolbarHeight + 10),
-      child: AppBar(
-        backgroundColor:
-            modernDarkProfessionalTheme.appBarTheme.backgroundColor,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: false,
-        titleSpacing: 0,
-        title: _buildDesktopHeader(context),
-        actions: _buildAppBarActions(context, false),
-      ),
-    );
-  }
-
-  Widget _buildDesktopHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: () => Get.offAllNamed('/'),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [primaryAccent, secondaryAccent],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Obx(() {
-                    final isPremium =
-                        Get.isRegistered<AuthService>() &&
-                        AuthService.to.isPremiumUser.value;
-                    return Text(
-                      isPremium ? 'Truthworld Premium' : 'Truthworld',
-                      style: modernDarkProfessionalTheme.textTheme.titleLarge
-                          ?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color:
-                                modernDarkProfessionalTheme
-                                    .colorScheme
-                                    .onSurface,
-                          ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 40),
-          Expanded(
-            child: Center(
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 650),
-                height: 44,
-                child: Material(
-                  borderRadius: BorderRadius.circular(22),
-                  color: modernDarkProfessionalTheme
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withValues(alpha: 0.3),
-                  child: InkWell(
-                    onTap: () {
-                      Get.toNamed('/search');
-                    },
-                    borderRadius: BorderRadius.circular(22),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.search_rounded,
-                            color: modernDarkProfessionalTheme
-                                .colorScheme
-                                .onSurfaceVariant,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'Search videos...',
-                              style: modernDarkProfessionalTheme
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: modernDarkProfessionalTheme
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildMobileAppBar(BuildContext context) {
-    return AppBar(
-      title: _buildMobileHeader(context),
-      titleSpacing: 0,
-      actions: _buildAppBarActions(context, true),
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      backgroundColor: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
-      surfaceTintColor:
-          modernDarkProfessionalTheme.appBarTheme.surfaceTintColor,
-    );
-  }
-
-  Widget _buildMobileHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16),
-      child: InkWell(
-        onTap: () => Get.offAllNamed('/'),
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [primaryAccent, secondaryAccent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(
-                  Icons.play_circle_fill_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Obx(() {
-                final isPremium =
-                    Get.isRegistered<AuthService>() &&
-                    AuthService.to.isPremiumUser.value;
-                return Text(
-                  isPremium ? 'Truthworld Premium' : 'Truthworld',
-                  style: modernDarkProfessionalTheme.textTheme.titleLarge
-                      ?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color:
-                            modernDarkProfessionalTheme.colorScheme.onSurface,
-                      ),
-                );
-              }),
-            ],
-          ),
-        ),
-      ),
+    return buildGlobalAppBar(
+      context,
+      isMobile: isMobile,
+      isTablet: isTablet,
+      isDesktop: isDesktop,
     );
   }
 
   List<Widget> _buildAppBarActions(BuildContext context, bool isMobile) {
-    if (isMobile) {
-      return [
-        Container(
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            color: modernDarkProfessionalTheme
-                .colorScheme
-                .surfaceContainerHighest
-                .withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: IconButton(
-            icon: const Icon(
-              Icons.search_rounded,
-              color: Colors.white,
-            ),
-            tooltip: 'Search',
-            onPressed: () {
-              Get.toNamed('/search');
-            },
-          ),
-        ),
-        _buildNotificationLogo(context),
-      ];
-    }
-
-    return [
-      _buildNotificationLogo(context),
-      Obx(
-        () => controller.currentUser.value == null
-            ? _buildSignInButton(context)
-            : _buildUserMenu(context),
-      ),
-    ];
-  }
-
-  Widget _buildNotificationLogo(BuildContext context) {
-    // Ensure controller is initialized
-    if (!Get.isRegistered<VideoFeedNotificationController>()) {
-      Get.put(VideoFeedNotificationController());
-    }
-    final controller = Get.find<VideoFeedNotificationController>();
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: Obx(() {
-        final count = controller.unseenCount;
-        return Stack(
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.notifications_outlined,
-                size: 24,
-                color: Colors.white70,
-              ),
-              onPressed: () {
-                Get.toNamed('/notifications');
-              },
-              tooltip: 'Notifications',
-            ),
-            if (count > 0)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    count > 99 ? '99+' : '$count',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      }),
-    );
-  }
-
-  Widget _buildSignInButton(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Obx(
-        () => OutlinedButton.icon(
-          icon: const Icon(
-            Icons.account_circle_outlined,
-            size: 18,
-            color: Colors.white,
-          ),
-          label: Text(
-            controller.isLoadingAuth.value ? 'Signing In...' : 'Sign In',
-            style: const TextStyle(
-              color: primaryAccent,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          onPressed: controller.isLoadingAuth.value
-              ? null
-              : controller.signInWithGoogle,
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(
-              color: primaryAccent.withValues(alpha: 0.6),
-              width: 1.5,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUserMenu(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12, left: 4),
-      child: PopupMenuButton<String>(
-        tooltip: 'Account',
-        offset: const Offset(0, 45),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 8,
-        color: modernDarkProfessionalTheme.colorScheme.surface,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.black.withValues(alpha: 0.3),
-        onSelected: (value) {
-          switch (value) {
-            case 'studio':
-              if (AuthService.to.hasChannel.value || AuthService.to.userChannel != null) {
-                StudioLauncher.openStudio();
-              } else {
-                Get.toNamed('/channelscreen');
-              }
-          }
-        },
-        itemBuilder: (context) => [
-          _buildUserInfoMenuItem(context),
-          const PopupMenuDivider(height: 1),
-
-          _buildPopupMenuItem(
-            context,
-            Icons.analytics_outlined,
-            'Studio',
-            'studio',
-          ),
-        ],
-        child: Obx(() => _buildUserAvatar(context)),
-      ),
-    );
-  }
-
-  PopupMenuItem<String> _buildUserInfoMenuItem(BuildContext context) {
-    return PopupMenuItem(
-      value: 'user_info',
-      enabled: false,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Obx(() => _buildUserAvatar(context, radius: 20)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Obx(
-                  () => Text(
-                    AuthService.to.activeDisplayName,
-                    style: modernDarkProfessionalTheme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Obx(
-                  () => Text(
-                    AuthService.to.hasChannel.value &&
-                            AuthService.to.userChannel != null
-                        ? AuthService.to.activeHandle
-                        : (controller.currentUser.value?.email ?? ''),
-                    style: modernDarkProfessionalTheme.textTheme.bodySmall
-                        ?.copyWith(
-                          color: modernDarkProfessionalTheme
-                              .colorScheme
-                              .onSurfaceVariant,
-                        ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Builder(
-                  builder: (context) {
-                    if (Get.isRegistered<UserInterestProfileService>()) {
-                      final profileService =
-                          Get.find<UserInterestProfileService>();
-                      return Obx(() {
-                        final profile = profileService.profile.value;
-                        final score =
-                            profile?.echoChamberBreakScore.toStringAsFixed(0) ??
-                            '0';
-                        final badge =
-                            profile?.perspectiveBadge ?? 'Curious Mind';
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF9C27B0,
-                            ).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(
-                                0xFF9C27B0,
-                              ).withValues(alpha: 0.5),
-                            ),
-                          ),
-                          child: Text(
-                            '🪙 $score% $badge',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        );
-                      });
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  PopupMenuItem<String> _buildPopupMenuItem(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String value,
-  ) {
-    return PopupMenuItem(
-      value: value,
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 12),
-          Text(title, style: modernDarkProfessionalTheme.textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUserAvatar(BuildContext context, {double radius = 18}) {
-    final imageUrl = AuthService.to.activePhotoUrl;
-    final displayName = AuthService.to.activeDisplayName;
-    return _ModernAvatar(
-      imageUrl: imageUrl.isNotEmpty ? imageUrl : null,
-      radius: radius,
-      placeholderText: displayName.isNotEmpty
-          ? displayName.safeSubstring(0, 1).toUpperCase()
-          : 'U',
-    );
+    return buildGlobalAppBarActions(context, isMobile);
   }
 
   Widget _buildSideNavigation(BuildContext context, bool showCompactNavRail) {
@@ -1724,14 +1268,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 ),
                 _buildNavItem(
                   context,
-                  Icons.help_rounded,
-                  Icons.help_outline,
-                  'Help Center',
-                  HomeController.indexHelp,
-                  route: '/help',
-                ),
-                _buildNavItem(
-                  context,
                   Icons.chat_bubble_rounded,
                   Icons.chat_bubble_outline,
                   'Feedback',
@@ -2044,7 +1580,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
           index == HomeController.indexTerms ||
           index == HomeController.indexAbout ||
           index == HomeController.indexSettings ||
-          index == HomeController.indexHelp ||
           index == HomeController.indexFeedback;
 
       if (isDashboardPage) {
@@ -2572,144 +2107,138 @@ class _ModernMainContent extends StatelessWidget {
   }
 
   void _showAllCategoriesPopup(BuildContext context, List<String> categories) {
+    final searchQuery = ''.obs;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        var searchQuery = '';
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final filtered = categories
-                .where(
-                  (c) => c.toLowerCase().contains(searchQuery.toLowerCase()),
-                )
-                .toList();
+        return Obx(() {
+          final query = searchQuery.value.toLowerCase();
+          final filtered = categories
+              .where(
+                (c) => c.toLowerCase().contains(query),
+              )
+              .toList();
 
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
-              decoration: const BoxDecoration(
-                color: Color(0xFF14141F),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.75,
+            decoration: const BoxDecoration(
+              color: Color(0xFF14141F),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.grid_view_rounded,
+                ),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.grid_view_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'All Categories (Personalized)',
+                      style: TextStyle(
                         color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'All Categories (Personalized)',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search categories...',
-                      hintStyle: const TextStyle(color: Colors.white54),
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Colors.white70,
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF232333),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                    onChanged: (val) {
-                      setModalState(() {
-                        searchQuery = val;
-                      });
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Search categories...',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: Colors.white,
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFF232333),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (val) => searchQuery.value = val,
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 2.8,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, idx) {
+                      final cat = filtered[idx];
+                      final isSelected =
+                          homeController.selectedCategory.value == cat;
+                      return InkWell(
+                        onTap: () {
+                          homeController.selectCategory(cat);
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF232333),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.white12,
+                            ),
+                          ),
+                          child: Text(
+                            cat,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.black
+                                  : Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      );
                     },
                   ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 2.8,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                          ),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, idx) {
-                        final cat = filtered[idx];
-                        return Obx(() {
-                          final isSelected =
-                              homeController.selectedCategory.value == cat;
-                          return InkWell(
-                            onTap: () {
-                              homeController.selectCategory(cat);
-                              Navigator.pop(context);
-                            },
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.white
-                                    : const Color(0xFF232333),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : Colors.white12,
-                                ),
-                              ),
-                              child: Text(
-                                cat,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.black
-                                      : Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          );
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
+                ),
+              ],
+            ),
+          );
+        });
       },
     );
   }
@@ -2751,7 +2280,28 @@ class _ModernVideoGridSection extends StatelessWidget {
   }
 
   Widget _buildVideoGrid(BuildContext context, List<dynamic> videos) {
-    final crossAxisCount = isMobile ? 1 : 3;
+    if (isMobile) {
+      return SliverPadding(
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+        sliver: SliverList.separated(
+          itemCount: videos.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final item = videos[index];
+            if (item is Video) {
+              return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
+            } else if (item is CommunityPostModel) {
+              return CommunityPostCard(post: item);
+            } else if (item is AdItem) {
+              return HomepageAdCard(ad: item);
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+      );
+    }
+
+    final crossAxisCount = isTablet ? 2 : 3;
     return SliverPadding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       sliver: SliverMasonryGrid.count(
@@ -2762,16 +2312,6 @@ class _ModernVideoGridSection extends StatelessWidget {
         itemBuilder: (context, index) {
           final item = videos[index];
           if (item is Video) {
-            // ðŸ’¡ PRE-CACHE NEXT ITEMS AHEAD
-            if (index + 2 < videos.length) {
-              final nextItem = videos[index + 2];
-              if (nextItem is Video && nextItem.thumbnailUrl.isNotEmpty) {
-                precacheImage(
-                  CachedNetworkImageProvider(nextItem.thumbnailUrl),
-                  context,
-                );
-              }
-            }
             return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
           } else if (item is CommunityPostModel) {
             return CommunityPostCard(post: item);
@@ -3189,23 +2729,11 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     required bool isMobile,
     required double pageOffset,
   }) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection(FirestoreCollections.topics)
-          .doc(topic.id)
-          .snapshots(),
-      builder: (context, snapshot) {
-        var currentTopic = topic;
-        if (snapshot.hasData && snapshot.data!.exists) {
-          currentTopic = Topic.fromDocumentSnapshot(snapshot.data!);
-        }
-        return _buildBannerItemContent(
-          context,
-          topic: currentTopic,
-          isMobile: isMobile,
-          pageOffset: pageOffset,
-        );
-      },
+    return _buildBannerItemContent(
+      context,
+      topic: topic,
+      isMobile: isMobile,
+      pageOffset: pageOffset,
     );
   }
 
@@ -3224,6 +2752,13 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     final btnFontSize = isMobile ? 13.0 : 15.0;
     final btnIconSize = isMobile ? 16.0 : 18.0;
 
+    final bannerImageUrl = (topic.coverImage?.isNotEmpty ?? false
+            ? topic.coverImage
+            : topic.thumbnailUrl?.isNotEmpty ?? false
+            ? topic.thumbnailUrl
+            : null) ??
+        'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop';
+
     return GestureDetector(
       onTap: () => _navigateToTopic(context, topic),
       behavior: HitTestBehavior.opaque,
@@ -3241,27 +2776,25 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                       Colors.black.withValues(alpha: 0.65),
                       BlendMode.darken,
                     ),
-                    child: Image.network(
-                      (topic.coverImage?.isNotEmpty ?? false
-                              ? topic.coverImage
-                              : topic.thumbnailUrl?.isNotEmpty ?? false
-                              ? topic.thumbnailUrl
-                              : null) ??
-                          'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
+                    child: CachedNetworkImage(
+                      imageUrl: bannerImageUrl,
+                      memCacheWidth: 800,
+                      maxWidthDiskCache: 800,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
+                      errorWidget: (context, url, error) =>
+                          const ColoredBox(color: AppColors.bgSurface),
+                      placeholder: (context, url) =>
                           const ColoredBox(color: AppColors.bgSurface),
                     ),
                   ),
-                  Image.network(
-                    (topic.coverImage?.isNotEmpty ?? false
-                            ? topic.coverImage
-                            : topic.thumbnailUrl?.isNotEmpty ?? false
-                            ? topic.thumbnailUrl
-                            : null) ??
-                        'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
+                  CachedNetworkImage(
+                    imageUrl: bannerImageUrl,
+                    memCacheWidth: 800,
+                    maxWidthDiskCache: 800,
                     fit: BoxFit.contain, // Complete uncropped thumbnail display!
-                    errorBuilder: (context, error, stackTrace) =>
+                    errorWidget: (context, url, error) =>
+                        const SizedBox.shrink(),
+                    placeholder: (context, url) =>
                         const SizedBox.shrink(),
                   ),
                 ],
@@ -3609,12 +3142,12 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
 
       final userProfile = profileService?.profile.value;
 
-      return StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
+      return FutureBuilder<QuerySnapshot>(
+        future: FirebaseFirestore.instance
             .collection(FirestoreCollections.topics)
             .where('status', isEqualTo: 'active')
-            .limit(30)
-            .snapshots(),
+            .limit(20)
+            .getCacheFirst(),
         builder: (context, snapshot) {
           var fetchedTopics = <Topic>[];
 
@@ -3785,33 +3318,18 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                                         borderRadius: const BorderRadius.vertical(
                                           top: Radius.circular(15),
                                         ),
-                                        child: Stack(
-                                          fit: StackFit.expand,
-                                          children: [
-                                            // Ambient blurred background fill
-                                            if (imageUrl.isNotEmpty)
-                                              ColorFiltered(
-                                                colorFilter: ColorFilter.mode(
-                                                  Colors.black.withValues(alpha: 0.65),
-                                                  BlendMode.darken,
-                                                ),
-                                                child: Image.network(
-                                                  imageUrl,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) =>
-                                                      const ColoredBox(color: AppColors.bgSurface),
-                                                ),
-                                              ),
-                                            // Complete uncropped main thumbnail
-                                            if (imageUrl.isNotEmpty)
-                                              Image.network(
-                                                imageUrl,
-                                                fit: BoxFit.contain, // 100% full thumbnail without losing any part!
-                                                errorBuilder: (context, error, stackTrace) =>
+                                        child: imageUrl.isNotEmpty
+                                            ? CachedNetworkImage(
+                                                imageUrl: imageUrl,
+                                                memCacheWidth: 480,
+                                                maxWidthDiskCache: 480,
+                                                fit: BoxFit.cover,
+                                                placeholder: (context, url) =>
+                                                    const ColoredBox(color: AppColors.bgSurface),
+                                                errorWidget: (context, url, error) =>
                                                     const ColoredBox(color: AppColors.bgSurface),
                                               )
-                                            else
-                                              const ColoredBox(
+                                            : const ColoredBox(
                                                 color: AppColors.bgSurface,
                                                 child: Icon(
                                                   Icons.topic_rounded,
@@ -3819,8 +3337,6 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                                                   size: 40,
                                                 ),
                                               ),
-                                          ],
-                                        ),
                                       ),
                                     ),
 

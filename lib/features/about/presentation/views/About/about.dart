@@ -1,220 +1,430 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class AboutPage extends StatelessWidget {
+// ==========================================================================
+// YOUTUBE-STYLE THEME COLORS (EXACT MATCH WITH LIBRARY SCREEN)
+// ==========================================================================
+
+const Color bgColor = AppColors.bgPage;
+const Color surfaceColor = AppColors.bgPage;
+const Color cardColor = Color(0xFF1E1E1E);
+const Color primaryText = AppColors.textPrimary;
+const Color secondaryText = AppColors.textSecondary;
+const Color accentColor = AppColors.textPrimary;
+const Color buttonBg = AppColors.bgSurfaceHover;
+
+// ==========================================================================
+// RESPONSIVE BREAKPOINTS
+// ==========================================================================
+
+const double kMobileBreakpoint = 600;
+const double kTabletBreakpoint = 1000;
+const double kDesktopBreakpoint = 1200;
+
+// ==========================================================================
+// PRODUCTION-READY ABOUT PAGE
+// ==========================================================================
+
+class AboutPage extends StatefulWidget {
   const AboutPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      appBar: !isDashboard ? _buildAppBar() : null,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildHeroSection(),
-            _buildCoreFeatures(),
-            _buildCompanyOverview(),
-            _buildContentValidationFeature(),
-            _buildValidationUseCases(),
-            _buildHowValidationWorks(),
-            _buildTechnicalArchitecture(),
-            _buildMonetizationDetailed(),
-            _buildProductsDetailed(),
-            _buildTeamSection(),
-            _buildCompanyInformation(),
-            _buildCTASection(),
-            _buildFooter(context),
-          ],
-        ),
+  State<AboutPage> createState() => _AboutPageState();
+}
+
+class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
+  late AnimationController _fadeAnimationController;
+  late AnimationController _slideAnimationController;
+  late AnimationController _scaleAnimationController;
+
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
+    _fadeAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _slideAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _scaleAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _fadeAnimationController,
+        curve: Curves.easeOutCubic,
       ),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _slideAnimationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+    _scaleAnimation = Tween<double>(begin: 0.98, end: 1).animate(
+      CurvedAnimation(
+        parent: _scaleAnimationController,
+        curve: Curves.easeOutBack,
+      ),
+    );
+
+    _fadeAnimationController.forward();
+    _slideAnimationController.forward();
+    _scaleAnimationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeAnimationController.dispose();
+    _slideAnimationController.dispose();
+    _scaleAnimationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: ScaleTransition(
+              scale: _scaleAnimation,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+                  final isTablet =
+                      constraints.maxWidth >= kMobileBreakpoint &&
+                      constraints.maxWidth < kDesktopBreakpoint;
+                  final isMobile = constraints.maxWidth < kMobileBreakpoint;
+
+                  return Scaffold(
+                    backgroundColor: bgColor,
+                    appBar: !widget.isDashboard
+                        ? _buildModernAppBar(context, isTablet: isTablet)
+                        : null,
+                    body: SafeArea(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          children: [
+                            _buildHeroSection(
+                              context,
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildPlatformPillars(
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildVerificationPipeline(
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildMonetizationModel(
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildLeadershipSection(
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildCorporateAndGrievance(
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildCTASection(
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                            _buildFooter(
+                              context,
+                              isDesktop: isDesktop,
+                              isTablet: isTablet,
+                              isMobile: isMobile,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  // ==========================================================================
+  // APP BAR (MATCHING LIBRARY SCREEN)
+  // ==========================================================================
+
+  PreferredSizeWidget _buildModernAppBar(
+    BuildContext context, {
+    bool isTablet = false,
+  }) {
     return AppBar(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: surfaceColor.withValues(alpha: 0.95),
       elevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
       title: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.brand,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.toc_rounded,
-              color: AppColors.textPrimary,
-              size: 20,
-            ),
+          const AppLogo(
+            size: 28,
+            borderRadius: 6,
           ),
           const SizedBox(width: 12),
-          const Text(
-            'Truthworld',
+          Text(
+            'About Truthworld',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              fontSize: isTablet ? 22 : 18,
               fontWeight: FontWeight.bold,
-              fontSize: 18,
-              letterSpacing: 1,
+              color: primaryText,
             ),
           ),
         ],
       ),
       actions: [
         TextButton(
-          onPressed: () {
-            Get.toNamed('/terms');
-          },
+          onPressed: () => Get.toNamed('/terms'),
+          style: TextButton.styleFrom(foregroundColor: secondaryText),
           child: const Text(
-            'Terms And Conditions',
-            style: TextStyle(color: AppColors.textSecondary),
+            'Terms',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: secondaryText,
+            ),
           ),
         ),
         TextButton(
-          onPressed: () {
-            Get.toNamed('/privacy');
-          },
+          onPressed: () => Get.toNamed('/privacy'),
+          style: TextButton.styleFrom(foregroundColor: secondaryText),
           child: const Text(
-            'Privacy Policy',
-            style: TextStyle(color: AppColors.textSecondary),
+            'Privacy',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: secondaryText,
+            ),
           ),
         ),
-        const SizedBox(width: 16),
-        if (!AuthService.to.hasChannel.value)
-          ElevatedButton(
-            onPressed: () => Get.toNamed('/channelscreen'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        const SizedBox(width: 8),
+        Obx(() {
+          if (AuthService.to.hasChannel.value) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ElevatedButton(
+              onPressed: () => Get.toNamed('/channelscreen'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.textPrimary,
+                foregroundColor: AppColors.bgPage,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Get Started',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            child: const Text('Get Started'),
-          ),
-        const SizedBox(width: 20),
+          );
+        }),
+        const SizedBox(width: 16),
       ],
     );
   }
 
-  Widget _buildHeroSection() {
+  // ==========================================================================
+  // 1. HERO SECTION (MISSION & VALUE PROPOSITION)
+  // ==========================================================================
+
+  Widget _buildHeroSection(
+    BuildContext context, {
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+    final verticalPadding = isDesktop ? 72.0 : (isTablet ? 48.0 : 36.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 100, horizontal: 80),
+      padding: EdgeInsets.symmetric(
+        vertical: verticalPadding,
+        horizontal: horizontalPadding,
+      ),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.bgPage,
-            AppColors.brand,
-            AppTokens.colors.border,
-          ],
+        color: bgColor,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
+          ),
         ),
       ),
       child: Column(
         children: [
+          const AppLogo(
+            size: 64,
+            borderRadius: 16,
+          ),
+          const SizedBox(height: 24),
+          // Tagline Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.2),
+              color: buttonBg,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: AppColors.brand.withValues(alpha: 0.5),
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
               ),
             ),
-            child: Text(
-              'TRUTH-FIRST VIDEO PLATFORM • PROPRIETARY SAAS INFRASTRUCTURE',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppTokens.colors.hoverAccent,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-          RichText(
-            textAlign: TextAlign.center,
-            text: const TextSpan(
-              style: TextStyle(
-                fontSize: 64,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
-                letterSpacing: -1.5,
-              ),
-              children: [
-                TextSpan(
-                  text: 'The Infrastructure of\n',
-                  style: TextStyle(color: AppColors.textPrimary),
-                ),
-                TextSpan(
-                  text: 'Verified Video',
-                  style: TextStyle(color: AppColors.brand),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            constraints: const BoxConstraints(maxWidth: 900),
             child: const Text(
-              'Truthworld is a cloud-native SaaS video platform that integrates automated content validation into the publishing pipeline. Creators upload videos with supporting sources, and the system generates transcripts, extracts factual claims, and applies AI-assisted verification to produce structured credibility summaries for viewers. The platform combines scalable media processing, metadata-driven validation, and multilingual infrastructure to deliver transparent, accountable video distribution across more than 70 languages.',
+              'TRUTH-FIRST VIDEO PLATFORM • VERIFIED MEDIA INFRASTRUCTURE',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 18,
-                color: AppColors.textSecondary,
-                height: 1.6,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: secondaryText,
+                letterSpacing: 1.2,
               ),
             ),
           ),
-          const SizedBox(height: 40),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          const SizedBox(height: 28),
+
+          // Main Headline
+          Text(
+            'The Next Generation of\nTrusted Video Publishing',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isDesktop ? 44 : (isTablet ? 34 : 26),
+              fontWeight: FontWeight.bold,
+              color: primaryText,
+              letterSpacing: -1.0,
+              height: 1.18,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Subtitle Paragraph
+          Container(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: const Text(
+              'Truthworld is an enterprise-grade verified video streaming platform built to eliminate misinformation and empower authentic digital creators. By combining automated claim verification, creator-backed source attribution, and global multilingual AI dubbing, Truthworld delivers transparent, accountable, and rewarding video experiences across more than 70 languages.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: secondaryText,
+                height: 1.65,
+              ),
+            ),
+          ),
+          const SizedBox(height: 36),
+
+          // Action Buttons
+          Wrap(
+            spacing: 16,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
             children: [
-              if (!AuthService.to.hasChannel.value) ...[
-                ElevatedButton.icon(
-                  onPressed: () => Get.toNamed('/channelscreen'),
-                  icon: const Icon(Icons.rocket_launch),
+              Obx(() {
+                if (AuthService.to.hasChannel.value) {
+                  return const SizedBox.shrink();
+                }
+                return ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Get.toNamed('/channelscreen');
+                  },
+                  icon: const Icon(
+                    Icons.rocket_launch_rounded,
+                    color: AppColors.bgPage,
+                    size: 18,
+                  ),
                   label: const Text('Start Creating'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.black,
+                    backgroundColor: AppColors.textPrimary,
+                    foregroundColor: AppColors.bgPage,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 20,
+                      horizontal: 24,
+                      vertical: 16,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-              ],
+                );
+              }),
               OutlinedButton.icon(
                 onPressed: () {
+                  HapticFeedback.lightImpact();
                   Get.toNamed('/upload');
                 },
-                icon: const Icon(Icons.fact_check),
-                label: const Text('Upload your First Verified Video'),
+                icon: const Icon(
+                  Icons.fact_check_outlined,
+                  color: primaryText,
+                  size: 18,
+                ),
+                label: const Text('Upload Verified Video'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textPrimary,
+                  backgroundColor: buttonBg,
+                  foregroundColor: primaryText,
                   side: BorderSide(
-                    color: AppTokens.colors.hoverAccent,
-                    width: 2,
+                    color: AppColors.textPrimary.withValues(alpha: 0.1),
                   ),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 20,
+                    horizontal: 24,
+                    vertical: 16,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -225,112 +435,150 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCoreFeatures() {
+  // ==========================================================================
+  // 2. PLATFORM PILLARS (CORE CAPABILITIES)
+  // ==========================================================================
+
+  Widget _buildPlatformPillars({
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+    final verticalPadding = isDesktop ? 72.0 : (isTablet ? 48.0 : 36.0);
+
+    final pillars = [
+      _featureCard(
+        Icons.verified_user_outlined,
+        'Content Validation Layer',
+        'Transparent fact-checking framework analyzing factual claims, linking creator citations, and generating verifiable credibility metrics for viewers.',
+        'Trust by Design',
+      ),
+      _featureCard(
+        Icons.g_translate_rounded,
+        'AI Multilingual Dubbing',
+        'Automatic transcription, voice preservation, and dubbing across 70+ languages, opening global audiences to every creator effortlessly.',
+        'Global Reach',
+      ),
+      _featureCard(
+        Icons.monetization_on_outlined,
+        'Creator-First Economics',
+        '100% net ad revenue to video creators and a transparent 75/25 subscription split, setting a new benchmark for ethical creator monetization.',
+        'Equitable Revenue',
+      ),
+    ];
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: AppColors.bgPage,
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      color: bgColor,
       child: Column(
         children: [
-          const Text(
-            'Three Revolutionary Pillars',
+          Text(
+            'Core Platform Pillars',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 48,
+              fontSize: isDesktop ? 34 : (isTablet ? 26 : 22),
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-              letterSpacing: -1,
+              color: primaryText,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 60),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _coreFeatureCard(
-                  Icons.fact_check,
-                  'Content Validation',
-                  'Built-in trust layer with AI fact-checking, source verification, and transparent credibility scoring.',
-                  AppTokens.colors.hoverAccent,
-                  'Combat Misinformation',
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _coreFeatureCard(
-                  Icons.translate,
-                  'AI Global Dubbing',
-                  'Automatic translation and dubbing into 70+ languages with voice preservation and lip-sync.',
-                  const Color(0xFF8B5CF6),
-                  'Break Language Barriers',
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _coreFeatureCard(
-                  Icons.monetization_on,
-                  'Fair Monetization',
-                  '100% ad revenue to creators (minus costs) and transparent 75/25 subscription splits.',
-                  AppColors.brand,
-                  'Empower Creators',
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          const Text(
+            'Engineered to solve the crisis of digital trust while providing world-class creator tools.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: secondaryText),
           ),
+          const SizedBox(height: 44),
+          if (isDesktop)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: pillars[0]),
+                const SizedBox(width: 20),
+                Expanded(child: pillars[1]),
+                const SizedBox(width: 20),
+                Expanded(child: pillars[2]),
+              ],
+            )
+          else
+            Column(
+              children: [
+                pillars[0],
+                const SizedBox(height: 16),
+                pillars[1],
+                const SizedBox(height: 16),
+                pillars[2],
+              ],
+            ),
         ],
       ),
     );
   }
 
-  Widget _coreFeatureCard(
+  Widget _featureCard(
     IconData icon,
     String title,
     String description,
-    Color color,
     String tagline,
   ) {
     return Container(
-      padding: const EdgeInsets.all(36),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFB703),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(16),
+              color: buttonBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
+              ),
             ),
-            child: Icon(icon, color: color, size: 48),
+            child: Icon(
+              icon,
+              color: AppColors.textPrimary,
+              size: 26,
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             title,
             style: const TextStyle(
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: primaryText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            tagline,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: secondaryText,
+              letterSpacing: 1.1,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            tagline,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
             description,
-            textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 15,
-              color: AppColors.textSecondary,
-              height: 1.7,
+              fontSize: 14,
+              color: secondaryText,
+              height: 1.6,
             ),
           ),
         ],
@@ -338,165 +586,123 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCompanyOverview() {
+  // ==========================================================================
+  // 3. VERIFICATION PIPELINE (HOW IT WORKS)
+  // ==========================================================================
+
+  Widget _buildVerificationPipeline({
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+    final verticalPadding = isDesktop ? 72.0 : (isTablet ? 48.0 : 36.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: const Color(0xFFFFB703),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      color: bgColor,
+      child: Column(
+        children: [
+          Text(
+            'How Content Verification Works',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isDesktop ? 34 : (isTablet ? 26 : 22),
+              fontWeight: FontWeight.bold,
+              color: primaryText,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'A structured four-step pipeline guaranteeing factual integrity and public transparency.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: secondaryText),
+          ),
+          const SizedBox(height: 44),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: Column(
+              children: [
+                _stepRow(
+                  1,
+                  'Upload & Automated Claim Extraction',
+                  'Upon video upload, the system automatically transcribes audio, identifies factual assertions, and extracts key claims for structured evaluation.',
+                ),
+                _stepRow(
+                  2,
+                  'Creator Source & Citation Attribution',
+                  'Creators attach verifiable source links, academic citations, historical documents, and evidence directly to highlighted claims.',
+                ),
+                _stepRow(
+                  3,
+                  'Cross-Verification & Consistency Check',
+                  'Our verification engine cross-evaluates claims against reputable academic, scientific, and news databases to detect inaccuracies.',
+                ),
+                _stepRow(
+                  4,
+                  'Public Credibility Scorecard',
+                  'Videos receive a transparent credibility badge (Verified ✓, Disputed ⚠, or Unverified ?), allowing viewers to inspect claims and sources before watching.',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepRow(int step, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'About Truthworld',
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                SizedBox(height: 24),
-                Text(
-                  'Truthworld is a proprietary SaaS platform revolutionizing video delivery. We combine enterprise-grade infrastructure with AI-powered accessibility and creator-first monetization.',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: AppColors.textSecondary,
-                    height: 1.8,
-                  ),
-                ),
-                SizedBox(height: 20),
-                Text(
-                  'Unlike traditional platforms, Truthworld is engineered from the ground up to maximize creator earnings and ensure content transparency through a built-in trust layer.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textSecondary,
-                    height: 1.8,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 60),
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                color: AppColors.bgPage,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTokens.colors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'LEGAL STATUS',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppTokens.colors.hoverAccent,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _companyDetail(
-                    'Legal Name',
-                    'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED',
-                  ),
-                  _companyDetail('CIN', 'U63111TS2025OPC207488'),
-                  _companyDetail('Incorporated', 'December 10, 2025'),
-                  _companyDetail(
-                    'Status',
-                    'Active',
-                    color: AppTokens.colors.hoverAccent,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContentValidationFeature() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 120),
-      color: AppColors.bgPage,
-      child: Column(
-        children: [
-          const Text(
-            'TruthWorld Content Validation & Transparency',
-            style: TextStyle(
-              fontSize: 56,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-              letterSpacing: -1.5,
-            ),
-          ),
-          const SizedBox(height: 40),
           Container(
-            padding: const EdgeInsets.all(50),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFB703),
-              borderRadius: BorderRadius.circular(24),
+              color: buttonBg,
+              shape: BoxShape.circle,
               border: Border.all(
-                color: AppTokens.colors.hoverAccent.withValues(alpha: 0.3),
-                width: 2,
+                color: AppColors.textPrimary.withValues(alpha: 0.15),
               ),
             ),
+            child: Center(
+              child: Text(
+                step.toString(),
+                style: const TextStyle(
+                  color: primaryText,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Truthworld's Content Validation feature is a built-in trust layer that analyzes factual claims in uploaded videos, attaches creator-provided sources, and allows viewers to see a structured credibility summary before engaging with the content.",
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: AppColors.textSecondary,
-                    height: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 40),
                 Text(
-                  'KEY VALIDATION CAPABILITIES',
-                  style: TextStyle(
-                    fontSize: 14,
+                  title,
+                  style: const TextStyle(
+                    color: primaryText,
                     fontWeight: FontWeight.bold,
-                    color: AppTokens.colors.hoverAccent,
-                    letterSpacing: 2,
+                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 30),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _validationCapability(
-                        Icons.analytics,
-                        'Automated Claim Analysis',
-                        'AI-powered detection of factual claims.',
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: _validationCapability(
-                        Icons.link,
-                        'Source Attribution',
-                        'Evidence attached to every claim.',
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: _validationCapability(
-                        Icons.dashboard,
-                        'Credibility Dashboard',
-                        'Real-time trust metrics for viewers.',
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: const TextStyle(
+                    color: secondaryText,
+                    fontSize: 14,
+                    height: 1.55,
+                  ),
                 ),
               ],
             ),
@@ -506,218 +712,90 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildValidationUseCases() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: AppColors.bgPage,
-      child: Column(
-        children: [
-          const Text(
-            'Solving Information Problems',
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 60),
-          Row(
-            children: [
-              Expanded(
-                child: _useCaseMiniCard(
-                  'News',
-                  'Combat viral misinformation.',
-                  const Color(0xFFEF4444),
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _useCaseMiniCard(
-                  'Science',
-                  'Peer-reviewed evidence trails.',
-                  AppColors.brand,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _useCaseMiniCard(
-                  'Education',
-                  'Verified textbook references.',
-                  AppTokens.colors.hoverAccent,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _useCaseMiniCard(
-                  'Social',
-                  'Fact vs Opinion labeling.',
-                  const Color(0xFF8B5CF6),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  // ==========================================================================
+  // 4. CREATOR-FIRST MONETIZATION MODEL
+  // ==========================================================================
 
-  Widget _buildHowValidationWorks() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: const Color(0xFFFFB703),
-      child: Column(
-        children: [
-          const Text(
-            'The Validation Workflow',
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 80),
-          _stepRow(
-            1,
-            'Upload & Claim Detection',
-            'AI transcribes audio and extracts factual claims automatically.',
-            AppColors.brand,
-          ),
-          _stepRow(
-            2,
-            'Source Attribution',
-            'Creator provides links, citations, and documents for each claim.',
-            AppTokens.colors.hoverAccent,
-          ),
-          _stepRow(
-            3,
-            'Automated Verification',
-            'AI cross-checks claims against academic and historical databases.',
-            const Color(0xFF8B5CF6),
-          ),
-          _stepRow(
-            4,
-            'Community Validation',
-            'Expert reviews and viewer fact-checking add a layer of human wisdom.',
-            const Color(0xFFF59E0B),
-          ),
-          _stepRow(
-            5,
-            'Credibility Scoring',
-            'Video is marked as Verified âœ“, Disputed âš , or Unconfirmed ?.',
-            const Color(0xFFEC4899),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildMonetizationModel({
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+    final verticalPadding = isDesktop ? 72.0 : (isTablet ? 48.0 : 36.0);
 
-  Widget _buildTechnicalArchitecture() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: AppColors.bgPage,
-      child: Column(
-        children: [
-          const Text(
-            'Technical Substrate',
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 60),
-          Container(
-            padding: const EdgeInsets.all(50),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFB703),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppTokens.colors.border),
-            ),
-            child: Wrap(
-              spacing: 30,
-              runSpacing: 30,
-              children: [
-                _techLayer('Application Layer', AppColors.brand, [
-                  'Flutter Web/Mobile',
-                  'Creator Studio',
-                  'Admin Panel',
-                ]),
-                _techLayer('AI Orchestration', const Color(0xFF8B5CF6), [
-                  'Neural Dubbing',
-                  'Lip-sync ML Models',
-                  'Claim Analysis',
-                ]),
-                _techLayer('Video Processing', const Color(0xFF06B6D4), [
-                  'Distributed Transcoding',
-                  'Adaptive Streaming',
-                  'Live Pipelines',
-                ]),
-                _techLayer('Infrastructure', AppTokens.colors.hoverAccent, [
-                  'Global CDN (100+ Edge)',
-                  'Object Storage',
-                  'Kubernetes',
-                ]),
-              ],
-            ),
-          ),
-        ],
+    final revenueCards = [
+      _revenueCard(
+        '100%',
+        'Net Ad Revenue to Creators',
+        'Creators receive 100% of video ad earnings, deducting only transparent pass-through bandwidth and infrastructure costs.',
       ),
-    );
-  }
+      _revenueCard(
+        '75%',
+        'Subscription Revenue to Creators',
+        'Direct creator support with 75% going to creators and 25% allocated for platform infrastructure and continuous AI research.',
+      ),
+    ];
 
-  Widget _buildMonetizationDetailed() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: const Color(0xFFFFB703),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      color: bgColor,
       child: Column(
         children: [
-          const Text(
+          Text(
             'Creator-First Monetization',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 48,
+              fontSize: isDesktop ? 34 : (isTablet ? 26 : 22),
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: primaryText,
             ),
           ),
-          const SizedBox(height: 60),
-          Row(
-            children: [
-              Expanded(
-                child: _revenueCard(
-                  '100%',
-                  'Ad Revenue to Creators',
-                  'Minus actual infra costs (Bandwidth, Storage, CDN).',
-                  AppTokens.colors.hoverAccent,
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _revenueCard(
-                  '75%',
-                  'Subscription to Creators',
-                  '25% to Platform for AI R&D and operations.',
-                  AppColors.brand,
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          const Text(
+            'A fair, transparent revenue model that treats creators as equal partners.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: secondaryText),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 44),
+          if (isDesktop)
+            Row(
+              children: [
+                Expanded(child: revenueCards[0]),
+                const SizedBox(width: 20),
+                Expanded(child: revenueCards[1]),
+              ],
+            )
+          else
+            Column(
+              children: [
+                revenueCards[0],
+                const SizedBox(height: 16),
+                revenueCards[1],
+              ],
+            ),
+          const SizedBox(height: 24),
           Container(
-            padding: const EdgeInsets.all(30),
+            width: double.infinity,
+            padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              color: AppColors.bgPage,
-              borderRadius: BorderRadius.circular(16),
+              color: cardColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
+              ),
             ),
             child: const Text(
-              'Platform sustainability is achieved through Strategic Ads (Homepage, Search, Discovery) which DO NOT impact creator earnings.',
+              'Truthworld sustains platform operations through strategic non-intrusive discovery placements, preserving creator margins without compromise.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 15,
+                color: secondaryText,
+                fontSize: 14,
+                height: 1.5,
               ),
             ),
           ),
@@ -726,151 +804,146 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildProductsDetailed() {
+  Widget _revenueCard(String pct, String title, String desc) {
+    return Container(
+      padding: const EdgeInsets.all(30),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            pct,
+            style: const TextStyle(
+              color: primaryText,
+              fontSize: 44,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: primaryText,
+              fontWeight: FontWeight.bold,
+              fontSize: 17,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            desc,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: secondaryText,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // 5. LEADERSHIP SECTION
+  // ==========================================================================
+
+  Widget _buildLeadershipSection({
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+    final verticalPadding = isDesktop ? 72.0 : (isTablet ? 48.0 : 36.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: AppColors.bgPage,
-      child: Column(
-        children: [
-          const Text(
-            'Product Roadmap',
-            style: TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 60),
-          _productCard(
-            'Truthworld Platform',
-            'Beta',
-            0.85,
-            'Video Hosting, AI Dubbing, Validation Engine.',
-            'Q3 2026',
-          ),
-          const SizedBox(height: 24),
-          _productCard(
-            'Creator Studio',
-            'Alpha',
-            0.60,
-            'Timeline Editing, AI Thumbnail Gen, SEO Tools.',
-            'Q1 2027',
-          ),
-          const SizedBox(height: 24),
-          _productCard(
-            'Mobile Apps',
-            'In Dev',
-            0.70,
-            'Offline Downloads, PiP, Cross-Device Sync.',
-            'Q2 2027',
-          ),
-        ],
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
       ),
-    );
-  }
-
-  Widget _buildTeamSection() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 100, horizontal: 24),
+      color: bgColor,
       child: Column(
         children: [
-          const Text(
-            'Founding Team',
-            style: TextStyle(
-              fontSize: 40,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Truthworld is currently built by a solo founding team and is in its early growth stage. The company is architected for scale, with plans to expand into a multi-engineer organization as the platform grows globally.',
+          Text(
+            'Executive Leadership',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 18,
-              color: AppColors.textSecondary,
-              height: 1.7,
+              fontSize: isDesktop ? 34 : (isTablet ? 26 : 22),
+              fontWeight: FontWeight.bold,
+              color: primaryText,
             ),
           ),
-          const SizedBox(height: 60),
+          const SizedBox(height: 40),
 
-          // Premium Founder Card
+          // Founder Card
           Container(
-            constraints: const BoxConstraints(maxWidth: 920),
-            padding: const EdgeInsets.all(40),
+            constraints: const BoxConstraints(maxWidth: 820),
+            padding: EdgeInsets.all(isDesktop ? 36 : 24),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.bgPage, Color(0xFF020617)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
               ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppTokens.colors.divider),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.bgPage.withValues(alpha: 0.4),
-                  blurRadius: 40,
-                  spreadRadius: 5,
-                  offset: const Offset(0, 20),
-                ),
-              ],
             ),
             child: Column(
               children: [
-                // Accent bar
+                // Minimal Accent bar
                 Container(
-                  height: 4,
-                  width: 80,
+                  height: 3,
+                  width: 48,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF38BDF8), Color(0xFF6366F1)],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
+                    color: AppColors.textPrimary,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-
-                const SizedBox(height: 24),
+                const SizedBox(height: 22),
 
                 const Text(
                   'Vampu Ebenezer',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: primaryText,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 const Text(
-                  'Founder & CEO â€¢ Lead Platform Engineer',
+                  'Founder, Director & Lead Platform Architect',
                   style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF38BDF8),
+                    fontSize: 14,
+                    color: secondaryText,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 18),
                 const Text(
-                  'Vampu Ebenezer is the founder and sole developer behind Truthworld, leading platform architecture, AI validation systems, and scalable cloud infrastructure. He is building Truthworld as a cloud-native SaaS video platform focused on transparency, fact validation, and accountable media distribution. As the platform scales, the company will expand by hiring engineers and specialists to support global growth.',
+                  'Vampu Ebenezer is the founder and managing director of Truthworld Services (OPC) Private Limited. Leading platform engineering, AI verification architectures, and scalable media streaming pipelines, he established Truthworld to create a transparent, reliable, and globally accessible video distribution ecosystem.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textSecondary,
-                    height: 1.7,
+                    fontSize: 14,
+                    color: secondaryText,
+                    height: 1.65,
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
 
                 Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                  spacing: 10,
+                  runSpacing: 10,
                   alignment: WrapAlignment.center,
                   children: [
-                    _premiumChip('AI Validation Systems'),
-                    _premiumChip('Cloud Infrastructure'),
-                    _premiumChip('Video Platform Engineering'),
-                    _premiumChip('Product Architecture'),
+                    _chip('AI Verification Architecture'),
+                    _chip('Cloud-Native Infrastructure'),
+                    _chip('Media Distribution Systems'),
+                    _chip('Platform Governance'),
                   ],
                 ),
               ],
@@ -881,114 +954,332 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _premiumChip(String label) {
+  Widget _chip(String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppTokens.colors.divider),
+        color: buttonBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.1),
+        ),
       ),
       child: Text(
         label,
         style: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 14,
+          color: secondaryText,
+          fontSize: 12,
           fontWeight: FontWeight.w500,
         ),
       ),
     );
   }
 
-  Widget _buildCompanyInformation() {
+  // ==========================================================================
+  // 6. STATUTORY, CORPORATE & GRIEVANCE OFFICER SECTION
+  // ==========================================================================
+
+  Widget _buildCorporateAndGrievance({
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+    final verticalPadding = isDesktop ? 72.0 : (isTablet ? 48.0 : 36.0);
+
+    final corporateInfo = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CORPORATE IDENTITY',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: secondaryText,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _infoRow('Legal Entity', 'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED'),
+        _infoRow('CIN', 'U63111TS2025OPC207488'),
+        _infoRow('Incorporation Date', 'December 10, 2025'),
+        _infoRow('RoC Jurisdiction', 'RoC Hyderabad, Telangana, India'),
+        _infoRow('Registered Office', 'Ramaram, Yadadri Bhuvanagiri, Telangana - 508116'),
+        _infoRow('Status', 'Active (Registered with MCA, Govt. of India)', isStatus: true),
+      ],
+    );
+
+    final grievanceInfo = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'STATUTORY GRIEVANCE & SUPPORT',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: secondaryText,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 18),
+        _infoRow('Grievance Officer', 'Vampu Ebenezer'),
+        _infoRow('Grievance Email', 'ebenezervampu@truthworld.in'),
+        _infoRow('Customer Support', 'support@truthworld.in'),
+        _infoRow('Business Contact', '+91 9390617877'),
+        _infoRow('Support Hours', 'Mon – Fri, 9:00 AM – 6:00 PM IST'),
+        _infoRow('Compliance', 'IT (Intermediary Guidelines) Rules, 2021'),
+      ],
+    );
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: AppColors.bgPage,
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      color: bgColor,
       child: Column(
         children: [
-          const Text(
-            'Company Information',
+          Text(
+            'Corporate & Legal Information',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 42,
+              fontSize: isDesktop ? 34 : (isTablet ? 26 : 22),
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: primaryText,
             ),
           ),
-          const SizedBox(height: 60),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _infoRow('CIN', 'U63111TS2025OPC207488'),
-                    _infoRow('ROC', 'Hyderabad'),
-                    _infoRow('Incorporation', 'Dec 10, 2025'),
-                    _infoRow('Capital (Paid-up)', 'â‚¹10,000'),
-                  ],
-                ),
+          const SizedBox(height: 12),
+          const Text(
+            'Official entity registration, compliance details, and grievance redressal channels.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: secondaryText),
+          ),
+          const SizedBox(height: 44),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 860),
+            padding: EdgeInsets.all(isDesktop ? 36 : 24),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _infoRow('Activity', 'Data Processing & Software'),
-                    _infoRow('Status', 'Active'),
-                    _infoRow('Address', 'Ramaram Yadadri, Telangana - 508116'),
-                  ],
-                ),
-              ),
-            ],
+            ),
+            child: isDesktop || isTablet
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: corporateInfo),
+                      const SizedBox(width: 40),
+                      Expanded(child: grievanceInfo),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      corporateInfo,
+                      const SizedBox(height: 28),
+                      const Divider(color: AppColors.bgDivider),
+                      const SizedBox(height: 28),
+                      grievanceInfo,
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCTASection() {
+  Widget _infoRow(String label, String val, {bool isStatus = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: secondaryText,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (isStatus)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.successContainer,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.success),
+              ),
+              child: const Text(
+                'Active',
+                style: TextStyle(
+                  color: AppColors.success,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
+          else
+            Text(
+              val,
+              style: const TextStyle(
+                color: primaryText,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // 7. CALL TO ACTION SECTION
+  // ==========================================================================
+
+  Widget _buildCTASection({
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final margin = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(80),
-      margin: const EdgeInsets.all(80),
+      margin: EdgeInsets.all(margin),
+      padding: EdgeInsets.symmetric(
+        vertical: isDesktop ? 56 : 36,
+        horizontal: isDesktop ? 56 : 24,
+      ),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.brand, AppTokens.colors.hoverAccent],
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.textPrimary.withValues(alpha: 0.12),
         ),
-        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         children: [
-          const Text(
-            'Join the Truth Revolution',
+          Text(
+            'Join the Truthworld Movement',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 48,
+              fontSize: isDesktop ? 34 : (isTablet ? 26 : 22),
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: primaryText,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           const Text(
-            'The first platform where trust is visible and creators are rewarded fairly.',
-            style: TextStyle(fontSize: 20, color: AppColors.textPrimary),
+            'Publish verified content, reach international audiences, and earn equitable revenue.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, color: secondaryText),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
           ElevatedButton(
-            onPressed: () => Get.toNamed('/channelscreen'),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              Get.toNamed('/channelscreen');
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.textPrimary,
-              foregroundColor: AppColors.brand,
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              foregroundColor: AppColors.bgPage,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              elevation: 0,
             ),
             child: const Text(
               'Start Creating Verified Content',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
           ),
         ],
       ),
     );
   }
+
+  // ==========================================================================
+  // 8. FOOTER SECTION
+  // ==========================================================================
+
+  Widget _buildFooter(
+    BuildContext context, {
+    required bool isDesktop,
+    required bool isTablet,
+    required bool isMobile,
+  }) {
+    final horizontalPadding = isDesktop ? 80.0 : (isTablet ? 32.0 : 20.0);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: 40,
+      ),
+      color: bgColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(color: AppColors.bgDivider, height: 1),
+          const SizedBox(height: 32),
+          Wrap(
+            spacing: 24,
+            runSpacing: 16,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED',
+                style: TextStyle(
+                  color: primaryText,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              _footerLink('support@truthworld.in', () => _sendEmail('support@truthworld.in')),
+              _footerLink('ebenezervampu@truthworld.in', () => _sendEmail('ebenezervampu@truthworld.in')),
+              _footerLink('Terms of Service', () => Get.toNamed('/terms')),
+              _footerLink('Privacy Policy', () => Get.toNamed('/privacy')),
+              _footerLink('LinkedIn', () => _launchUrl('https://www.linkedin.com/in/ebenezer-vampu-10b9883a9/')),
+              _footerLink('X', () => _launchUrl('https://x.com/ebenezervampu1')),
+              _footerLink('+91 9390617877', () => _callPhone('+919390617877')),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '© 2026 Truthworld Services (OPC) Private Limited. All rights reserved. Built for the future of trusted video publishing.',
+            style: TextStyle(color: secondaryText, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footerLink(String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: secondaryText,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // URL & INTENT UTILITIES
+  // ==========================================================================
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
@@ -1005,401 +1296,5 @@ class AboutPage extends StatelessWidget {
   Future<void> _callPhone(String number) async {
     final uri = Uri(scheme: 'tel', path: number);
     await launchUrl(uri);
-  }
-
-  Widget _buildFooter(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(80),
-      color: AppColors.bgPage,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Flexible(
-                child: Text(
-                  'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                flex: 2,
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.email,
-                      color: AppColors.textTertiary,
-                      size: 16,
-                    ),
-                    TextButton(
-                      onPressed: () =>
-                          _sendEmail('ebenezervampu@truthworld.in'),
-                      child: const Text(
-                        'ebenezervampu@truthworld.in',
-                        style: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _sendEmail('ebenezer@truthworld.in'),
-                      child: const Text(
-                        'ebenezer@truthworld.in',
-                        style: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _sendEmail('ebenezervampu777@gmail.com'),
-                      child: const Text(
-                        'ebenezervampu777@gmail.com',
-                        style: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _launchUrl(
-                        'https://www.linkedin.com/in/ebenezer-vampu-10b9883a9/',
-                      ),
-                      child: const Text(
-                        'LinkedIn',
-                        style: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () =>
-                          _launchUrl('https://x.com/ebenezervampu1'),
-                      child: const Text(
-                        'X',
-                        style: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    const Icon(
-                      Icons.phone,
-                      color: AppColors.textTertiary,
-                      size: 16,
-                    ),
-                    TextButton(
-                      onPressed: () => _callPhone('+919390617877'),
-                      child: const Text(
-                        '+91 9390617877',
-                        style: TextStyle(color: AppColors.textTertiary),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 40),
-          const Divider(color: Color(0xFFFFB703)),
-          const SizedBox(height: 20),
-          const Text(
-            '© 2026 TruthWorld Services. Built for the future of trusted video.',
-            style: TextStyle(color: Color(0xFF475569), fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Helper Widgets ---
-
-  Widget _companyDetail(String label, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textTertiary,
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 15,
-              color: color ?? AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _validationCapability(IconData icon, String title, String desc) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.bgPage,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTokens.colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: AppTokens.colors.hoverAccent, size: 32),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            desc,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _useCaseMiniCard(String title, String desc, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFB703),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            desc,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _stepRow(int step, String title, String desc, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 30),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: color,
-            radius: 25,
-            child: Text(
-              step.toString(),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 30),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                  ),
-                ),
-                Text(
-                  desc,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _techLayer(String title, Color color, List<String> items) {
-    return Container(
-      width: 250,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.bgPage,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...items.map(
-            (i) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'â€¢ $i',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _revenueCard(String pct, String title, String desc, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: AppColors.bgPage,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            pct,
-            style: TextStyle(
-              color: color,
-              fontSize: 56,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            desc,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _productCard(
-    String title,
-    String stage,
-    double progress,
-    String desc,
-    String timeline,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(30),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFB703),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                stage,
-                style: const TextStyle(
-                  color: AppColors.brand,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(desc, style: const TextStyle(color: AppColors.textSecondary)),
-          const SizedBox(height: 20),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: AppColors.bgPage,
-            color: AppColors.brand,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Launch: $timeline',
-            style: const TextStyle(
-              color: AppColors.textTertiary,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow(String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textTertiary,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            val,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          ),
-        ],
-      ),
-    );
   }
 }

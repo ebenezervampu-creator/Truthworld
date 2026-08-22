@@ -96,7 +96,7 @@ class InteractionGate extends StatelessWidget {
                               children: [
                                 Icon(
                                   Icons.lock_rounded,
-                                  color: AppColors.brand,
+                                  color: Colors.white,
                                   size: 20,
                                 ),
                                 SizedBox(width: 10),

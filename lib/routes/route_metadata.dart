@@ -80,6 +80,17 @@ class RouteMetadataConfig {
       description: 'Share text and image updates with your subscribers',
       keywords: 'community, post, share, text, image',
     ),
+    '/create-playlist': const RouteMetadata(
+      title: 'Create Playlist',
+      description: 'Organize videos into shareable playlists on Truthworld',
+      keywords: 'create, playlist, organize, videos, collection',
+    ),
+    '/create-topic': const RouteMetadata(
+      title: 'Create Topic',
+      description:
+          'Build a topic to organize and curate videos around a theme on Truthworld',
+      keywords: 'create, topic, curate, theme, videos',
+    ),
     '/uploadscreen': const RouteMetadata(
       title: 'Upload Video',
       description: 'Share your content with the world on Truthworld',
@@ -116,11 +127,6 @@ class RouteMetadataConfig {
       title: 'Feedback',
       description: 'Help us improve Truthworld by sharing your thoughts',
       keywords: 'feedback, suggestion, improvement',
-    ),
-    '/help': const RouteMetadata(
-      title: 'Help Center',
-      description: 'Get support and find answers to your questions',
-      keywords: 'help, support, faq',
     ),
     '/notifications': const RouteMetadata(
       title: 'Notifications',

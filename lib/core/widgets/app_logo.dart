@@ -28,6 +28,8 @@ class AppLogo extends StatelessWidget {
       width: size,
       height: size,
       fit: BoxFit.contain,
+      semanticLabel: 'Truthworld Logo',
+      filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) => Container(
         width: size,
         height: size,
@@ -42,13 +44,6 @@ class AppLogo extends StatelessWidget {
         ),
       ),
     );
-
-    if (borderRadius != null) {
-      logoImage = ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius!),
-        child: logoImage,
-      );
-    }
 
     var content = logoImage;
 

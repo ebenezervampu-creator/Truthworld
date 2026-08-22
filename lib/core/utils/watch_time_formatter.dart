@@ -38,7 +38,7 @@ class WatchTimeFormatter {
     }
 
     // 4. Minutes (< 60 mins)
-    final minutes = (s / 60.0).toInt();
+    final minutes = (s / 60.0).round();
     if (minutes == 1) {
       return compact ? '1m' : '1 min';
     }

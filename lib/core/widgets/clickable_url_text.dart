@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// A widget that automatically parses text for URLs and channel handles (@handle)
@@ -35,7 +36,7 @@ class ClickableUrlText extends StatelessWidget {
     caseSensitive: false,
   );
 
-  /// Navigates to channel details page using handle.
+  /// Navigates to channel details page using handle with low latency.
   static void navigateToChannelByHandle(String rawHandle) {
     var handle = rawHandle.trim();
     while (handle.endsWith('.') ||
@@ -51,21 +52,22 @@ class ClickableUrlText extends StatelessWidget {
     }
     if (handle.length <= 1) return;
 
-    Get.toNamed('/channel/$handle');
+    DeepLinkService.instance.handleUrl('/channel/$handle');
   }
 
-  /// Launches a URL string externally.
+  /// Launches a URL with low-latency in-app navigation for Truthworld links
+  /// or opens external browser for third-party links.
   static Future<void> launchUrlString(String rawUrl) async {
-    var url = rawUrl.trim();
-    while (url.endsWith('.') ||
-        url.endsWith(',') ||
-        url.endsWith(')') ||
-        url.endsWith(']') ||
-        url.endsWith('!') ||
-        url.endsWith('?')) {
-      url = url.substring(0, url.length - 1);
+    final clean = DeepLinkService.cleanUrlString(rawUrl);
+    if (clean.isEmpty) return;
+
+    // In-app low-latency deep link handling for Truthworld links (YouTube style)
+    if (DeepLinkService.isTruthworldUrl(clean)) {
+      await DeepLinkService.instance.handleUrl(clean);
+      return;
     }
-    if (url.isEmpty) return;
+
+    var url = clean;
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://$url';
     }

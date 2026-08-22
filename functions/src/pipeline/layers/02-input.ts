@@ -9,13 +9,18 @@ import {
   ExecutionPlan,
   ChannelType,
 } from "../types";
+import { normalizeLanguageCodes } from "../../shared/language-normalizer";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SUPPORTED_LANGUAGES = [
   "en", "es", "fr", "de", "it", "pt", "ru",
   "ja", "zh", "ko", "hi", "ar", "tr", "nl",
-  "pl", "sv", "da", "no", "fi",
+  "pl", "sv", "da", "no", "fi", "el", "cs",
+  "hu", "ro", "uk", "he", "fa", "fil", "tl",
+  "ms", "bn", "te", "ta", "mr", "gu", "kn",
+  "ml", "pa", "or", "as", "ur", "ks", "sd",
+  "sa", "ne", "si", "my", "id", "th", "vi"
 ];
 
 interface ChannelLimits {
@@ -50,12 +55,12 @@ export class InputLayer {
    */
   normalizeConfig(userId: string, partial: Partial<UserConfig>): UserConfig {
     const channelType = partial.channelType ?? "standard";
-    const langs = Array.from(new Set(partial.languages ?? ["en"]));
+    const langs = normalizeLanguageCodes(partial.languages ?? ["en"]);
 
     return {
       userId,
       channelType,
-      languages: langs,
+      languages: langs.length > 0 ? langs : ["en"],
       dubbingMode: partial.dubbingMode ?? "none",
       genLangSubs: partial.genLangSubs ?? true,
       generateDubbing: partial.generateDubbing ?? false,

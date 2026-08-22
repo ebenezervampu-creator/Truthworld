@@ -282,14 +282,6 @@ class SideNavigationRail extends StatelessWidget {
       ),
       _buildNavItem(
         context,
-        Icons.help_outline_rounded,
-        Icons.help_rounded,
-        'Help',
-        HomeController.indexHelp,
-        route: '/help',
-      ),
-      _buildNavItem(
-        context,
         Icons.feedback_rounded,
         Icons.feedback_outlined,
         'Feedback',

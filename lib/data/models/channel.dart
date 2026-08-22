@@ -94,13 +94,26 @@ class ChannelMetricsV2 {
     this.averageRetention = 0.0,
   });
 
-  factory ChannelMetricsV2.fromMap(Map<String, dynamic> map) =>
-      ChannelMetricsV2(
-        totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
-        totalWatchTimeMinutes:
-            (map['totalWatchTimeMinutes'] as num?)?.toInt() ?? 0,
-        averageRetention: (map['averageRetention'] as num?)?.toDouble() ?? 0.0,
-      );
+  factory ChannelMetricsV2.fromMap(
+    Map<String, dynamic> map, {
+    int fallbackViews = 0,
+    int fallbackWatchMinutes = 0,
+  }) {
+    final parsedViews = (map['totalViews'] as num?)?.toInt() ??
+        (map['viewCount'] as num?)?.toInt() ??
+        0;
+    final parsedWatchMin = (map['totalWatchTimeMinutes'] as num?)?.toInt() ??
+        ((map['totalWatchTimeSeconds'] as num?) != null
+            ? (((map['totalWatchTimeSeconds'] as num).toDouble()) / 60.0).round()
+            : 0);
+
+    return ChannelMetricsV2(
+      totalViews: parsedViews > 0 ? parsedViews : fallbackViews,
+      totalWatchTimeMinutes:
+          parsedWatchMin > 0 ? parsedWatchMin : fallbackWatchMinutes,
+      averageRetention: (map['averageRetention'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
   final int totalViews;
   final int totalWatchTimeMinutes;
   final double averageRetention;
@@ -173,6 +186,12 @@ class Channel {
       statusVal = ChannelStatus.verificationRejected;
     }
 
+    final rootViews = (data['viewCount'] as num?)?.toInt() ?? (data['totalViews'] as num?)?.toInt() ?? 0;
+    final rootWatchMinutes = (data['totalWatchTimeMinutes'] as num?)?.toInt() ??
+        ((data['totalWatchTimeSeconds'] as num?) != null
+            ? (((data['totalWatchTimeSeconds'] as num).toDouble()) / 60.0).round()
+            : 0);
+
     return Channel(
       id: docId,
       name: nameVal,
@@ -193,8 +212,15 @@ class Channel {
       subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? (data['subscribers'] as num?)?.toInt() ?? 0,
       videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
       metrics: data['metrics'] != null
-          ? ChannelMetricsV2.fromMap(Map<String, dynamic>.from(data['metrics']))
-          : ChannelMetricsV2(),
+          ? ChannelMetricsV2.fromMap(
+              Map<String, dynamic>.from(data['metrics']),
+              fallbackViews: rootViews,
+              fallbackWatchMinutes: rootWatchMinutes,
+            )
+          : ChannelMetricsV2(
+              totalViews: rootViews,
+              totalWatchTimeMinutes: rootWatchMinutes,
+            ),
       status: statusVal,
       geminiApproved: parsedGeminiApproved,
       isVerified: data['isVerified'] ?? false,

@@ -28,9 +28,6 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
   final _descCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // Additional options local state
-  bool _isPinnedPost = false;
-
   CommunityPostUploadController get _c =>
       Get.find<CommunityPostUploadController>();
 
@@ -493,7 +490,7 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
           maxLines: 5,
           minLines: 4,
           maxLength: 2000,
-          onChanged: (_) => setState(() {}),
+          onChanged: (val) => _c.descriptionText.value = val,
           style: context.twTypography.body.copyWith(
             color: context.colors.textPrimary,
             fontSize: 14,
@@ -840,8 +837,8 @@ class _CommunityPostUploadScreenState extends State<CommunityPostUploadScreen> {
             context,
             title: 'Pin this post',
             subtitle: 'Pin to the top of community feed',
-            value: _isPinnedPost,
-            onChanged: (val) => setState(() => _isPinnedPost = val),
+            value: _c.isPinnedPost.value,
+            onChanged: (val) => _c.isPinnedPost.value = val,
           ),
         ],
       );

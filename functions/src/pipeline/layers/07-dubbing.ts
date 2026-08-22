@@ -42,6 +42,7 @@ import { aggregationLayer }   from "./09-aggregation";
 import { PerformanceLayer }   from "./10-performance";
 import { creatorStyleService } from "../services/creatorStyleService";
 import { logger }             from "../utils/logger";
+import { normalizeLanguageCode } from "../../shared/language-normalizer";
 
 const db = () => admin.firestore();
 
@@ -210,12 +211,16 @@ export class DubbingEngine {
 
       results.forEach((r, i) => {
         const lang = executionPlan.languages[i];
+        const normLang = normalizeLanguageCode(lang);
         if (r.status === "fulfilled" && r.value) {
           const v = r.value;
           dubbingResults.push(v);
           subtitlePaths[lang] = v.subtitleUrl;
+          if (normLang !== lang) subtitlePaths[normLang] = v.subtitleUrl;
           dubbedPaths[lang]   = v.videoUrl;
+          if (normLang !== lang) dubbedPaths[normLang]   = v.videoUrl;
           audioPaths[lang]    = v.audioUrl;
+          if (normLang !== lang) audioPaths[normLang]    = v.audioUrl;
         } else if (r.status === "rejected") {
           const errMsg = r.reason instanceof Error ? r.reason.message : String(r.reason);
           const errStack = r.reason instanceof Error ? r.reason.stack : undefined;
@@ -224,6 +229,17 @@ export class DubbingEngine {
             reason: errMsg,
             stack: errStack,
           });
+          // Explicitly update stages to failed so nothing is left stuck in running
+          EdgeLayer.updateStageSync(jobId, `translating_${lang}`, { status: "failed", error: errMsg }).catch(() => {});
+          if (normLang !== lang) {
+            EdgeLayer.updateStageSync(jobId, `translating_${normLang}`, { status: "failed", error: errMsg }).catch(() => {});
+          }
+          if (executionPlan.generateDubbing) {
+            EdgeLayer.updateStageSync(jobId, `dubbing_${lang}`, { status: "failed", error: errMsg }).catch(() => {});
+            if (normLang !== lang) {
+              EdgeLayer.updateStageSync(jobId, `dubbing_${normLang}`, { status: "failed", error: errMsg }).catch(() => {});
+            }
+          }
         }
       });
 
@@ -286,18 +302,46 @@ export class DubbingEngine {
     jobId:          string,
     userId:         string,
     videoUrl:       string,
-    targetLang:     string,
+    rawTargetLang:  string,
     segments:       TimedSegment[],
-    sourceLang:     string,
+    rawSourceLang:  string,
     executionPlan:  ExecutionPlan,
     speakerProfiles: any[],
     acousticFingerprint: any,
     voiceMapping:    Record<string, string>,
     creatorDNA?:     any
   ): Promise<DubbingResult> {
+    const targetLang = normalizeLanguageCode(rawTargetLang);
+    const sourceLang = normalizeLanguageCode(rawSourceLang);
     const t0 = Date.now();
-    logger.info("[Dubbing] Processing language", { jobId, targetLang });
+    logger.info("[Dubbing] Processing language", { jobId, targetLang, rawTargetLang, sourceLang });
     
+    const updateTranslationStage = async (status: "running" | "completed" | "failed", progress: number, error?: string) => {
+      const now = Date.now();
+      const payload: any = { status, progress };
+      if (status === "running") payload.startedAt = now;
+      if (status === "completed") payload.completedAt = now;
+      if (error) payload.error = error;
+
+      await EdgeLayer.updateStageSync(jobId, `translating_${targetLang}`, payload).catch(() => {});
+      if (rawTargetLang && rawTargetLang.toLowerCase() !== targetLang.toLowerCase()) {
+        await EdgeLayer.updateStageSync(jobId, `translating_${rawTargetLang}`, payload).catch(() => {});
+      }
+    };
+
+    const updateDubbingStage = async (status: "running" | "completed" | "failed", progress: number, error?: string) => {
+      const now = Date.now();
+      const payload: any = { status, progress };
+      if (status === "running") payload.startedAt = now;
+      if (status === "completed") payload.completedAt = now;
+      if (error) payload.error = error;
+
+      await EdgeLayer.updateStageSync(jobId, `dubbing_${targetLang}`, payload).catch(() => {});
+      if (rawTargetLang && rawTargetLang.toLowerCase() !== targetLang.toLowerCase()) {
+        await EdgeLayer.updateStageSync(jobId, `dubbing_${rawTargetLang}`, payload).catch(() => {});
+      }
+    };
+
     if (segments.length === 0) {
       logger.warn("[Dubbing] No segments to process for language", { jobId, targetLang });
       return {
@@ -306,75 +350,80 @@ export class DubbingEngine {
       };
     }
 
-    // A. Translate (skip if same language)
-    if (targetLang !== sourceLang) {
-      await EdgeLayer.updateStageSync(jobId, `translating_${targetLang}`, { 
-        status: "running", progress: 10, startedAt: Date.now() 
-      });
-    }
-    logger.info("[Dubbing] [Lang] Starting translation", { jobId, targetLang, sourceLang });
-    let dubbingSegs: DubbingSegment[];
+    try {
+      // A. Translate (skip if same language)
+      if (targetLang !== sourceLang) {
+        await updateTranslationStage("running", 10);
+      }
+      logger.info("[Dubbing] [Lang] Starting translation", { jobId, targetLang, sourceLang });
+      let dubbingSegs: DubbingSegment[];
 
-    if (targetLang === sourceLang) {
-      dubbingSegs = segments.map((s) => ({
-        index:          s.index,
-        originalText:   s.text,
-        translatedText: s.text,
-        language:       targetLang,
-        start:          s.start,
-        end:            s.end,
-        targetDuration: s.duration,
-        speaker:        s.speaker,
-      }));
-    } else {
-      dubbingSegs = await this.translateWithCache(
-        jobId, segments, sourceLang, targetLang,
-        { 
-          model: executionPlan.channelType === 'custom' ? 'premium' : 'standard', 
-          tone: executionPlan.toneMode,
-          localeStyle: executionPlan.localeStyle,
-          targetPlatform: executionPlan.targetPlatform,
-          creatorDNA,
-          enableABHooks: executionPlan.enableABHooks ?? true, // Default to true for premium
-          speakerProfiles
-        }
-      );
-
-      // ✅ Cost tracking: record translation cost for this language
-      const translatedChars = dubbingSegs.reduce((sum, s) => sum + s.translatedText.length, 0);
-      costEngine.recordTranslationCost(jobId, userId, translatedChars).catch(() => {});
-    }
-
-    if (targetLang !== sourceLang) {
-      await EdgeLayer.updateStageSync(jobId, `translating_${targetLang}`, { 
-        status: "completed", progress: 100, completedAt: Date.now() 
-      });
-    }
-
-    // B. Generate subtitles (.json, .vtt, and .srt formats for every language)
-    let subtitleUrl = "";
-    let srtUrl = "";
-    let vttUrl = "";
-    let jsonUrl = "";
-
-    const bucket = admin.storage().bucket();
-    const transPath = `subtitles/${jobId}/${targetLang}.json`;
-    await bucket.file(transPath).save(JSON.stringify(dubbingSegs, null, 2), {
-      metadata: { contentType: "application/json" }
-    });
-    const translationUrl = `gs://${bucket.name}/${transPath}`;
-
-    if (executionPlan.genLangSubs) {
-      // ✅ For source language: check if native AssemblyAI subtitles already exist
       if (targetLang === sourceLang) {
-        const nativeUrl = await this.checkNativeSubtitles(jobId, targetLang);
-        if (nativeUrl) {
-          subtitleUrl = nativeUrl;
-          srtUrl = nativeUrl;
-          vttUrl = `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`;
-          jsonUrl = translationUrl;
-          logger.info("[Dubbing] Using native AssemblyAI subtitles for source lang", { jobId, targetLang });
+        dubbingSegs = segments.map((s) => ({
+          index:          s.index,
+          originalText:   s.text,
+          translatedText: s.text,
+          language:       targetLang,
+          start:          s.start,
+          end:            s.end,
+          targetDuration: s.duration,
+          speaker:        s.speaker,
+        }));
+      } else {
+        dubbingSegs = await this.translateWithCache(
+          jobId, segments, sourceLang, targetLang,
+          { 
+            model: executionPlan.channelType === 'custom' ? 'premium' : 'standard', 
+            tone: executionPlan.toneMode,
+            localeStyle: executionPlan.localeStyle,
+            targetPlatform: executionPlan.targetPlatform,
+            creatorDNA,
+            enableABHooks: executionPlan.enableABHooks ?? true, // Default to true for premium
+            speakerProfiles
+          }
+        );
+
+        // ✅ Cost tracking: record translation cost for this language
+        const translatedChars = dubbingSegs.reduce((sum, s) => sum + s.translatedText.length, 0);
+        costEngine.recordTranslationCost(jobId, userId, translatedChars).catch(() => {});
+      }
+
+      if (targetLang !== sourceLang) {
+        await updateTranslationStage("completed", 100);
+      }
+
+      // B. Generate subtitles (.json, .vtt, and .srt formats for every language)
+      let subtitleUrl = "";
+      let srtUrl = "";
+      let vttUrl = "";
+      let jsonUrl = "";
+
+      const bucket = admin.storage().bucket();
+      const transPath = `subtitles/${jobId}/${targetLang}.json`;
+      await bucket.file(transPath).save(JSON.stringify(dubbingSegs, null, 2), {
+        metadata: { contentType: "application/json" }
+      });
+      const translationUrl = `gs://${bucket.name}/${transPath}`;
+
+      if (executionPlan.genLangSubs) {
+        // ✅ For source language: check if native AssemblyAI subtitles already exist
+        if (targetLang === sourceLang) {
+          const nativeUrl = await this.checkNativeSubtitles(jobId, targetLang);
+          if (nativeUrl) {
+            subtitleUrl = nativeUrl;
+            srtUrl = nativeUrl;
+            vttUrl = `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`;
+            jsonUrl = translationUrl;
+            logger.info("[Dubbing] Using native AssemblyAI subtitles for source lang", { jobId, targetLang });
+          } else {
+            const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
+            subtitleUrl = subRes.srtUrl;
+            srtUrl = subRes.srtUrl;
+            vttUrl = subRes.vttUrl;
+            jsonUrl = subRes.jsonUrl;
+          }
         } else {
+          // Translated subtitles always use our own alignment pipeline — generating .json, .vtt, and .srt
           const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
           subtitleUrl = subRes.srtUrl;
           srtUrl = subRes.srtUrl;
@@ -382,75 +431,74 @@ export class DubbingEngine {
           jsonUrl = subRes.jsonUrl;
         }
       } else {
-        // Translated subtitles always use our own alignment pipeline — generating .json, .vtt, and .srt
+        // Ensure all 3 subtitle formats (.json, .vtt, .srt) exist for every language subtitle
         const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
         subtitleUrl = subRes.srtUrl;
         srtUrl = subRes.srtUrl;
         vttUrl = subRes.vttUrl;
         jsonUrl = subRes.jsonUrl;
       }
-    } else {
-      // Ensure all 3 subtitle formats (.json, .vtt, .srt) exist for every language subtitle
-      const subRes = await this.generateSubtitles(jobId, dubbingSegs, targetLang);
-      subtitleUrl = subRes.srtUrl;
-      srtUrl = subRes.srtUrl;
-      vttUrl = subRes.vttUrl;
-      jsonUrl = subRes.jsonUrl;
-    }
 
-    // D. Persist results (Separated for Industry Standards)
-    // 🚀 Move persistence UP so subtitles are available even if dubbing fails/is slow
-    if (executionPlan.genLangSubs || dubbingSegs.length > 0) {
-      await db().collection("subtitle_results").doc(`${jobId}_${targetLang}`).set({
-        jobId,
-        language:     targetLang,
-        subtitleUrl,
-        srtPath:      srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
-        vttPath:      vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
-        jsonPath:     jsonUrl || translationUrl,
-        subtitleFormat: "srt",
-        createdAt:    Date.now(),
-      });
-
-      // 🚀 Real-time Propagation to Video Collection
-      try {
-        const jobSnap = await db().collection("video_jobs").doc(jobId).get();
-        const jobData = jobSnap.data() as JobData;
-        const linkedVideoIds = jobData?.linkedVideoIds || [];
-        if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
-          linkedVideoIds.push(jobData.videoId);
+      // D. Persist results (Separated for Industry Standards)
+      // 🚀 Move persistence UP so subtitles are available even if dubbing fails/is slow
+      if (executionPlan.genLangSubs || dubbingSegs.length > 0) {
+        const subDocData = {
+          jobId,
+          language:     targetLang,
+          subtitleUrl,
+          srtPath:      srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
+          vttPath:      vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
+          jsonPath:     jsonUrl || translationUrl,
+          subtitleFormat: "srt",
+          createdAt:    Date.now(),
+        };
+        await db().collection("subtitle_results").doc(`${jobId}_${targetLang}`).set(subDocData);
+        if (rawTargetLang && rawTargetLang !== targetLang) {
+          await db().collection("subtitle_results").doc(`${jobId}_${rawTargetLang}`).set({
+            ...subDocData,
+            language: rawTargetLang,
+          });
         }
 
-        const directSubtitleUrl = subtitleUrl.startsWith("gs://")
-          ? `https://storage.googleapis.com/${bucket.name}/${subtitleUrl.replace(`gs://${bucket.name}/`, "")}`
-          : subtitleUrl;
+        // 🚀 Real-time Propagation to Video Collection
+        try {
+          const jobSnap = await db().collection("video_jobs").doc(jobId).get();
+          const jobData = jobSnap.data() as JobData;
+          const linkedVideoIds = jobData?.linkedVideoIds || [];
+          if (jobData?.videoId && !linkedVideoIds.includes(jobData.videoId)) {
+            linkedVideoIds.push(jobData.videoId);
+          }
 
-        for (const vid of linkedVideoIds) {
-          // Update top-level videos/{vid} document directly
-          await db().collection("videos").doc(vid).set({
-            subtitles: {
-              [targetLang]: directSubtitleUrl,
-            },
-            media: {
-              subtitles: {
-                [targetLang]: directSubtitleUrl,
-              }
-            },
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
+          const directSubtitleUrl = subtitleUrl.startsWith("gs://")
+            ? `https://storage.googleapis.com/${bucket.name}/${subtitleUrl.replace(`gs://${bucket.name}/`, "")}`
+            : subtitleUrl;
 
-          // Also update subcollection for backwards compatibility
-          await db().collection("videos").doc(vid).collection("media").doc("localization").set({
-            subtitles: {
-              [targetLang]: directSubtitleUrl,
-            },
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-        }
+          const subUpdates: Record<string, string> = {
+            [targetLang]: directSubtitleUrl,
+          };
+          if (rawTargetLang && rawTargetLang !== targetLang) {
+            subUpdates[rawTargetLang] = directSubtitleUrl;
+          }
 
-        // Also update the job_outputs document's subtitles map
-        await db().collection("job_outputs").doc(jobId).set({
-          subtitles: {
+          for (const vid of linkedVideoIds) {
+            // Update top-level videos/{vid} document directly
+            await db().collection("videos").doc(vid).set({
+              subtitles: subUpdates,
+              media: {
+                subtitles: subUpdates,
+              },
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+
+            // Also update subcollection for backwards compatibility
+            await db().collection("videos").doc(vid).collection("media").doc("localization").set({
+              subtitles: subUpdates,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          }
+
+          // Also update the job_outputs document's subtitles map
+          const jobOutputSubs: Record<string, any> = {
             [targetLang]: {
               url: subtitleUrl,
               srtPath: srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
@@ -460,114 +508,133 @@ export class DubbingEngine {
               language: targetLang,
               updatedAt: Date.now(),
             }
+          };
+          if (rawTargetLang && rawTargetLang !== targetLang) {
+            jobOutputSubs[rawTargetLang] = {
+              url: subtitleUrl,
+              srtPath: srtUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.srt`,
+              vttPath: vttUrl || `gs://${bucket.name}/subtitles/${jobId}/${targetLang}.vtt`,
+              jsonPath: jsonUrl || translationUrl,
+              format: "srt",
+              language: rawTargetLang,
+              updatedAt: Date.now(),
+            };
           }
-        }, { merge: true });
 
-        // Update the job document's updatedAt timestamp
-        await db().collection("video_jobs").doc(jobId).update({
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+          await db().collection("job_outputs").doc(jobId).set({
+            subtitles: jobOutputSubs
+          }, { merge: true });
 
-        logger.info("[Dubbing] Propagated subtitles to video collection", { jobId, targetLang, videoCount: linkedVideoIds.length });
-      } catch (err) {
-        logger.error("[Dubbing] Failed to propagate subtitles to videos", { jobId, err: String(err) });
-      }
-    }
+          // Update the job document's updatedAt timestamp
+          await db().collection("video_jobs").doc(jobId).update({
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
 
-    // C. TTS + sync (only when dubbing is enabled AND not source language)
-    // Source-to-source dubbing is nonsensical — skip TTS for the source language
-    let audioUrl   = "";
-    let videoResult = "";
-
-    if (executionPlan.generateDubbing && targetLang !== sourceLang) {
-      try {
-        await EdgeLayer.updateStageSync(jobId, `dubbing_${targetLang}`, { 
-          status: "running", progress: 10, startedAt: Date.now() 
-        });
-        const normalised = dubbingSegs.map((s) => ({
-          ...s,
-          translatedText: this.normaliseTTS(s.translatedText),
-        }));
-
-        // ✅ TTS cache fully wired — checks cache BEFORE calling ElevenLabs
-        // Tiered Dubbing: Use the speaker-to-voice mapping (Clones or Presets)
-        const ttsUrls = await this.parallelTTSWithCache(
-          jobId, normalised, targetLang, voiceMapping
-        );
-
-        const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
-        audioUrl = await this.stitchAudio(jobId, ttsUrls, syncInstructions);
-
-        // Studio Mastering: Apply Acoustic Identity via DSP Rules Engine
-        let dspFilters = undefined;
-        if (acousticFingerprint) {
-          dspFilters = audioIdentityService.getDSPFilters(acousticFingerprint);
-          logger.info("[Dubbing] Studio Tier: Applying DSP mastering chain", { jobId, targetLang });
+          logger.info("[Dubbing] Propagated subtitles to video collection", { jobId, targetLang, rawTargetLang, videoCount: linkedVideoIds.length });
+        } catch (err) {
+          logger.error("[Dubbing] Failed to propagate subtitles to videos", { jobId, err: String(err) });
         }
+      }
 
-        videoResult = await mediaService.mergeAudioToVideo({
-          jobId, videoUrl, audioUrl, 
-          subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
-          language: targetLang, format: "mp4",
-          audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
-        });
+      // C. TTS + sync (only when dubbing is enabled AND not source language)
+      // Source-to-source dubbing is nonsensical — skip TTS for the source language
+      let audioUrl   = "";
+      let videoResult = "";
 
-        await EdgeLayer.updateStageSync(jobId, `dubbing_${targetLang}`, { 
-          status: "completed", progress: 100, completedAt: Date.now() 
-        });
-      } catch (dubErr) {
-        logger.error("[Dubbing] Dubbing failed for language, but continuing with subtitles", { jobId, targetLang, err: String(dubErr) });
-        await EdgeLayer.updateStageSync(jobId, `dubbing_${targetLang}`, { 
-          status: "failed", error: String(dubErr)
+      if (executionPlan.generateDubbing && targetLang !== sourceLang) {
+        try {
+          await updateDubbingStage("running", 10);
+          const normalised = dubbingSegs.map((s) => ({
+            ...s,
+            translatedText: this.normaliseTTS(s.translatedText),
+          }));
+
+          // ✅ TTS cache fully wired — checks cache BEFORE calling ElevenLabs
+          // Tiered Dubbing: Use the speaker-to-voice mapping (Clones or Presets)
+          const ttsUrls = await this.parallelTTSWithCache(
+            jobId, normalised, targetLang, voiceMapping
+          );
+
+          const syncInstructions = this.buildSyncInstructions(normalised, ttsUrls);
+          audioUrl = await this.stitchAudio(jobId, ttsUrls, syncInstructions);
+
+          // Studio Mastering: Apply Acoustic Identity via DSP Rules Engine
+          let dspFilters = undefined;
+          if (acousticFingerprint) {
+            dspFilters = audioIdentityService.getDSPFilters(acousticFingerprint);
+            logger.info("[Dubbing] Studio Tier: Applying DSP mastering chain", { jobId, targetLang });
+          }
+
+          videoResult = await mediaService.mergeAudioToVideo({
+            jobId, videoUrl, audioUrl, 
+            subtitleUrl: executionPlan.genLangSubs ? subtitleUrl : undefined,
+            language: targetLang, format: "mp4",
+            audioFilters: dspFilters, // Pass the mastering chain to FFmpeg
+          });
+
+          await updateDubbingStage("completed", 100);
+        } catch (dubErr) {
+          logger.error("[Dubbing] Dubbing failed for language, but continuing with subtitles", { jobId, targetLang, err: String(dubErr) });
+          await updateDubbingStage("failed", 10, String(dubErr));
+        }
+      } else if (targetLang === sourceLang) {
+        logger.info("[Dubbing] Skipping TTS for source language", { jobId, targetLang });
+      }
+
+      if (executionPlan.generateDubbing) {
+        await db().collection("dubbing_results").doc(`${jobId}_${targetLang}`).set({
+          jobId,
+          language:     targetLang,
+          audioUrl,
+          videoUrl:     videoResult || videoUrl,
+          confidence:   dubbingSegs.length > 0 
+            ? dubbingSegs.reduce((sum, s) => sum + (s.confidence || 0), 0) / dubbingSegs.length
+            : 1.0,
+          translationUrl,
+          segmentCount: dubbingSegs.length,
+          processingTime: Date.now() - t0,
+          createdAt:    Date.now(),
+          features: {
+            subtitles: executionPlan.genLangSubs,
+            dubbing: executionPlan.generateDubbing,
+          },
+          meta: {
+            segments: dubbingSegs.length,
+            durationSec: executionPlan.duration || 0,
+            processingMs: Date.now() - t0,
+            voice: executionPlan.dubbingMode === "voice_clone" ? "cloned" : "standard",
+          }
         });
       }
-    } else if (targetLang === sourceLang) {
-      logger.info("[Dubbing] Skipping TTS for source language", { jobId, targetLang });
-    }
 
-    if (executionPlan.generateDubbing) {
-      await db().collection("dubbing_results").doc(`${jobId}_${targetLang}`).set({
+      // ✅ Cost tracking: record media processing cost (estimated from processing time)
+      if (executionPlan.generateDubbing && targetLang !== sourceLang) {
+        const processingSeconds = (Date.now() - t0) / 1000;
+        costEngine.recordMediaCost(jobId, userId, processingSeconds).catch(() => {});
+      }
+
+      return {
         jobId,
-        language:     targetLang,
+        language:       targetLang,
+        subtitleUrl,
+        subtitleFormat: "srt",
         audioUrl,
-        videoUrl:     videoResult || videoUrl,
-        confidence:   dubbingSegs.length > 0 
-          ? dubbingSegs.reduce((sum, s) => sum + (s.confidence || 0), 0) / dubbingSegs.length
-          : 1.0,
+        videoUrl:       videoResult,
         translationUrl,
-        segmentCount: dubbingSegs.length,
+        segments:       dubbingSegs.length,
         processingTime: Date.now() - t0,
-        createdAt:    Date.now(),
-        features: {
-          subtitles: executionPlan.genLangSubs,
-          dubbing: executionPlan.generateDubbing,
-        },
-        meta: {
-          segments: dubbingSegs.length,
-          durationSec: executionPlan.duration || 0,
-          processingMs: Date.now() - t0,
-          voice: executionPlan.dubbingMode === "voice_clone" ? "cloned" : "standard",
-        }
-      });
+      };
+    } catch (langErr) {
+      const errMsg = langErr instanceof Error ? langErr.message : String(langErr);
+      logger.error("[Dubbing] processLanguage failed", { jobId, targetLang, rawTargetLang, error: errMsg });
+      if (targetLang !== sourceLang) {
+        await updateTranslationStage("failed", 10, errMsg);
+      }
+      if (executionPlan.generateDubbing && targetLang !== sourceLang) {
+        await updateDubbingStage("failed", 10, errMsg);
+      }
+      throw langErr;
     }
-
-    // ✅ Cost tracking: record media processing cost (estimated from processing time)
-    if (executionPlan.generateDubbing && targetLang !== sourceLang) {
-      const processingSeconds = (Date.now() - t0) / 1000;
-      costEngine.recordMediaCost(jobId, userId, processingSeconds).catch(() => {});
-    }
-
-    return {
-      jobId,
-      language:       targetLang,
-      subtitleUrl,
-      subtitleFormat: "srt",
-      audioUrl,
-      videoUrl:       videoResult,
-      translationUrl,
-      segments:       dubbingSegs.length,
-      processingTime: Date.now() - t0,
-    };
   }
 
   // ─── TTS with cache ───────────────────────────────────────────────────────────

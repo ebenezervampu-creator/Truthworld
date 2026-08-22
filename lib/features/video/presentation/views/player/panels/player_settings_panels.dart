@@ -356,16 +356,27 @@ class SpeedPanel extends StatelessWidget {
           onBack: () => ctrl.activePanel.value = '',
           onClose: null,
         ),
-        ..._speeds.map(
-          (s) => Obx(
-            () => SelectTile(
-              label: s == 1.0 ? 'Normal' : '$s×',
-              selected: ctrl.playbackSpeed.value == s,
-              onTap: () => ctrl.setSpeed(s),
+        const PlayerDivider(),
+        Flexible(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ..._speeds.map(
+                  (s) => Obx(
+                    () => SelectTile(
+                      label: s == 1.0 ? 'Normal' : '$s×',
+                      selected: ctrl.playbackSpeed.value == s,
+                      onTap: () => ctrl.setSpeed(s),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 8),
       ],
     );
   }
@@ -430,7 +441,7 @@ class QualityPanel extends StatelessWidget {
               padding: EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Icon(Icons.videocam_off_rounded, size: 48, color: PT.primary),
+                  Icon(Icons.videocam_off_rounded, size: 48, color: AppColors.textPrimary),
                   SizedBox(height: 16),
                   Text('Video Not Available', style: TS.title),
                   SizedBox(height: 8),
@@ -490,44 +501,54 @@ class QualityPanel extends StatelessWidget {
             ),
           ),
           const PlayerDivider(),
-          SelectTile(
-            label: 'Auto',
-            sublabel: 'Adapts to network speed',
-            selected: ctrl.abr.isAutoMode.value,
-            badge: ctrl.abr.isAutoMode.value
-                ? ctrl.abr.currentTier.label
-                : null,
-            onTap: ctrl.selectAutoQuality,
-          ),
-          ...tiers.reversed
-              .where((t) => avail.any((r) => r.height == t.height))
-              .map((tier) {
-                final idx = tiers.indexWhere((t) => t.height == tier.height);
-                final isPremiumRes = tier.height > 1080;
+          Flexible(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SelectTile(
+                    label: 'Auto',
+                    sublabel: 'Adapts to network speed',
+                    selected: ctrl.abr.isAutoMode.value,
+                    badge: ctrl.abr.isAutoMode.value
+                        ? (ctrl.abr.currentTier.height > 0 ? '${ctrl.abr.currentTier.height}p' : 'Auto')
+                        : null,
+                    onTap: ctrl.selectAutoQuality,
+                  ),
+                  ...tiers.reversed
+                      .where((t) => avail.any((r) => r.height == t.height))
+                      .map((tier) {
+                        final idx = tiers.indexWhere((t) => t.height == tier.height);
+                        final isPremiumRes = tier.height > 1080;
 
-                return SelectTile(
-                  label: tier.label,
-                  sublabel: '${tier.bitrate} kbps',
-                  selected:
-                      !ctrl.abr.isAutoMode.value &&
-                      ctrl.abr.currentTier.height == tier.height,
-                  trailing: isPremiumRes && !isPremium
-                      ? const Icon(
-                          Icons.lock_rounded,
-                          color: AppColors.warning,
-                          size: 16,
-                        )
-                      : null,
-                  onTap: () {
-                    if (isPremiumRes && !isPremium) {
-                      _showPremiumDialog(context);
-                    } else {
-                      if (idx >= 0) ctrl.selectQuality(idx);
-                    }
-                  },
-                );
-              }),
-          const SizedBox(height: 8),
+                        return SelectTile(
+                          label: tier.label,
+                          sublabel: '${tier.bitrate} kbps',
+                          selected:
+                              !ctrl.abr.isAutoMode.value &&
+                              ctrl.abr.currentTier.height == tier.height,
+                          trailing: isPremiumRes && !isPremium
+                              ? const Icon(
+                                  Icons.lock_rounded,
+                                  color: AppColors.warning,
+                                  size: 16,
+                                )
+                              : null,
+                          onTap: () {
+                            if (isPremiumRes && !isPremium) {
+                              _showPremiumDialog(context);
+                            } else {
+                              if (idx >= 0) ctrl.selectQuality(idx);
+                            }
+                          },
+                        );
+                      }),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
         ],
       );
     });
@@ -1702,10 +1723,16 @@ class SettingsTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
           child: Row(
             children: [
-              Icon(icon, color: PT.primary, size: 20),
+              Icon(icon, color: AppColors.textPrimary, size: 20),
               const SizedBox(width: 16),
-              Text(title, style: TS.body.copyWith(fontWeight: FontWeight.w500)),
-              const Spacer(),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TS.body.copyWith(fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               if (badge != null) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -1723,7 +1750,15 @@ class SettingsTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
               ],
-              Text(value, style: TS.bodySm),
+              if (value.isNotEmpty)
+                Flexible(
+                  child: Text(
+                    value,
+                    style: TS.bodySm,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
+                ),
               const SizedBox(width: 6),
               const Icon(
                 Icons.chevron_right,
@@ -1757,10 +1792,16 @@ class ToggleTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       child: Row(
         children: [
-          Icon(icon, color: PT.primary, size: 20),
+          Icon(icon, color: AppColors.textPrimary, size: 20),
           const SizedBox(width: 16),
-          Text(title, style: TS.body.copyWith(fontWeight: FontWeight.w500)),
-          const Spacer(),
+          Expanded(
+            child: Text(
+              title,
+              style: TS.body.copyWith(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
           Switch(
             value: value,
             onChanged: onChanged,
@@ -1807,8 +1848,8 @@ class SelectTile extends StatelessWidget {
             children: [
               if (badge != null) ...[
                 Container(
-                  width: 34,
-                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  constraints: const BoxConstraints(minWidth: 34, minHeight: 26),
                   decoration: BoxDecoration(
                     color: selected
                         ? PT.primary.withValues(alpha: 0.15)
@@ -1848,6 +1889,7 @@ class SelectTile extends StatelessWidget {
                             ? FontWeight.w500
                             : FontWeight.w400,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (sublabel != null)
                       Text(
@@ -1858,6 +1900,7 @@ class SelectTile extends StatelessWidget {
                               : AppColors.textTertiary,
                           fontSize: 11,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                   ],
                 ),
@@ -1865,7 +1908,7 @@ class SelectTile extends StatelessWidget {
               if (trailing != null)
                 trailing!
               else if (selected)
-                const Icon(Icons.check_rounded, color: PT.primary, size: 18),
+                const Icon(Icons.check_rounded, color: AppColors.textPrimary, size: 18),
             ],
           ),
         ),
@@ -2116,21 +2159,28 @@ class MobileSettingsTile extends StatelessWidget {
             children: [
               Icon(icon, color: AppColors.textPrimary, size: 22),
               const SizedBox(width: 18),
-              Text(
-                title,
-                style: TS.body.copyWith(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TS.body.copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               if (value.isNotEmpty)
-                Text(
-                  value,
-                  style: TS.bodySm.copyWith(
-                    color: AppColors.textPrimary.withValues(alpha: 0.6),
-                    fontSize: 14,
+                Flexible(
+                  child: Text(
+                    value,
+                    style: TS.bodySm.copyWith(
+                      color: AppColors.textPrimary.withValues(alpha: 0.6),
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
                   ),
                 ),
               const SizedBox(width: 8),
@@ -2172,15 +2222,18 @@ class MobileToggleTile extends StatelessWidget {
             children: [
               Icon(icon, color: AppColors.textPrimary, size: 22),
               const SizedBox(width: 18),
-              Text(
-                title,
-                style: TS.body.copyWith(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TS.body.copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Switch(
                 value: value,
                 onChanged: onChanged,
