@@ -25,14 +25,32 @@ class SearchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final SearchCache _cache = SearchCache();
 
+  /// Strips trailing and leading punctuation marks (. ? ! , ; : - _) and collapses whitespace
+  static String sanitizeQuery(String query) {
+    var cleaned = query.trim().replaceAll(RegExp(r'\s+'), ' ');
+    cleaned = cleaned.replaceAll(RegExp(r'[\.\?\!\,\;\:\-_]+$'), '').trim();
+    cleaned = cleaned.replaceAll(RegExp(r'^[\.\?\!\,\;\:\-_]+'), '').trim();
+    return cleaned.toLowerCase();
+  }
+
+  /// Extracts clean alphanumeric search tokens without punctuation
+  static List<String> extractTokens(String query) {
+    return query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((t) => t.replaceAll(RegExp(r'[^\w\d]'), '').trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+  }
+
   /// Execute search query with intelligent fallback across all types
   ///
   /// Returns: Merged list of SearchResult objects (videos, channels, playlists)
   Future<List<SearchResult>> search(String query) async {
-    if (query.isEmpty) {
+    final normalized = sanitizeQuery(query);
+    if (normalized.isEmpty) {
       return [];
     }
-    final normalized = query.toLowerCase().trim();
     final cached = _cache.get(normalized);
     if (cached != null) {
       return cached;
@@ -61,9 +79,9 @@ class SearchService {
 
   /// 🎬 VIDEO SEARCH (PUBLIC API - for enhanced search)
   Future<List<SearchResult>> searchVideos(String query) async {
-    if (query.isEmpty) return [];
+    final normalized = sanitizeQuery(query);
+    if (normalized.isEmpty) return [];
 
-    final normalized = query.toLowerCase().trim();
     final cacheKey = 'videos:$normalized';
 
     // Check cache
@@ -85,14 +103,14 @@ class SearchService {
 
   /// 🎬 VIDEO SEARCH (INTERNAL - with fallback strategy, cost-effective & case-insensitive)
   Future<List<SearchResult>> _searchVideos(String query) async {
-    final tokens = query
-        .split(RegExp(r'\s+'))
-        .where((t) => t.isNotEmpty)
-        .toList();
+    final cleanQuery = sanitizeQuery(query);
+    if (cleanQuery.isEmpty) return [];
 
-    final titleCased = query.isEmpty
-        ? query
-        : '${query[0].toUpperCase()}${query.substring(1)}';
+    final tokens = extractTokens(cleanQuery);
+
+    final titleCased = cleanQuery.isEmpty
+        ? cleanQuery
+        : '${cleanQuery[0].toUpperCase()}${cleanQuery.substring(1)}';
 
     final foundIds = <String>{};
     final results = <SearchResult>[];
@@ -109,7 +127,7 @@ class SearchService {
     try {
       final s = await _firestore
           .collection('videos')
-          .where('keywords', arrayContains: query)
+          .where('keywords', arrayContains: cleanQuery)
           .limit(20)
           .get();
       for (final doc in s.docs) {
@@ -147,8 +165,8 @@ class SearchService {
         for (final item in docs) {
           final t = item.title.toLowerCase();
           final c = item.channelName.toLowerCase();
-          if (t.contains(query) ||
-              c.contains(query) ||
+          if (t.contains(cleanQuery) ||
+              c.contains(cleanQuery) ||
               (tokens.isNotEmpty &&
                   tokens.every((token) => t.contains(token) || c.contains(token)))) {
             addResult(item);
@@ -169,7 +187,7 @@ class SearchService {
               .where((v) {
                 final t = v.title.toLowerCase();
                 final c = v.channelName.toLowerCase();
-                if (t.contains(query) || c.contains(query)) return true;
+                if (t.contains(cleanQuery) || c.contains(cleanQuery)) return true;
                 if (tokens.isNotEmpty) {
                   return tokens.every(
                     (token) => t.contains(token) || c.contains(token),
@@ -225,46 +243,93 @@ class SearchService {
     }
   }
 
-  /// 🎙️ CHANNEL SEARCH (INTERNAL - cost-effective)
+  /// 🎙️ CHANNEL SEARCH (INTERNAL - robust case-insensitive with fallback)
   Future<List<SearchResult>> _searchChannels(String query) async {
-    try {
-      // 1. Try channelName prefix (indexed)
-      var results = await _firestore
-          .collection('channels')
-          .where('channelName', isGreaterThanOrEqualTo: query)
-          .where('channelName', isLessThanOrEqualTo: '$query\uf8ff')
-          .limit(10)
-          .get()
-          .then(
-            (s) => s.docs
-                .map(
-                  (d) =>
-                      SearchResult.fromFirestore(d, type: ResultType.channel),
-                )
-                .toList(),
-          );
+    final cleanQuery = sanitizeQuery(query);
+    if (cleanQuery.isEmpty) return [];
 
-      // 2. Try handle if no results
-      if (results.isEmpty) {
-        results = await _firestore
-            .collection('channels')
-            .where('handle', isGreaterThanOrEqualTo: query)
-            .where('handle', isLessThanOrEqualTo: '$query\uf8ff')
-            .limit(10)
-            .get()
-            .then(
-              (s) => s.docs
-                  .map(
-                    (d) =>
-                        SearchResult.fromFirestore(d, type: ResultType.channel),
-                  )
-                  .toList(),
-            );
+    final tokens = extractTokens(cleanQuery);
+
+    final titleCased = cleanQuery.isEmpty
+        ? cleanQuery
+        : '${cleanQuery[0].toUpperCase()}${cleanQuery.substring(1)}';
+
+    final foundIds = <String>{};
+    final results = <SearchResult>[];
+
+    void addResult(SearchResult item) {
+      if (!item.isValid) return;
+      if (foundIds.add(item.id)) {
+        results.add(item);
       }
+    }
+
+    try {
+      // 1. Try nameLowercase prefix
+      final s1 = await _firestore
+          .collection('channels')
+          .where('nameLowercase', isGreaterThanOrEqualTo: cleanQuery)
+          .where('nameLowercase', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
+          .limit(10)
+          .get();
+      for (final doc in s1.docs) {
+        addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
+      }
+
+      // 2. Try name prefix (query and TitleCase)
+      if (results.isEmpty) {
+        for (final qPrefix in [cleanQuery, titleCased]) {
+          final s2 = await _firestore
+              .collection('channels')
+              .where('name', isGreaterThanOrEqualTo: qPrefix)
+              .where('name', isLessThanOrEqualTo: '$qPrefix\uf8ff')
+              .limit(10)
+              .get();
+          for (final doc in s2.docs) {
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
+          }
+          if (results.isNotEmpty) break;
+        }
+      }
+
+      // 3. Try handle / handleLowercase prefix
+      if (results.isEmpty) {
+        for (final handleQ in [cleanQuery, '@$cleanQuery']) {
+          final s3 = await _firestore
+              .collection('channels')
+              .where('handleLowercase', isGreaterThanOrEqualTo: handleQ)
+              .where('handleLowercase', isLessThanOrEqualTo: '$handleQ\uf8ff')
+              .limit(10)
+              .get();
+          for (final doc in s3.docs) {
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
+          }
+          if (results.isNotEmpty) break;
+        }
+      }
+
+      // 4. Fallback Full-Text substring scan over channels
+      if (results.isEmpty) {
+        final s4 = await _firestore.collection('channels').limit(40).get();
+        for (final doc in s4.docs) {
+          final data = doc.data();
+          final name = (data['name'] as String? ?? data['channelName'] as String? ?? '').toLowerCase();
+          final handle = (data['handle'] as String? ?? '').toLowerCase();
+          final desc = (data['description'] as String? ?? '').toLowerCase();
+
+          if (name.contains(cleanQuery) ||
+              handle.contains(cleanQuery) ||
+              desc.contains(cleanQuery) ||
+              (tokens.isNotEmpty && tokens.every((tok) => name.contains(tok) || handle.contains(tok)))) {
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.channel));
+          }
+        }
+      }
+
       return results;
     } catch (e) {
       debugPrint('⚠️ [Search] Channel query failed: $e');
-      return [];
+      return results;
     }
   }
 
@@ -294,37 +359,92 @@ class SearchService {
     }
   }
 
-  /// 📂 PLAYLIST SEARCH (INTERNAL - cost-effective)
+  /// 📂 PLAYLIST SEARCH (INTERNAL - robust case-insensitive with fallback)
   Future<List<SearchResult>> _searchPlaylists(String query) async {
+    final cleanQuery = sanitizeQuery(query);
+    if (cleanQuery.isEmpty) return [];
+
+    final tokens = extractTokens(cleanQuery);
+
+    final titleCased = cleanQuery.isEmpty
+        ? cleanQuery
+        : '${cleanQuery[0].toUpperCase()}${cleanQuery.substring(1)}';
+
+    final foundIds = <String>{};
+    final results = <SearchResult>[];
+
+    void addResult(SearchResult item, [Map<String, dynamic>? data]) {
+      if (!item.isValid) return;
+      if (data != null) {
+        final vis = (data['visibility'] as String?)?.toLowerCase();
+        if (vis == 'private') return;
+      }
+      if (foundIds.add(item.id)) {
+        results.add(item);
+      }
+    }
+
     try {
-      return await _firestore
-          .collection('playlists')
-          .where('title', isGreaterThanOrEqualTo: query)
-          .where('title', isLessThanOrEqualTo: '$query\uf8ff')
-          .where('visibility', isEqualTo: 'Public')
-          .limit(10)
-          .get()
-          .then(
-            (s) => s.docs
-                .map(
-                  (d) =>
-                      SearchResult.fromFirestore(d, type: ResultType.playlist),
-                )
-                .toList(),
-          );
+      // 1. Try name prefix (query and TitleCase)
+      for (final qPrefix in [cleanQuery, titleCased]) {
+        final s1 = await _firestore
+            .collection('playlists')
+            .where('name', isGreaterThanOrEqualTo: qPrefix)
+            .where('name', isLessThanOrEqualTo: '$qPrefix\uf8ff')
+            .limit(10)
+            .get();
+        for (final doc in s1.docs) {
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.playlist), doc.data());
+        }
+        if (results.isNotEmpty) break;
+      }
+
+      // 2. Try title prefix if empty
+      if (results.isEmpty) {
+        for (final qPrefix in [cleanQuery, titleCased]) {
+          final s2 = await _firestore
+              .collection('playlists')
+              .where('title', isGreaterThanOrEqualTo: qPrefix)
+              .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
+              .limit(10)
+              .get();
+          for (final doc in s2.docs) {
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.playlist), doc.data());
+          }
+          if (results.isNotEmpty) break;
+        }
+      }
+
+      // 3. Fallback Full-Text substring scan over playlists
+      if (results.isEmpty) {
+        final s3 = await _firestore.collection('playlists').limit(40).get();
+        for (final doc in s3.docs) {
+          final data = doc.data();
+          final name = (data['name'] as String? ?? data['playlistName'] as String? ?? data['title'] as String? ?? '').toLowerCase();
+          final desc = (data['description'] as String? ?? '').toLowerCase();
+
+          if (name.contains(cleanQuery) ||
+              desc.contains(cleanQuery) ||
+              (tokens.isNotEmpty && tokens.every(name.contains))) {
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.playlist), data);
+          }
+        }
+      }
+
+      return results;
     } catch (e) {
       debugPrint('⚠️ [Search] Playlist query failed: $e');
-      return [];
+      return results;
     }
   }
 
   /// 🏷️ TOPIC SEARCH (PUBLIC API - for enhanced search)
   Future<List<SearchResult>> searchTopics(String query) async {
-    if (query.isEmpty) {
+    final normalized = sanitizeQuery(query);
+    if (normalized.isEmpty) {
       return [];
     }
 
-    final normalized = query.toLowerCase().trim();
     final cacheKey = 'topics:$normalized';
 
     // Check cache
@@ -344,45 +464,87 @@ class SearchService {
     }
   }
 
-  /// 🏷️ TOPIC SEARCH (INTERNAL - cost-effective)
+  /// 🏷️ TOPIC SEARCH (INTERNAL - robust case-insensitive with fallback)
   Future<List<SearchResult>> _searchTopics(String query) async {
-    try {
-      // 1. Try title prefix
-      var results = await _firestore
-          .collection('topics')
-          .where('title', isGreaterThanOrEqualTo: query)
-          .where('title', isLessThanOrEqualTo: '$query\uf8ff')
-          .limit(10)
-          .get()
-          .then(
-            (s) => s.docs
-                .map(
-                  (d) => SearchResult.fromFirestore(d, type: ResultType.topic),
-                )
-                .toList(),
-          );
+    final cleanQuery = sanitizeQuery(query);
+    if (cleanQuery.isEmpty) return [];
 
-      // 2. Try handle prefix if no results
-      if (results.isEmpty) {
-        results = await _firestore
-            .collection('topics')
-            .where('handle', isGreaterThanOrEqualTo: query)
-            .where('handle', isLessThanOrEqualTo: '$query\uf8ff')
-            .limit(10)
-            .get()
-            .then(
-              (s) => s.docs
-                  .map(
-                    (d) =>
-                        SearchResult.fromFirestore(d, type: ResultType.topic),
-                  )
-                  .toList(),
-            );
+    final tokens = extractTokens(cleanQuery);
+
+    final titleCased = cleanQuery.isEmpty
+        ? cleanQuery
+        : '${cleanQuery[0].toUpperCase()}${cleanQuery.substring(1)}';
+
+    final foundIds = <String>{};
+    final results = <SearchResult>[];
+
+    void addResult(SearchResult item) {
+      if (!item.isValid) return;
+      if (foundIds.add(item.id)) {
+        results.add(item);
       }
+    }
+
+    try {
+      // 1. Try title prefix (query and TitleCase)
+      for (final qPrefix in [cleanQuery, titleCased]) {
+        final s1 = await _firestore
+            .collection('topics')
+            .where('title', isGreaterThanOrEqualTo: qPrefix)
+            .where('title', isLessThanOrEqualTo: '$qPrefix\uf8ff')
+            .limit(10)
+            .get();
+        for (final doc in s1.docs) {
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+        }
+        if (results.isNotEmpty) break;
+      }
+
+      // 2. Try slug prefix
+      if (results.isEmpty) {
+        final s2 = await _firestore
+            .collection('topics')
+            .where('slug', isGreaterThanOrEqualTo: cleanQuery)
+            .where('slug', isLessThanOrEqualTo: '$cleanQuery\uf8ff')
+            .limit(10)
+            .get();
+        for (final doc in s2.docs) {
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+        }
+      }
+
+      // 3. Try tags arrayContains
+      if (results.isEmpty) {
+        final s3 = await _firestore
+            .collection('topics')
+            .where('tags', arrayContains: cleanQuery)
+            .limit(10)
+            .get();
+        for (final doc in s3.docs) {
+          addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+        }
+      }
+
+      // 4. Fallback Full-Text substring scan over topics
+      if (results.isEmpty) {
+        final s4 = await _firestore.collection('topics').limit(40).get();
+        for (final doc in s4.docs) {
+          final data = doc.data();
+          final title = (data['title'] as String? ?? data['name'] as String? ?? '').toLowerCase();
+          final desc = (data['description'] as String? ?? '').toLowerCase();
+
+          if (title.contains(cleanQuery) ||
+              desc.contains(cleanQuery) ||
+              (tokens.isNotEmpty && tokens.every(title.contains))) {
+            addResult(SearchResult.fromFirestore(doc, type: ResultType.topic));
+          }
+        }
+      }
+
       return results;
     } catch (e) {
       debugPrint('⚠️ [Search] Topic query failed: $e');
-      return [];
+      return results;
     }
   }
 
@@ -419,6 +581,190 @@ class SearchService {
         debugPrint('⚠️ [Search] Fallback recommended fetch failed: $err');
         return [];
       }
+    }
+  }
+
+  /// Fetch recommended channels for empty search state
+  Future<List<SearchResult>> getRecommendedChannels() async {
+    try {
+      final snapshot = await _firestore
+          .collection('channels')
+          .limit(25)
+          .get();
+
+      final results = snapshot.docs
+          .map((doc) => SearchResult.fromFirestore(doc, type: ResultType.channel))
+          .where((item) => item.isValid)
+          .toList();
+      results.sort((a, b) => b.views.compareTo(a.views));
+      return results.take(15).toList();
+    } catch (e) {
+      debugPrint('⚠️ [Search] Recommended channels fetch failed: $e');
+      return [];
+    }
+  }
+
+  /// Fetch recommended playlists for empty search state
+  Future<List<SearchResult>> getRecommendedPlaylists() async {
+    try {
+      final snapshot = await _firestore
+          .collection('playlists')
+          .limit(25)
+          .get();
+
+      final results = snapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            final vis = (data['visibility'] as String?)?.toLowerCase();
+            return vis == null || vis != 'private';
+          })
+          .map((doc) => SearchResult.fromFirestore(doc, type: ResultType.playlist))
+          .where((item) => item.isValid)
+          .toList();
+      results.sort((a, b) => b.views.compareTo(a.views));
+      return results.take(15).toList();
+    } catch (e) {
+      debugPrint('⚠️ [Search] Recommended playlists fetch failed: $e');
+      return [];
+    }
+  }
+
+  /// Fetch recommended topics for empty search state
+  Future<List<SearchResult>> getRecommendedTopics() async {
+    try {
+      final snapshot = await _firestore
+          .collection('topics')
+          .limit(25)
+          .get();
+
+      final results = snapshot.docs
+          .map((doc) => SearchResult.fromFirestore(doc, type: ResultType.topic))
+          .where((item) => item.isValid)
+          .toList();
+      results.sort((a, b) => b.views.compareTo(a.views));
+      return results.take(15).toList();
+    } catch (e) {
+      debugPrint('⚠️ [Search] Recommended topics fetch failed: $e');
+      return [];
+    }
+  }
+
+  /// Fetch a balanced, diverse mix of videos, channels, playlists, and topics for 'All' tab
+  Future<List<SearchResult>> getRecommendedAll() async {
+    try {
+      final results = await Future.wait([
+        getRecommended(),
+        getRecommendedChannels(),
+        getRecommendedPlaylists(),
+        getRecommendedTopics(),
+      ]);
+
+      final videos = results[0];
+      final channels = results[1];
+      final playlists = results[2];
+      final topics = results[3];
+
+      final combined = <SearchResult>[];
+
+      // Curated layout for the 'All' tab:
+      // 1. Top Channel (if available)
+      if (channels.isNotEmpty) {
+        combined.add(channels.first);
+      }
+
+      // 2. Top 2 Videos
+      if (videos.isNotEmpty) {
+        combined.addAll(videos.take(2));
+      }
+
+      // 3. Top Topic (if available)
+      if (topics.isNotEmpty) {
+        combined.add(topics.first);
+      }
+
+      // 4. Next 2 Videos
+      if (videos.length > 2) {
+        combined.addAll(videos.skip(2).take(2));
+      }
+
+      // 5. Top Playlist (if available)
+      if (playlists.isNotEmpty) {
+        combined.add(playlists.first);
+      }
+
+      // 6. Remaining Channels
+      if (channels.length > 1) {
+        combined.addAll(channels.skip(1).take(2));
+      }
+
+      // 7. Remaining Topics
+      if (topics.length > 1) {
+        combined.addAll(topics.skip(1).take(2));
+      }
+
+      // 8. Remaining Playlists
+      if (playlists.length > 1) {
+        combined.addAll(playlists.skip(1).take(2));
+      }
+
+      // 9. Remaining Videos
+      if (videos.length > 4) {
+        combined.addAll(videos.skip(4));
+      }
+
+      final seenKeys = <String>{};
+      final uniqueCombined = <SearchResult>[];
+      for (final item in combined) {
+        if (seenKeys.add('${item.type.name}_${item.id}')) {
+          uniqueCombined.add(item);
+        }
+      }
+
+      return uniqueCombined.isNotEmpty ? uniqueCombined : videos;
+    } catch (e) {
+      debugPrint('⚠️ [Search] Recommended all fetch failed: $e');
+      return getRecommended();
+    }
+  }
+
+  /// Fetch recommended content based on the active filter chip
+  Future<List<SearchResult>> getRecommendedForFilter(
+    String filter, {
+    Set<String>? watchedVideoIds,
+  }) async {
+    switch (filter) {
+      case 'Channels':
+        return getRecommendedChannels();
+      case 'Playlists':
+        return getRecommendedPlaylists();
+      case 'Topics':
+        return getRecommendedTopics();
+      case 'Watched':
+        final allVideos = await getRecommended();
+        if (watchedVideoIds == null || watchedVideoIds.isEmpty) {
+          return allVideos.take(6).toList();
+        }
+        return allVideos
+            .where((v) => watchedVideoIds.contains(v.id))
+            .toList();
+      case 'Unwatched':
+        final allVideos = await getRecommended();
+        if (watchedVideoIds == null || watchedVideoIds.isEmpty) {
+          return allVideos;
+        }
+        return allVideos
+            .where((v) => !watchedVideoIds.contains(v.id))
+            .toList();
+      case 'Recently uploaded':
+        final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+        final allVideos = await getRecommended();
+        final recent = allVideos.where((v) => v.uploadedAt.isAfter(sevenDaysAgo)).toList();
+        return recent.isNotEmpty ? recent : allVideos;
+      case 'Videos':
+        return getRecommended();
+      case 'All':
+      default:
+        return getRecommendedAll();
     }
   }
 
@@ -521,12 +867,23 @@ class SearchService {
         score += tokenRatio * 50.0;
       }
 
-      // 4. Popularity Boost (Log scale of views)
+      // 4. Prominence boost for channels, topics, and playlists when there is a strong match
+      if (score >= 60.0) {
+        if (item.type == ResultType.channel) {
+          score += 25.0; // Place strongly matching channel near the top
+        } else if (item.type == ResultType.topic) {
+          score += 15.0; // Place strongly matching topic hub prominently
+        } else if (item.type == ResultType.playlist) {
+          score += 10.0; // Place strongly matching playlist prominently
+        }
+      }
+
+      // 5. Popularity Boost (Log scale of views)
       if (item.views > 0) {
         score += item.views.toString().length * 2.5;
       }
 
-      // 5. Freshness / Recency Boost
+      // 6. Freshness / Recency Boost
       final daysOld = DateTime.now().difference(item.createdAt.toDate()).inDays;
       if (daysOld >= 0 && daysOld < 30) {
         score += (30 - daysOld) * 0.3;

@@ -14,6 +14,7 @@ import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/layout/global_app_bar.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/ad_service.dart';
@@ -21,7 +22,6 @@ import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
 import 'package:truthworld/core/widgets/deferred_widget.dart';
@@ -883,27 +883,9 @@ class Home extends GetView<HomeController> {
                 if (user == null) {
                   return const Icon(Icons.account_circle_outlined);
                 }
-                final photoUrl = AuthService.to.activePhotoUrl;
-                if (photoUrl.isNotEmpty) {
-                  return CircleAvatar(
-                    radius: 12,
-                    backgroundImage: NetworkImage(photoUrl),
-                  );
-                }
-                final initial = AuthService.to.activeDisplayName.isNotEmpty
-                    ? AuthService.to.activeDisplayName[0].toUpperCase()
-                    : 'U';
-                return CircleAvatar(
+                return const UserAvatar(
                   radius: 12,
-                  backgroundColor: Colors.blue,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  showBorder: false,
                 );
               })(),
               selectedIcon: (() {
@@ -911,39 +893,9 @@ class Home extends GetView<HomeController> {
                 if (user == null) {
                   return const Icon(Icons.account_circle_rounded);
                 }
-                final photoUrl = AuthService.to.activePhotoUrl;
-                if (photoUrl.isNotEmpty) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                    child: CircleAvatar(
-                      radius: 11,
-                      backgroundImage: NetworkImage(photoUrl),
-                    ),
-                  );
-                }
-                final initial = AuthService.to.activeDisplayName.isNotEmpty
-                    ? AuthService.to.activeDisplayName[0].toUpperCase()
-                    : 'U';
-                return Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: CircleAvatar(
-                    radius: 11,
-                    backgroundColor: Colors.blue,
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                return const UserAvatar(
+                  radius: 12,
+                  borderColor: Colors.white,
                 );
               })(),
               label: 'You',
@@ -1919,6 +1871,8 @@ class _ModernMainContent extends StatelessWidget {
         ),
       ),
       child: Obx(() {
+        final isPostsTab =
+            homeController.selectedCategory.value == 'Posts';
         final isSubscriptionsTab =
             homeController.selectedCategory.value == 'Subscriptions';
 
@@ -1942,19 +1896,24 @@ class _ModernMainContent extends StatelessWidget {
                 ),
               )
             else ...[
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _FeaturedVideoBanner(horizontalPadding: horizontalPadding),
-                    const SizedBox(height: 32),
-                    _PersonalizedPlaylistsSection(
-                      horizontalPadding: horizontalPadding,
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+              if (homeController.selectedCategory.value == 'All')
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _FeaturedVideoBanner(horizontalPadding: horizontalPadding),
+                      const SizedBox(height: 32),
+                      _PersonalizedPlaylistsSection(
+                        horizontalPadding: horizontalPadding,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                )
+              else
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 16),
                 ),
-              ),
               if (homeController.isLoadingVideos.value)
                 _ModernVideoGridSection(
                   isMobile: isMobile,
@@ -1963,6 +1922,7 @@ class _ModernMainContent extends StatelessWidget {
                   videos: const [], // Pass empty list while loading
                   heroPrefix: 'grid_loading',
                   isLoading: true,
+                  isPosts: isPostsTab,
                   horizontalPadding: horizontalPadding,
                   formatViews: _formatViews,
                   formatTimestamp: _formatTimestamp,
@@ -1975,6 +1935,7 @@ class _ModernMainContent extends StatelessWidget {
                   videos: homeController.homeFeedItems,
                   heroPrefix: 'main_grid',
                   isLoading: false,
+                  isPosts: isPostsTab,
                   horizontalPadding: horizontalPadding,
                   formatViews: _formatViews,
                   formatTimestamp: _formatTimestamp,
@@ -2042,15 +2003,28 @@ class _ModernMainContent extends StatelessWidget {
           children: [
             // 📦 ALL CATEGORIES POPUP ICON BUTTON
             Padding(
-              padding: const EdgeInsets.only(left: 12, right: 4),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.grid_view_rounded,
-                  color: Colors.white, // RULE ENFORCEMENT: White icon
-                  size: 20,
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  _showAllCategoriesPopup(context, categories);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF272727),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.grid_view_rounded,
+                    color: Colors.white, // RULE ENFORCEMENT: White icon
+                    size: 18,
+                  ),
                 ),
-                tooltip: 'All Categories',
-                onPressed: () => _showAllCategoriesPopup(context, categories),
               ),
             ),
             Expanded(
@@ -2124,9 +2098,15 @@ class _ModernMainContent extends StatelessWidget {
 
           return Container(
             height: MediaQuery.of(context).size.height * 0.75,
-            decoration: const BoxDecoration(
-              color: Color(0xFF14141F),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            decoration: BoxDecoration(
+              color: modernDarkProfessionalTheme.scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              border: Border(
+                top: BorderSide(
+                  color: modernDarkProfessionalTheme.dividerColor,
+                  width: 0.5,
+                ),
+              ),
             ),
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -2150,9 +2130,9 @@ class _ModernMainContent extends StatelessWidget {
                       size: 20,
                     ),
                     const SizedBox(width: 8),
-                    const Text(
+                    Text(
                       'All Categories (Personalized)',
-                      style: TextStyle(
+                      style: GoogleFonts.roboto(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -2170,18 +2150,26 @@ class _ModernMainContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  style: const TextStyle(color: Colors.white),
+                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search categories...',
-                    hintStyle: const TextStyle(color: Colors.white54),
+                    hintStyle: GoogleFonts.roboto(
+                      color: AppColors.textTertiary,
+                      fontSize: 14,
+                    ),
                     prefixIcon: const Icon(
                       Icons.search,
                       color: Colors.white,
+                      size: 20,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFF232333),
+                    fillColor: const Color(0xFF272727),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -2203,7 +2191,9 @@ class _ModernMainContent extends StatelessWidget {
                       final isSelected =
                           homeController.selectedCategory.value == cat;
                       return InkWell(
+                        borderRadius: BorderRadius.circular(8),
                         onTap: () {
+                          HapticFeedback.selectionClick();
                           homeController.selectCategory(cat);
                           Navigator.pop(context);
                         },
@@ -2212,21 +2202,23 @@ class _ModernMainContent extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? Colors.white
-                                : const Color(0xFF232333),
-                            borderRadius: BorderRadius.circular(10),
+                                : const Color(0xFF272727),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: isSelected
                                   ? Colors.white
-                                  : Colors.white12,
+                                  : Colors.transparent,
                             ),
                           ),
                           child: Text(
                             cat,
-                            style: TextStyle(
+                            style: GoogleFonts.roboto(
                               color: isSelected
                                   ? Colors.black
                                   : Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
                               fontSize: 13,
                             ),
                           ),
@@ -2258,6 +2250,7 @@ class _ModernVideoGridSection extends StatelessWidget {
     required this.horizontalPadding,
     required this.formatViews,
     required this.formatTimestamp,
+    this.isPosts = false,
   });
   final bool isMobile;
   final bool isTablet;
@@ -2268,6 +2261,7 @@ class _ModernVideoGridSection extends StatelessWidget {
   final double horizontalPadding;
   final String Function(int) formatViews;
   final String Function(Timestamp) formatTimestamp;
+  final bool isPosts;
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -2375,13 +2369,15 @@ class _ModernVideoGridSection extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.video_library_outlined,
+                isPosts
+                    ? Icons.dynamic_feed_outlined
+                    : Icons.video_library_outlined,
                 size: 48,
                 color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(height: 16),
               Text(
-                'No videos found',
+                isPosts ? 'No community posts found' : 'No videos found',
                 style: modernDarkProfessionalTheme.textTheme.titleMedium
                     ?.copyWith(
                       color: modernDarkProfessionalTheme
@@ -2391,7 +2387,9 @@ class _ModernVideoGridSection extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Try selecting a different category',
+                isPosts
+                    ? 'Check back later for new updates from creators'
+                    : 'Try selecting a different category',
                 style: modernDarkProfessionalTheme.textTheme.bodyMedium
                     ?.copyWith(
                       color: modernDarkProfessionalTheme
@@ -2978,11 +2976,13 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                         final title = topic.title;
                         final imageUrl = topic.coverImage ?? topic.thumbnailUrl;
                         final topicUrl = DeepLinkService.topicUrl(slug);
+                        final currentFollowerCount =
+                            followingController.getFollowerCount(topic);
                         ShareBottomSheet.show(
                           title: title,
                           url: topicUrl,
                           thumbnailUrl: imageUrl,
-                          followerCount: topic.followerCount,
+                          followerCount: currentFollowerCount,
                           videoCount: topic.videoCount,
                           handle: slug,
                           type: 'topic',
@@ -3026,32 +3026,35 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           Positioned(
             top: 24,
             right: 24,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.people_outline_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_formatCount(topic.followerCount)} Followers',
-                    style: const TextStyle(
+            child: Obx(() {
+              final count = followingController.getFollowerCount(topic);
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.people_outline_rounded,
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      size: 16,
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_formatCount(count)} Followers',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ),
         ],
       ),
@@ -3137,8 +3140,9 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
 
     return Obx(() {
       final selectedCategory = homeController?.selectedCategory.value ?? 'All';
-      final isAll =
-          selectedCategory == 'All' || selectedCategory == '🪙 Flip Coin';
+      final isFlipCoin = selectedCategory == 'Flip Coin' ||
+          selectedCategory == '🪙 Flip Coin';
+      final isAll = selectedCategory == 'All' || isFlipCoin;
 
       final userProfile = profileService?.profile.value;
 
@@ -3147,7 +3151,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
             .collection(FirestoreCollections.topics)
             .where('status', isEqualTo: 'active')
             .limit(20)
-            .getCacheFirst(),
+            .get(),
         builder: (context, snapshot) {
           var fetchedTopics = <Topic>[];
 
@@ -3180,16 +3184,18 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
             return const SizedBox.shrink();
           }
 
-          // Personalize and sort by user interest score
+          // Personalize and sort by user interest score (inverted for Flip Coin opposite perspective)
           topicsList.sort((a, b) {
             final scoreA = _calculatePersonalizationScore(a, userProfile);
             final scoreB = _calculatePersonalizationScore(b, userProfile);
-            return scoreB.compareTo(scoreA);
+            return isFlipCoin
+                ? scoreA.compareTo(scoreB)
+                : scoreB.compareTo(scoreA);
           });
 
-          final sectionTitle = isAll
-              ? 'For You Topics'
-              : '$selectedCategory Topics';
+          final sectionTitle = isFlipCoin
+              ? 'Opposite Perspective Topics'
+              : (isAll ? 'For You Topics' : '$selectedCategory Topics');
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,

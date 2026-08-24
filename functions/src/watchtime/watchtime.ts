@@ -112,19 +112,24 @@ async function resolveState(rawIp: string): Promise<string> {
   }
 }
 
-// â”€â”€â”€ Anti-spam â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Max 5 raw writes per sessionId per minute.
+// Anti-spam: Max 40 raw writes per sessionId per minute.
+// Normal playback sends ~6-8 events/min (video_start, pings every 20s, milestones).
 async function isSpam(sessionId: string): Promise<boolean> {
-  const oneMinAgo = admin.firestore.Timestamp.fromDate(
-    new Date(Date.now() - 60_000)
-  );
-  const snap = await db
-    .collection("watch_events")
-    .where("sessionId", "==", sessionId)
-    .where("createdAt", ">=", oneMinAgo)
-    .limit(6)
-    .get();
-  return snap.size >= 5;
+  try {
+    const oneMinAgo = admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() - 60_000)
+    );
+    const snap = await db
+      .collection("watch_events")
+      .where("sessionId", "==", sessionId)
+      .where("createdAt", ">=", oneMinAgo)
+      .limit(41)
+      .get();
+    return snap.size >= 40;
+  } catch (err) {
+    logger.warn("isSpam check failed, failing open:", err);
+    return false;
+  }
 }
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -142,11 +147,15 @@ export const trackWatchEvent = onRequest(
     memory: "256MiB",
   },
   async (req, res) => {
-    // Explicit CORS handling for preflight
+    // ── CORS: Set headers on EVERY response (not just OPTIONS) ──
+    // Without these on error responses, the browser blocks them as opaque
+    // "Failed to fetch" errors, hiding the actual error from the client.
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    // Handle preflight
     if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Origin", "*");
-      res.set("Access-Control-Allow-Methods", "POST");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
       res.set("Access-Control-Max-Age", "3600");
       res.status(204).send("");
       return;
@@ -220,6 +229,7 @@ export const trackWatchEvent = onRequest(
         networkType: body.networkType ?? "unknown",
         language: body.language ?? "en",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
       // ── Maintain 'one user, one video' log ──
@@ -707,6 +717,17 @@ export const getCreatorStats = onRequest(
     memory: "256MiB",
   },
   async (req, res) => {
+    // ── CORS headers on every response ──
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+      res.set("Access-Control-Max-Age", "3600");
+      res.status(204).send("");
+      return;
+    }
+
     const creatorId = req.query.creatorId as string;
     if (!creatorId) {
       res.status(400).send({ error: "Missing creatorId" });

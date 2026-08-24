@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/presentation/controllers/download_videoplayer.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -118,9 +119,10 @@ class OfflineVideoPlayerPage extends StatelessWidget {
                     // Channel Info
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundImage: NetworkImage(video.channelImage),
+                        UserAvatar(
+                          photoUrl: video.channelImage,
+                          displayName: video.channelName,
+                          showBorder: false,
                         ),
                         const SizedBox(width: 12),
                         Expanded(

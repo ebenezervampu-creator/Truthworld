@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -73,33 +74,47 @@ class AudienceController extends BaseController {
   double get subscribedPercentage {
     final total = subscriberViews.value + nonSubscriberViews.value;
     if (total > 0) {
-      return (subscriberViews.value / total) * 100;
+      return ((subscriberViews.value / total) * 100).clamp(0.0, 100.0);
     }
-    // Fallback: estimate proportional to subscribers / views
-    if (totalViews.value > 0) {
-      final ratio = (totalSubscribersGained.value / totalViews.value) * 100;
-      return ratio.clamp(5.0, 95.0);
+    if (totalViews.value > 0 && subscriberViews.value > 0) {
+      return ((subscriberViews.value / totalViews.value) * 100).clamp(0.0, 100.0);
     }
-    return 18.5;
+    return 0.0;
   }
 
-  double get notSubscribedPercentage =>
-      (100.0 - subscribedPercentage).clamp(0.0, 100.0);
+  double get notSubscribedPercentage {
+    final total = subscriberViews.value + nonSubscriberViews.value;
+    if (total > 0) {
+      return ((nonSubscriberViews.value / total) * 100).clamp(0.0, 100.0);
+    }
+    if (totalViews.value > 0) {
+      final subPct = subscribedPercentage;
+      return (100.0 - subPct).clamp(0.0, 100.0);
+    }
+    return 0.0;
+  }
 
   int get newViewers {
     final diff = totalUniqueViewers.value - returningViewers.value;
-    return diff > 0 ? diff : (totalViews.value > 0 ? (totalViews.value * 0.65).round() : 0);
+    if (diff > 0) return diff;
+    if (totalUniqueViewers.value > 0) return totalUniqueViewers.value;
+    return totalViews.value;
   }
 
   double get returningPercentage {
     if (totalUniqueViewers.value > 0) {
-      return (returningViewers.value / totalUniqueViewers.value) * 100;
+      return ((returningViewers.value / totalUniqueViewers.value) * 100).clamp(0.0, 100.0);
     }
-    return totalViews.value > 0 ? 32.5 : 0.0;
+    if (totalViews.value > 0 && returningViewers.value > 0) {
+      return ((returningViewers.value / totalViews.value) * 100).clamp(0.0, 100.0);
+    }
+    return 0.0;
   }
 
-  double get newViewersPercentage =>
-      (100.0 - returningPercentage).clamp(0.0, 100.0);
+  double get newViewersPercentage {
+    if (totalUniqueViewers.value == 0 && totalViews.value == 0) return 0.0;
+    return (100.0 - returningPercentage).clamp(0.0, 100.0);
+  }
 
   int get netSubscribers =>
       totalSubscribersGained.value - totalSubscribersLost.value;
@@ -358,8 +373,8 @@ class AudienceController extends BaseController {
         : 0.0;
 
     final totalGeo = urbanAccum + ruralAccum;
-    urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 50.0;
-    ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 50.0;
+    urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 0.0;
+    ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 0.0;
 
     _buildCompleteStateItems(stateTraffic, totalViewsAccum, totalSubsAccum);
   }
@@ -406,8 +421,8 @@ class AudienceController extends BaseController {
         : 0.0;
 
     final totalGeo = urbanAccum + ruralAccum;
-    urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 50.0;
-    ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 50.0;
+    urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 0.0;
+    ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 0.0;
 
     _buildCompleteStateItems(stateTraffic, totalViewsAccum, totalSubsAccum);
   }
@@ -461,6 +476,7 @@ class AudienceController extends BaseController {
   /// Loads detailed age and gender demographics breakdown
   Future<void> _fetchDemographicsDetails() async {
     try {
+      // 1. Try analytics/{channelId}/demographics/latest
       final doc = await _firestore
           .collection('analytics')
           .doc(channelId)
@@ -471,16 +487,182 @@ class AudienceController extends BaseController {
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
         _updateDemographicsFromMap(data);
-      } else {
-        _populateDefaultDemographics();
+        return;
       }
+
+      // 2. Try channels/{channelId}/demographics/latest
+      final chDoc = await _firestore
+          .collection('channels')
+          .doc(channelId)
+          .collection('demographics')
+          .doc('latest')
+          .get();
+
+      if (chDoc.exists && chDoc.data() != null) {
+        final data = chDoc.data()!;
+        _updateDemographicsFromMap(data);
+        return;
+      }
+
+      // 3. Dynamically aggregate from real subscribers and viewers
+      final aggregated = await _aggregateLiveDemographicsFromAudience();
+      if (aggregated) return;
+
+      _populateEmptyDemographics();
     } catch (e) {
       logger.warning(
-        'Error fetching demographics doc: $e, using standard distributions',
+        'Error fetching demographics doc: $e, using zero distribution',
         tag: 'AudienceController',
       );
-      _populateDefaultDemographics();
+      _populateEmptyDemographics();
     }
+  }
+
+  Future<bool> _aggregateLiveDemographicsFromAudience() async {
+    try {
+      final userIds = <String>{};
+
+      // Get subscribers of this channel
+      final subSnap = await _firestore
+          .collection(FirestoreCollections.channelSubscribers(channelId))
+          .limit(50)
+          .get();
+
+      for (final doc in subSnap.docs) {
+        final uid = (doc.data()['userId'] as String?) ?? doc.id;
+        if (uid.isNotEmpty) userIds.add(uid);
+      }
+
+      // Get videos of this channel
+      final vidSnap = await _firestore
+          .collection('videos')
+          .where('channelId', isEqualTo: channelId)
+          .limit(20)
+          .get();
+
+      final videoIds = vidSnap.docs.map((d) => d.id).toList();
+      if (videoIds.isNotEmpty) {
+        for (var i = 0; i < videoIds.length; i += 10) {
+          final chunk = videoIds.sublist(
+            i,
+            i + 10 > videoIds.length ? videoIds.length : i + 10,
+          );
+          final sessionSnap = await _firestore
+              .collection('watch_sessions')
+              .where('videoId', whereIn: chunk)
+              .limit(50)
+              .get();
+
+          for (final sDoc in sessionSnap.docs) {
+            final uid = sDoc.data()['userId'] as String?;
+            if (uid != null && uid.isNotEmpty && uid != 'anonymous') {
+              userIds.add(uid);
+            }
+          }
+        }
+      }
+
+      if (userIds.isEmpty) {
+        _populateEmptyDemographics();
+        return false;
+      }
+
+      final ageCounts = <String, int>{};
+      final genderCounts = <String, int>{};
+      var totalAge = 0;
+      var totalGender = 0;
+
+      final uidList = userIds.toList();
+      for (var i = 0; i < uidList.length; i += 10) {
+        final chunk = uidList.sublist(
+          i,
+          i + 10 > uidList.length ? uidList.length : i + 10,
+        );
+        final usersSnap = await _firestore
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        for (final uDoc in usersSnap.docs) {
+          final uData = uDoc.data();
+          final age = uData['ageGroup'] as String?;
+          final gender = uData['gender'] as String?;
+
+          if (age != null && age.trim().isNotEmpty) {
+            final stdAge = _standardizeAgeGroup(age);
+            ageCounts[stdAge] = (ageCounts[stdAge] ?? 0) + 1;
+            totalAge++;
+          }
+
+          if (gender != null && gender.trim().isNotEmpty) {
+            final stdGender = _standardizeGender(gender);
+            genderCounts[stdGender] = (genderCounts[stdGender] ?? 0) + 1;
+            totalGender++;
+          }
+        }
+      }
+
+      if (totalAge > 0) {
+        final ageMap = <String, double>{};
+        for (final key in _standardAgeBrackets) {
+          final count = ageCounts[key] ?? 0;
+          ageMap[key] = (count / totalAge) * 100;
+        }
+        ageDistribution.value = ageMap;
+      } else {
+        _populateEmptyAgeDistribution();
+      }
+
+      if (totalGender > 0) {
+        final genderMap = <String, double>{};
+        for (final key in ['Male', 'Female', 'User specified / Other']) {
+          final count = genderCounts[key] ?? 0;
+          genderMap[key] = (count / totalGender) * 100;
+        }
+        genderDistribution.value = genderMap;
+      } else {
+        _populateEmptyGenderDistribution();
+      }
+
+      return totalAge > 0 || totalGender > 0;
+    } catch (e) {
+      logger.warning(
+        'Live demographics aggregation fallback failed: $e',
+        tag: 'AudienceController',
+      );
+      return false;
+    }
+  }
+
+  static const List<String> _standardAgeBrackets = [
+    '13–17 years',
+    '18–24 years',
+    '25–34 years',
+    '35–44 years',
+    '45–54 years',
+    '55–64 years',
+    '65+ years',
+  ];
+
+  String _standardizeAgeGroup(String raw) {
+    final clean = raw.replaceAll('years', '').replaceAll('year', '').trim();
+    if (clean == '13–17' || clean == '13-17' || clean == 'Under 18' || clean == 'Under 13') {
+      return '13–17 years';
+    }
+    if (clean == '18–24' || clean == '18-24') return '18–24 years';
+    if (clean == '25–34' || clean == '25-34') return '25–34 years';
+    if (clean == '35–44' || clean == '35-44') return '35–44 years';
+    if (clean == '45–54' || clean == '45-54') return '45–54 years';
+    if (clean == '55–64' || clean == '55-64') return '55–64 years';
+    if (clean == '65+' || clean == '65 plus') return '65+ years';
+    return '18–24 years';
+  }
+
+  String _standardizeGender(String raw) {
+    final lower = raw.trim().toLowerCase();
+    if (lower == 'male' || lower == 'm') return 'Male';
+    if (lower == 'female' || lower == 'f') return 'Female';
+    return 'User specified / Other';
   }
 
   void _updateDemographicsFromMap(Map<String, dynamic> data) {
@@ -490,7 +672,7 @@ class AudienceController extends BaseController {
         (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
       );
     } else {
-      _populateDefaultAgeDistribution();
+      _populateEmptyAgeDistribution();
     }
 
     if (data['genderDistribution'] is Map) {
@@ -499,32 +681,32 @@ class AudienceController extends BaseController {
         (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
       );
     } else {
-      _populateDefaultGenderDistribution();
+      _populateEmptyGenderDistribution();
     }
   }
 
-  void _populateDefaultDemographics() {
-    _populateDefaultAgeDistribution();
-    _populateDefaultGenderDistribution();
+  void _populateEmptyDemographics() {
+    _populateEmptyAgeDistribution();
+    _populateEmptyGenderDistribution();
   }
 
-  void _populateDefaultAgeDistribution() {
+  void _populateEmptyAgeDistribution() {
     ageDistribution.value = {
-      '13–17 years': 5.8,
-      '18–24 years': 37.4,
-      '25–34 years': 42.1,
-      '35–44 years': 10.2,
-      '45–54 years': 3.1,
-      '55–64 years': 1.0,
-      '65+ years': 0.4,
+      '13–17 years': 0.0,
+      '18–24 years': 0.0,
+      '25–34 years': 0.0,
+      '35–44 years': 0.0,
+      '45–54 years': 0.0,
+      '55–64 years': 0.0,
+      '65+ years': 0.0,
     };
   }
 
-  void _populateDefaultGenderDistribution() {
+  void _populateEmptyGenderDistribution() {
     genderDistribution.value = {
-      'Male': 64.6,
-      'Female': 33.2,
-      'User specified / Other': 2.2,
+      'Male': 0.0,
+      'Female': 0.0,
+      'User specified / Other': 0.0,
     };
   }
 
@@ -601,26 +783,18 @@ class AudienceController extends BaseController {
   }
 
   // ---------------------------------------------------------------------------
-  // SEARCH FILTERING — never returns empty, always shows results
+  // SEARCH FILTERING
   // ---------------------------------------------------------------------------
 
   /// Reactive filtering triggered by the view layer search inputs.
-  /// If the search query matches no states, falls back to showing ALL states
-  /// so the "no matching states or regions found" empty state never appears.
   List<StateAudienceItem> get filteredStateItems {
     final query = searchQuery.value.trim().toLowerCase();
     if (query.isEmpty) return allStateItems;
 
-    final matched = allStateItems.where((item) {
+    return allStateItems.where((item) {
       return item.stateName.toLowerCase().contains(query) ||
           item.stateCode.toLowerCase().contains(query);
     }).toList();
-
-    // NEVER return empty — if no exact match, show all states
-    // This guarantees the UI never renders the empty/no-results state
-    if (matched.isEmpty) return allStateItems.toList();
-
-    return matched;
   }
 
   void updateSearchQuery(String query) {

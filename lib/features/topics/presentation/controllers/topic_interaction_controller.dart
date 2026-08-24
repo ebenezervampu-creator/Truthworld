@@ -229,6 +229,7 @@ class TopicInteractionController extends BaseController with ContentValidationMi
           }
           if (!ctrl.followedTopics.any((t) => t.id == topicId)) {
             ctrl.followedTopics.add(_topic!);
+            ctrl.followingStates[topicId] = true;
           }
         } else if (!isLiked.value) {
           ctrl.favoriteTopics.removeWhere((t) => t.id == topicId);

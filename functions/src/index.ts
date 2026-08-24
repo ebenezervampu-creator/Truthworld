@@ -49,8 +49,8 @@ import { normalizeLanguageCode, normalizeLanguageCodes } from "./shared/language
 // ─── Global options ──────────────────────────────────────────────────────────
 setGlobalOptions({
   region: "asia-south1",
-  invoker: "public",
-  maxInstances: 2,
+  maxInstances: 1,
+  cpu: "gcf_gen1",
 });
 
 /**
@@ -1646,7 +1646,6 @@ export {
   moderateImageManual,
 } from "./verification/verification";
 
-/*
 export {
   trackWatchEvent,
   aggregateWatchStats,
@@ -1654,8 +1653,7 @@ export {
   getCreatorStats,
 } from "./watchtime/watchtime";
 
-export { createChannel, switchChannelType } from "./channels/channels";
-*/
+export { rollupDailyStats } from "./watchtime/rollup";
 export { createChannel, switchChannelType, onChannelCreatedSyncUser } from "./channels/channels";
 export { onChannelWritten, onImageVerificationWritten, moderateChannelManual } from "./channels/moderation";
 export { onTopicWritten, moderateTopicManual } from "./topics/moderation";
@@ -1736,7 +1734,6 @@ export {
 // ── Infrastructure: Idempotency TTL Cleanup ──────────────────────────────────
 export { cleanupProcessedEvents } from "./shared/idempotency";
 
-/*
 export {
   getChannelOverview,
   getChannelViewsDetails,
@@ -1744,11 +1741,6 @@ export {
   getChannelSubscribers,
   getChannelRevenueDetails,
 } from "./channels/analytics";
-
-export {
-  getCachedImage
-} from "./services/image-proxy";
-*/
 
 export {
   scheduledPublishing,

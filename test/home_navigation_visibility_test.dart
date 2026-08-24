@@ -46,6 +46,35 @@ void main() {
       expect(categories[0], equals('All'));
       expect(categories[1], equals('Subscriptions'));
     });
+
+    test('Posts tab is present in fixed categories for both signed in and signed out', () {
+      final loggedOutCategories = HomeDiscoveryController.getFixedCategories(
+        isAuthenticated: false,
+      );
+      final loggedInCategories = HomeDiscoveryController.getFixedCategories(
+        isAuthenticated: true,
+      );
+
+      expect(loggedOutCategories, contains('Posts'));
+      expect(loggedInCategories, contains('Posts'));
+    });
+
+    test('Flip Coin is positioned before New and has no emoji prefix', () {
+      final categories = HomeDiscoveryController.getFixedCategories(
+        isAuthenticated: false,
+      );
+
+      final flipCoinIndex = categories.indexOf('Flip Coin');
+      final newIndex = categories.indexOf('New');
+
+      expect(flipCoinIndex, isNot(equals(-1)));
+      expect(newIndex, isNot(equals(-1)));
+      expect(flipCoinIndex, lessThan(newIndex));
+      expect(categories, isNot(contains('🪙 Flip Coin')));
+      expect(categories, isNot(contains('🔥 Trending')));
+      expect(categories, isNot(contains('✨ New')));
+      expect(categories, isNot(contains('⭐ Popular')));
+    });
   });
 }
 

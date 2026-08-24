@@ -1,9 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class WatchTimePage extends StatelessWidget {
@@ -15,13 +18,16 @@ class WatchTimePage extends StatelessWidget {
     final args = Get.arguments as Map<String, dynamic>? ?? {};
     final channelId = args['channelId'] as String? ?? '';
     final videoId = args['videoId'] as String? ?? '';
+    final videoTitle = args['videoTitle'] as String? ?? '';
 
     // Load analytics on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (videoId.isNotEmpty) {
         controller.selectedVideoId.value = videoId;
+        controller.loadVideoAnalytics(videoId, videoTitle: videoTitle);
       } else if (channelId.isNotEmpty) {
         controller.selectedChannelId.value = channelId;
+        controller.fetchChannelVideos(channelId);
       }
     });
 
@@ -34,14 +40,17 @@ class WatchTimePage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: Get.back,
         ),
-        title: const Text(
-          'Watch Time',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-          ),
-        ),
+        title: Obx(() {
+          final isVideo = controller.selectedVideoId.value.isNotEmpty;
+          return Text(
+            isVideo ? 'Video Watch Time' : 'Channel Watch Time',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+            ),
+          );
+        }),
       ),
       body: Obx(() {
         final isLoading =
@@ -54,6 +63,8 @@ class WatchTimePage extends StatelessWidget {
           );
         }
 
+        final isVideoSelected = controller.selectedVideoId.value.isNotEmpty;
+
         return RefreshIndicator(
           color: const Color(0xFFDC2626),
           onRefresh: controller.refreshAnalytics,
@@ -63,6 +74,41 @@ class WatchTimePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (isVideoSelected)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: InkWell(
+                      onTap: () {
+                        controller.selectedVideoId.value = '';
+                        controller.loadChannelAnalytics(
+                          controller.selectedChannelId.value,
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.arrow_back_rounded,
+                              color: AppColors.textPrimary,
+                              size: 16,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Back to Channel Watch Time',
+                              style: TextStyle(
+                                color: Color(0xFF60A5FA),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 _buildMainMetric(controller, args),
                 const SizedBox(height: 24),
                 const _SectionHeader(title: 'Watch Time Trend'),
@@ -76,6 +122,10 @@ class WatchTimePage extends StatelessWidget {
                 const _SectionHeader(title: 'Key Insights'),
                 const SizedBox(height: 12),
                 _buildInsightsGrid(controller),
+                const SizedBox(height: 24),
+                const _SectionHeader(title: 'Individual Video Watch Time'),
+                const SizedBox(height: 12),
+                _buildVideosList(controller),
               ],
             ),
           ),
@@ -95,20 +145,32 @@ class WatchTimePage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Total Watch Time',
-            style: TextStyle(
-              color: AppColors.textPrimary.withValues(alpha: 0.6),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Obx(() {
+            final isVideo = controller.selectedVideoId.value.isNotEmpty;
+            final videoTitle = controller.videoAnalytics.value?.title ?? '';
+            return Text(
+              isVideo && videoTitle.isNotEmpty
+                  ? videoTitle
+                  : 'Total Watch Time',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textPrimary.withValues(alpha: 0.6),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }),
           const SizedBox(height: 8),
           Builder(
             builder: (context) {
               var displayTime = controller.totalWatchTime.value;
-              if ((displayTime.isEmpty || displayTime == '0 mins') &&
-                  controller.channelVideos.isNotEmpty) {
+              if ((displayTime.isEmpty ||
+                      displayTime == '0 mins' ||
+                      displayTime == '0h' ||
+                      displayTime == '0.0h') &&
+                  controller.channelVideos.isNotEmpty &&
+                  controller.selectedVideoId.value.isEmpty) {
                 final totalSec = controller.channelVideos.fold<int>(
                   0,
                   (sum, v) => sum + v.totalWatchTimeSeconds,
@@ -133,9 +195,7 @@ class WatchTimePage extends StatelessWidget {
             children: [
               Icon(
                 isPositive ? Icons.trending_up : Icons.trending_down,
-                color: isPositive
-                    ? const Color(0xFF22C55E)
-                    : const Color(0xFFEF4444),
+                color: AppColors.textPrimary,
                 size: 16,
               ),
               const SizedBox(width: 4),
@@ -158,16 +218,27 @@ class WatchTimePage extends StatelessWidget {
   }
 
   Widget _buildTrendChart(CreatorAnalyticsController controller) {
+    final hasData = controller.watchTimeTrendData.isNotEmpty;
+    final minDate = hasData
+        ? controller.watchTimeTrendData.first.date
+        : DateTime.now().subtract(const Duration(days: 28));
+    final maxDate = hasData
+        ? controller.watchTimeTrendData.last.date
+        : DateTime.now();
+
     return _GlassCard(
       child: SizedBox(
         height: 240,
         child: SfCartesianChart(
           plotAreaBorderWidth: 0,
           margin: EdgeInsets.zero,
-          primaryXAxis: const DateTimeAxis(
-            majorGridLines: MajorGridLines(width: 0),
-            labelStyle: TextStyle(color: AppColors.textSecondary, fontSize: 10),
-            axisLine: AxisLine(width: 0),
+          primaryXAxis: DateTimeAxis(
+            majorGridLines: const MajorGridLines(width: 0),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            axisLine: const AxisLine(width: 0),
+            minimum: minDate,
+            maximum: maxDate,
+            intervalType: DateTimeIntervalType.days,
           ),
           primaryYAxis: NumericAxis(
             majorGridLines: MajorGridLines(
@@ -187,8 +258,7 @@ class WatchTimePage extends StatelessWidget {
             SplineAreaSeries<WatchTimeTrendModel, DateTime>(
               dataSource: controller.watchTimeTrendData,
               xValueMapper: (data, _) => data.date,
-              yValueMapper: (data, _) =>
-                  data.watchTimeHours,
+              yValueMapper: (data, _) => data.watchTimeHours,
               gradient: LinearGradient(
                 colors: [
                   const Color(0xFF3B82F6).withValues(alpha: 0.3),
@@ -204,6 +274,48 @@ class WatchTimePage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildVideosList(CreatorAnalyticsController controller) {
+    return Obx(() {
+      final videos = controller.channelVideos;
+      if (videos.isEmpty) {
+        return const _GlassCard(
+          child: Center(
+            child: Text(
+              'No videos found for this channel',
+              style: TextStyle(color: AppColors.textTertiary),
+            ),
+          ),
+        );
+      }
+
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: videos.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final video = videos[index];
+          final isSelected = controller.selectedVideoId.value == video.id;
+          return _VideoWatchTimeCard(
+            video: video,
+            isSelected: isSelected,
+            onTap: () {
+              if (isSelected) {
+                controller.selectedVideoId.value = '';
+                controller.loadChannelAnalytics(
+                  controller.selectedChannelId.value,
+                );
+              } else {
+                controller.selectedVideoId.value = video.id;
+                controller.loadVideoAnalytics(video.id, videoTitle: video.title);
+              }
+            },
+          );
+        },
+      );
+    });
   }
 
   Widget _buildInsightsGrid(CreatorAnalyticsController controller) {
@@ -401,6 +513,163 @@ class _LegendItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _VideoWatchTimeCard extends StatelessWidget {
+  const _VideoWatchTimeCard({
+    required this.video,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final Video video;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final watchTimeStr = WatchTimeFormatter.format(video.totalWatchTimeSeconds);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF3B82F6).withValues(alpha: 0.12)
+              : AppColors.textPrimary.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF3B82F6).withValues(alpha: 0.5)
+                : AppColors.textPrimary.withValues(alpha: 0.06),
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: video.thumbnailUrl,
+                    width: 100,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      width: 100,
+                      height: 56,
+                      color: AppColors.textPrimary.withValues(alpha: 0.05),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      width: 100,
+                      height: 56,
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      child: const Icon(
+                        Icons.video_library_rounded,
+                        color: AppColors.textPrimary,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+                if (video.duration.isNotEmpty)
+                  Positioned(
+                    bottom: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        video.duration,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    video.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.timer_outlined,
+                              size: 11,
+                              color: AppColors.textPrimary,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              watchTimeStr,
+                              style: const TextStyle(
+                                color: Color(0xFF60A5FA),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${NumberFormat.compact().format(video.viewCount)} views',
+                        style: TextStyle(
+                          color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              isSelected ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

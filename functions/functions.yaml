@@ -10,16 +10,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
-      "cpu": 1,
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "submitVideo"
     },
     "getProgressiveStatus": {
@@ -32,15 +28,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getProgressiveStatus"
     },
     "getFinalOutput": {
@@ -53,15 +46,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getFinalOutput"
     },
     "triggerVideoAIFeatures": {
@@ -74,6 +64,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -86,11 +77,7 @@
         }
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "triggerVideoAIFeatures"
     },
     "onVideoUpload": {
@@ -103,10 +90,10 @@
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": 0.16,
       "region": [
         "asia-south1"
       ],
-      "cpu": 0.16,
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.storage.object.v1.finalized",
@@ -127,6 +114,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -155,6 +143,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -183,6 +172,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -214,6 +204,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -237,6 +228,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -260,10 +252,10 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": 0.5,
       "region": [
         "asia-south1"
       ],
-      "cpu": 0.5,
       "secretEnvironmentVariables": [
         {
           "key": "GEMINI_API_KEY"
@@ -289,15 +281,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "setupPipeline"
     },
     "handleFastVerification": {
@@ -310,6 +299,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -319,11 +309,7 @@
         }
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "handleFastVerification"
     },
     "getCreatorCostDashboard": {
@@ -336,15 +322,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getCreatorCostDashboard"
     },
     "getSystemCostOverview": {
@@ -357,15 +340,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getSystemCostOverview"
     },
     "getJobCostBreakdown": {
@@ -378,15 +358,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getJobCostBreakdown"
     },
     "submitCopyrightAppeal": {
@@ -399,15 +376,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "submitCopyrightAppeal"
     },
     "resolveCopyrightAppeal": {
@@ -420,15 +394,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "resolveCopyrightAppeal"
     },
     "getCreatorCopyrightClaims": {
@@ -441,15 +412,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getCreatorCopyrightClaims"
     },
     "onVideoUploadedForResolution": {
@@ -462,6 +430,7 @@
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -485,15 +454,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getVideoResolutionStatus"
     },
     "getResolutionProfiles": {
@@ -506,15 +472,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getResolutionProfiles"
     },
     "handleResolution": {
@@ -527,6 +490,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -550,6 +514,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -577,6 +542,7 @@
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -600,15 +566,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "moderateVideoManual"
     },
     "ingestUploadedImage": {
@@ -621,6 +584,7 @@
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -644,6 +608,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -667,6 +632,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -690,6 +656,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -713,6 +680,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -736,6 +704,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -759,6 +728,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -782,6 +752,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -802,16 +773,112 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "moderateImageManual"
+    },
+    "trackWatchEvent": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 10,
+      "minInstances": 0,
+      "maxInstances": 100,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "trackWatchEvent"
+    },
+    "aggregateWatchStats": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 540,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 60 minutes",
+        "retryConfig": {}
+      },
+      "entryPoint": "aggregateWatchStats"
+    },
+    "cleanupOldEvents": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 540,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 24 hours",
+        "retryConfig": {}
+      },
+      "entryPoint": "cleanupOldEvents"
+    },
+    "getCreatorStats": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 15,
+      "minInstances": null,
+      "maxInstances": 50,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "getCreatorStats"
+    },
+    "rollupDailyStats": {
+      "availableMemoryMb": 1024,
+      "timeoutSeconds": 540,
+      "minInstances": null,
+      "maxInstances": 1,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "30 18 * * *",
+        "retryConfig": {}
+      },
+      "entryPoint": "rollupDailyStats"
     },
     "createChannel": {
       "availableMemoryMb": 256,
@@ -823,6 +890,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -834,12 +902,13 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -857,6 +926,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -884,6 +954,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -916,6 +987,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -943,15 +1015,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "moderateChannelManual"
     },
     "onTopicWritten": {
@@ -964,6 +1033,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -996,15 +1066,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "moderateTopicManual"
     },
     "getNotifications": {
@@ -1176,6 +1243,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1197,54 +1265,49 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getHomeFeed"
     },
     "getDiscoveryModules": {
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getDiscoveryModules"
     },
     "trackActivity": {
       "availableMemoryMb": 256,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1262,6 +1325,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1279,6 +1343,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1296,6 +1361,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1313,6 +1379,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1330,6 +1397,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1347,6 +1415,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1364,6 +1433,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1375,12 +1445,13 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": 300,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1390,6 +1461,96 @@
         "retryConfig": {}
       },
       "entryPoint": "cleanupProcessedEvents"
+    },
+    "getChannelOverview": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 50,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getChannelOverview"
+    },
+    "getChannelViewsDetails": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 50,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getChannelViewsDetails"
+    },
+    "getChannelWatchtimeDetails": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 50,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getChannelWatchtimeDetails"
+    },
+    "getChannelSubscribers": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 50,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getChannelSubscribers"
+    },
+    "getChannelRevenueDetails": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": 50,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "getChannelRevenueDetails"
     },
     "scheduledPublishing": {
       "availableMemoryMb": 512,
@@ -1401,10 +1562,10 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": 1,
       "region": [
         "asia-south1"
       ],
-      "cpu": 1,
       "labels": {},
       "eventTrigger": {
         "eventType": "google.cloud.pubsub.topic.v1.messagePublished",
@@ -1425,6 +1586,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1446,33 +1608,31 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "seoServer"
     },
     "rebuildDirtySitemapsScheduler": {
       "availableMemoryMb": 512,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1487,12 +1647,13 @@
       "availableMemoryMb": null,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1514,12 +1675,13 @@
       "availableMemoryMb": null,
       "timeoutSeconds": null,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1547,6 +1709,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1579,15 +1742,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "makeMeAdmin"
     },
     "onPublicPlaylistWritten": {
@@ -1600,6 +1760,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1632,6 +1793,7 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1659,11 +1821,12 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": 300,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1684,10 +1847,7 @@
         "rateLimits": {
           "maxConcurrentDispatches": 10,
           "maxDispatchesPerSecond": null
-        },
-        "invoker": [
-          "public"
-        ]
+        }
       },
       "entryPoint": "refreshHighQueue"
     },
@@ -1696,11 +1856,12 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": 300,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1721,10 +1882,7 @@
         "rateLimits": {
           "maxConcurrentDispatches": 5,
           "maxDispatchesPerSecond": null
-        },
-        "invoker": [
-          "public"
-        ]
+        }
       },
       "entryPoint": "refreshMediumQueue"
     },
@@ -1733,11 +1891,12 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": 300,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1758,10 +1917,7 @@
         "rateLimits": {
           "maxConcurrentDispatches": 2,
           "maxDispatchesPerSecond": null
-        },
-        "invoker": [
-          "public"
-        ]
+        }
       },
       "entryPoint": "refreshLowQueue"
     },
@@ -1770,11 +1926,12 @@
       "availableMemoryMb": 512,
       "timeoutSeconds": 300,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1795,10 +1952,7 @@
         "rateLimits": {
           "maxConcurrentDispatches": 1,
           "maxDispatchesPerSecond": null
-        },
-        "invoker": [
-          "public"
-        ]
+        }
       },
       "entryPoint": "refreshBackgroundQueue"
     },
@@ -1806,54 +1960,49 @@
       "availableMemoryMb": 256,
       "timeoutSeconds": 30,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "submitVideoAppeal"
     },
     "resolveCopyrightOwnerAction": {
       "availableMemoryMb": 256,
       "timeoutSeconds": 30,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "resolveCopyrightOwnerAction"
     },
     "onVideoDisputeSubmitted": {
       "availableMemoryMb": 1024,
       "timeoutSeconds": 540,
       "minInstances": null,
-      "maxInstances": 2,
+      "maxInstances": 1,
       "ingressSettings": null,
       "concurrency": null,
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
@@ -1886,15 +2035,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "adminSearchContent"
     },
     "adminBulkModerate": {
@@ -1907,15 +2053,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "adminBulkModerate"
     },
     "searchUsers": {
@@ -1928,15 +2071,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "searchUsers"
     },
     "getUserSafetyProfile": {
@@ -1949,15 +2089,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "getUserSafetyProfile"
     },
     "moderateUser": {
@@ -1970,15 +2107,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "moderateUser"
     },
     "consolidateUserAccounts": {
@@ -1991,15 +2125,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "consolidateUserAccounts"
     },
     "repairStuckVideoJobs": {
@@ -2012,15 +2143,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "repairStuckVideoJobs"
     },
     "repairIncompleteVideoDocs": {
@@ -2033,15 +2161,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "repairIncompleteVideoDocs"
     },
     "recommendTopicsForVideo": {
@@ -2054,15 +2179,12 @@
       "serviceAccountEmail": null,
       "vpc": null,
       "platform": "gcfv2",
+      "cpu": "gcf_gen1",
       "region": [
         "asia-south1"
       ],
       "labels": {},
-      "httpsTrigger": {
-        "invoker": [
-          "public"
-        ]
-      },
+      "httpsTrigger": {},
       "entryPoint": "recommendTopicsForVideo"
     }
   },

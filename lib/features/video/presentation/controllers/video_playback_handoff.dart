@@ -70,6 +70,11 @@ class VideoPlaybackHandoff {
     String videoId,
     VideoPlayerController controller,
   ) {
+    // On web: skip handoff completely. Flutter Web binds each VideoPlayerController
+    // to an HtmlElementView in the DOM; transferring it across routes causes
+    // "The play() request was interrupted because the media was removed from the document."
+    if (kIsWeb) return;
+
     debugPrint(
       '[VideoPlaybackHandoff] Registered controller for video: $videoId',
     );
@@ -92,6 +97,8 @@ class VideoPlaybackHandoff {
   /// Retrieve the active controller for a video ID, clearing it from the registry.
   /// This transfers ownership of the controller to the caller.
   static VideoPlayerController? retrieveController(String videoId) {
+    if (kIsWeb) return null;
+
     if (_activeVideoId == videoId && _activeController != null) {
       final controller = _activeController!;
       _activeController = null;
@@ -118,11 +125,13 @@ class VideoPlaybackHandoff {
 
   /// Check if the active controller for a video ID is still in the handoff (not claimed yet).
   static bool isActive(String videoId) {
+    if (kIsWeb) return false;
     return _activeVideoId == videoId && _activeController != null;
   }
 
   /// Clear/dispose the active controller for a video ID if it hasn't been claimed yet.
   static void clear(String videoId) {
+    if (kIsWeb) return;
     if (_activeVideoId == videoId && _activeController != null) {
       debugPrint(
         '[VideoPlaybackHandoff] Clearing/disposing controller for video: $videoId',

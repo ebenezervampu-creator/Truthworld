@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -41,19 +43,21 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
+    return Obx(() {
+      final userId = AuthService.to.currentUser.value?.uid;
 
-    if (userId == null) {
+      if (userId == null || userId.isEmpty) {
+        return Scaffold(
+          backgroundColor: bgColor,
+          body: SafeArea(child: _buildNotLoggedInWidget(context)),
+        );
+      }
+
       return Scaffold(
         backgroundColor: bgColor,
-        body: SafeArea(child: _buildNotLoggedInWidget(context)),
+        body: SafeArea(child: _buildMainContent(userId)),
       );
-    }
-
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: SafeArea(child: _buildMainContent(userId)),
-    );
+    });
   }
 
   Widget _buildMainContent(String userId) {
@@ -471,7 +475,7 @@ class _MyVideoListCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${video.views} views • ${controller.formatTimeAgo(video.uploadedAt.toDate())}',
+                    '${video.views} views • ${WatchTimeFormatter.format(video.totalWatchTimeSeconds)} • ${controller.formatTimeAgo(video.uploadedAt.toDate())}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: secondaryText,
@@ -533,6 +537,21 @@ class _MyVideoListCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            _buildOptionItem(
+              icon: Icons.analytics_outlined,
+              label: 'Watch Time & Analytics',
+              onTap: () {
+                Get.back();
+                Get.to<dynamic>(
+                  () => const WatchTimePage(),
+                  arguments: {
+                    'channelId': video.channelId,
+                    'videoId': video.id,
+                    'videoTitle': video.title,
+                  },
+                );
+              },
+            ),
             _buildOptionItem(
               icon: Icons.lock_open_rounded,
               label: 'Change visibility',

@@ -393,10 +393,12 @@ class DailyVideoStats {
     videoId: map['videoId'] as String? ?? '',
     channelId: map['channelId'] as String? ?? '',
     dateKey: map['dateKey'] as String? ?? '',
-    totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
+    totalViews: (map['totalViews'] as num?)?.toInt() ??
+        (map['views'] as num?)?.toInt() ?? 0,
     totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
     uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
-    totalWatchTimeSeconds: (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
+    totalWatchTimeSeconds: (map['totalWatchTimeSeconds'] as num?)?.toInt() ??
+        (map['totalWatchSeconds'] as num?)?.toInt() ?? 0,
     subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
     nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
     returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
@@ -673,11 +675,13 @@ class DailyChannelStats {
       DailyChannelStats(
         channelId: map['channelId'] as String? ?? '',
         dateKey: map['dateKey'] as String? ?? '',
-        totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
+        totalViews: (map['totalViews'] as num?)?.toInt() ??
+            (map['views'] as num?)?.toInt() ?? 0,
         totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
         uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
         totalWatchTimeSeconds:
-            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
+            (map['totalWatchTimeSeconds'] as num?)?.toInt() ??
+            (map['totalWatchSeconds'] as num?)?.toInt() ?? 0,
         subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
         nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
         returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,

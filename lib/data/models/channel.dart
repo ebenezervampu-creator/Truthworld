@@ -143,9 +143,12 @@ class Channel {
     this.bannerFileId,
     this.avatarStatus,
     this.bannerStatus,
+    this.avatarStatusReason,
+    this.bannerStatusReason,
     this.subscriberCount = 0,
     this.videoCount = 0,
     ChannelMetricsV2? metrics,
+    this.brandingApprovedDismissed = false,
     this.status = ChannelStatus.active,
     this.geminiApproved,
     this.isVerified = false,
@@ -206,6 +209,8 @@ class Channel {
       bannerFileId: data['bannerFileId'] as String?,
       avatarStatus: data['avatarStatus'] as String?,
       bannerStatus: data['bannerStatus'] as String?,
+      avatarStatusReason: data['avatarStatusReason'] as String?,
+      bannerStatusReason: data['bannerStatusReason'] as String?,
       ownerId: data['ownerId'] ?? data['userId'] ?? '',
       createdAt: TimestampUtils.parse(data['createdAt']),
       updatedAt: TimestampUtils.parse(data['updatedAt']),
@@ -221,6 +226,8 @@ class Channel {
               totalViews: rootViews,
               totalWatchTimeMinutes: rootWatchMinutes,
             ),
+      brandingApprovedDismissed: data['brandingApprovedDismissed'] == true ||
+          data['approvalBannerDismissed'] == true,
       status: statusVal,
       geminiApproved: parsedGeminiApproved,
       isVerified: data['isVerified'] ?? false,
@@ -290,6 +297,8 @@ class Channel {
   final String? bannerFileId;
   final String? avatarStatus;
   final String? bannerStatus;
+  final String? avatarStatusReason;
+  final String? bannerStatusReason;
 
   // Ownership & Context
   final String ownerId;
@@ -302,6 +311,7 @@ class Channel {
   final ChannelMetricsV2 metrics;
 
   // Status & Settings
+  final bool brandingApprovedDismissed;
   final ChannelStatus status;
   final bool? geminiApproved;
   final bool isVerified;
@@ -372,12 +382,15 @@ class Channel {
       'bannerFileId': bannerFileId,
       'avatarStatus': avatarStatus,
       'bannerStatus': bannerStatus,
+      'avatarStatusReason': avatarStatusReason,
+      'bannerStatusReason': bannerStatusReason,
       'ownerId': ownerId,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'subscriberCount': subscriberCount,
       'videoCount': videoCount,
       'metrics': metrics.toMap(),
+      'brandingApprovedDismissed': brandingApprovedDismissed,
       'status': status.name,
       'geminiApproved': geminiApproved,
       'isVerified': isVerified,

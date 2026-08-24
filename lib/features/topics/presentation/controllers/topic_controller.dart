@@ -10,6 +10,7 @@ import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// GetX Controller for Topic Page
@@ -269,6 +270,13 @@ class TopicController extends BaseController {
       }
 
       topic.value = topicData;
+      if (Get.isRegistered<FollowingTopicsController>()) {
+        final followingCtrl = Get.find<FollowingTopicsController>();
+        followingCtrl.updateTopicFollowerCount(topicData.id, topicData.followerCount);
+        if (topicData.slug.isNotEmpty) {
+          followingCtrl.updateTopicFollowerCount(topicData.slug, topicData.followerCount);
+        }
+      }
 
       // Load featured videos
       if (topicData.featuredVideoIds.isNotEmpty) {

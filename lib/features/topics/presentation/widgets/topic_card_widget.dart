@@ -13,7 +13,7 @@ import 'package:truthworld/features/topics/presentation/controllers/following_to
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Unified Responsive Topic Card Widget matching exact mockup design architecture.
+/// Unified Responsive Topic Card Widget matching exact Channel Creation page fonts and theme architecture.
 /// Guarantees zero overflow errors across Mobile, Tablet, and Desktop.
 class TopicCardWidget extends StatefulWidget {
   const TopicCardWidget({
@@ -96,161 +96,179 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
                 currentTopic.creatorId!.isNotEmpty &&
                 AuthService.to.uid == currentTopic.creatorId));
 
-    return MouseRegion(
-      onEnter: (_) => _isHovered.value = true,
-      onExit: (_) => _isHovered.value = false,
-      child: InkWell(
-        onTap: () {
-          if (widget.onExploreTap != null) {
-            widget.onExploreTap!();
-          } else {
-            exploreController?.preloadTopicDetails(currentTopic);
-            Get.toNamed(
-              currentTopic.topicRoute,
-              arguments: {
-                'slug': currentTopic.slug,
-                'fromCard': true,
-                'topic': currentTopic,
-              },
-            );
-          }
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.textPrimary.withValues(alpha: 0.08),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasBoundedHeight = constraints.hasBoundedHeight;
+
+        final Widget coverImageWidget = ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              // 1. TOP PORTION: Cover Thumbnail Image (Flexes to fill remaining height)
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      Obx(() {
-                        final isHovered = _isHovered.value;
-                        return AnimatedScale(
-                          scale: isHovered ? 1.04 : 1.0,
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutCubic,
-                          child: _buildCoverImage(currentTopic),
-                        );
-                      }),
-                    ],
-                  ),
+              Obx(() {
+                final isHovered = _isHovered.value;
+                return AnimatedScale(
+                  scale: isHovered ? 1.04 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  child: _buildCoverImage(currentTopic),
+                );
+              }),
+              if (widget.trailing != null)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: widget.trailing!,
                 ),
-              ),
-
-              // 2. BOTTOM PORTION: Card Content (Title, Stats Line, Action Buttons Row)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Title
-                    Text(
-                      currentTopic.title,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                        height: 1.15,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // Stats Row (Video Count & Followers Count)
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.play_circle_outline_rounded,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '${FormatUtils.formatCount(currentTopic.videoCount)} Videos',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 5),
-                          child: Text(
-                            '•',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                        ),
-                        const Icon(
-                          Icons.people_outline_rounded,
-                          size: 12,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 3),
-                        Expanded(
-                          child: Text(
-                            '${FormatUtils.formatCount(currentTopic.followerCount)} Followers',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Action Buttons Row (Follow Button & Share Button)
-                    Row(
-                      children: [
-                        // Follow / Following / Edit Button
-                        Expanded(
-                          child: isOwner && widget.showEditOption
-                              ? _buildEditButton(currentTopic)
-                              : _buildFollowButton(currentTopic),
-                        ),
-
-                        const SizedBox(width: 6),
-
-                        // Share Button Box
-                        _buildShareButton(currentTopic),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
-        ),
-      ),
+        );
+
+        final topPortion = hasBoundedHeight
+            ? Expanded(child: coverImageWidget)
+            : AspectRatio(
+                aspectRatio: 16 / 9,
+                child: coverImageWidget,
+              );
+
+        return MouseRegion(
+          onEnter: (_) => _isHovered.value = true,
+          onExit: (_) => _isHovered.value = false,
+          child: InkWell(
+            onTap: () {
+              if (widget.onExploreTap != null) {
+                widget.onExploreTap!();
+              } else {
+                exploreController?.preloadTopicDetails(currentTopic);
+                Get.toNamed(
+                  currentTopic.topicRoute,
+                  arguments: {
+                    'slug': currentTopic.slug,
+                    'fromCard': true,
+                    'topic': currentTopic,
+                  },
+                );
+              }
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF161618),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF27272A),
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize:
+                    hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  // 1. TOP PORTION: Cover Thumbnail Image
+                  topPortion,
+
+                  // 2. BOTTOM PORTION: Card Content (Title, Stats Line, Action Buttons Row)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Title
+                        Text(
+                          currentTopic.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        // Stats Row (Video Count & Followers Count)
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.play_circle_outline_rounded,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${FormatUtils.formatCount(currentTopic.videoCount)} Videos',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6),
+                              child: Text(
+                                '•',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.people_outline_rounded,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Obx(() {
+                                final count = _followingTopicsController
+                                    .getFollowerCount(currentTopic);
+                                return Text(
+                                  '${FormatUtils.formatCount(count)} Followers',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // Action Buttons Row (Follow Button & Share Button)
+                        Row(
+                          children: [
+                            // Follow / Following / Edit Button
+                            Expanded(
+                              child: isOwner && widget.showEditOption
+                                  ? _buildEditButton(currentTopic)
+                                  : _buildFollowButton(currentTopic),
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            // Share Button Box
+                            _buildShareButton(currentTopic),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -274,11 +292,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
   Widget _buildFallbackCover() {
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF272727), Color(0xFF1E1E1E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Color(0xFF18181B),
       ),
       child: const Center(
         child: Icon(Icons.topic_rounded, color: Colors.white, size: 36),
@@ -299,28 +313,28 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         icon: Icon(
           isFollowed ? Icons.check_rounded : Icons.add_rounded,
           size: 14,
-          color: isFollowed ? Colors.white : AppColors.bgPage,
+          color: isFollowed ? Colors.white : Colors.black,
         ),
         label: Text(
           isFollowed ? 'Following' : 'Follow',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
+            color: isFollowed ? Colors.white : Colors.black,
           ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: isFollowed
-              ? AppColors.bgSurfaceHover
-              : AppColors.textPrimary,
-          foregroundColor: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
+              ? const Color(0xFF18181B)
+              : Colors.white,
+          foregroundColor: isFollowed ? Colors.white : Colors.black,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: BorderSide(
               color: isFollowed
-                  ? AppColors.textPrimary.withValues(alpha: 0.15)
+                  ? const Color(0xFF27272A)
                   : Colors.transparent,
             ),
           ),
@@ -352,17 +366,17 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: AppColors.textPrimary,
+          color: Colors.white,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.bgSurfaceHover,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: const Color(0xFF18181B),
+        foregroundColor: Colors.white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.15)),
+          side: const BorderSide(color: Color(0xFF27272A)),
         ),
       ),
     );
@@ -374,10 +388,10 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
       width: 34,
       height: 34,
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
+        color: const Color(0xFF18181B),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.08),
+          color: const Color(0xFF27272A),
         ),
       ),
       child: IconButton(
@@ -389,11 +403,13 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         ),
         onPressed: () {
           final topicUrl = DeepLinkService.topicUrl(currentTopic.slug);
+          final currentFollowerCount =
+              _followingTopicsController.getFollowerCount(currentTopic);
           ShareBottomSheet.show(
             title: currentTopic.title,
             url: topicUrl,
             thumbnailUrl: currentTopic.coverImage ?? currentTopic.thumbnailUrl,
-            followerCount: currentTopic.followerCount,
+            followerCount: currentFollowerCount,
             videoCount: currentTopic.videoCount,
             handle: currentTopic.slug,
             type: 'topic',
@@ -404,7 +420,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
   }
 }
 
-/// Section Header matching mockup (Title: "Topics", Subtitle: "Explore topics you love...", Button: "View all topics >")
+/// Section Header matching Channel Creation design system
 class TopicSectionHeader extends StatelessWidget {
   const TopicSectionHeader({
     super.key,
@@ -431,7 +447,8 @@ class TopicSectionHeader extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
               ),
               const SizedBox(height: 2),
@@ -452,13 +469,13 @@ class TopicSectionHeader extends StatelessWidget {
             icon: const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 16),
             label: const Text(
               'View all topics',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
             ),
             style: OutlinedButton.styleFrom(
-              backgroundColor: AppColors.bgSurfaceHover,
+              backgroundColor: const Color(0xFF18181B),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              side: const BorderSide(color: Color(0xFF27272A)),
             ),
           ),
         ],

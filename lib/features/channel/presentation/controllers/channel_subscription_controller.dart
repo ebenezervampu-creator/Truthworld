@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 
 class ChannelSubscriptionController extends BaseController {
   FirebaseAuth get _auth => FirebaseAuth.instance;
@@ -76,11 +77,20 @@ class ChannelSubscriptionController extends BaseController {
 
       isSubscribed.value = true;
       subscriberCount.value++;
+      if (_subscribedMap.containsKey(channelId)) {
+        _subscribedMap[channelId]!.value = true;
+      }
+      if (Get.isRegistered<SubscriptionController>()) {
+        Get.find<SubscriptionController>().loadSubscriptions();
+      }
       _showSuccessSnackbar('Subscribed successfully');
       return true;
     } catch (e) {
       if (e.toString().contains('already_subscribed')) {
         isSubscribed.value = true;
+        if (_subscribedMap.containsKey(channelId)) {
+          _subscribedMap[channelId]!.value = true;
+        }
         return false;
       }
       _showErrorSnackbar('Failed to subscribe: $e');
@@ -107,6 +117,12 @@ class ChannelSubscriptionController extends BaseController {
 
       isSubscribed.value = false;
       subscriberCount.value = (subscriberCount.value - 1).clamp(0, 999999999);
+      if (_subscribedMap.containsKey(channelId)) {
+        _subscribedMap[channelId]!.value = false;
+      }
+      if (Get.isRegistered<SubscriptionController>()) {
+        Get.find<SubscriptionController>().loadSubscriptions();
+      }
       _showSuccessSnackbar('Unsubscribed successfully');
       return true;
     } catch (e) {
@@ -118,6 +134,9 @@ class ChannelSubscriptionController extends BaseController {
   Future<void> toggleSubscription(String channelId) async {
     final wasSubscribed = isSubscribed.value;
     isSubscribed.value = !wasSubscribed;
+    if (_subscribedMap.containsKey(channelId)) {
+      _subscribedMap[channelId]!.value = !wasSubscribed;
+    }
     subscriberCount.value += wasSubscribed ? -1 : 1;
     if (subscriberCount.value < 0) subscriberCount.value = 0;
 
@@ -135,6 +154,9 @@ class ChannelSubscriptionController extends BaseController {
       }
     } catch (_) {
       isSubscribed.value = wasSubscribed;
+      if (_subscribedMap.containsKey(channelId)) {
+        _subscribedMap[channelId]!.value = wasSubscribed;
+      }
       subscriberCount.value += wasSubscribed ? 1 : -1;
       if (subscriberCount.value < 0) subscriberCount.value = 0;
       _sessionSubscribedChannels.remove(channelId);
@@ -153,6 +175,10 @@ class ChannelSubscriptionController extends BaseController {
       return;
     }
 
+    if (_subscribedMap.containsKey(channelId)) {
+      isSubscribed.value = _subscribedMap[channelId]!.value;
+    }
+
     isLoadingSubscription.value = true;
     _subscriptionListener?.cancel();
 
@@ -164,6 +190,9 @@ class ChannelSubscriptionController extends BaseController {
         .listen(
           (snapshot) {
             isSubscribed.value = snapshot.exists;
+            if (_subscribedMap.containsKey(channelId)) {
+              _subscribedMap[channelId]!.value = snapshot.exists;
+            }
             if (snapshot.exists) {
               final data = snapshot.data();
               notificationsEnabled.value =

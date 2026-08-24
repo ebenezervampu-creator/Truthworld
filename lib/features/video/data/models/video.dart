@@ -417,7 +417,10 @@ class Video {
         }
         return <VideoChapter>[];
       }(),
-      totalWatchTimeSeconds: data['totalWatchTimeSeconds'] ?? 0,
+      totalWatchTimeSeconds: (data['totalWatchTimeSeconds'] as num?)?.toInt() ??
+          (data['metrics'] is Map ? (data['metrics']['totalWatchTimeSeconds'] as num?)?.toInt() : null) ??
+          (data['stats'] is Map ? (data['stats']['totalWatchTimeSeconds'] as num?)?.toInt() : null) ??
+          0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
       // v8.0
       trustLabel: data['trustLabel'],

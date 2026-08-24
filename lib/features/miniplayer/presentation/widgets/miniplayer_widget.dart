@@ -247,18 +247,61 @@ class _VideoFrame extends StatelessWidget {
           final msg = controller.error.value;
           if (msg.isEmpty) return const SizedBox.shrink();
           return Container(
-            color: AppColors.bgPage.withValues(alpha: 0.7),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            color: AppColors.bgPage.withValues(alpha: 0.88),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Center(
-              child: Text(
-                msg,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: MiniplayerWidget._textPrimary,
-                  fontSize: 12,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    msg,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: MiniplayerWidget._textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: controller.attemptRecovery,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: MiniplayerWidget._card,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: MiniplayerWidget._border.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.refresh_rounded,
+                            color: MiniplayerWidget._textPrimary,
+                            size: 14,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Retry',
+                            style: TextStyle(
+                              color: MiniplayerWidget._textPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -488,6 +531,7 @@ class _CenterPlayButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      if (controller.error.value.isNotEmpty) return const SizedBox.shrink();
       final playing = controller.isPlaying.value;
       return Material(
         color: AppColors.bgPage.withValues(alpha: 0.55),
@@ -902,6 +946,8 @@ class _ExpandedVideo extends StatelessWidget {
             Obx(() {
               final isReady = controller.isVideoReady.value;
               final vpc = controller.videoPlayerController;
+              final hasErr = controller.error.value.isNotEmpty;
+              if (hasErr) return const SizedBox.shrink();
               if (vpc == null || !isReady) {
                 return const Center(
                   child: CircularProgressIndicator(
@@ -918,12 +964,78 @@ class _ExpandedVideo extends StatelessWidget {
               );
             }),
             Obx(() {
-              if (controller.isPlaying.value) return const SizedBox.shrink();
+              if (controller.isPlaying.value ||
+                  controller.error.value.isNotEmpty) {
+                return const SizedBox.shrink();
+              }
               return const Center(
                 child: Icon(
                   Icons.play_circle_rounded,
                   color: AppColors.textPrimary,
                   size: 72,
+                ),
+              );
+            }),
+            Obx(() {
+              final msg = controller.error.value;
+              if (msg.isEmpty) return const SizedBox.shrink();
+              return Container(
+                color: AppColors.bgPage.withValues(alpha: 0.88),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        msg,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: MiniplayerWidget._textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: controller.attemptRecovery,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: MiniplayerWidget._card,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: MiniplayerWidget._border.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.refresh_rounded,
+                                color: MiniplayerWidget._textPrimary,
+                                size: 16,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Retry',
+                                style: TextStyle(
+                                  color: MiniplayerWidget._textPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }),

@@ -113,7 +113,9 @@ class SearchController extends BaseController {
 
   final RxList<String> suggestions = <String>[].obs;
   final RxList<SearchResult> recommendedResults =
-      <SearchResult>[].obs; // 🎯 For empty state "You may like"
+      <SearchResult>[].obs; // 🎯 For empty state "Suggested X"
+  final RxBool isRecommendedLoading = false.obs;
+  final Map<String, List<SearchResult>> _recommendedCache = {};
 
   // Realtime Trending Today state
   final RxList<TrendingItem> realtimeTrendingItems = <TrendingItem>[].obs;
@@ -126,6 +128,7 @@ class SearchController extends BaseController {
   final RxBool isShowingFallback = false.obs;
   final RxString selectedFilter = 'All'.obs;
   final RxSet<String> watchedVideoIds = <String>{}.obs;
+  final RxBool isNavigating = false.obs;
 
   /// Cache statistics (for debugging)
   final RxMap<String, dynamic> cacheStats = <String, dynamic>{}.obs;
@@ -209,17 +212,32 @@ class SearchController extends BaseController {
     unawaited(_fetchWatchedVideoIds());
     _initRealtimeTrendingSubscription();
     if (_trendingSubscription != null) trackSubscription(_trendingSubscription!);
-    unawaited(_fetchRecommended());
+    unawaited(fetchRecommendedForFilter(selectedFilter.value));
   }
 
+  /// Fetch recommended content for empty search state per filter with caching
+  Future<void> fetchRecommendedForFilter(String filter) async {
+    // 1. Instant response if cached
+    if (_recommendedCache.containsKey(filter) &&
+        _recommendedCache[filter]!.isNotEmpty) {
+      recommendedResults.assignAll(_recommendedCache[filter]!);
+      return;
+    }
 
-
-  Future<void> _fetchRecommended() async {
     try {
-      final recs = await _searchService.getRecommended();
-      recommendedResults.assignAll(recs);
+      isRecommendedLoading.value = true;
+      final recs = await _searchService.getRecommendedForFilter(
+        filter,
+        watchedVideoIds: watchedVideoIds,
+      );
+      _recommendedCache[filter] = recs;
+      if (selectedFilter.value == filter) {
+        recommendedResults.assignAll(recs);
+      }
     } catch (e) {
-      debugPrint('⚠️ [Search] Failed to fetch recommended: $e');
+      debugPrint('⚠️ [Search] Failed to fetch recommended for $filter: $e');
+    } finally {
+      isRecommendedLoading.value = false;
     }
   }
 
@@ -527,7 +545,12 @@ class SearchController extends BaseController {
   /// Returns: (isValid, sanitizedQuery, errorMessage)
   (bool, String, String) _validateQuery(String query) {
     // Normalization & trimming
-    var trimmed = query.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    var trimmed = query.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+    // Strip trailing/leading punctuation marks commonly added by speech recognition
+    trimmed = trimmed.replaceAll(RegExp(r'[\.\?\!\,\;\:\-_]+$'), '').trim();
+    trimmed = trimmed.replaceAll(RegExp(r'^[\.\?\!\,\;\:\-_]+'), '').trim();
+    trimmed = trimmed.toLowerCase();
 
     // Cap query length if needed to avoid pathological searches
     if (trimmed.length > maxSearchQueryLength) {
@@ -770,16 +793,48 @@ class SearchController extends BaseController {
       debugPrint('⚠️ [Search] Local suggestion cache lookup failed: $e');
     }
 
-    // 3. Remote Firestore query: Only search if search length is >= 3 chars to save reads
+    // 3. Remote Firestore queries across content types (videos, channels, topics)
     if (normalized.length >= 3) {
       try {
-        final docSnap = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where('title', isGreaterThanOrEqualTo: normalized)
-            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
-            .where('status', whereIn: const ['processed', 'published'])
-            .limit(5)
-            .get();
+        final results = await Future.wait([
+          FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where('title', isGreaterThanOrEqualTo: normalized)
+              .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
+              .where('status', whereIn: const ['processed', 'published'])
+              .limit(5)
+              .get()
+              .catchError(
+                (_) => FirebaseFirestore.instance
+                    .collection(FirestoreCollections.videos)
+                    .limit(0)
+                    .get(),
+              ),
+          FirebaseFirestore.instance
+              .collection('channels')
+              .where('nameLowercase', isGreaterThanOrEqualTo: normalized)
+              .where('nameLowercase', isLessThanOrEqualTo: '$normalized\uf8ff')
+              .limit(3)
+              .get()
+              .catchError(
+                (_) => FirebaseFirestore.instance
+                    .collection('channels')
+                    .limit(0)
+                    .get(),
+              ),
+          FirebaseFirestore.instance
+              .collection('topics')
+              .where('slug', isGreaterThanOrEqualTo: normalized)
+              .where('slug', isLessThanOrEqualTo: '$normalized\uf8ff')
+              .limit(3)
+              .get()
+              .catchError(
+                (_) => FirebaseFirestore.instance
+                    .collection('topics')
+                    .limit(0)
+                    .get(),
+              ),
+        ]);
 
         // Stale query check
         if (token != _suggestionToken) {
@@ -787,7 +842,67 @@ class SearchController extends BaseController {
           return;
         }
 
-        for (final doc in docSnap.docs) {
+        // Add matching channels
+        for (final doc in results[1].docs) {
+          final data = doc.data();
+          final name = data['name'] as String? ??
+              data['channelName'] as String? ??
+              '';
+          final key = name.toLowerCase();
+          if (name.isNotEmpty &&
+              !seenIds.contains(doc.id) &&
+              !seenTexts.contains(key)) {
+            seenIds.add(doc.id);
+            seenTexts.add(key);
+            newSuggestions.add(
+              SearchSuggestion(
+                text: name,
+                subtitle: 'Channel',
+                imageUrl: data['avatarUrl'] as String? ??
+                    data['channelAvatarUrl'] as String? ??
+                    '',
+                isRoundImage: true,
+                icon: Icons.account_circle,
+                matchedResult: SearchResult.fromFirestore(
+                  doc,
+                  type: ResultType.channel,
+                ),
+              ),
+            );
+          }
+        }
+
+        // Add matching topics
+        for (final doc in results[2].docs) {
+          final data = doc.data();
+          final title = data['title'] as String? ??
+              data['slug'] as String? ??
+              '';
+          final key = title.toLowerCase();
+          if (title.isNotEmpty &&
+              !seenIds.contains(doc.id) &&
+              !seenTexts.contains(key)) {
+            seenIds.add(doc.id);
+            seenTexts.add(key);
+            newSuggestions.add(
+              SearchSuggestion(
+                text: title,
+                subtitle: 'Topic',
+                imageUrl: data['thumbnailUrl'] as String? ??
+                    data['coverImage'] as String? ??
+                    '',
+                icon: Icons.topic,
+                matchedResult: SearchResult.fromFirestore(
+                  doc,
+                  type: ResultType.topic,
+                ),
+              ),
+            );
+          }
+        }
+
+        // Add matching videos
+        for (final doc in results[0].docs) {
           final data = doc.data();
           final title = data['title'] as String? ?? '';
           final key = title.toLowerCase();
@@ -901,18 +1016,25 @@ class SearchController extends BaseController {
     return list;
   }
 
-  /// Change active filter chip and reload list
+  /// Change active filter chip and reload list or suggestions
   void setFilter(String filter) {
     selectedFilter.value = filter;
-    currentPage.value = 0;
-    _loadPage(0);
+    if (searchQuery.value.trim().isNotEmpty) {
+      currentPage.value = 0;
+      _loadPage(0);
+    } else {
+      fetchRecommendedForFilter(filter);
+    }
   }
 
   /// Execute the actual search query (called after user submits/taps search)
   Future<void> _executeSearch(String query) async {
-    if (query.isEmpty) return;
+    var cleanQuery = query.trim().replaceAll(RegExp(r'\s+'), ' ');
+    cleanQuery = cleanQuery.replaceAll(RegExp(r'[\.\?\!\,\;\:\-_]+$'), '').trim();
+    cleanQuery = cleanQuery.replaceAll(RegExp(r'^[\.\?\!\,\;\:\-_]+'), '').trim();
+    if (cleanQuery.isEmpty) return;
 
-    final normalized = query.toLowerCase().trim();
+    final normalized = cleanQuery.toLowerCase();
 
     // Avoid duplicate queries if the results are already loaded
     if (normalized == _lastSearchQuery && searchResults.isNotEmpty) {
@@ -969,13 +1091,16 @@ class SearchController extends BaseController {
 
       stopwatch.stop();
 
-      // If empty, let's load recommended/fallback videos so we "show what we have"
+      // If empty, let's load recommended/fallback content so we "show what we have"
       var fellBack = false;
       if (results.isEmpty) {
         debugPrint(
-          '⚠️ [Search] No results found for: "$normalized". Falling back to recommended/popular videos.',
+          '⚠️ [Search] No results found for: "$normalized". Falling back to recommended content for ${selectedFilter.value}.',
         );
-        results = await _searchService.getRecommended();
+        results = await _searchService.getRecommendedForFilter(
+          selectedFilter.value,
+          watchedVideoIds: watchedVideoIds,
+        );
         fellBack = results.isNotEmpty;
       }
 
@@ -1141,8 +1266,10 @@ class SearchController extends BaseController {
     _debounceTimer?.cancel();
     _shouldCancelRequest = true;
     _clearResults();
+    searchQuery.value = '';
     richSuggestions.clear();
     showSuggestions.value = false;
+    fetchRecommendedForFilter(selectedFilter.value);
     debugPrint('🧹 [Search] Search cleared');
   }
 
@@ -1167,9 +1294,11 @@ class SearchController extends BaseController {
       final trending = await _searchService.getTrendingSuggestions();
       suggestions.value = trending;
 
-      // Also fetch some recommended videos for the empty state
-      final recommended = await _searchService.getRecommended();
-      recommendedResults.value = recommended;
+      // Preload user's watched video IDs for filtering
+      unawaited(_fetchWatchedVideoIds());
+
+      // Fetch recommended content for current active filter
+      await fetchRecommendedForFilter(selectedFilter.value);
     } catch (e) {
       debugPrint('⚠️ [Search] Failed to load trending: $e');
     }
@@ -1218,17 +1347,14 @@ class SearchController extends BaseController {
 
   /// Navigate to appropriate screen when user taps a result
   Future<void> onResultTapped(SearchResult result) async {
+    if (isNavigating.value) return;
+    isNavigating.value = true;
+
     debugPrint(
       '👆 [Search] User tapped: ${result.title} (Type: ${result.type}, ID: ${result.id})',
     );
 
     try {
-      // ⏳ [LOADING STATE]
-      Get.dialog(
-        const Center(child: CircularProgressIndicator(color: Colors.white)),
-        barrierDismissible: false,
-      );
-
       final collection = result.type == ResultType.video
           ? 'videos'
           : (result.type == ResultType.channel
@@ -1241,8 +1367,6 @@ class SearchController extends BaseController {
           .collection(collection)
           .doc(result.id)
           .get();
-
-      if (Get.isDialogOpen ?? false) Get.back(); // Remove loading dialog
 
       if (!doc.exists) {
         final typeName = result.type.toString().split('.').last;
@@ -1287,9 +1411,10 @@ class SearchController extends BaseController {
           Get.toNamed(topic.topicRoute, arguments: {'topic': topic});
       }
     } catch (e) {
-      if (Get.isDialogOpen ?? false) Get.back();
       debugPrint('❌ [Search] Navigation failed: $e');
       Get.snackbar('Navigation Error', 'Could not open result: $e');
+    } finally {
+      isNavigating.value = false;
     }
   }
 }

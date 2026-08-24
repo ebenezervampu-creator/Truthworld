@@ -23,7 +23,9 @@ export const rollupDailyStats = onSchedule(
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
     const istDate = new Date(now.getTime() + istOffset);
-    const dateKey = istDate.toISOString().split("T")[0]; // YYYY-MM-DD
+    const dateKey = istDate.toISOString().split("T")[0]; // YYYY-MM-DD (legacy)
+    // Readers (Flutter client & analytics cloud functions) query by dateKey in YYYY_MM_DD format
+    const dateKeyUnderscored = dateKey.replace(/-/g, "_"); // YYYY_MM_DD
 
     try {
       // --- Per-video rollup ---
@@ -44,8 +46,11 @@ export const rollupDailyStats = onSchedule(
 
         const dailyData = {
           date: dateKey,
+          dateKey: dateKeyUnderscored,
           views: stats.totalViews ?? 0,
+          totalViews: stats.totalViews ?? 0,
           totalWatchSeconds: stats.totalWatchSeconds ?? 0,
+          totalWatchTimeSeconds: stats.totalWatchSeconds ?? 0,
           uniqueUsers: stats.uniqueUsers ?? 0,
           avgWatchSeconds: stats.avgWatchSeconds ?? 0,
           completionRate: stats.completionRate ?? 0,
@@ -71,7 +76,7 @@ export const rollupDailyStats = onSchedule(
 
         // Also write to video_stats_daily for backward compatibility
         batch.set(
-          db.collection("video_stats_daily").doc(`${videoId}_${dateKey}`),
+          db.collection("video_stats_daily").doc(`${videoId}_${dateKeyUnderscored}`),
           { videoId, channelId, ...dailyData }
         );
         ops++;
@@ -94,11 +99,14 @@ export const rollupDailyStats = onSchedule(
         }
 
         batch.set(
-          db.collection("channels").doc(channelId).collection("dailyStats").doc(dateKey),
+          db.collection("channels").doc(channelId).collection("dailyStats").doc(dateKeyUnderscored),
           {
             date: dateKey,
+            dateKey: dateKeyUnderscored,
             views: acc.views,
+            totalViews: acc.views,
             totalWatchSeconds: acc.watchSeconds,
+            totalWatchTimeSeconds: acc.watchSeconds,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           }
         );
@@ -106,12 +114,15 @@ export const rollupDailyStats = onSchedule(
 
         // Also write to channel_stats_daily for backward compatibility
         batch.set(
-          db.collection("channel_stats_daily").doc(`${channelId}_${dateKey}`),
+          db.collection("channel_stats_daily").doc(`${channelId}_${dateKeyUnderscored}`),
           {
             channelId,
             date: dateKey,
+            dateKey: dateKeyUnderscored,
             views: acc.views,
+            totalViews: acc.views,
             totalWatchSeconds: acc.watchSeconds,
+            totalWatchTimeSeconds: acc.watchSeconds,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           }
         );

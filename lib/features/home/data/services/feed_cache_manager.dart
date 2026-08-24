@@ -53,7 +53,22 @@ class FeedCacheManager {
   // Scoped Cache Key Constants
   static const String keyHomeFeed = 'feed_home';
   static const String keyTrendingFeed = 'feed_trending';
+  static const String keyPopularFeed = 'feed_popular';
+  static const String keyNewFeed = 'feed_new';
+  static const String keyFlipCoinFeed = 'feed_flip_coin';
   static const String keyMusicFeed = 'feed_music';
+
+  /// Resolve a normalized cache key for any category or home tab.
+  static String cacheKeyForCategory(String category) {
+    final cat = category.trim();
+    if (cat.isEmpty || cat == 'All') return keyHomeFeed;
+    if (cat == '🔥 Trending' || cat == 'Trending') return keyTrendingFeed;
+    if (cat == '⭐ Popular' || cat == 'Popular') return keyPopularFeed;
+    if (cat == '✨ New' || cat == 'New') return keyNewFeed;
+    if (cat == 'Flip Coin' || cat == '🪙 Flip Coin') return keyFlipCoinFeed;
+    if (cat == 'Music') return keyMusicFeed;
+    return 'feed_cat_${cat.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '_')}';
+  }
 
   /// Retrieve valid, non-expired, and sanitized videos from local storage for a given cache key.
   List<Video>? getValidCachedVideos(

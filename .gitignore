@@ -37,6 +37,9 @@ __pycache__/
 *.tmp
 *.swp
 *.swo
+*.gs
+*.bak
+GetStorage.*
 
 # Editors
 .vscode/

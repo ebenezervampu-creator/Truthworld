@@ -10,11 +10,13 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/notification_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/user_notification_controller.dart';
 import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Extension for capitalize (top-level)
 extension StringExtension on String {
@@ -446,7 +448,7 @@ class _VideoFeedNotificationScreenState
             if (!item.alert!.read) {
               userNotificationController.markAsRead(item.alert!.id);
             }
-            _navigateToAlertVideo(item.alert!);
+            _navigateToAlertNotification(item.alert!);
           }
           HapticFeedback.lightImpact();
         },
@@ -999,9 +1001,47 @@ class _VideoFeedNotificationScreenState
     );
   }
 
-  void _navigateToAlertVideo(UserNotification alert) {
-    final videoId = alert.metadata?['videoId'] as String? ?? alert.id;
-    if (alert.type == 'perspective_flip' && videoId.isNotEmpty) {
+  void _navigateToAlertNotification(UserNotification alert) {
+    final typeLower = alert.type.toLowerCase();
+    final titleLower = alert.title.toLowerCase();
+    final messageLower = alert.message.toLowerCase();
+
+    // 1. Check if notification is a New Subscriber / Follower / Creator Studio notification
+    final isSubscriberNotification = typeLower == 'new_follower' ||
+        typeLower == 'subscriber' ||
+        typeLower == 'new_subscriber' ||
+        typeLower == 'subscription' ||
+        typeLower == 'subscribers_milestone' ||
+        typeLower.contains('subscriber') ||
+        typeLower.contains('follower') ||
+        titleLower.contains('subscriber') ||
+        titleLower.contains('subscribers') ||
+        messageLower.contains('subscribed to your channel') ||
+        messageLower.contains('subscribed');
+
+    final isStudioNotification = isSubscriberNotification ||
+        typeLower == 'creator_intelligence' ||
+        typeLower == 'coach_growth_tip' ||
+        typeLower == 'coach_growth_tip_v1' ||
+        typeLower == 'subscribers_milestone_v1' ||
+        typeLower == 'analytics_alert' ||
+        typeLower == 'monetization' ||
+        (alert.actionUrl != null &&
+            alert.actionUrl!.toLowerCase().contains('studio'));
+
+    if (isStudioNotification) {
+      StudioLauncher.openStudio();
+      return;
+    }
+
+    // 2. Check for Perspective Flip notification
+    final videoId = alert.metadata?['videoId'] as String? ??
+        alert.metadata?['targetVideoId'] as String? ??
+        alert.metadata?['video_id'] as String?;
+
+    if (alert.type == 'perspective_flip' &&
+        videoId != null &&
+        videoId.isNotEmpty) {
       NotificationService.to.handlePerspectiveFlipNotification(
         videoId: videoId,
         commentId: alert.metadata?['commentId'] as String?,
@@ -1010,32 +1050,47 @@ class _VideoFeedNotificationScreenState
       return;
     }
 
-    if (videoId.isNotEmpty) {
-      final mockVideo = Video(
-        id: videoId,
-        title: alert.title,
-        description: alert.message,
-        thumbnailUrl: alert.metadata?['thumbnailUrl'] as String? ?? '',
-        ownerId: '',
-        channelId: alert.metadata?['channelId'] as String? ?? '',
-        channelName: '',
-        category: 'Alerts',
-        tags: const [],
-      );
+    // 3. Check for specific Video-related notifications (Comment, Reply, Like, Mention, Video update)
+    if (videoId != null && videoId.isNotEmpty) {
+      final commentId = alert.metadata?['commentId'] as String?;
+      final replyId = alert.metadata?['replyId'] as String?;
+
       Get.toNamed(
-        '/watch?v=${mockVideo.id}',
+        '/watch?v=$videoId',
         arguments: {
-          'video': mockVideo,
-          'commentId': alert.metadata?['commentId'],
-          'replyId': alert.metadata?['replyId'],
+          'videoId': videoId,
+          'commentId': ?commentId,
+          'replyId': ?replyId,
         },
       );
-    } else if (alert.actionUrl != null && alert.actionUrl!.isNotEmpty) {
+      return;
+    }
+
+    // 4. Action URL routing (e.g. /channel/xxx, /post/xxx, /topic/xxx, /community-guidelines, etc.)
+    final actionUrl = alert.actionUrl;
+    if (actionUrl != null && actionUrl.isNotEmpty) {
       try {
-        if (alert.actionUrl!.startsWith('/')) {
-          Get.toNamed(alert.actionUrl!);
+        if (actionUrl.startsWith('/')) {
+          Get.toNamed(actionUrl);
+          return;
+        } else if (actionUrl.startsWith('http://') ||
+            actionUrl.startsWith('https://')) {
+          final uri = Uri.parse(actionUrl);
+          launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Error navigating to actionUrl $actionUrl: $e');
+      }
+    }
+
+    // 5. If channelId is present in metadata, navigate to channel details
+    final channelId = alert.metadata?['channelId'] as String? ??
+        alert.metadata?['subscriberChannelId'] as String? ??
+        alert.metadata?['mentionedChannelId'] as String?;
+    if (channelId != null && channelId.isNotEmpty) {
+      Get.toNamed('/channel/$channelId');
+      return;
     }
   }
 

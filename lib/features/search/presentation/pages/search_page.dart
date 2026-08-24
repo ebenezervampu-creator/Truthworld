@@ -254,10 +254,11 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  /// Build empty search landing state with industry-standard video suggestions
+  /// Build empty search landing state with industry-standard suggestions
   Widget _buildEmptyState() {
     final filter = _searchCtrl.selectedFilter.value;
     final recommendedList = _searchCtrl.recommendedResults;
+    final isRecLoading = _searchCtrl.isRecommendedLoading.value;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 32),
@@ -278,11 +279,11 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
 
-          // 2. Suggested Videos Section Header
+          // 2. Suggested Section Header
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: Text(
-              filter == 'All' ? 'Suggested Videos' : 'Suggested $filter',
+              filter == 'All' ? 'Suggested for you' : 'Suggested $filter',
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 18,
@@ -292,9 +293,9 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
 
-          // 3. Suggested Video Results List
-          if (_searchCtrl.isLoading)
-            const SearchResultSkeleton(count: 4)
+          // 3. Suggested Results List
+          if (_searchCtrl.isLoading || isRecLoading)
+            const SearchResultSkeleton(count: 4, shrinkWrap: true)
           else if (recommendedList.isEmpty)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -303,10 +304,12 @@ class _SearchPageState extends State<SearchPage> {
                 color: AppColors.textPrimary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
-                  'No suggestions available right now.',
-                  style: TextStyle(
+                  filter == 'All'
+                      ? 'No suggestions available right now.'
+                      : 'No suggested ${filter.toLowerCase()} available right now.',
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,
                   ),
@@ -319,10 +322,10 @@ class _SearchPageState extends State<SearchPage> {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: recommendedList.length,
               itemBuilder: (context, index) {
-                final video = recommendedList[index];
+                final item = recommendedList[index];
                 return SearchResultCard(
-                  result: video,
-                  onTap: () => _searchCtrl.onResultTapped(video),
+                  result: item,
+                  onTap: () => _searchCtrl.onResultTapped(item),
                 );
               },
             ),

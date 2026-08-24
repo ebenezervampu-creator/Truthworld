@@ -1,5 +1,7 @@
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/algorithm/user_interest_profile.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Global service managing the "Flip Coin" (The Other Side) state across surfaces.
@@ -134,47 +136,130 @@ class FlipCoinService extends GetxService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // OPPOSITE PERSPECTIVE KEYWORD PAIRS (Contrarian Mappings)
+  // 3-DIMENSIONAL CONTRAST ARCHITECTURE
+  // 1. Counterpart Actors & Affected Stakeholders (e.g. Israel ↔ Iran/Palestine/UN)
+  // 2. Conceptual Contrasts (e.g. War ↔ Peace, Attack ↔ Ceasefire)
+  // 3. Opposing Claims & Stances (e.g. Military Necessity ↔ Civilian Protection)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /// Known opposite entity/perspective pairs for context matching
-  static const Map<String, List<String>> oppositePairs = {
-    // Geopolitics / World Leadership
-    'iran': ['israel', 'us', 'usa', 'america', 'diplomacy', 'west'],
-    'israel': ['iran', 'palestine', 'lebanon', 'gaza', 'middle east'],
-    'palestine': ['israel', 'diplomacy', 'un', 'peace'],
-    'russia': ['ukraine', 'nato', 'eu', 'us'],
-    'ukraine': ['russia', 'diplomacy', 'peace'],
-    'china': ['taiwan', 'us', 'india', 'japan'],
-    'taiwan': ['china', 'us', 'pacific'],
-    'us': ['china', 'russia', 'iran'],
-    'india': ['pakistan', 'china'],
-    'pakistan': ['india'],
+  /// Dimension 1: Geopolitical counterpart actors, affected parties & institutional stakeholders
+  static const Map<String, List<String>> counterpartActors = {
+    // Middle East & Levant
+    'israel': ['iran', 'palestine', 'lebanon', 'gaza', 'middle east', 'un', 'yemen', 'syria'],
+    'iran': ['israel', 'us', 'usa', 'america', 'gulf states', 'saudi', 'west', 'un'],
+    'palestine': ['israel', 'un', 'egypt', 'jordan', 'diplomacy', 'international court'],
+    'gaza': ['israel', 'un', 'egypt', 'humanitarian', 'red cross'],
+    'lebanon': ['israel', 'un', 'france', 'arab league'],
+    'netanyahu': ['pezeshkian', 'khamenei', 'opposition', 'diplomats', 'un'],
+    'pezeshkian': ['netanyahu', 'israel', 'us', 'west', 'diplomats', 'un'],
+    'khamenei': ['netanyahu', 'israel', 'us', 'west'],
 
-    // Politics & Governance
-    'government': ['opposition', 'critics', 'citizens', 'protest'],
-    'president': ['opposition', 'counterpart', 'foreign leader', 'critic'],
-    'military': ['diplomacy', 'peace', 'activists', 'un'],
-    'army': ['diplomacy', 'peacekeepers', 'humanitarian'],
-    'election': ['opposition', 'voters', 'reform'],
+    // Eastern Europe & Eurasia
+    'russia': ['ukraine', 'nato', 'eu', 'us', 'europe', 'un', 'baltics'],
+    'ukraine': ['russia', 'nato', 'eu', 'un', 'global south'],
+    'putin': ['zelensky', 'ukraine', 'nato', 'west', 'un'],
+    'zelensky': ['putin', 'russia', 'global south', 'un'],
 
-    // Tech & Society
-    'ai': ['safety', 'ethics', 'risks', 'regulation', 'humanities'],
-    'crypto': ['regulation', 'traditional finance', 'central banks'],
-    'climate': ['economy', 'energy', 'industry'],
+    // Asia-Pacific & Americas
+    'china': ['taiwan', 'us', 'india', 'japan', 'philippines', 'west', 'asean'],
+    'taiwan': ['china', 'us', 'pacific', 'japan'],
+    'us': ['china', 'russia', 'iran', 'global south', 'eu', 'un'],
+    'america': ['china', 'russia', 'iran', 'europe', 'global south'],
+    'india': ['pakistan', 'china', 'global south'],
+    'pakistan': ['india', 'afghanistan'],
+    'nato': ['russia', 'neutrality', 'peace treaty'],
+    'eu': ['brexit', 'national sovereignty', 'russia'],
+
+    // Politics, Governance & Societal Stakeholders
+    'government': ['opposition', 'citizens', 'civil society', 'protest', 'independent judiciary'],
+    'president': ['opposition', 'counterpart', 'foreign leader', 'critic', 'diplomat'],
+    'democrat': ['republican', 'conservative', 'independent', 'libertarian'],
+    'republican': ['democrat', 'liberal', 'progressive', 'independent'],
+    'big tech': ['open source', 'antitrust', 'regulators', 'consumers', 'privacy advocates'],
+    'corporation': ['workers', 'labor union', 'consumers', 'environmentalists', 'regulators'],
+    'zerodha': ['angel one', 'groww', 'sebi', 'passive indexers', 'financial advisors'],
+    'hike': ['whatsapp', 'telegram', 'signal', 'meta', 'open protocols'],
   };
+
+  /// Dimension 2: Conceptual contrasts & foundational antinomies
+  static const Map<String, List<String>> conceptualContrasts = {
+    'war': ['peace', 'ceasefire', 'diplomacy', 'de-escalation', 'negotiation', 'treaty', 'reconciliation', 'mediation'],
+    'conflict': ['peace', 'ceasefire', 'diplomacy', 'mediation', 'conflict resolution'],
+    'attack': ['defense', 'ceasefire', 'protection', 'de-escalation', 'humanitarian corridor'],
+    'offensive': ['defense', 'de-escalation', 'ceasefire', 'containment'],
+    'military': ['diplomacy', 'peacekeepers', 'humanitarian', 'civilian aid', 'international law'],
+    'army': ['diplomacy', 'peacekeepers', 'humanitarian', 'civilian aid'],
+    'acceleration': ['safety', 'precaution', 'ethics', 'sustainability', 'regulation'],
+    'growth': ['conservation', 'sustainability', 'steady state', 'circular economy'],
+    'centralization': ['decentralization', 'federation', 'local governance', 'user sovereignty'],
+    'capitalism': ['socialism', 'cooperative', 'public sector', 'commons', 'regulation'],
+    'free market': ['public goods', 'social welfare', 'antitrust', 'state planning'],
+    'socialism': ['capitalism', 'free market', 'privatization', 'individual enterprise'],
+    'surveillance': ['privacy', 'encryption', 'data sovereignty', 'confidentiality'],
+    'automation': ['human workforce', 'craftsmanship', 'labor dignity', 'human touch'],
+    'speculation': ['passive indexing', 'long term value', 'bogleheads', 'fiduciary'],
+    'trading': ['long term investing', 'index funds', 'value investing', 'buy and hold'],
+    'ai': ['safety', 'ethics', 'risks', 'regulation', 'humanities', 'human workforce'],
+    'crypto': ['regulation', 'traditional finance', 'central banks', 'gold'],
+    'bitcoin': ['central banks', 'gold', 'regulation', 'fiat currency'],
+    'climate': ['economy', 'energy security', 'industry', 'nuclear energy'],
+    'renewable energy': ['nuclear power', 'grid reliability', 'fossil fuels', 'energy transition'],
+    'nuclear': ['renewables', 'solar', 'wind', 'radiation safety'],
+    'vegan': ['carnivore', 'balanced nutrition', 'regenerative agriculture'],
+    'carnivore': ['plant-based', 'vegan', 'mediterranean diet'],
+    'pharmaceutical': ['holistic medicine', 'natural health', 'lifestyle medicine'],
+    'vaccine': ['natural immunity', 'immunology', 'medical autonomy'],
+    'medicine': ['preventative wellness', 'nutrition', 'holistic'],
+  };
+
+  /// Dimension 3: Opposing claims, framing & debate arguments
+  static const Map<String, List<String>> opposingClaims = {
+    'military necessity': ['civilian protection', 'international law', 'humanitarian crisis', 'proportionality', 'war crimes'],
+    'security first': ['root cause political resolution', 'diplomatic normalization', 'human rights', 'reconciliation'],
+    'ai inevitability': ['human oversight', 'algorithmic accountability', 'ethical alignment', 'safety bounds'],
+    'market efficiency': ['market failure', 'wealth disparity', 'environmental externalities', 'consumer exploitation'],
+    'tech solutionism': ['social roots', 'human centered design', 'nature balance', 'philosophical inquiry'],
+    'active trading beats market': ['efficient market hypothesis', 'passive indexing', 'low fee investing'],
+  };
+
+  /// Combined map for backward compatibility and general keyword indexing
+  static Map<String, List<String>> get oppositePairs {
+    final merged = <String, List<String>>{};
+    counterpartActors.forEach((k, v) => merged[k] = List.from(v));
+    conceptualContrasts.forEach((k, v) {
+      merged.putIfAbsent(k, () => []).addAll(v);
+    });
+    opposingClaims.forEach((k, v) {
+      merged.putIfAbsent(k, () => []).addAll(v);
+    });
+    return merged;
+  }
+
+  /// Checks if a keyword or phrase matches text on exact word boundaries
+  static bool _matchesTokenOrPhrase(String text, String term) {
+    final termLower = term.toLowerCase().trim();
+    if (termLower.isEmpty) return false;
+    final textLower = text.toLowerCase();
+
+    if (termLower.contains(' ')) {
+      return textLower.contains(termLower);
+    }
+    final regex = RegExp(r'\b' + RegExp.escape(termLower) + r'\b');
+    return regex.hasMatch(textLower);
+  }
 
   /// Get contrasting search terms/topics for a video
   List<String> getOppositeKeywords(Video video) {
     final titleLower = video.title.toLowerCase();
     final descriptionLower = video.description.toLowerCase();
     final topicsLower = video.topics.map((t) => t.toLowerCase()).toList();
-    final combined = '$titleLower $descriptionLower ${topicsLower.join(" ")}';
+    final tagsLower = video.tags.map((t) => t.toLowerCase()).toList();
+    final combined = '$titleLower $descriptionLower ${topicsLower.join(" ")} ${tagsLower.join(" ")}';
 
     final opposites = <String>{};
 
     oppositePairs.forEach((key, valList) {
-      if (combined.contains(key)) {
+      if (_matchesTokenOrPhrase(combined, key)) {
         opposites.addAll(valList);
       }
     });
@@ -182,33 +267,384 @@ class FlipCoinService extends GetxService {
     return opposites.toList();
   }
 
-  /// Score how contrasting a candidate video is relative to the currently playing video
-  double calculateContrastScore(Video currentVideo, Video candidateVideo) {
-    if (currentVideo.id == candidateVideo.id) return -1.0;
+  /// Get all opposite keywords for a user's interest profile
+  List<String> getOppositeKeywordsForProfile(UserInterestProfile profile) {
+    final searchTerms = <String>{};
 
-    var contrastScore = 0.0;
-    final currentKeywords = getOppositeKeywords(currentVideo);
-    final candidateText =
-        '${candidateVideo.title} ${candidateVideo.description} ${candidateVideo.topics.join(" ")}'
-            .toLowerCase();
+    // User's top topics
+    for (final topic in profile.top5Topics) {
+      final clean = topic.replaceFirst('topic:', '').toLowerCase();
+      searchTerms.add(clean);
+    }
+    for (final slug in profile.followedTopicSlugs) {
+      searchTerms.add(slug.toLowerCase());
+    }
 
-    // 1. Direct Keyword Contrast Match
-    for (final kw in currentKeywords) {
-      if (candidateText.contains(kw)) {
-        contrastScore += 0.5;
+    // User's dominant category & top categories
+    if (profile.dominantCategory != null) {
+      searchTerms.add(profile.dominantCategory!.toLowerCase());
+    }
+    for (final cat in profile.top3Categories) {
+      searchTerms.add(cat.toLowerCase());
+    }
+
+    // User's recent search queries
+    for (final q in profile.recentSearchQueries.take(5)) {
+      searchTerms.add(q.toLowerCase());
+    }
+
+    final opposites = <String>{};
+    for (final term in searchTerms) {
+      oppositePairs.forEach((key, valList) {
+        if (_matchesTokenOrPhrase(term, key) || _matchesTokenOrPhrase(key, term)) {
+          opposites.addAll(valList);
+        }
+      });
+    }
+
+    return opposites.toList();
+  }
+
+  /// Calculate how strongly a candidate video represents the OPPOSITE side to a user's interest profile.
+  /// Returns a score > 0.0 if the video qualifies as an opposite-side video.
+  /// Returns 0.0 if the video is on the user's SAME side (disqualified).
+  double calculateUserContrastScore(Video candidateVideo, UserInterestProfile? profile) {
+    // Disqualification 0: User's own video (creator is the user themselves)
+    if (profile != null && profile.userId.isNotEmpty && profile.userId == candidateVideo.ownerId) {
+      return 0.0;
+    }
+    if (Get.isRegistered<AuthService>()) {
+      final auth = Get.find<AuthService>();
+      if (auth.user?.uid != null && auth.user!.uid.isNotEmpty && auth.user!.uid == candidateVideo.ownerId) {
+        return 0.0;
+      }
+      if (auth.userChannel != null && auth.userChannel!.channelId == candidateVideo.channelId) {
+        return 0.0;
       }
     }
 
-    // 2. Different Channel (Opposite Voice)
-    if (currentVideo.channelId != candidateVideo.channelId) {
+    // Disqualification 1: Subscribed channel is user's established comfort side
+    if (profile != null && profile.subscribedChannelIds.contains(candidateVideo.channelId)) {
+      return 0.0;
+    }
+
+    // Disqualification 2: Negative feedback on candidate
+    if (profile != null &&
+        (profile.notInterestedVideoIds.contains(candidateVideo.id) ||
+            profile.blockedChannelIds.contains(candidateVideo.channelId) ||
+            profile.recentlyDislikedVideoIds.contains(candidateVideo.id))) {
+      return 0.0;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASE A: New user or no profile history (Cold Start)
+    // ─────────────────────────────────────────────────────────────────────────
+    if (profile == null || profile.isNewUser || profile.categoryAffinities.isEmpty) {
+      var coldStartContrast = 0.0;
+
+      // 1. Coin Battle debate pairs / stances
+      if (candidateVideo.coinBattlePairVideoId != null && candidateVideo.coinBattlePairVideoId!.isNotEmpty) {
+        coldStartContrast += 0.8;
+      }
+      if (candidateVideo.coinBattleStance != null && candidateVideo.coinBattleStance!.isNotEmpty) {
+        coldStartContrast += 0.6;
+      }
+
+      // 2. Contrarian / opposite keywords present
+      final candidateText =
+          '${candidateVideo.title} ${candidateVideo.description} ${candidateVideo.topics.join(" ")} ${candidateVideo.tags.join(" ")}'
+              .toLowerCase();
+      var contrarianMatches = 0;
+      for (final list in oppositePairs.values) {
+        for (final kw in list) {
+          if (_matchesTokenOrPhrase(candidateText, kw)) {
+            contrarianMatches++;
+            break;
+          }
+        }
+      }
+      if (contrarianMatches > 0) {
+        coldStartContrast += (0.4 * contrarianMatches).clamp(0.0, 1.0);
+      }
+
+      // 3. High credibility / fact-checked boost
+      if (candidateVideo.isFactChecked || candidateVideo.trustScore >= 3.5) {
+        coldStartContrast += 0.2;
+      }
+
+      // Cold start requires at least one genuine counter-signal (pair, stance, or contrarian keyword)
+      final hasContrarianSignal = (candidateVideo.coinBattlePairVideoId != null && candidateVideo.coinBattlePairVideoId!.isNotEmpty) ||
+          (candidateVideo.coinBattleStance != null && candidateVideo.coinBattleStance!.isNotEmpty) ||
+          contrarianMatches > 0;
+
+      if (!hasContrarianSignal) {
+        return 0.0; // DISQUALIFIED: regular videos without debate/contrarian content are NOT opposite
+      }
+
+      return coldStartContrast >= 0.4 ? coldStartContrast : 0.0;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASE B: User with established interest profile
+    // ─────────────────────────────────────────────────────────────────────────
+    var contrastScore = 0.0;
+    final candidateText =
+        '${candidateVideo.title} ${candidateVideo.description} ${candidateVideo.topics.join(" ")} ${candidateVideo.tags.join(" ")}'
+            .toLowerCase();
+
+    // 1. Direct Keyword Contrast Match with user's profile interests
+    final profileOppositeKeywords = getOppositeKeywordsForProfile(profile);
+    var keywordMatchCount = 0;
+    for (final kw in profileOppositeKeywords) {
+      if (_matchesTokenOrPhrase(candidateText, kw)) {
+        keywordMatchCount++;
+        contrastScore += 0.4;
+      }
+    }
+    contrastScore = contrastScore.clamp(0.0, 1.2);
+
+    // 2. Coin Battle / Opposite Stance Matching
+    if (candidateVideo.coinBattlePairVideoId != null && candidateVideo.coinBattlePairVideoId!.isNotEmpty) {
+      contrastScore += 0.6;
+    }
+    if (candidateVideo.coinBattleStance != null && candidateVideo.coinBattleStance!.isNotEmpty) {
+      contrastScore += 0.4;
+    }
+
+    // 3. Category Polarity / Contrast
+    final cat = candidateVideo.category.trim();
+    final catAffinity = profile.categoryAffinities[cat] ?? 0.0;
+
+    if (cat.isNotEmpty) {
+      final isTopCategory = profile.top3Categories.any((c) => c.toLowerCase() == cat.toLowerCase());
+
+      if (isTopCategory) {
+        // If it's in user's top category, it MUST have strong keyword/stance contrast to qualify!
+        if (keywordMatchCount == 0 && (candidateVideo.coinBattlePairVideoId == null || candidateVideo.coinBattlePairVideoId!.isEmpty)) {
+          // Pure same-side video in user's top category -> DISQUALIFY
+          return 0.0;
+        }
+      } else if (catAffinity < 0.15) {
+        // Video is from an alternative / under-explored category
+        contrastScore += 0.4;
+      }
+    }
+
+    // 4. Topic Affinity Inversion Check
+    final topicAffinity = profile.getCombinedTopicAffinity(candidateVideo.topics.cast<String>());
+    if (topicAffinity > 0.6 && keywordMatchCount == 0) {
+      // Strongly aligned with user's standard topic with 0 opposing viewpoint keywords -> DISQUALIFY
+      return 0.0;
+    }
+
+    // 5. Unfamiliar / Diverse Channel Boost
+    final channelWatches = profile.channelExposureCounts[candidateVideo.channelId] ?? 0;
+    if (channelWatches == 0) {
       contrastScore += 0.2;
     }
 
-    // 3. Same Category or Related Topic (Relevant context, but contrasting viewpoint)
-    if (currentVideo.category == candidateVideo.category) {
+    // 6. Credibility / Fact-Checked Bonus
+    if (candidateVideo.isFactChecked || candidateVideo.trustScore >= 3.5) {
       contrastScore += 0.2;
     }
 
-    return contrastScore;
+    // Minimum contrast threshold to qualify as opposite-side video
+    return contrastScore >= 0.3 ? contrastScore : 0.0;
   }
+
+  /// Helper boolean to check if candidate video qualifies as opposite side for user
+  bool isOppositeSideVideo(Video candidateVideo, UserInterestProfile? profile) {
+    return calculateUserContrastScore(candidateVideo, profile) > 0.0;
+  }
+
+  /// Score how contrasting a candidate video is relative to the currently playing video.
+  /// Returns a positive contrast score if candidate represents the opposite perspective.
+  /// Returns 0.0 if candidate is on the same side or not a contrasting perspective.
+  double calculateContrastScore(Video currentVideo, Video candidateVideo) {
+    return evaluateVideoContrast(currentVideo, candidateVideo).contrastScore;
+  }
+
+  /// Multi-dimensional evaluation of perspective contrast between two videos
+  ContrastEvaluation evaluateVideoContrast(Video currentVideo, Video candidateVideo) {
+    if (currentVideo.id == candidateVideo.id) {
+      return const ContrastEvaluation(
+        contrastScore: 0.0,
+        category: PerspectiveCategory.conceptualContrast,
+        explanation: 'Same video',
+      );
+    }
+
+    // Disqualification: Same creator is same side (unless explicitly an opposing coin-battle pair)
+    final isSameChannel = currentVideo.channelId == candidateVideo.channelId;
+    final isDirectPair = (currentVideo.coinBattlePairVideoId != null &&
+            currentVideo.coinBattlePairVideoId == candidateVideo.id) ||
+        (candidateVideo.coinBattlePairVideoId != null &&
+            candidateVideo.coinBattlePairVideoId == currentVideo.id);
+
+    if (isSameChannel && !isDirectPair) {
+      return const ContrastEvaluation(
+        contrastScore: 0.0,
+        category: PerspectiveCategory.conceptualContrast,
+        explanation: 'Same channel / creator',
+      );
+    }
+
+    // 1. Direct Coin Battle Pair Match (Highest priority counter-video)
+    if (isDirectPair) {
+      return const ContrastEvaluation(
+        contrastScore: 2.0,
+        category: PerspectiveCategory.directCounterDebate,
+        explanation: 'Direct Coin Battle Counter-Debate',
+        isDirectDebatePair: true,
+      );
+    }
+
+    final currentText =
+        '${currentVideo.title} ${currentVideo.description} ${currentVideo.topics.join(" ")} ${currentVideo.tags.join(" ")}'
+            .toLowerCase();
+    final candidateText =
+        '${candidateVideo.title} ${candidateVideo.description} ${candidateVideo.topics.join(" ")} ${candidateVideo.tags.join(" ")}'
+            .toLowerCase();
+
+    final matchedCounterparts = <String>[];
+    final matchedConcepts = <String>[];
+    final matchedClaims = <String>[];
+
+    // Dimension 1: Counterpart Actors & Affected Stakeholders
+    counterpartActors.forEach((entity, counterparts) {
+      if (_matchesTokenOrPhrase(currentText, entity)) {
+        for (final cp in counterparts) {
+          if (_matchesTokenOrPhrase(candidateText, cp) && !matchedCounterparts.contains(cp)) {
+            matchedCounterparts.add(cp);
+          }
+        }
+      }
+    });
+
+    // Dimension 2: Conceptual Contrasts (e.g. War ↔ Peace, Attack ↔ Ceasefire)
+    conceptualContrasts.forEach((concept, contrasts) {
+      if (_matchesTokenOrPhrase(currentText, concept)) {
+        for (final c in contrasts) {
+          if (_matchesTokenOrPhrase(candidateText, c) && !matchedConcepts.contains(c)) {
+            matchedConcepts.add(c);
+          }
+        }
+      }
+    });
+
+    // Dimension 3: Opposing Claims & Stances
+    opposingClaims.forEach((claim, counterClaims) {
+      if (_matchesTokenOrPhrase(currentText, claim)) {
+        for (final cc in counterClaims) {
+          if (_matchesTokenOrPhrase(candidateText, cc) && !matchedClaims.contains(cc)) {
+            matchedClaims.add(cc);
+          }
+        }
+      }
+    });
+
+    // Check Opposing Stance
+    final isOpposingStance = currentVideo.coinBattleStance != null &&
+        candidateVideo.coinBattleStance != null &&
+        currentVideo.coinBattleStance!.isNotEmpty &&
+        candidateVideo.coinBattleStance!.isNotEmpty &&
+        currentVideo.coinBattleStance != candidateVideo.coinBattleStance;
+
+    var contrastScore = 0.0;
+    if (isOpposingStance) {
+      contrastScore += 1.0;
+    } else if (candidateVideo.coinBattleStance != null &&
+        candidateVideo.coinBattleStance!.isNotEmpty) {
+      contrastScore += 0.4;
+    }
+
+    contrastScore += (matchedCounterparts.length * 0.5);
+    contrastScore += (matchedConcepts.length * 0.5);
+    contrastScore += (matchedClaims.length * 0.4);
+
+    if (currentVideo.category == candidateVideo.category && !isSameChannel && contrastScore > 0) {
+      contrastScore += 0.2;
+    }
+    if (candidateVideo.isFactChecked || candidateVideo.trustScore >= 3.5) {
+      contrastScore += 0.2;
+    }
+    contrastScore = contrastScore.clamp(0.0, 2.0);
+
+    // Determine Perspective Category & Explanation
+    PerspectiveCategory category;
+    String explanation;
+
+    final isDiplomatic = matchedCounterparts.contains('un') ||
+        matchedConcepts.contains('diplomacy') ||
+        matchedConcepts.contains('ceasefire') ||
+        matchedConcepts.contains('treaty') ||
+        matchedConcepts.contains('mediation');
+
+    if (isDiplomatic) {
+      category = PerspectiveCategory.diplomaticInstitutional;
+      explanation = 'Diplomatic & Ceasefire Perspective';
+    } else if (matchedCounterparts.isNotEmpty) {
+      category = PerspectiveCategory.counterpartActor;
+      explanation = 'Counterpart Perspective: ${matchedCounterparts.take(2).join(", ")}';
+    } else if (isOpposingStance || matchedClaims.isNotEmpty) {
+      category = PerspectiveCategory.opposingClaim;
+      explanation = isOpposingStance
+          ? 'Opposing Stance: ${candidateVideo.coinBattleStance}'
+          : 'Counter-Claim: ${matchedClaims.take(2).join(", ")}';
+    } else if (matchedConcepts.isNotEmpty) {
+      category = PerspectiveCategory.conceptualContrast;
+      explanation = 'Conceptual Contrast: ${matchedConcepts.take(2).join(", ")}';
+    } else {
+      category = PerspectiveCategory.conceptualContrast;
+      explanation = 'Opposing Perspective';
+    }
+
+    final finalScore = contrastScore >= 0.4 ? contrastScore : 0.0;
+
+    return ContrastEvaluation(
+      contrastScore: finalScore,
+      category: category,
+      explanation: explanation,
+      matchedCounterparts: matchedCounterparts,
+      matchedConcepts: matchedConcepts,
+      matchedClaims: matchedClaims,
+      isDirectDebatePair: false,
+      isOpposingStance: isOpposingStance,
+    );
+  }
+}
+
+/// Distinct perspective classifications for counter-videos
+enum PerspectiveCategory {
+  directCounterDebate,     // Explicit Coin Battle paired debate video
+  counterpartActor,        // Counterpart leader/government or affected party (e.g. Iran, Palestine, Opposition)
+  diplomaticInstitutional, // UN, international diplomacy, mediation, legal/treaty monitors
+  conceptualContrast,      // Direct conceptual contrast (e.g. peace, ceasefire, safety, de-escalation)
+  opposingClaim,           // Specific counter-claim (e.g. civilian protection, labor rights, privacy)
+  alternativeParadigm,     // Diverse under-explored category or alternative domain paradigm
+}
+
+/// Detailed evaluation of perspective contrast between two videos
+class ContrastEvaluation {
+  final double contrastScore;
+  final PerspectiveCategory category;
+  final String explanation;
+  final List<String> matchedCounterparts;
+  final List<String> matchedConcepts;
+  final List<String> matchedClaims;
+  final bool isDirectDebatePair;
+  final bool isOpposingStance;
+
+  const ContrastEvaluation({
+    required this.contrastScore,
+    required this.category,
+    required this.explanation,
+    this.matchedCounterparts = const [],
+    this.matchedConcepts = const [],
+    this.matchedClaims = const [],
+    this.isDirectDebatePair = false,
+    this.isOpposingStance = false,
+  });
+
+  bool get qualifies => contrastScore >= 0.4;
 }

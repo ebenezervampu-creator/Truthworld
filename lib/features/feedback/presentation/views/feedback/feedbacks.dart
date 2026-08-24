@@ -3,11 +3,9 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -23,7 +21,6 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
   final RxBool isSubmitting = false.obs;
   final RxString appVersion = 'Unknown'.obs;
   final RxMap<String, dynamic> deviceInfo = <String, dynamic>{}.obs;
-  final RxList<XFile> attachments = <XFile>[].obs;
 
   final List<String> feedbackTypes = [
     'Bug',
@@ -74,18 +71,6 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
     deviceInfo.assignAll(info);
   }
 
-  Future<void> pickImages() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickMultiImage();
-    if (picked.isNotEmpty) {
-      attachments.addAll(picked);
-    }
-  }
-
-  void removeAttachment(int index) {
-    attachments.removeAt(index);
-  }
-
   Future<void> submitFeedback() async {
     if (!formKey.currentState!.validate() || isSubmitting.value) return;
 
@@ -111,25 +96,7 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
     try {
       final user = FirebaseAuth.instance.currentUser;
 
-      // 1. Upload attachments if any
-      final imageUrls = <String>[];
-      for (final file in attachments) {
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('feedback_attachments')
-            .child(
-              '${DateTime.now().millisecondsSinceEpoch}_${file.name}',
-            );
-
-        if (kIsWeb) {
-          await ref.putData(await file.readAsBytes());
-        } else {
-          await ref.putFile(File(file.path));
-        }
-        imageUrls.add(await ref.getDownloadURL());
-      }
-
-      // 2. Submit to Firestore
+      // Submit to Firestore
       final feedbackData = {
         'userId': user?.uid ?? 'anonymous',
         'userEmail': user?.email ?? 'anonymous',
@@ -140,7 +107,6 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
         'status': 'new',
         'appVersion': appVersion.value,
         'deviceInfo': Map<String, dynamic>.from(deviceInfo),
-        'attachments': imageUrls,
       };
 
       await FirebaseFirestore.instance
@@ -150,7 +116,6 @@ class SendFeedbackController extends BaseController with ContentValidationMixin 
       // Reset UI
       feedbackController.clear();
       rating.value = 0;
-      attachments.clear();
 
       Get.snackbar(
         'Success',
@@ -296,8 +261,6 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                     _buildRatingSection(context),
                     const SizedBox(height: 24),
                     _buildMessageInput(context),
-                    const SizedBox(height: 24),
-                    _buildImageUploadSection(context),
                     const SizedBox(height: 48),
                     _buildSubmitButton(context),
                     const SizedBox(height: 40),
@@ -507,122 +470,6 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
           validator: ContentValidator.formValidator(
             'Feedback',
             minLength: 5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildImageUploadSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'ATTACHMENTS',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-                letterSpacing: 1.2,
-              ),
-            ),
-            Obx(
-              () => Text(
-                '${controller.attachments.length}/5',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.colors.textSecondary,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Obx(
-          () => Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              ...controller.attachments.asMap().entries.map((entry) {
-                final index = entry.key;
-                final file = entry.value;
-                return Stack(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: kIsWeb
-                              ? NetworkImage(file.path)
-                              : FileImage(File(file.path)) as ImageProvider,
-                          fit: BoxFit.cover,
-                        ),
-                        border: Border.all(
-                          color: context.colors.divider.withValues(alpha: 0.2),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: -4,
-                      right: -4,
-                      child: InkWell(
-                        onTap: () => controller.removeAttachment(index),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: AppColors.bgPage,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            size: 14,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }),
-              if (controller.attachments.length < 5)
-                InkWell(
-                  onTap: controller.pickImages,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: context.colors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: context.colors.divider.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.add_photo_alternate_outlined,
-                          color: AppColors.textPrimary,
-                          size: 28,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Add',
-                          style: TextStyle(
-                            color: context.colors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
           ),
         ),
       ],

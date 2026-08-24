@@ -186,14 +186,21 @@ class DashboardController extends BaseController {
             final channel = Channel.fromDocumentSnapshot(snapshot);
             currentChannel.value = channel;
 
-            if (channel.status == ChannelStatus.active) {
-              final storage = GetStorage();
-              final key = 'approval_shown_${channel.id}';
-              final shown = storage.read<bool>(key) ?? false;
-              if (!shown) {
-                showApprovalBanner.value = true;
-                storage.write(key, true);
-              }
+            final isDismissedInDoc =
+                snapshot.data()?['brandingApprovedDismissed'] == true ||
+                    snapshot.data()?['approvalBannerDismissed'] == true ||
+                    channel.brandingApprovedDismissed;
+            final isDismissedInStorage =
+                GetStorage().read<bool>('approval_shown_${channel.id}') == true;
+
+            if (isDismissedInDoc || isDismissedInStorage) {
+              showApprovalBanner.value = false;
+            } else if (channel.status == ChannelStatus.active ||
+                channel.geminiApproved == true) {
+              showApprovalBanner.value = true;
+              GetStorage().write('approval_shown_${channel.id}', true);
+            } else {
+              showApprovalBanner.value = false;
             }
 
             channelStats.value = {
@@ -361,6 +368,26 @@ class DashboardController extends BaseController {
   void toggleDrawer() => isDrawerExpanded.value = !isDrawerExpanded.value;
   void setSearchQuery(String query) => searchQuery.value = query;
   void retryLoad() => _initializeData();
+
+  Future<void> dismissApprovalBanner() async {
+    showApprovalBanner.value = false;
+    final targetId =
+        channelId.isNotEmpty ? channelId : (currentChannel.value?.id ?? '');
+    if (targetId.isNotEmpty) {
+      GetStorage().write('approval_shown_$targetId', true);
+      try {
+        await _firestore
+            .collection(FirestoreCollections.channels)
+            .doc(targetId)
+            .update({
+          'brandingApprovedDismissed': true,
+          'approvalBannerDismissed': true,
+        });
+      } catch (e) {
+        debugPrint('Error updating approval banner dismissal in Firestore: $e');
+      }
+    }
+  }
 }
 
 class DashboardScreen extends StatefulWidget {
@@ -1254,6 +1281,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'target': 3,
       },
       {
+        'icon': Icons.auto_awesome_rounded,
+        'label': 'Creator Intelligence',
+        'color': const Color(0xFF8B5CF6),
+        'action': 'select',
+        'target': 16,
+      },
+      {
         'icon': Icons.category_rounded,
         'label': 'Category Insights',
         'color': const Color(0xFF6366F1),
@@ -1676,27 +1710,15 @@ class _DashboardScreenState extends State<DashboardScreen>
               if (controller.showApprovalBanner.value) {
                 return _buildApprovalBanner(isDarkMode);
               }
-              return const SizedBox.shrink();
             }
-            return _buildModerationStatusBanner(isDarkMode, ch);
+            return const SizedBox.shrink();
           }),
           Obx(() {
             final ch = controller.currentChannel.value;
             if (ch == null) return const SizedBox.shrink();
-            return _buildImageVerificationBanner(isDarkMode, ch);
+            return _buildTruthworldIssuesDashboardNotice(isDarkMode, ch);
           }),
           _buildChannelStatsGrid(isDarkMode),
-          Obx(() {
-            if (controller.copyrightClaimsCount.value > 0) {
-              return Column(
-                children: [
-                  const SizedBox(height: 24),
-                  _buildChannelViolationsCard(isDarkMode),
-                ],
-              );
-            }
-            return const SizedBox.shrink();
-          }),
           const SizedBox(height: 32),
           _buildRecentPerformanceSection(isDarkMode),
           const SizedBox(height: 32),
@@ -1705,6 +1727,114 @@ class _DashboardScreenState extends State<DashboardScreen>
           _buildLatestContentSection(isDarkMode),
           const SizedBox(height: 32),
           _buildQuickActionsSection(isDarkMode),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTruthworldIssuesDashboardNotice(
+      bool isDarkMode, Channel channel) {
+    final issues = <String>[];
+    if (channel.status == ChannelStatus.verificationRejected) {
+      issues.add('Branding Verification Rejected');
+    } else if (channel.status == ChannelStatus.underReview) {
+      issues.add('Branding Under Review');
+    }
+
+    if (channel.avatarStatus == 'REJECTED') {
+      issues.add('Avatar Rejected');
+    } else if (channel.avatarStatus == 'FLAGGED' ||
+        channel.avatarStatus == 'MANUAL_REVIEW') {
+      issues.add('Avatar Review Needed');
+    }
+
+    if (channel.bannerStatus == 'REJECTED') {
+      issues.add('Banner Rejected');
+    } else if (channel.bannerStatus == 'FLAGGED' ||
+        channel.bannerStatus == 'MANUAL_REVIEW') {
+      issues.add('Banner Review Needed');
+    }
+
+    if (controller.copyrightClaimsCount.value > 0) {
+      issues.add(
+          '${controller.copyrightClaimsCount.value} Copyright Claim(s)');
+    }
+
+    if (issues.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Truthworld Notices & Action Required',
+                  style: TextStyle(
+                    color: Color(0xFFEF4444),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Active issues: ${issues.join(' • ')}. Review audit details, guideline feedback, and appeal options on the Creator Intelligence page.',
+                  style: TextStyle(
+                    color:
+                        isDarkMode ? AppColors.textSecondary : Colors.black87,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    controller.setSelectedIndex(16); // Creator Intelligence
+                  },
+                  icon: const Icon(Icons.insights_rounded,
+                      color: Colors.white, size: 16),
+                  label: const Text('Open Creator Intelligence'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2422,7 +2552,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           const Icon(
             Icons.check_circle_outline_rounded,
-            color: bannerColor,
+            color: Colors.white,
             size: 28,
           ),
           const SizedBox(width: 16),
@@ -2455,10 +2585,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           IconButton(
             onPressed: () {
-              controller.showApprovalBanner.value = false;
+              controller.dismissApprovalBanner();
             },
-            icon: const Icon(Icons.close_rounded),
-            color: isDarkMode ? AppColors.textSecondary : Colors.black,
+            icon: const Icon(Icons.close_rounded, color: Colors.white),
             iconSize: 20,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

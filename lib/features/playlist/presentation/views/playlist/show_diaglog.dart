@@ -8,9 +8,6 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-final PlaylistController playlistController = Get.find<PlaylistController>();
-final PlaylistDialogController playlistDialogController = Get.find<PlaylistDialogController>();
-
 void showModernizedPlaylistDialog({
   required BuildContext context,
   required String videoId,
@@ -63,7 +60,8 @@ class _ModernizedPlaylistDialog extends StatefulWidget {
 class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     with TickerProviderStateMixin {
   final TextEditingController newPlaylistCtrl = TextEditingController();
-  late PlaylistDialogController _dialogController;
+  late final PlaylistController _playlistController;
+  late final PlaylistDialogController _dialogController;
   final RxBool _isPublicNewPlaylist = false.obs;
   PlaylistModel? _selectedPlaylist;
 
@@ -75,7 +73,13 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   @override
   void initState() {
     super.initState();
-    _dialogController = Get.find<PlaylistDialogController>();
+    _playlistController = Get.isRegistered<PlaylistController>()
+        ? Get.find<PlaylistController>()
+        : Get.put(PlaylistController());
+    _dialogController = Get.isRegistered<PlaylistDialogController>()
+        ? Get.find<PlaylistDialogController>()
+        : Get.put(PlaylistDialogController());
+    _dialogController.resetForm();
     _initializeAnimations();
   }
 
@@ -110,6 +114,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     _scaleController.dispose();
     _listController.dispose();
     newPlaylistCtrl.dispose();
+    if (Get.isRegistered<PlaylistDialogController>()) {
+      Get.delete<PlaylistDialogController>();
+    }
     super.dispose();
   }
 
@@ -415,8 +422,8 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   Widget _buildPlaylistsList(ColorScheme colorScheme, bool isTablet) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     return Obx(() {
-      final userPrivatePlaylists = playlistController.playlists.toList();
-      final userPublicPlaylists = playlistController.publicPlaylists
+      final userPrivatePlaylists = _playlistController.playlists.toList();
+      final userPublicPlaylists = _playlistController.publicPlaylists
           .where((p) => p.ownerId == uid)
           .toList();
 
@@ -425,7 +432,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
       // Watch Later playlist included at top of private playlists
       if (uid.isNotEmpty) {
-        final watchLaterPlaylist = playlistController.getWatchLaterPlaylist();
+        final watchLaterPlaylist = _playlistController.getWatchLaterPlaylist();
         if (watchLaterPlaylist != null) {
           allPlaylists.add(watchLaterPlaylist);
           seenIds.add('watchlater');
@@ -469,11 +476,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
       final isWatchLater = playlist.id == 'watchlater';
       final isInPlaylist = isWatchLater
-          ? playlistController.isInWatchLater(widget.videoId)
+          ? _playlistController.isInWatchLater(widget.videoId)
           : playlist.videoIds.contains(widget.videoId);
 
       final videoCountText = isWatchLater
-          ? '${playlistController.watchLaterVideoIds.length} videos'
+          ? '${_playlistController.watchLaterVideoIds.length} videos'
           : '${playlist.videoCount} videos';
 
       final subtitle =
@@ -707,7 +714,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                 final isWatchLater = selectedId == 'watchlater';
                 final isInWatchLater =
                     isWatchLater &&
-                    playlistController.isInWatchLater(widget.videoId);
+                    _playlistController.isInWatchLater(widget.videoId);
                 final isInPlaylist =
                     !isWatchLater &&
                     isSelected &&
@@ -790,7 +797,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
       final theme = Theme.of(context);
       final navigator = Navigator.of(context);
 
-      final newPlaylist = await playlistController.createPlayList(
+      final newPlaylist = await _playlistController.createPlayList(
         name,
         isPublic: _isPublicNewPlaylist.value,
         videoIds: [widget.videoId],
@@ -846,8 +853,8 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
     try {
       if (selectedId == 'watchlater') {
-        final wasIn = playlistController.isInWatchLater(widget.videoId);
-        await playlistController.toggleWatchLater(widget.videoId);
+        final wasIn = _playlistController.isInWatchLater(widget.videoId);
+        await _playlistController.toggleWatchLater(widget.videoId);
         if (mounted) {
           navigator.pop();
           messenger.showSnackBar(
@@ -869,7 +876,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             _selectedPlaylist?.videoIds.contains(widget.videoId) ?? false;
 
         if (isAlreadyIn) {
-          await playlistController.removeVideoFromPlaylist(
+          await _playlistController.removeVideoFromPlaylist(
             selectedId,
             widget.videoId,
             isPublic,
@@ -888,7 +895,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             );
           }
         } else {
-          await playlistController.addVideoToPlaylist(
+          await _playlistController.addVideoToPlaylist(
             selectedId,
             widget.videoId,
             isPublic,

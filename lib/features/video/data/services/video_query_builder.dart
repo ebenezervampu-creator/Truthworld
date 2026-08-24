@@ -13,6 +13,8 @@ class VideoQueryBuilder {
     String? category,
     String? topicId,
     String? channelId,
+    String orderByField = 'uploadedAt',
+    bool descending = true,
   }) {
     Query query = firestore
         .collection(collectionName)
@@ -20,13 +22,13 @@ class VideoQueryBuilder {
         .where(
           'visibility',
           isEqualTo: VideoVisibilityPolicy.publicVisibilityString,
-        )
-        .orderBy('uploadedAt', descending: true);
+        );
 
     final isSpecialCategory = category == null ||
         category.isEmpty ||
         category == 'All' ||
         category == 'Subscriptions' ||
+        category == 'Flip Coin' ||
         category == '🪙 Flip Coin' ||
         category == 'Posts' ||
         category == '🔥 Trending' ||
@@ -47,6 +49,8 @@ class VideoQueryBuilder {
     if (channelId != null && channelId.isNotEmpty) {
       query = query.where('channelId', isEqualTo: channelId);
     }
+
+    query = query.orderBy(orderByField, descending: descending);
 
     if (startAfter != null) {
       query = query.startAfterDocument(startAfter);

@@ -88,21 +88,49 @@ class _ModernAvatar extends StatelessWidget {
 }
 
 class HoverPreviewCoordinator {
-  static final RxBool globalMute = true.obs;
+  static final RxBool globalMute = false.obs;
   static _VideoCardState? _activeCardState;
-  static Worker? _muteWorker;
+
+  /// Checks if any active main video playback on Homepage or VideoScreen is currently muted.
+  static bool isMainVideoMuted() {
+    // 1. Check all active TowerPlayerController instances (Watch Screen / Video Screen / Tower Player)
+    for (final player in TowerPlayerController.activePlayers) {
+      if (player.isMuted.value || player.volume.value == 0.0) {
+        return true;
+      }
+    }
+    if (Get.isRegistered<TowerPlayerController>()) {
+      try {
+        final tower = Get.find<TowerPlayerController>();
+        if (tower.isMuted.value || tower.volume.value == 0.0) {
+          return true;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Check MiniplayerController (Homepage / Persistent miniplayer)
+    if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
+      try {
+        final mini = Get.find<MiniplayerController>(tag: 'miniplayer');
+        if (mini.isPlaying.value) {
+          if (mini.isMuted.value ||
+              (mini.videoPlayerController?.value.volume ?? 1.0) == 0.0) {
+            return true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return false;
+  }
 
   static void setActiveCard(dynamic cardState) {
     if (cardState is! _VideoCardState) return;
-    _muteWorker ??= ever(globalMute, (isMuted) {
-        if (!isMuted) {
-          pauseAllMainPlayers();
-        }
-      });
     if (_activeCardState != null && _activeCardState != cardState) {
       _activeCardState!._handleHoverExit();
     }
     _activeCardState = cardState;
+    pauseAllMainPlayers();
   }
 
   static void clearActiveCard(dynamic cardState) {
@@ -175,7 +203,12 @@ class _VideoCardState extends State<VideoCard> {
     _muteWorker = ever(HoverPreviewCoordinator.globalMute, (isMuted) {
       if (_videoPlayerController.value != null &&
           _isControllerInitialized.value) {
-        _videoPlayerController.value!.setVolume(isMuted ? 0.0 : 1.0);
+        if (isMuted) {
+          _videoPlayerController.value!.setVolume(0.0);
+        } else {
+          HoverPreviewCoordinator.pauseAllMainPlayers();
+          _videoPlayerController.value!.setVolume(1.0);
+        }
       }
     });
   }
@@ -326,7 +359,6 @@ class _VideoCardState extends State<VideoCard> {
             .getDownloadURL();
       } catch (e) {
         debugPrint('Error resolving storage preview URL ($previewUrl): $e');
-        // Fallback: try StorageUtils
         final fallback = StorageUtils.getFastDownloadUrl(previewUrl);
         if (fallback.isNotEmpty && fallback != previewUrl) {
           previewUrl = fallback;
@@ -346,10 +378,13 @@ class _VideoCardState extends State<VideoCard> {
       if (mounted &&
           _isHovered.value &&
           _videoPlayerController.value == controller) {
-        HoverPreviewCoordinator.setActiveCard(this);
-        await controller.setVolume(
-          HoverPreviewCoordinator.globalMute.value ? 0.0 : 1.0,
-        );
+        final isMuted = HoverPreviewCoordinator.globalMute.value;
+        if (!isMuted) {
+          HoverPreviewCoordinator.setActiveCard(this);
+          await controller.setVolume(1.0);
+        } else {
+          await controller.setVolume(0.0);
+        }
         await controller.setLooping(true);
         await controller.play();
         _isControllerInitialized.value = true;
@@ -369,7 +404,7 @@ class _VideoCardState extends State<VideoCard> {
     if (widget.disableHoverPreview) return;
     _isHovered.value = true;
     _hoverTimer?.cancel();
-    _hoverTimer = Timer(const Duration(milliseconds: 600), () {
+    _hoverTimer = Timer(const Duration(milliseconds: 500), () {
       if (mounted && _isHovered.value) {
         _initializePreviewPlayer();
       }
@@ -387,8 +422,6 @@ class _VideoCardState extends State<VideoCard> {
 
   void _handleVisibilityChanged(double visibleFraction) {
     if (!mounted || widget.disableHoverPreview) return;
-    // On web platforms (including mobile web), disable scroll-triggered video auto-preview
-    // to prevent browser video decoder exhaustion, memory spikes, and scroll freezing.
     if (kIsWeb) return;
     final isMobile =
         defaultTargetPlatform == TargetPlatform.android ||
@@ -408,19 +441,16 @@ class _VideoCardState extends State<VideoCard> {
 
   void _handleTap(BuildContext context) {
     DeepLinkService.instance.cacheVideo(widget.video);
-    // Register controller in handoff if initialized to prevent re-buffering
     final controller = _videoPlayerController.value;
-    if (controller != null && _isControllerInitialized.value) {
+    if (controller != null && _isControllerInitialized.value && !kIsWeb) {
       VideoPlaybackHandoff.registerActiveController(
         widget.video.id,
         controller,
       );
-      // Clear references to prevent disposal on exit
       _videoPlayerController.value = null;
       _isControllerInitialized.value = false;
       _isLoadingVideo.value = false;
-    } else {
-      // Pre-warm CDN stream immediately for zero-latency startup
+    } else if (!kIsWeb) {
       VideoPlaybackHandoff.prewarmVideo(widget.video);
     }
 
@@ -599,7 +629,6 @@ class _VideoCardState extends State<VideoCard> {
           child: Obx(() {
             final isInitialized = _isControllerInitialized.value;
             final controller = _videoPlayerController.value;
-            final isMutedVal = HoverPreviewCoordinator.globalMute.value;
             final hovered = _isHovered.value;
 
             return GestureDetector(
@@ -639,119 +668,139 @@ class _VideoCardState extends State<VideoCard> {
                   if (!isInitialized)
                     Container(
                       decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          AppColors.bgPage.withValues(alpha: 0.3),
-                        ],
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            AppColors.bgPage.withValues(alpha: 0.3),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                // Fact Checked badge
-                if (widget.video.isFactChecked)
-                  Positioned(
-                    top: AppTheme.spacing.xs,
-                    left: AppTheme.spacing.xs,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppTheme.spacing.xs * 1.5,
-                        vertical: AppTheme.spacing.xs / 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(
-                          0xFF10B981,
-                        ).withValues(alpha: 0.95), // Emerald green
-                        borderRadius: AppTheme.radius.circularMd,
-                        border: Border.all(
-                          color: AppColors.textPrimary.withValues(alpha: 0.15),
-                          width: 0.5,
+                  // Fact Checked badge
+                  if (widget.video.isFactChecked)
+                    Positioned(
+                      top: AppTheme.spacing.xs,
+                      left: AppTheme.spacing.xs,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacing.xs * 1.5,
+                          vertical: AppTheme.spacing.xs / 2,
                         ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFF10B981,
+                          ).withValues(alpha: 0.95), // Emerald green
+                          borderRadius: AppTheme.radius.circularMd,
+                          border: Border.all(
+                            color: AppColors.textPrimary.withValues(alpha: 0.15),
+                            width: 0.5,
                           ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified_rounded,
-                            color: AppColors.textPrimary,
-                            size: 11,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Fact Checked',
-                            style: TextStyle(
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.verified_rounded,
                               color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 9,
-                              letterSpacing: 0.3,
+                              size: 11,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Fact Checked',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 9,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  // Duration badge
+                  if (!isInitialized)
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgPage.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          widget.video.duration,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Audio toggle button when hover preview is active
+                  if (isInitialized)
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () async {
+                          final newMute =
+                              !HoverPreviewCoordinator.globalMute.value;
+                          HoverPreviewCoordinator.globalMute.value = newMute;
+                          if (newMute) {
+                            await _videoPlayerController.value
+                                ?.setVolume(0.0);
+                          } else {
+                            HoverPreviewCoordinator.pauseAllMainPlayers();
+                            await _videoPlayerController.value
+                                ?.setVolume(1.0);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgPage.withValues(alpha: 0.8),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.textPrimary
+                                  .withValues(alpha: 0.2),
+                              width: 0.5,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                // Duration badge / mute indicator
-                if (!isInitialized)
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgPage.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        widget.video.duration,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                          child: Obx(() {
+                            final isMuted =
+                                HoverPreviewCoordinator.globalMute.value;
+                            return Icon(
+                              isMuted
+                                  ? Icons.volume_off_rounded
+                                  : Icons.volume_up_rounded,
+                              color: AppColors.textPrimary,
+                              size: 16,
+                            );
+                          }),
                         ),
                       ),
                     ),
-                  ),
-                // Sound / Mute toggle overlay button (Truthworld style)
-                if (isInitialized)
-                  Positioned(
-                    bottom: 8,
-                    left: 8,
-                    child: GestureDetector(
-                      onTap: () {
-                        HoverPreviewCoordinator.globalMute.value = !isMutedVal;
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgPage.withValues(alpha: 0.7),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isMutedVal
-                              ? Icons.volume_off_rounded
-                              : Icons.volume_up_rounded,
-                          color: AppColors.textPrimary,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                // Watch Later and Add to Queue overlay icons when hovered (Truthworld style)
-                if (hovered)
-                  Positioned(
-                    top: 8,
-                    right: 8,
+                  // Watch Later and Add to Queue overlay icons when hovered (Truthworld style)
+                  if (hovered)
+                    Positioned(
+                      top: 8,
+                      right: 8,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [

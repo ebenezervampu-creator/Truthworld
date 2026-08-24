@@ -267,7 +267,7 @@ class _AudiencePageState extends State<AudiencePage> {
     final returning = controller.returningViewers.value;
     final unique = controller.totalUniqueViewers.value > 0
         ? controller.totalUniqueViewers.value
-        : (views > 0 ? (views * 0.85).round() : 0);
+        : views;
     final netSubs = controller.netSubscribers;
     final unSubPct = controller.notSubscribedPercentage;
 
@@ -523,9 +523,13 @@ class _AudiencePageState extends State<AudiencePage> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    notSubPct > 50
-                        ? '${notSubPct.toStringAsFixed(0)}% of your viewers are not subscribed. Use call-to-actions and interactive end cards to convert them!'
-                        : 'High subscriber loyalty! Your core subscribers are actively consuming new releases.',
+                    controller.totalViews.value == 0
+                        ? 'No watch time recorded yet for this channel.'
+                        : (notSubPct == 0 && subPct == 0
+                            ? 'No watch time breakdown recorded yet.'
+                            : (notSubPct > 50
+                                ? '${notSubPct.toStringAsFixed(0)}% of your viewers are not subscribed. Use call-to-actions and interactive end cards to convert them!'
+                                : 'High subscriber loyalty! Your core subscribers are actively consuming new releases.')),
                     style: TextStyle(
                       fontSize: 12,
                       color: subtitleColor,
@@ -658,7 +662,7 @@ class _AudiencePageState extends State<AudiencePage> {
           ),
           const SizedBox(height: 18),
           ...ageMap.entries.map((entry) {
-            final isTop = entry.value >= 30.0;
+            final isTop = entry.value >= 30.0 && entry.value > 0;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
@@ -681,7 +685,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       child: LinearProgressIndicator(
                         value: entry.value > 0
                             ? (entry.value / 100).clamp(0.01, 1.0)
-                            : 0.005,
+                            : 0.0,
                         backgroundColor:
                             const Color(0xFF6366F1).withValues(alpha: 0.1),
                         valueColor: AlwaysStoppedAnimation(
@@ -723,9 +727,10 @@ class _AudiencePageState extends State<AudiencePage> {
     Color subtitleColor,
   ) {
     final genderMap = controller.genderDistribution;
-    final malePct = genderMap['Male'] ?? 64.6;
-    final femalePct = genderMap['Female'] ?? 33.2;
-    final otherPct = genderMap['User specified / Other'] ?? 2.2;
+    final malePct = genderMap['Male'] ?? 0.0;
+    final femalePct = genderMap['Female'] ?? 0.0;
+    final otherPct = genderMap['User specified / Other'] ?? 0.0;
+    final hasGenderData = (malePct + femalePct + otherPct) > 0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -781,22 +786,31 @@ class _AudiencePageState extends State<AudiencePage> {
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               height: 14,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: (malePct * 10).round(),
-                    child: Container(color: const Color(0xFF3B82F6)),
-                  ),
-                  Expanded(
-                    flex: (femalePct * 10).round(),
-                    child: Container(color: const Color(0xFFEC4899)),
-                  ),
-                  Expanded(
-                    flex: (otherPct * 10).round().clamp(1, 100),
-                    child: Container(color: const Color(0xFF8B5CF6)),
-                  ),
-                ],
-              ),
+              child: hasGenderData
+                  ? Row(
+                      children: [
+                        if (malePct > 0)
+                          Expanded(
+                            flex: (malePct * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFF3B82F6)),
+                          ),
+                        if (femalePct > 0)
+                          Expanded(
+                            flex: (femalePct * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFFEC4899)),
+                          ),
+                        if (otherPct > 0)
+                          Expanded(
+                            flex: (otherPct * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFF8B5CF6)),
+                          ),
+                      ],
+                    )
+                  : Container(
+                      color: widget.isDarkMode
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFFE2E8F0),
+                    ),
             ),
           ),
           const SizedBox(height: 20),
@@ -958,18 +972,26 @@ class _AudiencePageState extends State<AudiencePage> {
             borderRadius: BorderRadius.circular(6),
             child: SizedBox(
               height: 10,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: (newPct * 10).round().clamp(1, 1000),
-                    child: Container(color: const Color(0xFF3B82F6)),
-                  ),
-                  Expanded(
-                    flex: (retPct * 10).round().clamp(1, 1000),
-                    child: Container(color: const Color(0xFF6366F1)),
-                  ),
-                ],
-              ),
+              child: (newPct > 0 || retPct > 0)
+                  ? Row(
+                      children: [
+                        if (newPct > 0)
+                          Expanded(
+                            flex: (newPct * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFF3B82F6)),
+                          ),
+                        if (retPct > 0)
+                          Expanded(
+                            flex: (retPct * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFF6366F1)),
+                          ),
+                      ],
+                    )
+                  : Container(
+                      color: widget.isDarkMode
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFFE2E8F0),
+                    ),
             ),
           ),
           const SizedBox(height: 20),
@@ -997,18 +1019,26 @@ class _AudiencePageState extends State<AudiencePage> {
             borderRadius: BorderRadius.circular(6),
             child: SizedBox(
               height: 10,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: (urban * 10).round().clamp(1, 1000),
-                    child: Container(color: const Color(0xFF10B981)),
-                  ),
-                  Expanded(
-                    flex: (rural * 10).round().clamp(1, 1000),
-                    child: Container(color: const Color(0xFFF59E0B)),
-                  ),
-                ],
-              ),
+              child: (urban > 0 || rural > 0)
+                  ? Row(
+                      children: [
+                        if (urban > 0)
+                          Expanded(
+                            flex: (urban * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFF10B981)),
+                          ),
+                        if (rural > 0)
+                          Expanded(
+                            flex: (rural * 10).round().clamp(1, 1000),
+                            child: Container(color: const Color(0xFFF59E0B)),
+                          ),
+                      ],
+                    )
+                  : Container(
+                      color: widget.isDarkMode
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFFE2E8F0),
+                    ),
             ),
           ),
           const SizedBox(height: 16),

@@ -8,6 +8,7 @@ import 'package:truthworld/core/services/algorithm/truthworld_algorithm.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/algorithm/user_signal_tracker.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/digital_wellbeing_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/data/repositories/admin_repository_impl.dart';
 import 'package:truthworld/data/repositories/advertiser_repository_impl.dart';
@@ -39,6 +40,7 @@ import 'package:truthworld/features/analytics/data/services/geolocation_service.
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/app_navigation_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/app_state_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
@@ -47,7 +49,7 @@ import 'package:truthworld/features/likedvideos/presentation/controllers/likedvi
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 import 'package:truthworld/features/myvideos/presentation/controllers/my_videos_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/core/services/digital_wellbeing_service.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
@@ -134,7 +136,9 @@ class InitialBinding extends Bindings {
     Get.lazyPut(UserSettingsController.new, fenix: true);
     Get.lazyPut(DigitalWellbeingService.new, fenix: true);
     Get.lazyPut(PlaylistController.new, fenix: true);
+    Get.lazyPut(PlaylistDialogController.new, fenix: true);
     Get.lazyPut(SubscriptionController.new, fenix: true);
+    Get.lazyPut(ChannelSubscriptionController.new, fenix: true);
     Get.lazyPut(WatchHistoryController.new, fenix: true);
     Get.lazyPut(SavedVideosController.new, fenix: true);
     Get.lazyPut(UserClipsController.new, fenix: true);

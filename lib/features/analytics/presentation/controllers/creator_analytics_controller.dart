@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
@@ -603,6 +604,16 @@ class CreatorAnalyticsController extends BaseController {
       analytics.averageWatchDuration.toInt(),
     );
     totalWatchTime.value = analytics.totalWatchTimeFormatted;
+    if (totalWatchTime.value.isEmpty ||
+        totalWatchTime.value == '0 mins' ||
+        totalWatchTime.value == '0.0h' ||
+        totalWatchTime.value == '0h') {
+      if (analytics.totalWatchTimeSeconds > 0) {
+        totalWatchTime.value = WatchTimeFormatter.format(
+          analytics.totalWatchTimeSeconds,
+        );
+      }
+    }
     ctrValue.value = analytics.ctr;
     liveViewerCount.value = analytics.liveViewerCount;
     subscriberConversionRate.value = analytics.subscriberConversionRate;
@@ -610,82 +621,65 @@ class CreatorAnalyticsController extends BaseController {
     urbanPercentage.value = analytics.urbanPercentage;
     ruralPercentage.value = analytics.ruralPercentage;
 
-    // Update watch time trend
-    watchTimeTrendData.value =
-        analytics.dailyWatchTime.entries
-            .map(
-              (e) => WatchTimeTrendModel(
-                date: e.key,
-                watchTimeHours: e.value / 3600,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-
-    // Update views trend
-    viewsTrendData.value =
-        analytics.dailyViews.entries
-            .map(
-              (e) => ViewsTrendModel(
-                date: e.key,
-                views: e.value,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-
-    // Update subscribers trend
-    subscribersTrendData.value =
-        analytics.dailySubscribers.entries
-            .map(
-              (e) => SubscribersTrendModel(
-                date: e.key,
-                subscribers: e.value,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+    _buildContinuousTrendData(
+      dailyWatchTime: analytics.dailyWatchTime,
+      dailyViews: analytics.dailyViews,
+      dailySubscribers: analytics.dailySubscribers,
+    );
 
     // Populate country chart
     _populateCountryChart(analytics.countryTrafficPercentage);
   }
 
-  void _populateCountryChart(Map<String, double> countryData) {
-    if (countryData.isEmpty) {
-      countryTrafficChartData.clear();
-      return;
+  void _buildContinuousTrendData({
+    required Map<DateTime, int> dailyWatchTime,
+    required Map<DateTime, int> dailyViews,
+    required Map<DateTime, int> dailySubscribers,
+  }) {
+    final days = selectedDateRange.value.days;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final watchMap = <DateTime, double>{};
+    final viewsMap = <DateTime, int>{};
+    final subsMap = <DateTime, int>{};
+
+    for (var i = days - 1; i >= 0; i--) {
+      final d = today.subtract(Duration(days: i));
+      watchMap[d] = 0.0;
+      viewsMap[d] = 0;
+      subsMap[d] = 0;
     }
 
-    final data = <PieChartDataModel>[];
-    double othersPct = 0;
-
-    countryData.forEach((country, pct) {
-      if (country == 'IN' || country == 'India') {
-        data.add(
-          PieChartDataModel(
-            title: 'India',
-            value: pct,
-            percentage: pct,
-            color: 0xFF22C55E, // Green
-          ),
-        );
-      } else {
-        othersPct += pct;
-      }
-    });
-
-    if (othersPct > 0) {
-      data.add(
-        PieChartDataModel(
-          title: 'Others',
-          value: othersPct,
-          percentage: othersPct,
-          color: 0xFF3B82F6, // Blue
-        ),
-      );
+    for (final e in dailyWatchTime.entries) {
+      final d = DateTime(e.key.year, e.key.month, e.key.day);
+      watchMap[d] = (watchMap[d] ?? 0.0) + (e.value / 3600.0);
     }
 
-    countryTrafficChartData.value = data;
+    for (final e in dailyViews.entries) {
+      final d = DateTime(e.key.year, e.key.month, e.key.day);
+      viewsMap[d] = (viewsMap[d] ?? 0) + e.value;
+    }
+
+    for (final e in dailySubscribers.entries) {
+      final d = DateTime(e.key.year, e.key.month, e.key.day);
+      subsMap[d] = (subsMap[d] ?? 0) + e.value;
+    }
+
+    watchTimeTrendData.value = watchMap.entries
+        .map((e) => WatchTimeTrendModel(date: e.key, watchTimeHours: e.value))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    viewsTrendData.value = viewsMap.entries
+        .map((e) => ViewsTrendModel(date: e.key, views: e.value))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    subscribersTrendData.value = subsMap.entries
+        .map((e) => SubscribersTrendModel(date: e.key, subscribers: e.value))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
   }
 
   Future<void> fetchChannelVideos(String channelId) async {
@@ -741,56 +735,69 @@ class CreatorAnalyticsController extends BaseController {
       analytics.averageWatchDuration.toInt(),
     );
     totalWatchTime.value = analytics.totalWatchTimeFormatted;
+    if (totalWatchTime.value.isEmpty ||
+        totalWatchTime.value == '0 mins' ||
+        totalWatchTime.value == '0.0h') {
+      if (analytics.totalWatchTimeSeconds > 0) {
+        totalWatchTime.value = WatchTimeFormatter.format(
+          analytics.totalWatchTimeSeconds,
+        );
+      }
+    }
     ctrValue.value = analytics.ctr;
     subscriberConversionRate.value = analytics.subscriberConversionRate;
     returningViewerCount.value = analytics.returningViewers;
     urbanPercentage.value = analytics.urbanPercentage;
     ruralPercentage.value = analytics.ruralPercentage;
 
-    // Update watch time trend
-    watchTimeTrendData.value =
-        analytics.dailyWatchTime.entries
-            .map(
-              (e) => WatchTimeTrendModel(
-                date: e.key,
-                watchTimeHours: e.value / 3600,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-
-    // Update views trend
-    viewsTrendData.value =
-        analytics.dailyViews.entries
-            .map(
-              (e) => ViewsTrendModel(
-                date: e.key,
-                views: e.value,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-
-    // Update subscribers trend
-    subscribersTrendData.value =
-        analytics.dailySubscribers.entries
-            .map(
-              (e) => SubscribersTrendModel(
-                date: e.key,
-                subscribers: e.value,
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+    _buildContinuousTrendData(
+      dailyWatchTime: analytics.dailyWatchTime,
+      dailyViews: analytics.dailyViews,
+      dailySubscribers: analytics.dailySubscribers,
+    );
 
     liveViewerCount.value = analytics.liveViewerCount;
     // Populate country chart
     _populateCountryChart(analytics.countryTrafficPercentage);
   }
 
-  // ---------------------------------------------------------------------------
-  // REFRESH
-  // ---------------------------------------------------------------------------
+  void _populateCountryChart(Map<String, double> countryData) {
+    if (countryData.isEmpty) {
+      countryTrafficChartData.clear();
+      return;
+    }
+
+    final data = <PieChartDataModel>[];
+    var othersPct = 0.0;
+
+    countryData.forEach((country, pct) {
+      if (country == 'IN' || country == 'India') {
+        data.add(
+          PieChartDataModel(
+            title: 'India',
+            value: pct,
+            percentage: pct,
+            color: 0xFF22C55E,
+          ),
+        );
+      } else {
+        othersPct += pct;
+      }
+    });
+
+    if (othersPct > 0) {
+      data.add(
+        PieChartDataModel(
+          title: 'Others',
+          value: othersPct,
+          percentage: othersPct,
+          color: 0xFF3B82F6,
+        ),
+      );
+    }
+
+    countryTrafficChartData.value = data;
+  }
 
   Future<void> refreshAnalytics() async {
     _videoAnalyticsService.clearAnalyticsCache();

@@ -638,10 +638,16 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
 
-    // Pause all other players first
-    for (final p in _activePlayers) {
-      if (p != this && p.vv.isPlaying) p.videoPlayerController.pause();
-    }
+    // Pause all other players after the current frame completes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!isClosed) {
+        for (final p in _activePlayers) {
+          if (p != this && p.vv.isPlaying) {
+            p.videoPlayerController.pause();
+          }
+        }
+      }
+    });
     if (!_activePlayers.contains(this)) _activePlayers.add(this);
 
     // Load saved settings & preferences
@@ -832,6 +838,10 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       }
       try {
         videoPlayerController.setVolume(volumeScale);
+      } catch (_) {}
+    } else {
+      try {
+        videoPlayerController.setVolume(1.0);
       } catch (_) {}
     }
   }
@@ -1096,9 +1106,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       videoPlayerController.removeListener(_onVpcUpdate);
     } catch (_) {}
     abr.onClose();
-    if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
-      Get.delete<TowerPlayerController>(tag: tag);
-    }
     if (!kIsWeb) {
       _pipChannel.setMethodCallHandler(null);
     }
@@ -1399,6 +1406,11 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
 
   void onInteraction() {
     if (!controlsVisible.value) controlsVisible.value = true;
+    if (!isMuted.value && videoPlayerController.value.volume == 0.0) {
+      try {
+        videoPlayerController.setVolume(volume.value > 0 ? volume.value : 1.0);
+      } catch (_) {}
+    }
     // Avoid timer churn during active drag (~60 restarts/sec)
     if (!isDragging.value) startHideTimer();
   }

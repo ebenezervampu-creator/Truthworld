@@ -6,12 +6,14 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// More Options Popup Menu for Topic Card (Edit, View, Copy Link, Delete)
+/// Matches exact Channel Creation page popup styling & white icon guidelines.
 class TopicPopupMenu extends StatelessWidget {
   const TopicPopupMenu({
     required this.topic,
     required this.controller,
     super.key,
   });
+
   final Topic topic;
   final TopicManagementController controller;
 
@@ -30,25 +32,25 @@ class TopicPopupMenu extends StatelessWidget {
       icon: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: AppColors.bgSurfaceHover,
+          color: const Color(0xFF18181B),
           shape: BoxShape.circle,
           border: Border.all(
-            color: AppColors.textPrimary.withValues(alpha: 0.1),
+            color: const Color(0xFF27272A),
           ),
         ),
         child: const Icon(
           Icons.more_vert_rounded,
-          color: AppColors.textPrimary,
+          color: Colors.white,
           size: 18,
         ),
       ),
       tooltip: 'Topic Options',
       elevation: 8,
-      color: const Color(0xFF1E1E1E),
+      color: const Color(0xFF18181B),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppColors.textPrimary.withValues(alpha: 0.08),
+        side: const BorderSide(
+          color: Color(0xFF27272A),
         ),
       ),
       onSelected: (action) {
@@ -72,7 +74,7 @@ class TopicPopupMenu extends StatelessWidget {
                 Icon(
                   Icons.edit_rounded,
                   size: 18,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                 ),
                 SizedBox(width: 12),
                 Text(
@@ -80,7 +82,7 @@ class TopicPopupMenu extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -93,7 +95,7 @@ class TopicPopupMenu extends StatelessWidget {
               Icon(
                 Icons.visibility_rounded,
                 size: 18,
-                color: AppColors.textPrimary,
+                color: Colors.white,
               ),
               SizedBox(width: 12),
               Text(
@@ -101,7 +103,7 @@ class TopicPopupMenu extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -114,7 +116,7 @@ class TopicPopupMenu extends StatelessWidget {
               Icon(
                 Icons.link_rounded,
                 size: 18,
-                color: AppColors.textPrimary,
+                color: Colors.white,
               ),
               SizedBox(width: 12),
               Text(
@@ -122,7 +124,7 @@ class TopicPopupMenu extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -137,14 +139,14 @@ class TopicPopupMenu extends StatelessWidget {
                 Icon(
                   Icons.delete_outline_rounded,
                   size: 18,
-                  color: AppColors.error,
+                  color: Colors.white,
                 ),
                 SizedBox(width: 12),
                 Text(
                   'Delete Topic',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
                     color: AppColors.error,
                   ),
                 ),

@@ -509,11 +509,12 @@ class TopicRepository {
         'savedAt': FieldValue.serverTimestamp(),
         'notificationSetting': 'all',
       }, SetOptions(merge: true));
-      batch.update(topicRef, {
+      batch.set(topicRef, {
         'followerCount': FieldValue.increment(1),
-      });
+      }, SetOptions(merge: true));
 
       await batch.commit();
+      _topicCache.clear();
       return true;
     } catch (e) {
       debugPrint('Error followTopic: $e');
@@ -579,11 +580,12 @@ class TopicRepository {
 
       // YouTube-standard: only delete user-centric doc + decrement count
       batch.delete(userSavedRef);
-      batch.update(topicRef, {
+      batch.set(topicRef, {
         'followerCount': FieldValue.increment(-1),
-      });
+      }, SetOptions(merge: true));
 
       await batch.commit();
+      _topicCache.clear();
       return true;
     } catch (e) {
       debugPrint('Error unfollowTopic: $e');

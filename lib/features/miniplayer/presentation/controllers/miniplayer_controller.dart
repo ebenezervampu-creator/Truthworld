@@ -101,6 +101,9 @@ class MiniplayerController extends BaseController
   /// Whether mobile touch controls are currently visible on top of the video frame.
   final RxBool showMobileControls = false.obs;
 
+  /// Whether miniplayer audio is currently muted.
+  final RxBool isMuted = false.obs;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // NON-REACTIVE STATE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -144,6 +147,7 @@ class MiniplayerController extends BaseController
   @override
   void onClose() {
     _isClosed = true;
+    _recoveryDebounceTimer?.cancel();
     _stopPositionTimer();
     _hideControlsTimer?.cancel();
     _connectivitySubscription?.cancel();
@@ -220,6 +224,39 @@ class MiniplayerController extends BaseController
     return targetUrl ?? '';
   }
 
+  bool _isIgnorablePlaybackError(String? msg) {
+    if (msg == null || msg.trim().isEmpty) return true;
+    final lower = msg.toLowerCase();
+    return lower.contains('interrupted') ||
+        lower.contains('removed from the document') ||
+        lower.contains('media was removed') ||
+        lower.contains('abort') ||
+        lower.contains('notallowederror') ||
+        lower.contains('user gesture') ||
+        lower.contains('pause()') ||
+        lower.contains('new load request') ||
+        lower.contains('media_err_aborted');
+  }
+
+  int _recoveryAttempts = 0;
+  static const int _maxRecoveryAttempts = 2;
+  Timer? _recoveryDebounceTimer;
+
+  void _scheduleAutoRecovery() {
+    if (_isClosed || currentVideo.value == null) return;
+    if (_recoveryAttempts >= _maxRecoveryAttempts) {
+      error.value = 'Playback error. Tap to retry.';
+      return;
+    }
+    _recoveryDebounceTimer?.cancel();
+    _recoveryDebounceTimer = Timer(const Duration(milliseconds: 600), () {
+      if (!_isClosed && currentVideo.value != null) {
+        _recoveryAttempts++;
+        attemptRecovery();
+      }
+    });
+  }
+
   void _vpcListener() {
     final vpc = _vpc;
     if (vpc == null || _isClosed) return;
@@ -231,8 +268,16 @@ class MiniplayerController extends BaseController
       if (val.duration > Duration.zero) {
         totalDuration.value = val.duration;
       }
-      if (val.hasError && error.value.isEmpty) {
-        error.value = val.errorDescription ?? 'Video playback error';
+      if (val.hasError) {
+        final err = val.errorDescription;
+        if (_isIgnorablePlaybackError(err)) {
+          debugPrint(
+            '[MiniplayerController] Ignored benign browser playback interruption: $err',
+          );
+        } else if (error.value.isEmpty) {
+          debugPrint('[MiniplayerController] Playback error detected: $err');
+          _scheduleAutoRecovery();
+        }
       }
     } catch (_) {}
   }
@@ -249,6 +294,7 @@ class MiniplayerController extends BaseController
 
     // Reset error state
     error.value = '';
+    _recoveryDebounceTimer?.cancel();
 
     // If same video is already loaded and active, just ensure visibility and play
     if (videoInfo.value?.id == video.id && _vpc != null && isVideoReady.value) {
@@ -257,7 +303,15 @@ class MiniplayerController extends BaseController
         HoverPreviewCoordinator.globalMute.value = true;
         await _vpc!.play();
         isPlaying.value = true;
-      } catch (_) {}
+      } catch (e) {
+        if (!_isIgnorablePlaybackError(e.toString())) {
+          try {
+            await _vpc!.setVolume(0);
+            await _vpc!.play();
+            isPlaying.value = true;
+          } catch (_) {}
+        }
+      }
       return;
     }
 
@@ -294,7 +348,8 @@ class MiniplayerController extends BaseController
     }
 
     try {
-      final handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
+      final handoffVpc =
+          !kIsWeb ? VideoPlaybackHandoff.retrieveController(video.id) : null;
       final VideoPlayerController vpc;
       final wasHandoff = handoffVpc != null && !handoffVpc.value.hasError;
 
@@ -315,7 +370,8 @@ class MiniplayerController extends BaseController
         }
         final targetUrl = await _resolvePlayableUrl(video, overrideUrl);
         if (targetUrl.isEmpty) {
-          error.value = 'Video URL is empty';
+          debugPrint('[MiniplayerController] Video URL is empty');
+          error.value = 'Video unavailable';
           isBuffering.value = false;
           return;
         }
@@ -354,8 +410,9 @@ class MiniplayerController extends BaseController
         await vpc.play();
         isPlaying.value = true;
       } catch (e) {
+        final errorMsg = e.toString();
         debugPrint(
-          '[MiniplayerController] Play error, attempting muted autoplay fallback: $e',
+          '[MiniplayerController] Play error, attempting muted autoplay fallback: $errorMsg',
         );
         try {
           await vpc.setVolume(0);
@@ -363,6 +420,8 @@ class MiniplayerController extends BaseController
           isPlaying.value = true;
         } catch (e2) {
           debugPrint('[MiniplayerController] Play fallback failed: $e2');
+          // If browser blocked playback, leave paused without showing error
+          isPlaying.value = false;
         }
       }
 
@@ -370,25 +429,35 @@ class MiniplayerController extends BaseController
     } catch (e) {
       if (_isClosed) return;
       final errorMsg = e.toString();
+      debugPrint('[MiniplayerController] Init error: $e');
+
+      isBuffering.value = false;
+      isVideoReady.value = false;
+
+      if (_isIgnorablePlaybackError(errorMsg)) {
+        // Benign error during init / play, do not show error on UI
+        return;
+      }
+
       if (errorMsg.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
           errorMsg.contains('Format error')) {
         error.value =
-            'Video format not supported by browser. Please use H.264 encoded videos.';
+            'Video format not supported. Tap to retry or open in full player.';
       } else {
-        error.value = 'Failed to load video: $e';
+        _scheduleAutoRecovery();
       }
-      isBuffering.value = false;
-      isVideoReady.value = false;
-      debugPrint('[MiniplayerController] Init error: $e');
     }
   }
 
   /// Dismiss the miniplayer and clean up all resources.
   void dismiss() {
     if (_isClosed) return;
+    _recoveryDebounceTimer?.cancel();
+    _recoveryAttempts = 0;
     _disposeVideoControllers();
     mode.value = MiniplayerMode.dismissed;
     videoInfo.value = null;
+    currentVideo.value = null;
     isPlaying.value = false;
     isVideoReady.value = false;
     currentPosition.value = Duration.zero;
@@ -657,8 +726,8 @@ class MiniplayerController extends BaseController
 
     mode.value = MiniplayerMode.transitioning;
 
-    // Register active controller for handoff BEFORE navigating
-    if (_vpc != null) {
+    // Register active controller for handoff BEFORE navigating (native only)
+    if (_vpc != null && !kIsWeb) {
       try {
         _vpc!.removeListener(_vpcListener);
       } catch (_) {}
@@ -787,7 +856,7 @@ class MiniplayerController extends BaseController
     final wasPlaying = isPlaying.value;
 
     debugPrint(
-      '[MiniplayerController] 🔄 Attempting recovery from ${currentPos.inSeconds}s...',
+      '[MiniplayerController] 🔄 Attempting recovery from ${currentPos.inSeconds}s (attempt $_recoveryAttempts)...',
     );
 
     error.value = '';
@@ -799,12 +868,23 @@ class MiniplayerController extends BaseController
         resumeFromPosition: currentPos,
       );
 
-      if (wasPlaying) {
-        _vpc?.play();
+      if (wasPlaying && _vpc != null) {
+        try {
+          await _vpc!.play();
+          isPlaying.value = true;
+        } catch (_) {
+          try {
+            await _vpc!.setVolume(0);
+            await _vpc!.play();
+            isPlaying.value = true;
+          } catch (_) {}
+        }
       }
     } catch (e) {
       debugPrint('[MiniplayerController] ❌ Recovery failed: $e');
-      error.value = 'Failed to resume playback';
+      if (_recoveryAttempts >= _maxRecoveryAttempts) {
+        error.value = 'Playback error. Tap to retry.';
+      }
     } finally {
       isBuffering.value = false;
     }

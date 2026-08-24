@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -40,12 +41,29 @@ class MiniplayerNavigationHelper {
         VideoPlaybackHandoff.prewarmVideo(video);
       }
 
-      // Navigate directly to video screen without eagerly instantiating miniplayer
-      await Get.toNamed(
-        '/watch?v=${video.id}',
-        arguments: routeArguments ?? {'video': video},
-        preventDuplicates: false,
-      );
+      final targetUrl = '/watch?v=${video.id}';
+      final args = routeArguments ?? {'video': video};
+
+      final currentRouteName = Get.currentRoute.toLowerCase();
+      final hasWatchInStack = RouteStackObserver.routeStack.isNotEmpty &&
+          (RouteStackObserver.routeStack.last.settings.name?.toLowerCase().contains('/watch') ?? false);
+      final isCurrentlyOnWatch = currentRouteName.contains('/watch') || hasWatchInStack;
+
+      if (isCurrentlyOnWatch) {
+        // In-place smooth transition: replace current watch screen to cleanly dispose
+        // previous video player/controllers and avoid stacking multiple screens in memory.
+        await Get.offNamed(
+          targetUrl,
+          arguments: args,
+          preventDuplicates: false,
+        );
+      } else {
+        await Get.toNamed(
+          targetUrl,
+          arguments: args,
+          preventDuplicates: false,
+        );
+      }
     } catch (e, stackTrace) {
       logger.error(
         'Navigation to video screen failed',

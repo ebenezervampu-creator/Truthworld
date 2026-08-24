@@ -337,8 +337,8 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     if (score >= 4.0) return 1.2; // High credibility → 20% boost
     if (score >= 3.0) return 1.1; // Good credibility → 10% boost
     if (score >= 2.0) return 1.0; // Medium → neutral
-    if (score >= 1.0) return 0.3; // Low → 70% suppression
-    return 0.0; // Very low (scored & fact-checked) → hard gate
+    if (score >= 1.0) return 0.6; // Low / developing evidence → soft modifier
+    return 0.3; // Contested or limited evidence → soft modifier (preserves perspective existence)
   }
 
   /// Computes a knowledge quality score as a weighted composite of 8 sub-signals.
@@ -507,7 +507,7 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
   }
 
   /// Rank videos in OPPOSITE / CONTRARIAN order (for "The Other Side" Flip Coin mode)
-  /// Prioritizes content outside or opposite to user's usual interest profile.
+  /// Returns ONLY videos that represent the opposite side / contrasting perspective to user's profile.
   List<ScoredVideo> rankVideosOpposite(
     List<Video> candidates,
     RecommendationSurface surface, {
@@ -518,19 +518,42 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     for (final video in candidates) {
       if (_computeCredibilityGate(video) == 0.0) continue;
 
-      // Invert topic affinity: videos in user's NON-top categories score HIGHER
-      final topicAffinity = _computeTopicAffinity(video);
-      final oppositeScore = (1.0 - topicAffinity) * 10.0;
+      // Compute contrast score against user's profile
+      var contrastScore = 0.0;
+      if (Get.isRegistered<FlipCoinService>()) {
+        contrastScore = Get.find<FlipCoinService>().calculateUserContrastScore(
+          video,
+          _profile,
+        );
+      } else {
+        // Fallback calculation if FlipCoinService is not registered
+        final topicAffinity = _computeTopicAffinity(video);
+        contrastScore = (1.0 - topicAffinity).clamp(0.0, 1.0);
+        if (topicAffinity > 0.6) contrastScore = 0.0;
+      }
 
-      // High quality/engagement still matters (we want QUALITY opposite views)
+      // STRICT FILTER: Exclude any video on the user's same side (contrastScore <= 0)
+      if (contrastScore <= 0.0) {
+        continue;
+      }
+
+      // Quality & engagement weighting: we want high-quality opposite views
       final engagement = _computeEngagementQuality(video);
-      final totalOppositeScore = (oppositeScore * 0.7) + (engagement * 3.0);
+      final knowledgeQuality = _computeKnowledgeQuality(video);
+      final creatorFairness = diversityConfig != null
+          ? _computeCreatorFairness(video, diversityConfig)
+          : 0.0;
+
+      final totalOppositeScore = (contrastScore * 10.0) +
+          (knowledgeQuality * 3.0) +
+          (engagement * 2.0) +
+          creatorFairness;
 
       scored.add(
         ScoredVideo(
           video: video,
           score: totalOppositeScore,
-          recommendationReason: RecommendationReasons.inYourTopics,
+          recommendationReason: RecommendationReasons.factChecked,
           recommendationExplanation: 'The Other Side (Opposite Perspective)',
           surface: surface,
         ),
@@ -538,40 +561,111 @@ class TruthworldAlgorithm extends GetxService with WidgetsBindingObserver {
     }
 
     scored.sort((a, b) => b.score.compareTo(a.score));
-    return scored;
+
+    List<ScoredVideo> finalFeed;
+    if (diversityConfig != null) {
+      finalFeed = _applyDiversity(scored, diversityConfig);
+    } else {
+      finalFeed = scored;
+    }
+
+    for (final item in finalFeed) {
+      _trackCreatorExposure(item.video.channelId);
+    }
+
+    return finalFeed;
   }
 
-  /// Rank videos to find OPPOSITE PERSPECTIVE for a currently playing video
-  /// (e.g. Iran President video -> Israel President / Opposing diplomatic views)
+  /// Rank videos to find OPPOSITE / COUNTER-PERSPECTIVES for a currently playing video
+  /// (e.g. Israel President video -> Direct Counterpart / Iran President / UN Ceasefire / Humanitarian Diplomacy)
   List<ScoredVideo> rankVideosForCurrentVideoOpposite(
     Video currentVideo,
     List<Video> candidates,
   ) {
     if (Get.isRegistered<FlipCoinService>()) {
       final flipService = Get.find<FlipCoinService>();
-      final scored = candidates
-          .map((candidate) {
-            final contrastScore = flipService.calculateContrastScore(
-              currentVideo,
-              candidate,
-            );
-            final engagement = _computeEngagementQuality(candidate);
-            final totalScore = (contrastScore * 10.0) + (engagement * 2.0);
+      final categorizedScored = <PerspectiveCategory, List<ScoredVideo>>{};
 
-            return ScoredVideo(
-              video: candidate,
-              score: totalScore,
-              recommendationReason: RecommendationReasons.factChecked,
-              recommendationExplanation:
-                  'Opposite Perspective to current video',
-              surface: RecommendationSurface.videoRelated,
-            );
-          })
-          .where((s) => s.score > 0)
-          .toList();
+      for (final candidate in candidates) {
+        // TruthWorld Credibility Engine: Independent Evidence & Fact-Check Gate
+        if (_computeCredibilityGate(candidate) == 0.0) continue;
 
-      scored.sort((a, b) => b.score.compareTo(a.score));
-      return scored;
+        // Flip Coin Perspective Contrast Evaluation
+        final evaluation = flipService.evaluateVideoContrast(
+          currentVideo,
+          candidate,
+        );
+
+        // STRICT FILTER: Exclude same-side / non-contrasting videos
+        if (!evaluation.qualifies) continue;
+
+        // Evidence & Quality weighting (TruthWorld Credibility Engine)
+        final knowledgeQuality = _computeKnowledgeQuality(candidate);
+        final engagement = _computeEngagementQuality(candidate);
+
+        // Clear separation: Perspective Diversity (Contrast) + Evidence Quality (Credibility)
+        final totalScore = (evaluation.contrastScore * 8.0) +
+            (knowledgeQuality * 4.0) +
+            (engagement * 1.5);
+
+        final scoredVideo = ScoredVideo(
+          video: candidate,
+          score: totalScore,
+          recommendationReason: RecommendationReasons.factChecked,
+          recommendationExplanation: evaluation.explanation,
+          surface: RecommendationSurface.videoRelated,
+        );
+
+        categorizedScored
+            .putIfAbsent(evaluation.category, () => [])
+            .add(scoredVideo);
+      }
+
+      // Sort each perspective bucket by credibility & evidence quality
+      for (final list in categorizedScored.values) {
+        list.sort((a, b) => b.score.compareTo(a.score));
+      }
+
+      // Perspective Diversity Balancing: Round-robin across distinct perspective frames
+      final finalFeed = <ScoredVideo>[];
+      final seenIds = <String>{};
+
+      // 1. Direct Debate Counterpart (highest priority if linked)
+      if (categorizedScored.containsKey(PerspectiveCategory.directCounterDebate)) {
+        for (final item in categorizedScored[PerspectiveCategory.directCounterDebate]!) {
+          if (seenIds.add(item.video.id)) {
+            finalFeed.add(item);
+          }
+        }
+      }
+
+      // 2. Interleave across remaining perspective categories for rich viewpoint diversity
+      final remainingBuckets = [
+        PerspectiveCategory.counterpartActor,
+        PerspectiveCategory.diplomaticInstitutional,
+        PerspectiveCategory.opposingClaim,
+        PerspectiveCategory.conceptualContrast,
+        PerspectiveCategory.alternativeParadigm,
+      ];
+
+      var hasMore = true;
+      var round = 0;
+      while (hasMore && round < 20) {
+        hasMore = false;
+        for (final cat in remainingBuckets) {
+          final bucket = categorizedScored[cat];
+          if (bucket != null && round < bucket.length) {
+            final item = bucket[round];
+            if (seenIds.add(item.video.id)) {
+              finalFeed.add(item);
+            }
+            hasMore = true;
+          }
+        }
+        round++;
+      }
+
+      return finalFeed;
     }
 
     return rankVideosOpposite(candidates, RecommendationSurface.videoRelated);

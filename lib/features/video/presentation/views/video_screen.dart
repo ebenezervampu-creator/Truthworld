@@ -167,7 +167,7 @@ class VideoScreen extends GetView<VideoController> {
 
   Widget _buildMobileLayout(BuildContext context) {
     return CustomScrollView(
-      controller: controller.scrollController,
+      primary: true,
       physics: const BouncingScrollPhysics(),
       slivers: [
         _buildVideoPlayerSection(),
@@ -195,7 +195,7 @@ class VideoScreen extends GetView<VideoController> {
         Expanded(
           flex: 7,
           child: CustomScrollView(
-            controller: controller.scrollController,
+            primary: true,
             slivers: [
               _buildVideoPlayerSection(),
               _buildVideoInfoSection(context, isDesktop: true),
@@ -5957,7 +5957,6 @@ class RecommendationFeed extends StatelessWidget {
                     if (item is CommunityPostModel) {
                       return CommunityPostCard(
                         post: item,
-                        isFullWidth: false,
                       );
                     }
                     if (item is Video) {
@@ -5992,7 +5991,6 @@ class RecommendationFeed extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: CommunityPostCard(
                       post: item,
-                      isFullWidth: false,
                     ),
                   );
                 }

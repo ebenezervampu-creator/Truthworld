@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -275,9 +276,40 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
               ),
             ),
 
+            // Chip 2: Followers Count Chip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.bgSurfaceHover,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.people_outline_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${FormatUtils.formatCount(followingController.getFollowerCount(topic))} ${followingController.getFollowerCount(topic) == 1 ? 'Follower' : 'Followers'}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(width: 8),
 
-            // Chip 2: Comments Chip (Tappable to scroll to comments)
+            // Chip 3: Comments Chip (Tappable to scroll to comments)
             InkWell(
               onTap: commentsHandler,
               borderRadius: BorderRadius.circular(20),

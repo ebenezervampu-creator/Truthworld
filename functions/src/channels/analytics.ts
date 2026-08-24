@@ -238,7 +238,7 @@ export const getChannelViewsDetails = onCall(
 
       for (const doc of dailyStats.docs) {
         const d = doc.data();
-        totalViews += d.totalViews || 0;
+        totalViews += d.totalViews || d.views || 0;
         uniqueViewers += d.uniqueViewers || 0;
         bounced += d.bouncedUnder20s || 0;
         w25 += d.watched25Percent || 0;
@@ -374,8 +374,8 @@ export const getChannelWatchtimeDetails = onCall(
 
       for (const doc of dailyStats.docs) {
         const d = doc.data();
-        totalWatchTime += d.totalWatchTimeSeconds || 0;
-        totalViews += d.totalViews || 0;
+        totalWatchTime += d.totalWatchTimeSeconds || d.totalWatchSeconds || 0;
+        totalViews += d.totalViews || d.views || 0;
 
         const stateTraffic: Record<string, number> = d.stateTraffic || {};
         const cityTraffic: Record<string, number> = d.cityTraffic || {};
@@ -708,8 +708,8 @@ async function _getPeriodStats(channelId: string, start: Date, end: Date): Promi
 
     for (const doc of snapshot.docs) {
       const d = doc.data();
-      views += d.totalViews || 0;
-      watchTime += d.totalWatchTimeSeconds || 0;
+      views += d.totalViews || d.views || 0;
+      watchTime += d.totalWatchTimeSeconds || d.totalWatchSeconds || 0;
       uniqueViewers += d.uniqueViewers || 0;
     }
 

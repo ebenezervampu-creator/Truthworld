@@ -1,8 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_community_posts_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -25,39 +25,40 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    return Obx(() {
+      final currentUser = AuthService.to.currentUser.value;
 
-    if (currentUser == null) {
+      if (currentUser == null) {
+        return Scaffold(
+          backgroundColor: AppColors.bgPage,
+          appBar: AppBar(
+            backgroundColor: AppColors.bgPage,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+              onPressed: () => Get.back<void>(),
+            ),
+            title: Text(
+              'Saved Posts',
+              style: GoogleFonts.roboto(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          body: const Center(
+            child: Text(
+              'Please sign in to view your saved posts',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            ),
+          ),
+        );
+      }
+
       return Scaffold(
         backgroundColor: AppColors.bgPage,
         appBar: AppBar(
-          backgroundColor: AppColors.bgPage,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-            onPressed: () => Get.back<void>(),
-          ),
-          title: Text(
-            'Saved Posts',
-            style: GoogleFonts.roboto(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-          ),
-        ),
-        body: const Center(
-          child: Text(
-            'Please sign in to view your saved posts',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      appBar: AppBar(
         backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
@@ -209,5 +210,6 @@ class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
         );
       }),
     );
+    });
   }
 }

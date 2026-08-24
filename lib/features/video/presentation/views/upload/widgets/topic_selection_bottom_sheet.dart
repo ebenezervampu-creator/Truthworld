@@ -82,7 +82,7 @@ class TopicSelectionBottomSheet extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Material(
-              color: isDark ? const Color(0xFF0B0F17) : const Color(0xFFF8FAFC),
+              color: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF8FAFC),
               child: TopicSelectionBottomSheet(
                 controller: controller,
                 onCreateNewTopicRequested: onCreateNewTopic,
@@ -98,10 +98,10 @@ class TopicSelectionBottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0B0F17) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    final bgColor = isDark ? const Color(0xFF0F0F0F) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0);
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final subtextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+    final subtextColor = isDark ? AppColors.textSecondary : const Color(0xFF64748B);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.88,
@@ -968,22 +968,25 @@ class TopicSelectionBottomSheet extends StatelessWidget {
       icon: Icon(
         isSelected ? Icons.check_rounded : Icons.add_rounded,
         size: 18,
-        color: isSelected ? Colors.white : const Color(0xFF0F172A),
+        color: Colors.white,
       ),
       label: Text(
         isSelected ? 'Added to topic' : 'Add video to this topic',
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: isSelected ? Colors.white : const Color(0xFF0F172A),
+          color: Colors.white,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? const Color(0xFF0EA5E9) : Colors.white,
-        foregroundColor: isSelected ? Colors.white : const Color(0xFF0F172A),
+        backgroundColor: isSelected ? const Color(0xFF18181B) : AppColors.brand,
+        foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         elevation: 0,
+        side: BorderSide(
+          color: isSelected ? const Color(0xFF27272A) : Colors.transparent,
+        ),
       ),
     );
   }
@@ -1242,26 +1245,26 @@ class TopicSelectionBottomSheet extends StatelessWidget {
                 icon: Icon(
                   isSelected ? Icons.check_rounded : Icons.add_rounded,
                   size: 16,
-                  color: isSelected ? Colors.white : textColor,
+                  color: Colors.white,
                 ),
                 label: Text(
                   isSelected ? 'Added' : 'Add',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : textColor,
+                    color: Colors.white,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: isSelected
-                      ? const Color(0xFF0EA5E9)
-                      : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                  foregroundColor: isSelected ? Colors.white : textColor,
+                      ? const Color(0xFF18181B)
+                      : (isDark ? const Color(0xFF18181B) : const Color(0xFFF1F5F9)),
+                  foregroundColor: Colors.white,
                   side: BorderSide(
-                    color: isSelected ? const Color(0xFF0EA5E9) : borderColor,
+                    color: isSelected ? AppColors.brand : borderColor,
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],

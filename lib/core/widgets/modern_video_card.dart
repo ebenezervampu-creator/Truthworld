@@ -1,8 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -42,9 +42,9 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
   Widget build(BuildContext context) {
     return InteractionStyles.interactiveCard(
       onTap: () {
-        Get.toNamed(
-          '/watch?v=${widget.video.id}',
-          arguments: {
+        MiniplayerNavigationHelper.navigateToVideoScreen(
+          video: widget.video,
+          routeArguments: {
             'video': widget.video,
             'heroTag': '${widget.heroPrefix}_${widget.video.id}',
           },
@@ -373,9 +373,9 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
   Widget build(BuildContext context) {
     return InteractionStyles.interactiveCard(
       onTap: () {
-        Get.toNamed(
-          '/watch?v=${widget.video.id}',
-          arguments: {'video': widget.video},
+        MiniplayerNavigationHelper.navigateToVideoScreen(
+          video: widget.video,
+          routeArguments: {'video': widget.video},
         );
       },
       child: Container(

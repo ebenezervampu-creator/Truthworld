@@ -3,12 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/user_interest_profile_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_feed_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_navigation_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
 class HomeDiscoveryController extends BaseController {
   static const List<String> categories = [
@@ -46,11 +48,11 @@ class HomeDiscoveryController extends BaseController {
     return [
       'All',
       if (isAuthenticated) 'Subscriptions',
-      '🔥 Trending',
-      '✨ New',
-      '⭐ Popular',
+      'Trending',
+      'Flip Coin',
+      'New',
+      'Popular',
       'Posts',
-      '🪙 Flip Coin',
     ];
   }
 
@@ -97,7 +99,7 @@ class HomeDiscoveryController extends BaseController {
     }
   }
 
-  void _saveFeaturedTopicsToCache() {
+  void saveFeaturedTopicsToCache() {
     try {
       final dataToCache = featuredTopics.map((t) => t.toCacheMap()).toList();
       _storage.write(_kFeaturedTopicsCacheKey, dataToCache);
@@ -109,20 +111,38 @@ class HomeDiscoveryController extends BaseController {
   Future<void> fetchFeaturedTopics() async {
     try {
       if (featuredTopics.isEmpty) isLoadingFeaturedTopics.value = true;
-      final snapshot = await _firestore.collection('topics').where('isFeatured', isEqualTo: true).limit(6).getCacheFirst();
+      final snapshot = await _firestore
+          .collection('topics')
+          .where('isFeatured', isEqualTo: true)
+          .limit(6)
+          .get();
       var topicsList = <Topic>[];
       if (snapshot.docs.isNotEmpty) {
         topicsList = snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
       }
       if (topicsList.isEmpty) {
-        final fallbackSnapshot = await _firestore.collection('topics').orderBy('videoCount', descending: true).limit(6).getCacheFirst();
+        final fallbackSnapshot = await _firestore
+            .collection('topics')
+            .orderBy('videoCount', descending: true)
+            .limit(6)
+            .get();
         if (fallbackSnapshot.docs.isNotEmpty) {
-          topicsList = fallbackSnapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+          topicsList =
+              fallbackSnapshot.docs.map(Topic.fromDocumentSnapshot).toList();
         }
       }
       if (topicsList.isNotEmpty) {
         featuredTopics.assignAll(topicsList);
-        _saveFeaturedTopicsToCache();
+        saveFeaturedTopicsToCache();
+        if (Get.isRegistered<FollowingTopicsController>()) {
+          final followingCtrl = Get.find<FollowingTopicsController>();
+          for (final t in topicsList) {
+            followingCtrl.updateTopicFollowerCount(t.id, t.followerCount);
+            if (t.slug.isNotEmpty) {
+              followingCtrl.updateTopicFollowerCount(t.slug, t.followerCount);
+            }
+          }
+        }
       }
     } catch (e) {
       debugPrint('HomeDiscoveryController: Error fetching featured topics: $e');
@@ -138,6 +158,17 @@ class HomeDiscoveryController extends BaseController {
     }
     if (selectedCategory.value == category) return;
     selectedCategory.value = category;
+
+    // Synchronize global FlipCoinService home state
+    if (Get.isRegistered<FlipCoinService>()) {
+      final flipService = Get.find<FlipCoinService>();
+      if (category == 'Flip Coin' || category == '🪙 Flip Coin') {
+        flipService.isHomeFlipped.value = true;
+        flipService.trackFlipCoinInteraction('home_tab');
+      } else {
+        flipService.isHomeFlipped.value = false;
+      }
+    }
     
     if (Get.isRegistered<HomeNavigationController>()) {
       Get.find<HomeNavigationController>().syncTabToCategory(category);
@@ -151,22 +182,21 @@ class HomeDiscoveryController extends BaseController {
   Future<void> selectFilterBar(String bar) async {
     activeFilterBar.value = bar;
     if (!Get.isRegistered<HomeFeedController>()) return;
-    final feedCtrl = Get.find<HomeFeedController>();
     
     if (bar == 'All') {
-      selectedCategory.value = 'All';
-      await feedCtrl.fetchInitialVideos();
+      selectCategory('All');
     } else if (bar == 'Trending') {
-      selectedCategory.value = 'All';
-      feedCtrl.videos.assignAll(feedCtrl.trendingVideos);
-      feedCtrl.mixHomeFeed();
+      selectCategory('Trending');
     } else if (bar == 'Topics') {
       await fetchFeaturedTopics();
     } else if (bar == 'Videos') {
+      final feedCtrl = Get.find<HomeFeedController>();
       feedCtrl.communityPosts.clear();
       feedCtrl.homeFeedItems.assignAll(feedCtrl.videos);
+    } else if (bar == 'Posts') {
+      selectCategory('Posts');
     } else {
-      await feedCtrl.fetchCategoryContent(bar);
+      selectCategory(bar);
     }
   }
 

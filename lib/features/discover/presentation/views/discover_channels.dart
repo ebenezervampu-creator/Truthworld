@@ -2,10 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
@@ -345,31 +345,36 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
         // Categories Header / Grid
         SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: padding.left),
-          sliver: Obx(
-            () => _controller.selectedCategory.value == 'All'
+          sliver: Obx(() {
+            if (_controller.searchQuery.value.trim().isNotEmpty) {
+              return const SliverToBoxAdapter(child: SizedBox.shrink());
+            }
+            return _controller.selectedCategory.value == 'All'
                 ? _buildCategoryGrid(
                     context,
                     isDesktop: isDesktop,
                     isTablet: isTablet,
                   )
-                : _buildSelectedCategoryHeader(context),
-          ),
+                : _buildSelectedCategoryHeader(context);
+          }),
         ),
 
         // Filter Bar (Sort, Topics, Languages)
         SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              padding.left,
-              16,
-              padding.right,
-              16,
+          child: Obx(
+            () => Padding(
+              padding: EdgeInsets.fromLTRB(
+                padding.left,
+                _controller.searchQuery.value.trim().isNotEmpty ? 0 : 16,
+                padding.right,
+                16,
+              ),
+              child: _buildFilterBar(context),
             ),
-            child: _buildFilterBar(context),
           ),
         ),
 
-        // Channels List / Grid
+        // Channels List
         SliverPadding(
           padding: EdgeInsets.fromLTRB(
             padding.left,
@@ -396,21 +401,7 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
               );
             }
 
-            final crossAxisCount = _getCrossAxisCount(
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-            );
-            final childAspectRatio = isMobile
-                ? 0.72
-                : (isTablet ? 0.76 : 0.80);
-
-            return SliverGrid(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                childAspectRatio: childAspectRatio,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
+            return SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final channel = _controller.channels[index];
@@ -847,232 +838,117 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
   }
 
   Widget _buildChannelCard(BuildContext context, Channel channel) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.08),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            if (widget.isDashboard && Get.isRegistered<HomeController>()) {
-              Get.find<HomeController>().navigateToChannelDetail(channel);
-            } else {
-              Get.toNamed(
-                channel.channelRoute,
-                arguments: {'channel': channel},
-              );
-            }
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Banner & Stacked Avatar
-              SizedBox(
-                height: 96,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    // Banner Header
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: 64,
-                      child: channel.bannerUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: channel.bannerUrl,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: buttonBg),
-                              errorWidget: (context, url, error) => Container(
-                                decoration: const BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      AppColors.bgSurface,
-                                      AppColors.bgSurfaceHover,
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.bgSurface,
-                                    AppColors.bgSurfaceHover,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                            ),
-                    ),
-                    // Stacked Avatar
-                    Positioned(
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: const BoxDecoration(
-                          color: cardColor,
-                          shape: BoxShape.circle,
+    final subscriberCount = _controller.getSubscriberCount(channel);
+    final handleText = channel.handle.isNotEmpty
+        ? (channel.handle.startsWith('@')
+            ? channel.handle
+            : '@${channel.handle}')
+        : '@${channel.name.toLowerCase().replaceAll(RegExp(r'\s+'), '')}';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        if (widget.isDashboard && Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().navigateToChannelDetail(channel);
+        } else {
+          Get.toNamed(
+            channel.channelRoute,
+            arguments: {'channel': channel},
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          children: [
+            // Circular Avatar
+            ClipOval(
+              child: Container(
+                width: 80,
+                height: 80,
+                color: AppColors.bgSurfaceHover,
+                child: channel.avatarUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: channel.avatarUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            Container(color: AppColors.bgDivider),
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.account_circle,
+                          size: 40,
+                          color: AppColors.textTertiary,
                         ),
-                        child: UserAvatar(
-                          radius: 28,
-                          photoUrl: channel.avatarUrl,
-                          displayName: channel.name,
-                          backgroundColor: buttonBg,
-                          textColor: primaryText,
-                          fontSize: 18,
-                        ),
+                      )
+                    : const Icon(
+                        Icons.account_circle,
+                        size: 40,
+                        color: AppColors.textTertiary,
                       ),
-                    ),
-                  ],
-                ),
               ),
-              const SizedBox(height: 8),
-              // Channel Info & Action Button
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(
+            ),
+            const SizedBox(width: 16),
+            // Channel Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              channel.name,
-                              style: const TextStyle(
-                                color: primaryText,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (channel.isVerified)
-                            const Padding(
-                              padding: EdgeInsets.only(left: 4),
-                              child: Icon(
-                                Icons.verified,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        channel.handle.isNotEmpty
-                            ? channel.handle
-                            : '@${channel.name.toLowerCase().replaceAll(RegExp(r'\s+'), '')}',
-                        style: const TextStyle(
-                          color: secondaryText,
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Obx(() {
-                        final subscriberCount =
-                            _controller.getSubscriberCount(channel);
-                        return Text(
-                          '${_formatCount(subscriberCount)} subscribers',
-                          style: const TextStyle(
-                            color: secondaryText,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      Flexible(
+                        child: Text(
+                          channel.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                        );
-                      }),
-                      const Spacer(),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 36,
-                        child: Obx(() {
-                          final isSubscribed =
-                              _controller.isSubscribed(channel.channelId);
-
-                          return ElevatedButton(
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              _controller.toggleSubscription(channel);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  isSubscribed ? buttonBg : primaryText,
-                              foregroundColor:
-                                  isSubscribed ? secondaryText : bgColor,
-                              elevation: 0,
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                                side: isSubscribed
-                                    ? BorderSide(
-                                        color: AppColors.textPrimary
-                                            .withValues(alpha: 0.15),
-                                      )
-                                    : BorderSide.none,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                if (isSubscribed) ...[
-                                  const Icon(
-                                    Icons.check_rounded,
-                                    color: Colors.white,
-                                    size: 15,
-                                  ),
-                                  const SizedBox(width: 4),
-                                ],
-                                Text(
-                                  isSubscribed ? 'Subscribed' : 'Subscribe',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: isSubscribed
-                                        ? FontWeight.w600
-                                        : FontWeight.bold,
-                                    color: isSubscribed
-                                        ? secondaryText
-                                        : bgColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
+                          style: const TextStyle(
+                            color: primaryText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 10),
+                      if (channel.isVerified) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.verified,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ],
                     ],
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$handleText • ${_formatCount(subscriberCount)} subscribers',
+                    style: const TextStyle(
+                      color: secondaryText,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    channel.description.isNotEmpty
+                        ? channel.description
+                        : 'Official channel. Explore and join.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            // Subscribe button
+            SubscribeButton(
+              channelId: channel.channelId,
+              channelName: channel.name,
+            ),
+          ],
         ),
       ),
     );
@@ -1164,12 +1040,6 @@ class _DiscoverChannelsPageState extends State<DiscoverChannelsPage>
         ),
       ),
     );
-  }
-
-  int _getCrossAxisCount({bool isDesktop = false, bool isTablet = false}) {
-    if (isDesktop) return 4;
-    if (isTablet) return 3;
-    return 2;
   }
 
   String _formatCount(int count) {

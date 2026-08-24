@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/core/services/channel_wallet_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
+import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_content_details_screen.dart';
@@ -915,6 +917,23 @@ class _ContentScreenState extends State<ContentScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
+                              Icons.timer_outlined,
+                              size: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              WatchTimeFormatter.format(video.totalWatchTimeSeconds),
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
                               Icons.calendar_today_outlined,
                               size: 13,
                               color: AppColors.textSecondary,
@@ -950,6 +969,15 @@ class _ContentScreenState extends State<ContentScreen> {
                   if (value == 'watch') {
                     MiniplayerNavigationHelper.navigateToVideoScreen(
                       video: video,
+                    );
+                  } else if (value == 'analytics') {
+                    Get.to<dynamic>(
+                      () => const WatchTimePage(),
+                      arguments: {
+                        'channelId': video.channelId,
+                        'videoId': video.id,
+                        'videoTitle': video.title,
+                      },
                     );
                   } else if (value == 'content_details') {
                     Get.to<dynamic>(
@@ -987,6 +1015,26 @@ class _ContentScreenState extends State<ContentScreen> {
                         const SizedBox(width: 10),
                         Text(
                           'Watch Video',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'analytics',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.analytics_outlined,
+                          size: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Watch Time & Analytics',
                           style: AppTextStyles.bodyMedium.copyWith(
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,

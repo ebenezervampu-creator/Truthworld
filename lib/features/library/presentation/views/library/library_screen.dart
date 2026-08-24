@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -64,6 +63,9 @@ class LibraryScreenState extends State<LibraryScreen>
   @override
   void initState() {
     super.initState();
+    if (!Get.isRegistered<HomeController>()) {
+      Get.put(HomeController());
+    }
     if (!Get.isRegistered<PlaylistController>()) {
       Get.put(PlaylistController());
     }
@@ -142,29 +144,32 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildResponsiveLayout(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-        final isTablet =
-            constraints.maxWidth >= kMobileBreakpoint &&
-            constraints.maxWidth < kDesktopBreakpoint;
-        // final bool isMobile = constraints.maxWidth < kMobileBreakpoint; // isMobile is the else case
+    return Obx(() {
+      final user = AuthService.to.currentUser.value;
+      final userId = user?.uid;
 
-        if (isDesktop) {
-          return _buildDesktopLayout(context);
-        } else if (isTablet) {
-          return _buildTabletLayout(context);
-        } else {
-          return _buildMobileLayout(context);
-        }
-      },
-    );
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+          final isTablet =
+              constraints.maxWidth >= kMobileBreakpoint &&
+              constraints.maxWidth < kDesktopBreakpoint;
+          // final bool isMobile = constraints.maxWidth < kMobileBreakpoint; // isMobile is the else case
+
+          if (isDesktop) {
+            return _buildDesktopLayout(context, userId: userId);
+          } else if (isTablet) {
+            return _buildTabletLayout(context, userId: userId);
+          } else {
+            return _buildMobileLayout(context, userId: userId);
+          }
+        },
+      );
+    });
   }
 
-  Widget _buildDesktopLayout(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-
-    if (userId == null) {
+  Widget _buildDesktopLayout(BuildContext context, {String? userId}) {
+    if (userId == null || userId.isEmpty) {
       return _buildUnauthenticatedState(context, isDesktop: true);
     }
 
@@ -187,10 +192,8 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildTabletLayout(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-
-    if (userId == null) {
+  Widget _buildTabletLayout(BuildContext context, {String? userId}) {
+    if (userId == null || userId.isEmpty) {
       return _buildUnauthenticatedState(context, isTablet: true);
     }
 
@@ -203,10 +206,8 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-
-    if (userId == null) {
+  Widget _buildMobileLayout(BuildContext context, {String? userId}) {
+    if (userId == null || userId.isEmpty) {
       return _buildUnauthenticatedState(context);
     }
 

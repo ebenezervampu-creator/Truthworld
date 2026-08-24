@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class CreatorIntelligenceController extends BaseController {
   CreatorIntelligenceController({
@@ -23,12 +25,226 @@ class CreatorIntelligenceController extends BaseController {
   final RxString searchQuery = ''.obs;
   final RxInt unreadCount = 0.obs;
 
+  final Rx<Channel?> currentChannel = Rx<Channel?>(null);
+  final RxInt copyrightClaimsCount = 0.obs;
 
+  StreamSubscription? _channelSubscription;
+  StreamSubscription? _copyrightSubscription;
 
   @override
   void onInit() {
     super.onInit();
     listenToNotifications();
+    _listenToChannel();
+    _listenToCopyrightClaims();
+  }
+
+  @override
+  void onClose() {
+    _channelSubscription?.cancel();
+    _copyrightSubscription?.cancel();
+    super.onClose();
+  }
+
+  void _listenToChannel() {
+    if (channelId.isEmpty) return;
+    trackSubscription(
+      _channelSubscription = _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(channelId)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.exists) {
+          currentChannel.value = Channel.fromDocumentSnapshot(snapshot);
+        }
+      }, onError: (err) {
+        debugPrint('[CreatorIntelligence] Channel fetch error: $err');
+      }),
+    );
+  }
+
+  void _listenToCopyrightClaims() {
+    if (channelId.isEmpty) return;
+    trackSubscription(
+      _copyrightSubscription = _firestore
+          .collection('copyright_claims')
+          .where('channelId', isEqualTo: channelId)
+          .snapshots()
+          .listen((snapshot) {
+        copyrightClaimsCount.value = snapshot.docs.length;
+      }, onError: (err) {
+        debugPrint('[CreatorIntelligence] Copyright claims fetch error: $err');
+      }),
+    );
+  }
+
+  bool get hasActiveIssues {
+    final ch = currentChannel.value;
+    final hasChannelStatusIssue = ch != null &&
+        (ch.status == ChannelStatus.verificationRejected ||
+            ch.status == ChannelStatus.underReview);
+    final hasAvatarIssue = ch != null &&
+        (ch.avatarStatus == 'REJECTED' ||
+            ch.avatarStatus == 'FLAGGED' ||
+            ch.avatarStatus == 'MANUAL_REVIEW' ||
+            ch.avatarStatus == 'PENDING');
+    final hasBannerIssue = ch != null &&
+        (ch.bannerStatus == 'REJECTED' ||
+            ch.bannerStatus == 'FLAGGED' ||
+            ch.bannerStatus == 'MANUAL_REVIEW' ||
+            ch.bannerStatus == 'PENDING');
+    final hasCopyrightIssues = copyrightClaimsCount.value > 0;
+    final hasCriticalNotifications = filteredNotifications
+        .any((n) => n.priority == NotificationPriority.critical);
+
+    return hasChannelStatusIssue ||
+        hasAvatarIssue ||
+        hasBannerIssue ||
+        hasCopyrightIssues ||
+        hasCriticalNotifications;
+  }
+
+  int get totalIssuesCount {
+    var count = 0;
+    final ch = currentChannel.value;
+    if (ch != null) {
+      if (ch.status == ChannelStatus.verificationRejected) count++;
+      if (ch.avatarStatus == 'REJECTED' ||
+          ch.avatarStatus == 'FLAGGED' ||
+          ch.avatarStatus == 'MANUAL_REVIEW') {
+        count++;
+      }
+      if (ch.bannerStatus == 'REJECTED' ||
+          ch.bannerStatus == 'FLAGGED' ||
+          ch.bannerStatus == 'MANUAL_REVIEW') {
+        count++;
+      }
+    }
+    if (copyrightClaimsCount.value > 0) count += copyrightClaimsCount.value;
+    count += filteredNotifications
+        .where((n) => n.priority == NotificationPriority.critical)
+        .length;
+    return count;
+  }
+
+  Future<void> requestAvatarManualReview() async {
+    final ch = currentChannel.value;
+    if (ch == null) return;
+    try {
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(ch.id)
+          .update({
+        'avatarStatus': 'MANUAL_REVIEW',
+        'avatarStatusReason':
+            'User requested manual review from Creator Intelligence.',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      Get.snackbar(
+        'Submitted',
+        'Avatar queued for manual admin review.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      Get.snackbar('Error', e.toString(),
+          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+    }
+  }
+
+  Future<void> bypassAvatarVerification() async {
+    final ch = currentChannel.value;
+    if (ch == null) return;
+    try {
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(ch.id)
+          .update({
+        'avatarStatus': 'APPROVED',
+        'avatarStatusReason': 'Bypassed in local/debug environment.',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      if (ch.avatarFileId != null && ch.avatarFileId!.isNotEmpty) {
+        await _firestore
+            .collection('image_verification')
+            .doc(ch.avatarFileId)
+            .set({
+          'status': 'APPROVED',
+          'reason': 'Bypassed in local/debug environment.',
+          'category': 'avatar',
+          'processedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      Get.snackbar(
+        'Bypassed',
+        'Avatar approved successfully.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      Get.snackbar('Error', e.toString(),
+          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+    }
+  }
+
+  Future<void> requestBannerManualReview() async {
+    final ch = currentChannel.value;
+    if (ch == null) return;
+    try {
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(ch.id)
+          .update({
+        'bannerStatus': 'MANUAL_REVIEW',
+        'bannerStatusReason':
+            'User requested manual review from Creator Intelligence.',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      Get.snackbar(
+        'Submitted',
+        'Banner queued for manual admin review.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      Get.snackbar('Error', e.toString(),
+          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+    }
+  }
+
+  Future<void> bypassBannerVerification() async {
+    final ch = currentChannel.value;
+    if (ch == null) return;
+    try {
+      await _firestore
+          .collection(FirestoreCollections.channels)
+          .doc(ch.id)
+          .update({
+        'bannerStatus': 'APPROVED',
+        'bannerStatusReason': 'Bypassed in local/debug environment.',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      if (ch.bannerFileId != null && ch.bannerFileId!.isNotEmpty) {
+        await _firestore
+            .collection('image_verification')
+            .doc(ch.bannerFileId)
+            .set({
+          'status': 'APPROVED',
+          'reason': 'Bypassed in local/debug environment.',
+          'category': 'banner',
+          'processedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      Get.snackbar(
+        'Bypassed',
+        'Banner approved successfully.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      Get.snackbar('Error', e.toString(),
+          backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
+    }
   }
 
   void listenToNotifications() {

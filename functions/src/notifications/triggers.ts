@@ -195,7 +195,7 @@ export const onNewSubscription = onDocumentCreated(
       severity: "info",
       title: "New Subscriber!",
       message: `${subscriberName} subscribed to your channel.`,
-      actionUrl: `/channel/${channelId}`,
+      actionUrl: `/studio`,
       metadata: { 
         channelId, 
         subscriberId,

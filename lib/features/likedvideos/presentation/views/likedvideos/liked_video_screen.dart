@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/likedvideos/presentation/controllers/likedvideos_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -64,24 +64,26 @@ class _LikedVideoScreenState extends State<LikedVideoScreen>
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    return Obx(() {
+      final currentUser = AuthService.to.currentUser.value;
 
-    if (currentUser == null) {
-      return const Scaffold(
-        backgroundColor: AppColors.bgPage,
-        body: Center(
-          child: Text(
-            'Please login to see liked videos',
-            style: TextStyle(color: AppColors.textPrimary),
+      if (currentUser == null) {
+        return const Scaffold(
+          backgroundColor: AppColors.bgPage,
+          body: Center(
+            child: Text(
+              'Please login to see liked videos',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: _buildMainContent(),
-    );
+      return Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: _buildMainContent(),
+      );
+    });
   }
 
   Widget _buildMainContent() {

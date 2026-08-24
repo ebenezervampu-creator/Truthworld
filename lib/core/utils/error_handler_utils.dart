@@ -15,18 +15,24 @@ void setupGlobalErrorHandlers() {
 
   // 2. Flutter framework error handler
   FlutterError.onError = (details) {
-    if (kDebugMode) {
-      FlutterError.dumpErrorToConsole(details);
-      logger.error(
-        'Flutter Framework Error',
-        error: details.exception,
-        stackTrace: details.stack,
-        tag: 'FlutterFramework',
-      );
-    } else {
-      final errorStr = details.exception.toString();
-      final isTransient = _isTransientError(details.exception, errorStr);
+    final errorStr = details.exception.toString();
+    final isTransient = _isTransientError(details.exception, errorStr);
 
+    if (kDebugMode) {
+      if (!isTransient) {
+        try {
+          FlutterError.dumpErrorToConsole(details);
+        } catch (_) {
+          debugPrint('[FlutterError] ${details.exceptionAsString()}');
+        }
+        logger.error(
+          'Flutter Framework Error',
+          error: details.exception,
+          stackTrace: details.stack,
+          tag: 'FlutterFramework',
+        );
+      }
+    } else {
       ErrorHandler.log(
         details.exception,
         stackTrace: details.stack,
@@ -42,8 +48,10 @@ void setupGlobalErrorHandlers() {
     final isTransient = _isTransientError(error, errorStr);
 
     if (kDebugMode) {
-      debugPrint('[GlobalErrorHandler] ${isTransient ? "Handled transient" : "Caught uncaught"} error: $error');
-      if (!isTransient) debugPrintStack(stackTrace: stack);
+      if (!isTransient) {
+        debugPrint('[GlobalErrorHandler] Caught uncaught error: $error');
+        debugPrintStack(stackTrace: stack);
+      }
     } else {
       ErrorHandler.log(
         error,
@@ -82,7 +90,11 @@ bool _isTransientError(Object error, String errorStr) {
   if (errorStr.contains('Bad state: Too many elements') ||
       errorStr.contains('ScrollController attached to multiple scroll views') ||
       errorStr.contains('_handledContextLostEvent') ||
-      errorStr.contains('MissingPluginException')) {
+      errorStr.contains('MissingPluginException') ||
+      errorStr.contains('engine/window.dart') ||
+      errorStr.contains('LegacyJavaScriptObject') ||
+      errorStr.contains('DiagnosticsNode') ||
+      errorStr.contains('debugTransformDebugCreator')) {
     return true;
   }
 

@@ -1,51 +1,55 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/components/ui/flip_coin_widget.dart';
-import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as ctrl;
 import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// GetX Controller to manage state for SubscribeButton
-class SubscribeButtonController extends BaseController {
-  final RxBool isSubscribed = false.obs;
-
-  void toggle() {
-    isSubscribed.toggle();
-  }
-}
-
-/// GetX Subscribe Button to mock subscriptions interactively
+/// Realtime Subscribe Button connected to ChannelSubscriptionController
 class SubscribeButton extends StatelessWidget {
-  const SubscribeButton({required this.channelName, super.key});
+  const SubscribeButton({
+    required this.channelId,
+    required this.channelName,
+    super.key,
+  });
+  final String channelId;
   final String channelName;
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(SubscribeButtonController(), tag: channelName);
+    final controller = Get.isRegistered<ChannelSubscriptionController>()
+        ? Get.find<ChannelSubscriptionController>()
+        : Get.put(ChannelSubscriptionController());
     final colors = context.twColors;
     final typography = context.twTypography;
 
+    final isSubscribedRx = controller.isSubscribedTo(channelId);
+
     return Obx(() {
-      final isSubscribed = controller.isSubscribed.value;
+      final isSubscribed = isSubscribedRx.value;
       return InkWell(
-        onTap: () {
-          controller.toggle();
-          final nextState = controller.isSubscribed.value;
-          Get.snackbar(
-            nextState ? 'Subscribed' : 'Unsubscribed',
-            nextState
-                ? 'Added $channelName to subscriptions.'
-                : 'Removed $channelName from subscriptions.',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: colors.textPrimary.withValues(alpha: 0.9),
-            colorText: colors.background,
-            duration: const Duration(seconds: 2),
-          );
+        onTap: () async {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) {
+            Get.snackbar(
+              'Sign In Required',
+              'Please sign in to subscribe to channels.',
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+
+          if (isSubscribed) {
+            await controller.unsubscribeFromChannel(channelId);
+          } else {
+            await controller.subscribeToChannel(channelId);
+          }
         },
         borderRadius: BorderRadius.circular(18),
         child: Container(
@@ -69,42 +73,50 @@ class SubscribeButton extends StatelessWidget {
   }
 }
 
-/// GetX Controller to manage state for FollowButton
-class FollowButtonController extends BaseController {
-  final RxBool isFollowing = false.obs;
-
-  void toggle() {
-    isFollowing.toggle();
-  }
-}
-
-/// GetX Follow Button for Topic cards
+/// Realtime Follow Button for Topic cards
 class FollowButton extends StatelessWidget {
-  const FollowButton({required this.topicTitle, super.key});
+  const FollowButton({
+    required this.topicId,
+    required this.topicTitle,
+    super.key,
+  });
+  final String topicId;
   final String topicTitle;
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(FollowButtonController(), tag: topicTitle);
     final colors = context.twColors;
     final typography = context.twTypography;
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
     return Obx(() {
-      final isFollowing = controller.isFollowing.value;
+      final isFollowing = followingController.isTopicFollowed(topicId);
       return InkWell(
-        onTap: () {
-          controller.toggle();
-          final nextState = controller.isFollowing.value;
-          Get.snackbar(
-            nextState ? 'Following' : 'Unfollowed',
-            nextState
-                ? 'Now following the $topicTitle topic.'
-                : 'Unfollowed $topicTitle topic.',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: colors.textPrimary.withValues(alpha: 0.9),
-            colorText: colors.background,
-            duration: const Duration(seconds: 2),
+        onTap: () async {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) {
+            Get.snackbar(
+              'Sign In Required',
+              'Please sign in to follow topics.',
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+          final slug = topicTitle.toLowerCase().replaceAll(' ', '-');
+          final topic = Topic(
+            id: topicId,
+            title: topicTitle,
+            slug: slug,
+            handle: slug,
+            handleLowercase: slug.toLowerCase(),
+            description: '',
+            category: 'General',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
           );
+          await followingController.toggleFollowTopic(topic);
         },
         borderRadius: BorderRadius.circular(18),
         child: Container(
@@ -407,7 +419,10 @@ class SearchResultCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             // Subscribe button
-            SubscribeButton(channelName: result.title),
+            SubscribeButton(
+              channelId: result.id,
+              channelName: result.title,
+            ),
           ],
         ),
       ),
@@ -645,7 +660,10 @@ class SearchResultCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            FollowButton(topicTitle: result.title),
+            FollowButton(
+              topicId: result.id,
+              topicTitle: result.title,
+            ),
           ],
         ),
       ),
@@ -826,55 +844,72 @@ class EmptySearchState extends StatelessWidget {
 
 /// Loading skeleton for search results
 class SearchResultSkeleton extends StatelessWidget {
-  const SearchResultSkeleton({super.key, this.count = 5});
+  const SearchResultSkeleton({
+    super.key,
+    this.count = 5,
+    this.shrinkWrap = false,
+    this.physics,
+  });
   final int count;
+  final bool shrinkWrap;
+  final ScrollPhysics? physics;
 
   @override
   Widget build(BuildContext context) {
+    if (shrinkWrap) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(count, (index) => _buildSkeletonItem(context)),
+      );
+    }
+
     return ListView.builder(
+      physics: physics,
       itemCount: count,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: MediaQuery.of(context).size.width * 0.38,
-                height: 90,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+      itemBuilder: (context, index) => _buildSkeletonItem(context),
+    );
+  }
+
+  Widget _buildSkeletonItem(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: MediaQuery.of(context).size.width * 0.38,
+            height: 90,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 16,
                   color: AppColors.textPrimary.withValues(alpha: 0.05),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 16,
-                      color: AppColors.textPrimary.withValues(alpha: 0.05),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 12,
-                      width: 120,
-                      color: AppColors.textPrimary.withValues(alpha: 0.05),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      height: 12,
-                      width: 80,
-                      color: AppColors.textPrimary.withValues(alpha: 0.05),
-                    ),
-                  ],
+                const SizedBox(height: 8),
+                Container(
+                  height: 12,
+                  width: 120,
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Container(
+                  height: 12,
+                  width: 80,
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
+                ),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -1049,11 +1084,9 @@ class _SearchBarState extends State<SearchBar> {
                     ),
                   )
                 : IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.search_rounded,
-                      color: _isFocused.value
-                          ? AppColors.brand
-                          : theme.colorScheme.onSurfaceVariant,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                     onPressed: widget.onSearchSubmitted,
@@ -1061,32 +1094,11 @@ class _SearchBarState extends State<SearchBar> {
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 🪙 FLIP PERSPECTIVE QUERY BUTTON
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: FlipCoinWidget(
-                    isFlipped: false,
-                    size: 26,
-                    tooltip: 'Flip search query to opposite perspective',
-                    onTap: () {
-                      final flipService = Get.find<FlipCoinService>();
-                      final currentQuery = widget.controller.text;
-                      if (currentQuery.isNotEmpty) {
-                        final flipped = flipService.flipSearchQuery(
-                          currentQuery,
-                        );
-                        widget.controller.text = flipped;
-                        widget.onChanged(flipped);
-                        widget.onSearchSubmitted();
-                      }
-                    },
-                  ),
-                ),
                 if (_textLength.value > 0)
                   IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.clear_rounded,
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: AppColors.textPrimary,
                       size: 18,
                     ),
                     onPressed: () {
@@ -1096,9 +1108,9 @@ class _SearchBarState extends State<SearchBar> {
                     },
                   ),
                 IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.mic_rounded,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
                   onPressed: () {

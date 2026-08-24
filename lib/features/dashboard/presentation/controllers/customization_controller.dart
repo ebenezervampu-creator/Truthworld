@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
@@ -556,6 +557,8 @@ class CustomizationController extends BaseController with ContentValidationMixin
         'status': 'underReview',
         'geminiApproved': FieldValue.delete(),
         'moderationReason': FieldValue.delete(),
+        'brandingApprovedDismissed': false,
+        'approvalBannerDismissed': false,
       };
 
       if (uploadedAvatarFileName != null) {
@@ -569,6 +572,8 @@ class CustomizationController extends BaseController with ContentValidationMixin
         updateData['bannerStatus'] = 'PENDING';
         updateData['bannerStatusReason'] = FieldValue.delete();
       }
+
+      GetStorage().remove('approval_shown_$channelId');
 
       await _firestore
           .collection(FirestoreCollections.channels)

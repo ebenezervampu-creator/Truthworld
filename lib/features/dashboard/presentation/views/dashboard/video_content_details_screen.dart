@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
+import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_pipeline_status.dart';
@@ -139,6 +141,23 @@ class VideoContentDetailsScreen extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
+                                  Icons.timer_outlined,
+                                  size: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  WatchTimeFormatter.format(video.totalWatchTimeSeconds),
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
                                   Icons.calendar_today_outlined,
                                   size: 13,
                                   color: AppColors.textSecondary,
@@ -164,7 +183,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Action Row: Watch Video & Edit Video
+            // Action Row: Watch Video, Analytics & Edit Video
             Row(
               children: [
                 Expanded(
@@ -179,7 +198,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.play_arrow_rounded, size: 20),
                     label: Text(
-                      'Watch Video',
+                      'Watch',
                       style: AppTextStyles.buttonText.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -191,7 +210,38 @@ class VideoContentDetailsScreen extends StatelessWidget {
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.bgDivider),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: const Icon(Icons.analytics_outlined, size: 18),
+                    label: Text(
+                      'Analytics',
+                      style: AppTextStyles.buttonText.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onPressed: () {
+                      Get.to<dynamic>(
+                        () => const WatchTimePage(),
+                        arguments: {
+                          'channelId': video.channelId,
+                          'videoId': video.id,
+                          'videoTitle': video.title,
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
@@ -204,7 +254,7 @@ class VideoContentDetailsScreen extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     label: Text(
-                      'Edit Video',
+                      'Edit',
                       style: AppTextStyles.buttonText.copyWith(
                         color: AppColors.textPrimary,
                       ),

@@ -28,39 +28,86 @@ class SearchResult {
 
     switch (type) {
       case ResultType.channel:
+        final channelTitle = data['channelName'] as String? ??
+            data['name'] as String? ??
+            data['displayName'] as String? ??
+            'Channel';
+        final avatar = data['avatarUrl'] as String? ??
+            data['photoUrl'] as String? ??
+            data['channelImage'] as String? ??
+            data['profileImageUrl'] as String? ??
+            '';
+        final subs = (data['subscriberCount'] as num?)?.toInt() ??
+            (data['subscribers'] as num?)?.toInt() ??
+            (data['subscriber_count'] as num?)?.toInt() ??
+            0;
+        final handle = data['handle'] as String? ??
+            data['channelHandle'] as String? ??
+            (data['customUrl'] as String? ?? '');
+
         return SearchResult(
           id: doc.id,
-          title: data['channelName'] as String? ?? 'Unnamed Channel',
-          thumbnail: data['avatarUrl'] as String? ?? '',
-          views: (data['subscriberCount'] as num?)?.toInt() ?? 0,
-          channelName:
-              data['handle'] as String? ?? '', // Using handle if available
-          channelImage: data['avatarUrl'] as String? ?? '',
+          title: channelTitle,
+          thumbnail: avatar,
+          views: subs,
+          channelName: handle.isNotEmpty ? (handle.startsWith('@') ? handle : '@$handle') : channelTitle,
+          channelImage: avatar,
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.channel,
         );
       case ResultType.playlist:
+        final playlistTitle = data['name'] as String? ??
+            data['playlistName'] as String? ??
+            data['title'] as String? ??
+            'Playlist';
+        final playlistThumb = data['thumbnailUrl'] as String? ??
+            data['thumbnail'] as String? ??
+            data['coverUrl'] as String? ??
+            '';
+        final vidCount = (data['videoCount'] as num?)?.toInt() ??
+            (data['videosCount'] as num?)?.toInt() ??
+            (data['videoIds'] as List?)?.length ??
+            0;
+        final creator = data['creatorName'] as String? ??
+            data['channelName'] as String? ??
+            data['ownerName'] as String? ??
+            'Truthworld';
+
         return SearchResult(
           id: doc.id,
-          title: data['title'] as String? ?? 'Untitled Playlist',
-          thumbnail: data['thumbnailUrl'] as String? ?? '',
-          views:
-              (data['videoCount'] as num?)?.toInt() ??
-              0, // Using videoCount as "views" for sorting
-          channelName: data['creatorName'] as String? ?? 'Unknown',
+          title: playlistTitle,
+          thumbnail: playlistThumb,
+          views: vidCount,
+          channelName: creator,
           channelImage: '',
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.playlist,
         );
       case ResultType.topic:
+        final slugVal = data['slug'] as String? ?? '';
+        final topicTitle = data['title'] as String? ??
+            data['name'] as String? ??
+            data['topicName'] as String? ??
+            (slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : 'Topic');
+        final topicThumb = data['thumbnailUrl'] as String? ??
+            data['thumbnail'] as String? ??
+            data['coverImage'] as String? ??
+            data['imageUrl'] as String? ??
+            '';
+        final topicCount = (data['videoCount'] as num?)?.toInt() ??
+            (data['followerCount'] as num?)?.toInt() ??
+            (data['followersCount'] as num?)?.toInt() ??
+            (data['views'] as num?)?.toInt() ??
+            0;
+        final handleVal = data['handle'] as String? ??
+            (slugVal.isNotEmpty ? 'T/$slugVal' : 'Topic');
+
         return SearchResult(
           id: doc.id,
-          title: data['title'] as String? ?? 'Untitled Topic',
-          thumbnail: data['thumbnailUrl'] as String? ?? '',
-          views:
-              (data['videoCount'] as num?)?.toInt() ??
-              0, // Using videoCount as views/popularity
-          channelName: data['handle'] as String? ?? 'T/${data['slug'] ?? ""}',
+          title: topicTitle,
+          thumbnail: topicThumb,
+          views: topicCount,
+          channelName: handleVal,
           channelImage: '',
           createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.topic,
@@ -70,16 +117,14 @@ class SearchResult {
           id: doc.id,
           title: data['title'] as String? ?? 'Untitled',
           thumbnail: data['thumbnailUrl'] as String? ?? '',
-          views:
-              (data['viewCount'] as num?)?.toInt() ??
+          views: (data['viewCount'] as num?)?.toInt() ??
               (data['views'] as num?)?.toInt() ??
               (data['stats'] is Map
                   ? (data['stats']['views'] as num?)?.toInt()
                   : null) ??
               0,
           channelName: data['channelName'] as String? ?? 'Unknown',
-          channelImage:
-              data['channelAvatarUrl'] as String? ??
+          channelImage: data['channelAvatarUrl'] as String? ??
               data['channelImage'] as String? ??
               '',
           createdAt: TimestampUtils.parse(
@@ -131,14 +176,16 @@ class SearchResult {
 
   bool get isValid {
     final t = title.trim().toLowerCase();
-    if (t.isEmpty ||
-        t == 'untitled' ||
-        t == 'untitled video' ||
-        t == 'untitled draft' ||
-        t == 'uploading...' ||
-        t.startsWith('untitled') ||
-        t.startsWith('uploading')) {
-      return false;
+    if (t.isEmpty) return false;
+    if (type == ResultType.video) {
+      if (t == 'untitled' ||
+          t == 'untitled video' ||
+          t == 'untitled draft' ||
+          t == 'uploading...' ||
+          t.startsWith('untitled draft') ||
+          t.startsWith('uploading')) {
+        return false;
+      }
     }
     return true;
   }

@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -68,12 +69,19 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
     if (widget.video.isScheduled) {
       return; // Do not hover play scheduled premieres
     }
+    if (HoverPreviewCoordinator.isMainVideoMuted()) {
+      return; // Suppress hover preview if active video is muted
+    }
 
     _isHovered.value = true;
 
     _hoverTimer?.cancel();
     _hoverTimer = Timer(const Duration(milliseconds: 600), () {
       if (_isHovered.value) {
+        if (HoverPreviewCoordinator.isMainVideoMuted()) {
+          _isHovered.value = false;
+          return;
+        }
         _initializePlayer();
       }
     });
@@ -106,6 +114,12 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
   }
 
   Future<void> _initializePlayer() async {
+    if (HoverPreviewCoordinator.isMainVideoMuted()) {
+      _isLoading.value = false;
+      _isHovered.value = false;
+      return;
+    }
+
     // Prefer videoUrl on Web since HLS (.m3u8) is not natively supported by Chrome/Firefox.
     // On other platforms, prefer hlsUrl if available, falling back to videoUrl.
     const preferVideoUrl = kIsWeb;
@@ -124,8 +138,7 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
     if (playUrl.isEmpty) return;
 
     _isLoading.value = true;
-    _isMuted.value =
-        HoverVideoPlayer.isGlobalMuted; // Sync with global preference
+    _isMuted.value = true;
 
     try {
       await _attemptInitWithUrl(playUrl);
@@ -178,10 +191,10 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
     );
 
     await controller.initialize();
-    await controller.setVolume(HoverVideoPlayer.isGlobalMuted ? 0.0 : 1.0);
+    await controller.setVolume(0.0);
     await controller.setLooping(true);
 
-    if (_isHovered.value) {
+    if (_isHovered.value && !HoverPreviewCoordinator.isMainVideoMuted()) {
       _controller.value = controller;
       _isInitialized.value = true;
       _isLoading.value = false;
@@ -194,11 +207,13 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
         }
       });
 
-      // Register this controller globally for warm handover on tap
-      VideoPlaybackHandoff.registerActiveController(
-        widget.video.id,
-        controller,
-      );
+      // Register this controller globally for warm handover on tap (native only)
+      if (!kIsWeb) {
+        VideoPlaybackHandoff.registerActiveController(
+          widget.video.id,
+          controller,
+        );
+      }
 
       await controller.play();
     } else {
@@ -208,9 +223,21 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
     }
   }
 
+  Future<void> _toggleMute() async {
+    final nextMute = !_isMuted.value;
+    _isMuted.value = nextMute;
+    HoverVideoPlayer.isGlobalMuted = nextMute;
+    if (nextMute) {
+      await _controller.value?.setVolume(0.0);
+    } else {
+      HoverPreviewCoordinator.pauseAllMainPlayers();
+      await _controller.value?.setVolume(1.0);
+    }
+  }
+
   void _handleTap() {
     final controller = _controller.value;
-    if (controller != null && _isInitialized.value) {
+    if (controller != null && _isInitialized.value && !kIsWeb) {
       VideoPlaybackHandoff.registerActiveController(
         widget.video.id,
         controller,
@@ -218,7 +245,7 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
       _controller.value = null;
       _isInitialized.value = false;
       _isLoading.value = false;
-    } else {
+    } else if (!kIsWeb) {
       VideoPlaybackHandoff.prewarmVideo(widget.video);
     }
 
@@ -339,15 +366,7 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                             children: [
                               GestureDetector(
                                 behavior: HitTestBehavior.opaque,
-                                onTap: () async {
-                                  if (_controller.value == null) return;
-                                  final nextMute = !_isMuted.value;
-                                  await _controller.value!.setVolume(
-                                    nextMute ? 0.0 : 1.0,
-                                  );
-                                  HoverVideoPlayer.isGlobalMuted = nextMute;
-                                  _isMuted.value = nextMute;
-                                },
+                                onTap: _toggleMute,
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
@@ -360,12 +379,14 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                                       width: 0.5,
                                     ),
                                   ),
-                                  child: Icon(
-                                    _isMuted.value
-                                        ? Icons.volume_off_rounded
-                                        : Icons.volume_up_rounded,
-                                    color: AppColors.textPrimary,
-                                    size: 14,
+                                  child: Obx(
+                                    () => Icon(
+                                      _isMuted.value
+                                          ? Icons.volume_off_rounded
+                                          : Icons.volume_up_rounded,
+                                      color: AppColors.textPrimary,
+                                      size: 14,
+                                    ),
                                   ),
                                 ),
                               ),

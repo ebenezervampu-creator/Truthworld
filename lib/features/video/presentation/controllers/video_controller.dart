@@ -208,11 +208,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   final RxInt recommendationActiveTab = 0.obs;
 
   List<dynamic> get recommendedItems {
+    final displayVideos = filteredRecommendedVideos;
+    final isFlipped = (selectedRecommendationFilter.value == 'Flip Coin') ||
+        (Get.isRegistered<FlipCoinService>() &&
+            Get.find<FlipCoinService>().isVideoFlipped(video.id));
+    if (isFlipped) {
+      return List<dynamic>.from(displayVideos);
+    }
+
     final mixed = <dynamic>[];
     var videoIndex = 0;
     var postIndex = 0;
     var topicIndex = 0;
-    final displayVideos = filteredRecommendedVideos;
 
     while (videoIndex < displayVideos.length ||
         postIndex < communityPosts.length ||
@@ -2266,61 +2273,108 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
 
       if (!hasPlaylistVideos) {
-        // 2. Normal recommendations logic
-        final channelId = video.channelId;
+        final isFlipped = (selectedRecommendationFilter.value == 'Flip Coin') ||
+            (Get.isRegistered<FlipCoinService>() &&
+                Get.find<FlipCoinService>().isVideoFlipped(video.id));
 
-        // Single efficient fetch for channel videos
-        final channelVidsQuery = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where('channelId', isEqualTo: channelId)
-            .where(FieldPath.documentId, isNotEqualTo: videoId)
-            .limit(10)
-            .get();
+        if (isFlipped) {
+          final candidateList = <Video>[];
 
-        final channelVideos = channelVidsQuery.docs
-            .map(Video.fromDocumentSnapshot)
-            .toList();
+          // 1. If video has an explicit paired counter-video (Coin Battle pair), fetch it directly!
+          if (video.coinBattlePairVideoId != null &&
+              video.coinBattlePairVideoId!.isNotEmpty) {
+            try {
+              final pairDoc = await FirebaseFirestore.instance
+                  .collection(FirestoreCollections.videos)
+                  .doc(video.coinBattlePairVideoId)
+                  .get();
+              if (pairDoc.exists && pairDoc.data() != null) {
+                candidateList.add(Video.fromDocumentSnapshot(pairDoc));
+              }
+            } catch (e) {
+              debugPrint('Error fetching coin battle pair video: $e');
+            }
+          }
 
-        // Fill the rest with general videos
-        final generalVidsQuery = await FirebaseFirestore.instance
-            .collection(FirestoreCollections.videos)
-            .where(FieldPath.documentId, isNotEqualTo: videoId)
-            .limit(20)
-            .get();
+          // 2. Fetch a broad pool of public candidate videos
+          try {
+            final candidatesQuery = await FirebaseFirestore.instance
+                .collection(FirestoreCollections.videos)
+                .where('status', isEqualTo: 'public')
+                .where('visibility', isEqualTo: 'public')
+                .limit(60)
+                .get();
 
-        final generalVideos = generalVidsQuery.docs
-            .map(Video.fromDocumentSnapshot)
-            .where(
-              (v) =>
-                  v.id != videoId && !channelVideos.any((cv) => cv.id == v.id),
-            )
-            .toList();
+            for (final doc in candidatesQuery.docs) {
+              if (doc.id != videoId &&
+                  !candidateList.any((v) => v.id == doc.id)) {
+                candidateList.add(Video.fromDocumentSnapshot(doc));
+              }
+            }
+          } catch (e) {
+            debugPrint(
+              'Error querying candidate videos for flip recommendations: $e',
+            );
+          }
 
-        moreFromChannel.value = channelVideos;
-        final rawRecommended = {...channelVideos, ...generalVideos}.toList();
-
-        if (Get.isRegistered<TruthworldAlgorithm>()) {
-          final algorithm = Get.find<TruthworldAlgorithm>();
-          final isFlipped =
-              Get.isRegistered<FlipCoinService>() &&
-              Get.find<FlipCoinService>().isVideoFlipped(video.id);
-
-          final ranked = isFlipped
-              ? algorithm.rankVideosForCurrentVideoOpposite(
-                  video,
-                  rawRecommended,
-                )
-              : algorithm.rankVideos(
-                  rawRecommended,
-                  RecommendationSurface.videoRelated,
-                  diversityConfig: DiversityConfig.videoRelated,
-                );
-          final rankedList = ranked.map((s) => s.video).toList();
-          recommendedVideos.value = rankedList.isNotEmpty
-              ? rankedList
-              : rawRecommended;
+          if (Get.isRegistered<TruthworldAlgorithm>()) {
+            final algorithm = Get.find<TruthworldAlgorithm>();
+            final ranked = algorithm.rankVideosForCurrentVideoOpposite(
+              video,
+              candidateList,
+            );
+            recommendedVideos.value = ranked.map((s) => s.video).toList();
+          } else {
+            recommendedVideos.value = candidateList;
+          }
         } else {
-          recommendedVideos.value = rawRecommended;
+          // Normal recommendations logic
+          final channelId = video.channelId;
+
+          // Single efficient fetch for channel videos
+          final channelVidsQuery = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: channelId)
+              .where(FieldPath.documentId, isNotEqualTo: videoId)
+              .limit(10)
+              .get();
+
+          final channelVideos = channelVidsQuery.docs
+              .map(Video.fromDocumentSnapshot)
+              .toList();
+
+          // Fill the rest with general videos
+          final generalVidsQuery = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where(FieldPath.documentId, isNotEqualTo: videoId)
+              .limit(20)
+              .get();
+
+          final generalVideos = generalVidsQuery.docs
+              .map(Video.fromDocumentSnapshot)
+              .where(
+                (v) =>
+                    v.id != videoId && !channelVideos.any((cv) => cv.id == v.id),
+              )
+              .toList();
+
+          moreFromChannel.value = channelVideos;
+          final rawRecommended = {...channelVideos, ...generalVideos}.toList();
+
+          if (Get.isRegistered<TruthworldAlgorithm>()) {
+            final algorithm = Get.find<TruthworldAlgorithm>();
+            final ranked = algorithm.rankVideos(
+              rawRecommended,
+              RecommendationSurface.videoRelated,
+              diversityConfig: DiversityConfig.videoRelated,
+            );
+            final rankedList = ranked.map((s) => s.video).toList();
+            recommendedVideos.value = rankedList.isNotEmpty
+                ? rankedList
+                : rawRecommended;
+          } else {
+            recommendedVideos.value = rawRecommended;
+          }
         }
       }
 
@@ -2722,6 +2776,11 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
           },
         );
       }
+
+      // Ensure volume is set to full unmuted playback on watch screen
+      try {
+        await newVpc.setVolume(1.0);
+      } catch (_) {}
 
       // Add listeners AFTER initialization succeeds to prevent race conditions during setup
       newVpc.addListener(_videoErrorListener);
@@ -3165,16 +3224,15 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       // lingering audio from the overlay player.
       TowerPlayerController.pauseAllActivePlayers();
 
-      // Hand off the player controller to the miniplayer
-      if (_videoPlayerController != null) {
+      // Hand off the player controller to the miniplayer on native platforms
+      if (_videoPlayerController != null && !kIsWeb) {
         VideoPlaybackHandoff.registerActiveController(
           video.id,
           _videoPlayerController!,
         );
+        // Prevent disposePlayer() from destroying the video player controller!
+        _videoPlayerController = null;
       }
-
-      // Prevent disposePlayer() from destroying the video player controller!
-      _videoPlayerController = null;
 
       // Show the miniplayer
       WidgetsBinding.instance.addPostFrameCallback((_) {

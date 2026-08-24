@@ -9,6 +9,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/notification_service.dart';
+import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
@@ -188,6 +189,39 @@ class PushNotificationService extends GetxService {
         return;
       }
 
+      final typeLower = (type ?? '').toLowerCase();
+      final title = (message.notification?.title ?? data['title'] as String? ?? '').toLowerCase();
+      final body = (message.notification?.body ?? data['message'] as String? ?? '').toLowerCase();
+
+      // Handle Subscriber / Studio notifications
+      if (typeLower == 'new_follower' ||
+          typeLower == 'subscriber' ||
+          typeLower == 'new_subscriber' ||
+          typeLower == 'subscription' ||
+          typeLower == 'subscribers_milestone' ||
+          typeLower.contains('subscriber') ||
+          typeLower.contains('follower') ||
+          title.contains('subscriber') ||
+          body.contains('subscribed') ||
+          (actionUrl != null && actionUrl.toLowerCase().contains('studio'))) {
+        StudioLauncher.openStudio();
+        return;
+      }
+
+      if (videoId != null && videoId.isNotEmpty) {
+        unawaited(
+          Get.toNamed(
+            '/watch?v=$videoId',
+            arguments: {
+              'videoId': videoId,
+              'commentId': data['commentId'],
+              'replyId': data['replyId'],
+            },
+          ),
+        );
+        return;
+      }
+
       if (actionUrl != null && actionUrl.isNotEmpty) {
         logger.info(
           'Deep-linking user to page path: $actionUrl',
@@ -197,7 +231,7 @@ class PushNotificationService extends GetxService {
       }
     } catch (e) {
       logger.error(
-        'Failed to navigate using actionUrl: $e',
+        'Failed to navigate using notification payload: $e',
         tag: 'PUSH_NOTIFICATIONS',
       );
     }

@@ -7,6 +7,7 @@ import 'package:truthworld/features/home/presentation/controllers/main_controlle
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
     as app_search;
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
@@ -67,6 +68,7 @@ class PlaylistBinding extends Bindings {
   void dependencies() {
     Get.lazyPut<PlaylistController>(PlaylistController.new, fenix: true);
     Get.lazyPut<PlaylistDetailController>(PlaylistDetailController.new);
+    Get.lazyPut<PlaylistDialogController>(PlaylistDialogController.new);
   }
 }
 
