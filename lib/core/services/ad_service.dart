@@ -102,7 +102,7 @@ class AdItem {
   final String? budgetTier;
   final double? budgetAmount;
   final String
-  adType; // 'skippable', 'homepage', 'scroll', 'search', 'comment', 'video_sponsor'
+  adType; // 'skippable', 'homepage', 'scroll', 'comment', 'video_sponsor'
   final String status; // 'active', 'paused'
   final int impressions;
   final int clicks;
@@ -685,7 +685,10 @@ class AdService extends GetxService {
       return false;
     }
     return customCampaigns.any(
-      (ad) => ad.adType == type && ad.status == 'active',
+      (ad) =>
+          ((type == 'scroll' && (ad.adType == 'scroll' || ad.adType == 'search')) ||
+              ad.adType == type) &&
+          ad.status == 'active',
     );
   }
 
@@ -718,7 +721,8 @@ class AdService extends GetxService {
     return customCampaigns
         .where(
           (ad) =>
-              ad.adType == type &&
+              ((type == 'scroll' && (ad.adType == 'scroll' || ad.adType == 'search')) ||
+                  ad.adType == type) &&
               ad.status == 'active' &&
               !hiddenAdIds.contains(ad.id),
         )

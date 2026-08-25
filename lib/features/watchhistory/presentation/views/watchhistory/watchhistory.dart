@@ -22,23 +22,14 @@ const Color primaryText = AppColors.textPrimary;
 const Color secondaryText = AppColors.textSecondary;
 const Color buttonBg = AppColors.bgSurfaceHover;
 
-class WatchHistory extends StatefulWidget {
+class WatchHistory extends StatelessWidget {
   const WatchHistory({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  @override
-  State<WatchHistory> createState() => _WatchHistoryState();
-}
-
-class _WatchHistoryState extends State<WatchHistory>
-    with TickerProviderStateMixin {
-  late final WatchHistoryController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = Get.find<WatchHistoryController>();
-  }
+  WatchHistoryController get _controller =>
+      Get.isRegistered<WatchHistoryController>()
+          ? Get.find<WatchHistoryController>()
+          : Get.put(WatchHistoryController());
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +56,7 @@ class _WatchHistoryState extends State<WatchHistory>
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 48, 16, 16),
             child: Row(
               children: [
                 Expanded(
@@ -77,7 +68,7 @@ class _WatchHistoryState extends State<WatchHistory>
                           color: AppColors.textPrimary,
                         ),
                         onPressed: () {
-                          if (widget.isDashboard) {
+                          if (isDashboard) {
                             Get.find<HomeController>()
                                     .sideNavSelectedIndex
                                     .value =

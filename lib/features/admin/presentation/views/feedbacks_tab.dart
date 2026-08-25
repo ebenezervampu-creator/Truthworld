@@ -7,57 +7,11 @@ import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class FeedbacksTab extends StatefulWidget {
+class FeedbacksTab extends StatelessWidget {
   final AdminController controller;
   const FeedbacksTab({required this.controller, super.key});
 
-  @override
-  State<FeedbacksTab> createState() => _FeedbacksTabState();
-}
-
-class _FeedbacksTabState extends State<FeedbacksTab> {
-  final RxList<Map<String, dynamic>> feedbacks = <Map<String, dynamic>>[].obs;
-  final Rxn<Map<String, dynamic>> selectedFeedback =
-      Rxn<Map<String, dynamic>>();
-  final RxBool isLoading = true.obs;
-  final RxString filterType = 'All'.obs;
-  final RxString filterStatus = 'All'.obs;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFeedbacks();
-  }
-
-  Future<void> _loadFeedbacks() async {
-    isLoading.value = true;
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection(FirestoreCollections.feedback)
-          .orderBy('timestamp', descending: true)
-          .limit(200)
-          .get();
-      feedbacks.value = snap.docs
-          .map((d) => {'id': d.id, ...d.data()})
-          .toList();
-      isLoading.value = false;
-    } catch (e) {
-      debugPrint('Error loading feedbacks: $e');
-      isLoading.value = false;
-    }
-  }
-
-  List<Map<String, dynamic>> get filteredFeedbacks {
-    return feedbacks.where((fb) {
-      if (filterType.value != 'All' && fb['feedbackType'] != filterType.value) {
-        return false;
-      }
-      if (filterStatus.value != 'All' && fb['status'] != filterStatus.value) {
-        return false;
-      }
-      return true;
-    }).toList();
-  }
+  BuildContext get context => Get.context!;
 
   String _formatTimestamp(dynamic val) {
     if (val == null) return 'N/A';
@@ -71,30 +25,11 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
     return DateFormat('MMM dd, yyyy · HH:mm').format(dt);
   }
 
-  Future<void> _updateFeedbackStatus(String id, String newStatus) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection(FirestoreCollections.feedback)
-          .doc(id)
-          .update({
-            'status': newStatus,
-            'reviewedAt': FieldValue.serverTimestamp(),
-          });
-      await _loadFeedbacks();
-      if (selectedFeedback.value != null &&
-          selectedFeedback.value!['id'] == id) {
-        selectedFeedback.value = feedbacks.firstWhere(
-          (f) => f['id'] == id,
-          orElse: () => selectedFeedback.value!,
-        );
-      }
-    } catch (e) {
-      debugPrint('Error updating feedback status: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (controller.feedbacks.isEmpty && controller.isLoadingFeedbacks.value) {
+      controller.loadFeedbacks();
+    }
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
     return Column(
@@ -105,8 +40,8 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         // Content
         Expanded(
           child: Obx(() {
-            final loading = isLoading.value;
-            final selected = selectedFeedback.value;
+            final loading = controller.isLoadingFeedbacks.value;
+            final selected = controller.selectedFeedback.value;
             if (loading) {
               return const Center(
                 child: CircularProgressIndicator(color: AppColors.textPrimary),
@@ -140,7 +75,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: AppColors.bgSurface,
+      color: const Color(0xFF181818),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -155,22 +90,24 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: AppColors.bgElevated,
+                color: const Color(0xFF212121),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: DropdownButtonHideUnderline(
                 child: Obx(
                   () => DropdownButton<String>(
-                    value: filterType.value,
-                    dropdownColor: AppColors.bgElevated,
+                    value: controller.feedbackFilterType.value,
+                    dropdownColor: const Color(0xFF212121),
                     style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
                     items: types
                         .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                         .toList(),
-                    onChanged: (v) => filterType.value = v ?? 'All',
+                    onChanged: (v) => controller.feedbackFilterType.value = v ?? 'All',
                   ),
                 ),
               ),
@@ -180,15 +117,17 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: AppColors.bgElevated,
+                color: const Color(0xFF212121),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               child: DropdownButtonHideUnderline(
                 child: Obx(
                   () => DropdownButton<String>(
-                    value: filterStatus.value,
-                    dropdownColor: AppColors.bgElevated,
+                    value: controller.feedbackFilterStatus.value,
+                    dropdownColor: const Color(0xFF212121),
                     style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
@@ -204,7 +143,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => filterStatus.value = v ?? 'All',
+                    onChanged: (v) => controller.feedbackFilterStatus.value = v ?? 'All',
                   ),
                 ),
               ),
@@ -212,8 +151,9 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             const SizedBox(width: 20),
             // Count
             Text(
-              '${filteredFeedbacks.length} feedback${filteredFeedbacks.length != 1 ? 's' : ''}',
+              '${controller.filteredFeedbacks.length} feedback${controller.filteredFeedbacks.length != 1 ? 's' : ''}',
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textTertiary,
                 fontSize: 13,
               ),
@@ -225,7 +165,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 color: Colors.white,
                 size: 20,
               ),
-              onPressed: _loadFeedbacks,
+              onPressed: controller.loadFeedbacks,
               tooltip: 'Refresh',
             ),
           ],
@@ -236,7 +176,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
 
   Widget _buildFeedbackList() {
     return Obx(() {
-      final items = filteredFeedbacks;
+      final items = controller.filteredFeedbacks;
       if (items.isEmpty) {
         return const Center(
           child: Column(
@@ -244,13 +184,17 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             children: [
               Icon(
                 Icons.feedback_outlined,
-                color: AppColors.textTertiary,
+                color: Colors.white,
                 size: 48,
               ),
               SizedBox(height: 16),
               Text(
                 'No feedback found',
-                style: TextStyle(color: AppColors.textTertiary, fontSize: 15),
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textTertiary,
+                  fontSize: 15,
+                ),
               ),
             ],
           ),
@@ -261,18 +205,18 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
         padding: const EdgeInsets.all(0),
         itemCount: items.length,
         separatorBuilder: (_, _) =>
-            const Divider(color: AppColors.bgDivider, height: 1),
+            Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
         itemBuilder: (context, index) {
           final fb = items[index];
-          final isSelected = selectedFeedback.value?['id'] == fb['id'];
+          final isSelected = controller.selectedFeedback.value?['id'] == fb['id'];
           final type = fb['feedbackType'] ?? 'General';
           final status = fb['status'] ?? 'new';
           final rating = (fb['rating'] as num?)?.toInt() ?? 0;
 
           return Material(
-            color: isSelected ? AppColors.bgElevated : Colors.transparent,
+            color: isSelected ? const Color(0xFF212121) : Colors.transparent,
             child: InkWell(
-              onTap: () => selectedFeedback.value = fb,
+              onTap: () => controller.selectedFeedback.value = fb,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -306,6 +250,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                                 child: Text(
                                   fb['userEmail'] ?? 'Anonymous',
                                   style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
                                     color: AppColors.textPrimary,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -321,7 +266,8 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                           Text(
                             fb['feedbackText'] ?? '',
                             style: const TextStyle(
-                              color: AppColors.textPrimary,
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
                             maxLines: 1,
@@ -333,6 +279,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                               Text(
                                 type,
                                 style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
                                   color: _typeColor(type),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
@@ -362,6 +309,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                                 child: Text(
                                   _formatTimestamp(fb['timestamp']),
                                   style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
                                     color: AppColors.textTertiary,
                                     fontSize: 11,
                                   ),
@@ -385,7 +333,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
   }
 
   Widget _buildFeedbackDetail() {
-    final fb = selectedFeedback.value!;
+    final fb = controller.selectedFeedback.value!;
     final type = fb['feedbackType'] ?? 'General';
     final status = fb['status'] ?? 'new';
     final rating = (fb['rating'] as num?)?.toInt() ?? 0;
@@ -402,7 +350,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: TextButton.icon(
-                onPressed: () => selectedFeedback.value = null,
+                onPressed: () => controller.selectedFeedback.value = null,
                 icon: const Icon(
                   Icons.arrow_back_rounded,
                   color: Colors.white,
@@ -410,7 +358,10 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 ),
                 label: const Text(
                   'Back to list',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
             ),
@@ -419,9 +370,9 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.bgSurface,
+              color: const Color(0xFF181818),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,6 +385,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                       child: Text(
                         (fb['userEmail'] ?? 'A')[0].toUpperCase(),
                         style: const TextStyle(
+                          fontFamily: TWTypography.brandFamily,
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
@@ -447,15 +399,17 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                           Text(
                             fb['userEmail'] ?? 'Anonymous',
                             style: const TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               color: AppColors.textPrimary,
                               fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'User ID: ${fb['userId'] ?? 'N/A'}',
                             style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               color: AppColors.textTertiary,
                               fontSize: 11,
                             ),
@@ -481,7 +435,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                             rating,
                             (_) => const Icon(
                               Icons.star_rounded,
-                              color: Color(0xFFFFB800),
+                              color: Colors.white,
                               size: 16,
                             ),
                           ),
@@ -498,6 +452,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                     Text(
                       _formatTimestamp(fb['timestamp']),
                       style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
                         color: AppColors.textTertiary,
                         fontSize: 12,
                       ),
@@ -506,6 +461,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                       Text(
                         'v${fb['appVersion']}',
                         style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textTertiary,
                           fontSize: 12,
                         ),
@@ -522,9 +478,9 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.bgSurface,
+              color: const Color(0xFF181818),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,9 +488,10 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 const Text(
                   'Feedback Message',
                   style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -542,6 +499,7 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                 Text(
                   fb['feedbackText'] ?? 'No message provided.',
                   style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textPrimary,
                     fontSize: 14,
                     height: 1.6,
@@ -677,21 +635,21 @@ class _FeedbacksTabState extends State<FeedbacksTab> {
                   'Mark Reviewed',
                   Icons.check_circle_outline,
                   const Color(0xFF2196F3),
-                  () => _updateFeedbackStatus(fb['id'], 'reviewed'),
+                  () => controller.updateFeedbackStatus(fb['id'], 'reviewed'),
                 ),
               if (status != 'resolved')
                 _buildActionButton(
                   'Resolve',
                   Icons.done_all_rounded,
                   const Color(0xFF2BA640),
-                  () => _updateFeedbackStatus(fb['id'], 'resolved'),
+                  () => controller.updateFeedbackStatus(fb['id'], 'resolved'),
                 ),
               if (status != 'archived')
                 _buildActionButton(
                   'Archive',
                   Icons.archive_outlined,
                   AppColors.textTertiary,
-                  () => _updateFeedbackStatus(fb['id'], 'archived'),
+                  () => controller.updateFeedbackStatus(fb['id'], 'archived'),
                 ),
             ],
           ),

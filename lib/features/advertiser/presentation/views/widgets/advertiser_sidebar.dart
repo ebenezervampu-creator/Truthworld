@@ -16,15 +16,20 @@ class AdvertiserSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF161616),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF161618),
+        border: Border(
+          right: BorderSide(color: Color(0xFF27272A)),
+        ),
+      ),
       child: SizedBox(
         width: 250,
         height: double.infinity,
         child: Column(
           children: [
             _buildSidebarHeader(context),
-            const Divider(color: AppColors.bgDivider),
+            const Divider(color: Color(0xFF27272A), height: 1),
             Expanded(
               child: _buildSidebarItems(context),
             ),
@@ -35,29 +40,30 @@ class AdvertiserSidebar extends StatelessWidget {
   }
 
   Widget _buildSidebarHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return const Padding(
+      padding: EdgeInsets.all(24),
       child: Row(
         children: [
-          const AppLogo(
-            size: 32,
-            borderRadius: 8,
-          ),
-          const SizedBox(width: 12),
+          AppLogo(),
+          SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Truthworld',
-                style: context.typography.logo.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   fontSize: 16,
-                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
+              SizedBox(height: 2),
               Text(
                 'Advertiser Studio',
-                style: AppTextStyles.badge.copyWith(
-                  color: AppColors.warning,
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.brand,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
@@ -97,13 +103,14 @@ class AdvertiserSidebar extends StatelessWidget {
             title: Text(
               item['title']! as String,
               style: TextStyle(
-                color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontFamily: TWTypography.uiFamily,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 14,
               ),
             ),
             selected: isSelected,
-            selectedTileColor: AppColors.bgSurfaceHover,
+            selectedTileColor: AppColors.brand.withValues(alpha: 0.12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),

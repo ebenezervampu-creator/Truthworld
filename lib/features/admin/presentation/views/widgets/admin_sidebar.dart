@@ -15,11 +15,16 @@ class AdminSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 250,
-      color: AppColors.bgSurface,
+      decoration: BoxDecoration(
+        color: const Color(0xFF181818),
+        border: Border(
+          right: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+      ),
       child: Column(
         children: [
           _buildSidebarHeader(context),
-          const Divider(color: AppColors.bgDivider),
+          Divider(color: Colors.white.withValues(alpha: 0.08)),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -65,6 +70,7 @@ class AdminSidebar extends StatelessWidget {
               Text(
                 'Admin Console',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -73,6 +79,7 @@ class AdminSidebar extends StatelessWidget {
               Text(
                 'Truthworld System',
                 style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
@@ -103,6 +110,7 @@ class AdminSidebar extends StatelessWidget {
         title: Text(
           label,
           style: TextStyle(
+            fontFamily: TWTypography.uiFamily,
             color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             fontSize: 14,

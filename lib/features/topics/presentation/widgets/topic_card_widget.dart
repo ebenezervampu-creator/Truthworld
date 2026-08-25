@@ -15,8 +15,8 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Unified Responsive Topic Card Widget matching exact Channel Creation page fonts and theme architecture.
 /// Guarantees zero overflow errors across Mobile, Tablet, and Desktop.
-class TopicCardWidget extends StatefulWidget {
-  const TopicCardWidget({
+class TopicCardWidget extends StatelessWidget {
+  TopicCardWidget({
     super.key,
     this.topic,
     this.isHero = false,
@@ -45,36 +45,20 @@ class TopicCardWidget extends StatefulWidget {
   final Color? accentColor;
   final Widget? trailing;
 
-  @override
-  State<TopicCardWidget> createState() => _TopicCardWidgetState();
-}
-
-class _TopicCardWidgetState extends State<TopicCardWidget> {
-  late TopicInteractionController _interactionController;
-  late final FollowingTopicsController _followingTopicsController;
   final RxBool _isHovered = false.obs;
 
-  Topic? get topic => widget.topic;
+  FollowingTopicsController get _followingTopicsController =>
+      Get.isRegistered<FollowingTopicsController>()
+          ? Get.find<FollowingTopicsController>()
+          : Get.put(FollowingTopicsController());
 
-  @override
-  void initState() {
-    super.initState();
-    _followingTopicsController = Get.isRegistered<FollowingTopicsController>()
-        ? Get.find<FollowingTopicsController>()
-        : Get.put(FollowingTopicsController());
-
-    if (widget.topic != null && widget.topic!.id.trim().isNotEmpty) {
-      _initControllers(widget.topic!);
-    }
-  }
-
-  void _initControllers(Topic topicItem) {
-    if (topicItem.id.trim().isEmpty) return;
-    _interactionController =
-        Get.isRegistered<TopicInteractionController>(tag: topicItem.id)
-            ? Get.find<TopicInteractionController>(tag: topicItem.id)
-            : Get.put(TopicInteractionController(), tag: topicItem.id);
-    _interactionController.initializeTopic(topicItem);
+  TopicInteractionController? get _interactionController {
+    if (topic == null || topic!.id.trim().isEmpty) return null;
+    final ctrl = Get.isRegistered<TopicInteractionController>(tag: topic!.id)
+        ? Get.find<TopicInteractionController>(tag: topic!.id)
+        : Get.put(TopicInteractionController(), tag: topic!.id);
+    ctrl.initializeTopic(topic!);
+    return ctrl;
   }
 
   @override
@@ -87,7 +71,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
         : null;
 
     final isOwner =
-        widget.showEditOption &&
+        showEditOption &&
         Get.isRegistered<AuthService>() &&
         ((currentTopic.channelId != null &&
                 currentTopic.channelId!.isNotEmpty &&
@@ -105,20 +89,19 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Obx(() {
-                final isHovered = _isHovered.value;
-                return AnimatedScale(
-                  scale: isHovered ? 1.04 : 1.0,
+              Obx(
+                () => AnimatedScale(
+                  scale: _isHovered.value ? 1.04 : 1.0,
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOutCubic,
                   child: _buildCoverImage(currentTopic),
-                );
-              }),
-              if (widget.trailing != null)
+                ),
+              ),
+              if (trailing != null)
                 Positioned(
-                  top: 8,
-                  right: 8,
-                  child: widget.trailing!,
+                  top: 12,
+                  right: 12,
+                  child: trailing!,
                 ),
             ],
           ),
@@ -132,12 +115,20 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
               );
 
         return MouseRegion(
-          onEnter: (_) => _isHovered.value = true,
-          onExit: (_) => _isHovered.value = false,
+          onEnter: (_) {
+            if (!_isHovered.value) {
+              _isHovered.value = true;
+            }
+          },
+          onExit: (_) {
+            if (_isHovered.value) {
+              _isHovered.value = false;
+            }
+          },
           child: InkWell(
             onTap: () {
-              if (widget.onExploreTap != null) {
-                widget.onExploreTap!();
+              if (onExploreTap != null) {
+                onExploreTap!();
               } else {
                 exploreController?.preloadTopicDetails(currentTopic);
                 Get.toNamed(
@@ -249,7 +240,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
                           children: [
                             // Follow / Following / Edit Button
                             Expanded(
-                              child: isOwner && widget.showEditOption
+                              child: isOwner && showEditOption
                                   ? _buildEditButton(currentTopic)
                                   : _buildFollowButton(currentTopic),
                             ),
@@ -306,7 +297,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget> {
       final isFollowed = _followingTopicsController.isTopicFollowed(currentTopic.id);
 
       return ElevatedButton.icon(
-        onPressed: widget.onFollowToggle ??
+        onPressed: onFollowToggle ??
             () {
               _followingTopicsController.toggleFollowTopic(currentTopic);
             },

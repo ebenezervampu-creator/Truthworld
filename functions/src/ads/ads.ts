@@ -1,8 +1,12 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { getVertexAI } from "../pipeline/utils/ai-client";
 import { COMMUNITY_GUIDELINES_TEXT, MODERATION_RESPONSE_SCHEMA } from "../moderation/communityGuidelinesPrompt";
+import { isAdsBypassed } from "../moderation/moderationModes";
+import { requireAuth } from "../utils/auth";
+import { AdPipelineService } from "./adPipeline";
 
 const db = () => admin.firestore();
 
@@ -58,7 +62,21 @@ export const onAdCampaignWritten = onDocumentWritten(
       pinnedCommentTextBefore !== pinnedCommentTextAfter;
 
     // If details did not change and geminiApproved is already defined, exit to avoid infinite loop
-    if (!detailsChanged && afterData.geminiApproved !== undefined) {
+    if (!detailsChanged && (afterData.geminiApproved !== undefined || (afterData.status !== "underReview" && afterData.status !== undefined))) {
+      return;
+    }
+
+    // Check if Advertiser Campaigns moderation is in Admin Only mode (Gemini bypassed)
+    const bypassed = await isAdsBypassed();
+    if (bypassed) {
+      logger.info(`[onAdCampaignWritten] Advertiser campaign moderation toggle is ON (Admin Only). Bypassing Gemini AI for campaign ${campaignId} and holding for Admin manual review.`);
+      await db().collection("ad_campaigns").doc(campaignId).update({
+        geminiApproved: false,
+        status: "underReview",
+        moderationReason: "Routed to Admin for manual review (Gemini AI bypassed).",
+        bypassGemini: true,
+        updatedAt: Date.now(),
+      });
       return;
     }
 
@@ -142,3 +160,90 @@ export const onAdCampaignWritten = onDocumentWritten(
     });
   }
 );
+
+/**
+ * 🪄 Trigger AI Features (Subtitles & Dubbing) for an Advertiser Campaign
+ *
+ * Supports generating subtitles (e.g. Telugu, Hindi, Spanish, etc.) and
+ * AI-synthesized dubbed audio tracks on demand.
+ */
+export const triggerAdAIFeatures = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 2,
+    timeoutSeconds: 300,
+    memory: "512MiB",
+    secrets: [
+      "GEMINI_API_KEY",
+      "ASSEMBLYAI_KEY",
+      "ELEVENLABS_API_KEY",
+      "GOOGLE_TRANSLATION_API_KEY",
+    ],
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
+      const {
+        campaignId,
+        features = ["subtitles", "dubbing"],
+        targetLanguages = ["hi"],
+        voiceStyle = "natural",
+        sourceLang = "en",
+      } = req.body || {};
+
+      if (!campaignId) {
+        res.status(400).json({ error: "Missing campaignId" });
+        return;
+      }
+
+      const userId = authUser.uid;
+      const adDocRef = admin.firestore().collection("ad_campaigns").doc(campaignId);
+      const adSnap = await adDocRef.get();
+
+      if (!adSnap.exists) {
+        res.status(404).json({ error: "Ad campaign not found" });
+        return;
+      }
+
+      const adData = adSnap.data() || {};
+
+      // Verify authorization: owner or admin
+      if (adData.userId && adData.userId !== userId) {
+        const userDoc = await admin.firestore().collection("users").doc(userId).get();
+        const isAdmin = userDoc.exists && userDoc.data()?.role === "admin";
+        if (!isAdmin) {
+          res.status(403).json({ error: "Unauthorized: You do not own this ad campaign" });
+          return;
+        }
+      }
+
+      // Run AI pipeline in background
+      AdPipelineService.processAdAIFeatures({
+        campaignId,
+        userId,
+        features,
+        targetLanguages,
+        voiceStyle,
+        sourceLang,
+      }).catch((bgErr) => {
+        console.error("[triggerAdAIFeatures] Background error:", bgErr);
+      });
+
+      res.status(200).json({
+        success: true,
+        campaignId,
+        message: `AI features (${features.join(", ")}) queued for target languages: ${targetLanguages.join(", ")}`,
+      });
+    } catch (error) {
+      console.error("[triggerAdAIFeatures] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  }
+);
+

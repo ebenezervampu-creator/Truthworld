@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_repository.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/network/result.dart';
@@ -147,4 +151,58 @@ class AdvertiserRepositoryImpl extends BaseRepository implements AdvertiserRepos
       audioTracks,
     );
   }
+
+  @override
+  Future<Result<void>> triggerAdAIFeatures({
+    required String campaignId,
+    required List<String> features,
+    required List<String> targetLanguages,
+    String voiceStyle = 'natural',
+    String sourceLang = 'en',
+  }) async {
+    return safeFetch(() async {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final token = currentUser != null ? await currentUser.getIdToken() : null;
+
+      final url = Uri.parse(
+        'https://asia-south1-truthworld-1.cloudfunctions.net/triggerAdAIFeatures',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'campaignId': campaignId,
+          'features': features,
+          'targetLanguages': targetLanguages,
+          'voiceStyle': voiceStyle,
+          'sourceLang': sourceLang,
+        }),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      }
+
+      // If HTTP call encounters issue (or offline/local), update Firestore directly so trigger picks it up
+      await _firestore.collection('ad_campaigns').doc(campaignId).set({
+        'stages': {
+          'ai': {
+            'status': 'running',
+            'progress': 10,
+            'currentStage': 'Triggering AI features...',
+            'features': features,
+            'targetLanguages': targetLanguages,
+            'voiceStyle': voiceStyle,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          },
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
+  }
 }
+

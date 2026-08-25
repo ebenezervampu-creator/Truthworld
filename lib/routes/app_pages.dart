@@ -495,7 +495,7 @@ class AppPages {
     ),
     GetPage(
       name: '/community-guidelines',
-      page: () => const CommunityGuidelinesPage(),
+      page: CommunityGuidelinesPage.new,
     ),
     GetPage(
       name: '/subscriptions',

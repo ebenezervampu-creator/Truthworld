@@ -45,17 +45,20 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                   Text(
                     'Interacted Ads',
                     style: TextStyle(
-                      fontSize: 32,
+                      fontFamily: TWTypography.brandFamily,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Your liked and bookmarked advertiser sponsor layers',
                     style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textTertiary,
+                      fontFamily: TWTypography.uiFamily,
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -66,20 +69,30 @@ class _SavedAdsPageState extends State<SavedAdsPage>
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.textPrimary.withValues(alpha: 0.02),
+                color: const Color(0xFF161618),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.bgDivider),
+                border: Border.all(color: const Color(0xFF27272A)),
               ),
               child: TabBar(
                 controller: _tabController,
-                indicatorColor: AppColors.warning,
-                labelColor: AppColors.warning,
+                indicatorColor: AppColors.brand,
+                labelColor: Colors.white,
                 unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.normal,
+                  fontSize: 14,
+                ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 tabs: const [
-                  Tab(icon: Icon(Icons.bookmark_rounded), text: 'Saved'),
-                  Tab(icon: Icon(Icons.thumb_up_rounded), text: 'Liked'),
+                  Tab(icon: Icon(Icons.bookmark_rounded, color: Colors.white), text: 'Saved'),
+                  Tab(icon: Icon(Icons.thumb_up_rounded, color: Colors.white), text: 'Liked'),
                 ],
               ),
             ),
@@ -199,14 +212,15 @@ class _SavedAdsPageState extends State<SavedAdsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 64, color: AppColors.textDisabled),
+            Icon(icon, size: 64, color: Colors.white),
             const SizedBox(height: 16),
             Text(
               title,
               style: const TextStyle(
-                fontSize: 20,
+                fontFamily: TWTypography.brandFamily,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textSecondary,
+                color: Colors.white,
               ),
             ),
             const SizedBox(height: 8),
@@ -214,8 +228,9 @@ class _SavedAdsPageState extends State<SavedAdsPage>
               subtitle,
               textAlign: TextAlign.center,
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 fontSize: 13,
-                color: AppColors.textTertiary,
+                color: AppColors.textSecondary,
               ),
             ),
           ],

@@ -44,13 +44,25 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   @override
   bool get isClosed => _isClosed;
 
+  bool get _isTransientDomError {
+    final err = (videoPlayerController.value.errorDescription ?? '') +
+        ' ' +
+        errorDescription.value;
+    return err.contains('removed from the document') ||
+        err.contains('play() request was interrupted') ||
+        err.contains('The play() request was interrupted') ||
+        err.contains('AbortError') ||
+        err.contains('NotAllowedError');
+  }
+
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     try {
       _rxValue = videoPlayerController.value.obs;
       isInitialized.value = videoPlayerController.value.isInitialized;
       aspectRatio.value = videoPlayerController.value.aspectRatio;
       isPlaying.value = videoPlayerController.value.isPlaying;
-      hasError.value = videoPlayerController.value.hasError;
+      hasError.value =
+          videoPlayerController.value.hasError && !_isTransientDomError;
       errorDescription.value =
           videoPlayerController.value.errorDescription ?? '';
     } catch (_) {
@@ -150,6 +162,13 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         ),
       ),
       errorBuilder: (context, errorMessage) {
+        if (errorMessage.contains('removed from the document') ||
+            errorMessage.contains('play() request was interrupted') ||
+            errorMessage.contains('The play() request was interrupted') ||
+            errorMessage.contains('AbortError') ||
+            errorMessage.contains('NotAllowedError')) {
+          return const SizedBox.shrink();
+        }
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -335,6 +354,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   bool _preRollPlayed = false;
   bool _midRollPlayed = false;
   bool _sponsorMidRollPlayed = false;
+  bool _isFinishingAd = false;
 
   bool get isPremiumUser {
     try {
@@ -667,6 +687,28 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     _initAudioService();
     _trackAnalytics(PlayerEvent('player_init'));
 
+    // Pre-roll ad guard: check if video has sponsor bumper or skippable ad
+    final initialSponsorAd = Get.isRegistered<AdService>()
+        ? AdService.to.getSponsorAdForVideo(videoController?.video.id)
+        : null;
+    final hasInitialAds = !isPremiumUser &&
+        Get.isRegistered<AdService>() &&
+        (initialSponsorAd != null ||
+            AdService.to.getSkippableVideoAds().isNotEmpty);
+    if (hasInitialAds && !_preRollPlayed) {
+      _preRollPlayed = true;
+      if (videoPlayerController.value.isPlaying) {
+        try {
+          videoPlayerController.pause();
+        } catch (_) {}
+      }
+      if (initialSponsorAd != null) {
+        _startSponsorAd(initialSponsorAd, isPreRoll: true);
+      } else {
+        _startAd(isPreRoll: true);
+      }
+    }
+
     // Load global media preferences
     subtitlesEnabled.value = TowerPlayerController.globalSubtitlesEnabled;
     activeSubLang.value = TowerPlayerController.globalActiveSubLang;
@@ -742,6 +784,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     } catch (_) {}
 
     abr.initialize(ladder: ladder, vpc: videoPlayerController);
+    abr.isAdPlaying = () => isShowingAd.value;
 
     abr.onTierChanged = (tierIndex, isManual) {
       try {
@@ -867,8 +910,9 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         isPlaying.value = val.isPlaying;
         _updateAutoPip(val.isPlaying);
       }
-      if (hasError.value != val.hasError) {
-        hasError.value = val.hasError;
+      final isErr = val.hasError && !_isTransientDomError;
+      if (hasError.value != isErr) {
+        hasError.value = isErr;
       }
       if (errorDescription.value != (val.errorDescription ?? '')) {
         errorDescription.value = val.errorDescription ?? '';
@@ -922,6 +966,35 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
           (AdService.to.getSkippableVideoAds().isNotEmpty ||
               AdService.to.getSponsorAdForVideo(videoController?.video.id) !=
                   null);
+      if (!isPremiumUser && hasRealVideoAds) {
+        final sponsorAd = Get.isRegistered<AdService>()
+            ? AdService.to.getSponsorAdForVideo(videoController?.video.id)
+            : null;
+
+        if (!_preRollPlayed && (val.isPlaying || val.isInitialized)) {
+          _preRollPlayed = true;
+          if (sponsorAd != null) {
+            _startSponsorAd(sponsorAd, isPreRoll: true);
+            return;
+          } else if (AdService.to.getSkippableVideoAds().isNotEmpty) {
+            _startAd(isPreRoll: true);
+            return;
+          }
+        }
+      }
+
+      // CRITICAL: If currently showing an ad, strictly enforce that main video and audio remain paused!
+      if (isShowingAd.value) {
+        if (val.isPlaying) {
+          videoPlayerController.pause();
+        }
+        if (_audioTrackController != null &&
+            _audioTrackController!.value.isPlaying) {
+          _audioTrackController!.pause();
+        }
+        return;
+      }
+
       if (!isPremiumUser && !isShowingAd.value && hasRealVideoAds) {
         final currentPos = val.position;
         final totalDur = val.duration;
@@ -930,20 +1003,14 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
             ? AdService.to.getSponsorAdForVideo(videoController?.video.id)
             : null;
 
-        if (!_preRollPlayed && val.isPlaying && currentPos > Duration.zero) {
-          _preRollPlayed = true;
-          if (sponsorAd != null) {
-            _startSponsorAd(sponsorAd, isPreRoll: true);
-          } else {
-            _startAd(isPreRoll: true);
-          }
-        } else if (sponsorAd != null &&
+        if (sponsorAd != null &&
             !_sponsorMidRollPlayed &&
             totalDur.inSeconds > 420 &&
             currentPos.inSeconds >= 420 &&
             val.isPlaying) {
           _sponsorMidRollPlayed = true;
           _startSponsorAd(sponsorAd, isPreRoll: false);
+          return;
         } else if (sponsorAd == null &&
             !_midRollPlayed &&
             totalDur.inSeconds > 180 &&
@@ -951,6 +1018,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
             val.isPlaying) {
           _midRollPlayed = true;
           _startAd(isPreRoll: false);
+          return;
         }
       }
 
@@ -1000,8 +1068,8 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
         _syncTracksWithVideoController();
       }
 
-      // Error → retry
-      if (val.hasError && _retryCount < _maxRetries) _scheduleRetry();
+      // Error → retry (only genuine, non-transient errors)
+      if (isErr && _retryCount < _maxRetries) _scheduleRetry();
 
       // Update sleep timer remaining seconds if it is set to "End of video"
       if (sleepTimerService.mode.value == SleepTimerMode.endOfVideo) {
@@ -1142,12 +1210,20 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     _videoPlaybackSource = VideoPlaybackSource(vpc);
     sleepTimerService.setActivePlayback(activePlayback);
 
+    // If currently showing an ad, keep the new VPC paused at 0
+    if (isShowingAd.value) {
+      try {
+        videoPlayerController.pause();
+        videoPlayerController.seekTo(Duration.zero);
+      } catch (_) {}
+    }
+
     try {
       _rxValue.value = vpc.value;
       isInitialized.value = vpc.value.isInitialized;
       aspectRatio.value = vpc.value.aspectRatio;
-      isPlaying.value = vpc.value.isPlaying;
-      hasError.value = vpc.value.hasError;
+      isPlaying.value = isShowingAd.value ? false : vpc.value.isPlaying;
+      hasError.value = vpc.value.hasError && !_isTransientDomError;
       errorDescription.value = vpc.value.errorDescription ?? '';
       if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
         isAudioOnly.value =
@@ -1164,9 +1240,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     } catch (_) {}
     abr.attachVideoController(videoPlayerController);
     _initChewieController();
-    _preRollPlayed = false;
-    _midRollPlayed = false;
-    _sponsorMidRollPlayed = false;
     update();
   }
 
@@ -1428,10 +1501,12 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     }
   }
 
-  // ─── Playback ────────────────────────────────────────────
-
   Future<void> togglePlayPause() async {
     cancelPendingTap();
+    if (isShowingAd.value) {
+      togglePlayPauseAd();
+      return;
+    }
     try {
       if (activePlayback.isPlaying) {
         await activePlayback.pause();
@@ -2450,6 +2525,20 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   Future<void> _startAd({required bool isPreRoll}) async {
+    _isFinishingAd = false;
+    isShowingAd.value = true;
+    _stopWatchTimer();
+    if (videoPlayerController.value.isPlaying) {
+      try {
+        videoPlayerController.pause();
+      } catch (_) {}
+    }
+    if (_audioTrackController?.value.isPlaying == true) {
+      try {
+        _audioTrackController?.pause();
+      } catch (_) {}
+    }
+
     // Check for custom advertiser skippable campaigns first
     final activeVideoAds = <AdItem>[];
     if (Get.isRegistered<AdService>()) {
@@ -2457,11 +2546,9 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     }
 
     if (activeVideoAds.isEmpty) {
+      _finishAd();
       return;
     }
-
-    await videoPlayerController.pause();
-    _stopWatchTimer();
 
     final random = Random();
     final selectedAd = activeVideoAds[random.nextInt(activeVideoAds.length)];
@@ -2525,7 +2612,6 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     );
 
     currentAd.value = ad;
-    isShowingAd.value = true;
     adCanSkip.value = false;
     skipCountdown.value = ad.skippable ? 5 : 0;
     adTimeRemaining.value = ad.duration.inSeconds;
@@ -2550,8 +2636,19 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
     AdItem sponsorAd, {
     required bool isPreRoll,
   }) async {
-    await videoPlayerController.pause();
+    _isFinishingAd = false;
+    isShowingAd.value = true;
     _stopWatchTimer();
+    if (videoPlayerController.value.isPlaying) {
+      try {
+        videoPlayerController.pause();
+      } catch (_) {}
+    }
+    if (_audioTrackController?.value.isPlaying == true) {
+      try {
+        _audioTrackController?.pause();
+      } catch (_) {}
+    }
 
     // The first ad (pre-roll) plays videoUrl (non-skippable)
     // The second ad (mid-roll) plays midrollVideoUrl (skippable, 5s countdown)
@@ -2575,10 +2672,10 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
       clickUrl: sponsorAd.ctaTarget,
       skippable: !isPreRoll, // 5s bumper intro is non-skippable, mid-roll is skippable
       duration: isPreRoll ? const Duration(seconds: 5) : const Duration(seconds: 15),
+      isSponsorBumper: isPreRoll,
     );
 
     currentAd.value = ad;
-    isShowingAd.value = true;
     adCanSkip.value = false;
     skipCountdown.value = ad.skippable ? 5 : 0;
     adTimeRemaining.value = ad.duration.inSeconds;
@@ -2600,7 +2697,7 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   void _onAdVpcUpdate() {
-    if (adPlayerController == null) return;
+    if (_isFinishingAd || adPlayerController == null) return;
     final val = adPlayerController!.value;
 
     if (val.hasError) {
@@ -2639,21 +2736,68 @@ class TowerPlayerController extends BaseController with WidgetsBindingObserver {
   }
 
   void skipAd() {
-    if (adCanSkip.value) {
+    if (adCanSkip.value && !_isFinishingAd) {
       _finishAd();
     }
   }
 
-  void _finishAd() {
-    isShowingAd.value = false;
-    adPlayerController?.removeListener(_onAdVpcUpdate);
-    adPlayerController?.pause();
-    adPlayerController?.dispose();
+  Future<void> _finishAd() async {
+    if (_isFinishingAd) return;
+    _isFinishingAd = true;
+
+    final apc = adPlayerController;
     adPlayerController = null;
     currentAd.value = null;
+    isShowingAd.value = false;
 
-    videoPlayerController.play();
+    try {
+      apc?.removeListener(_onAdVpcUpdate);
+      apc?.pause();
+      apc?.dispose();
+    } catch (_) {}
+
+    hasError.value = false;
+    _retryCount = 0;
+
+    if (tag != null && Get.isRegistered<VideoController>(tag: tag)) {
+      Get.find<VideoController>(tag: tag).showThumbnail.value = false;
+    } else if (Get.isRegistered<VideoController>()) {
+      Get.find<VideoController>().showThumbnail.value = false;
+    }
+
+    update();
+
+    try {
+      if (videoPlayerController.value.position > Duration.zero) {
+        await videoPlayerController.seekTo(Duration.zero);
+      }
+      await videoPlayerController.play();
+      isPlaying.value = true;
+      _rxValue.value = videoPlayerController.value;
+      chewieController?.play();
+      videoController?.chewieController?.play();
+      _videoPlaybackSource?.play();
+    } catch (e) {
+      debugPrint('[TowerPlayer] _finishAd error resuming playback: $e');
+      try {
+        if (e.toString().contains('NotAllowedError') ||
+            e.toString().contains('play()')) {
+          await videoPlayerController.setVolume(0);
+          await videoPlayerController.play();
+          isPlaying.value = true;
+          _rxValue.value = videoPlayerController.value;
+        } else {
+          await videoPlayerController.play();
+          isPlaying.value = true;
+          _rxValue.value = videoPlayerController.value;
+        }
+      } catch (_) {}
+    }
+
     _startWatchTimer();
+    startHideTimer();
+    _isFinishingAd = false;
+    update();
   }
 
   void togglePlayPauseAd() {

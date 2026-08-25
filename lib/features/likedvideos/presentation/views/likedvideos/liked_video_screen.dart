@@ -47,16 +47,10 @@ class ResponsiveUtils {
 // MAIN WIDGET
 // ==========================================================================
 
-class LikedVideoScreen extends StatefulWidget {
+class LikedVideoScreen extends StatelessWidget {
   const LikedVideoScreen({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  @override
-  State<LikedVideoScreen> createState() => _LikedVideoScreenState();
-}
-
-class _LikedVideoScreenState extends State<LikedVideoScreen>
-    with TickerProviderStateMixin {
   LikedVideosController get controller =>
       Get.isRegistered<LikedVideosController>()
           ? Get.find<LikedVideosController>()
@@ -91,7 +85,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen>
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 48, 16, 16),
             child: Row(
               children: [
                 Expanded(
@@ -156,7 +150,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen>
                                   color: AppColors.textPrimary,
                                 ),
                                 onPressed: () {
-                                  if (widget.isDashboard) {
+                                  if (isDashboard) {
                                     Get.find<HomeController>()
                                             .sideNavSelectedIndex
                                             .value =

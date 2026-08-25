@@ -17,6 +17,38 @@ class AdOverlay extends StatelessWidget {
       final apc = ctrl.adPlayerController;
       if (ad == null || apc == null) return const SizedBox.shrink();
 
+      // ── 5-Sec Pre-Roll Sponsor Bumper: Do not show any text overlays on the video
+      if (ad.isSponsorBumper) {
+        return Stack(
+          children: [
+            // ── Bottom Progress Bar (Yellow timeline - No text) ───────────────
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 4,
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: apc,
+                builder: (context, value, child) {
+                  final duration = value.duration.inMilliseconds;
+                  final position = value.position.inMilliseconds;
+                  final progress = duration > 0
+                      ? (position / duration).clamp(0.0, 1.0)
+                      : 0.0;
+                  return LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: AppColors.textDisabled,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.warning,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      }
+
       return Stack(
         children: [
           // ── Bottom Progress Bar (Yellow timeline) ──────────────────────

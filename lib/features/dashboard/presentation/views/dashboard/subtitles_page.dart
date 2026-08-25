@@ -8,7 +8,7 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SubtitlesPage extends StatefulWidget {
+class SubtitlesPage extends StatelessWidget {
   const SubtitlesPage({
     required this.channelId,
     required this.isDarkMode,
@@ -18,49 +18,38 @@ class SubtitlesPage extends StatefulWidget {
   final String channelId;
   final bool isDarkMode;
 
-  @override
-  State<SubtitlesPage> createState() => _SubtitlesPageState();
-}
-
-class _SubtitlesPageState extends State<SubtitlesPage> {
-  late final SubtitlesController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.isRegistered<SubtitlesController>()
+  SubtitlesController get controller {
+    final ctrl = Get.isRegistered<SubtitlesController>()
         ? Get.find<SubtitlesController>()
         : Get.put(SubtitlesController());
-    controller.setChannelContext(widget.channelId);
-  }
-
-  @override
-  void didUpdateWidget(SubtitlesPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.channelId != widget.channelId) {
-      controller.setChannelContext(widget.channelId);
+    if (channelId.isNotEmpty && ctrl.channelId.value != channelId) {
+      ctrl.setChannelContext(channelId);
     }
+    return ctrl;
   }
 
-  bool get isMobile => MediaQuery.of(context).size.width < 700;
+  bool get isMobile =>
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) < 700;
   bool get isTablet =>
-      MediaQuery.of(context).size.width >= 700 &&
-      MediaQuery.of(context).size.width < 1024;
-  bool get isDesktop => MediaQuery.of(context).size.width >= 1024;
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) >= 700 &&
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) < 1024;
+  bool get isDesktop =>
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) >= 1024;
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = widget.isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final surfaceColor = widget.isDarkMode
+
+    final bgColor = isDarkMode ? AppColors.bgPage : AppColors.bgPage;
+    final surfaceColor = isDarkMode
         ? AppColors.bgSurface
         : AppColors.textPrimary;
-    final textColor = widget.isDarkMode
+    final textColor = isDarkMode
         ? AppColors.textPrimary
         : Colors.black;
-    final textSecondaryColor = widget.isDarkMode
+    final textSecondaryColor = isDarkMode
         ? AppColors.textSecondary
         : Colors.black;
-    final borderColor = widget.isDarkMode
+    final borderColor = isDarkMode
         ? AppColors.bgDivider
         : AppColors.bgDivider;
 
@@ -225,7 +214,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
         // Right Column: Active Video Subtitle Editor
         Expanded(
           child: ColoredBox(
-            color: widget.isDarkMode
+            color: isDarkMode
                 ? AppColors.bgPage
                 : const Color(0xFFF1F5F9),
             child: controller.selectedVideo.value == null
@@ -360,7 +349,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           Container(
             height: 40,
             decoration: BoxDecoration(
-              color: widget.isDarkMode
+              color: isDarkMode
                   ? const Color(0xFF242424)
                   : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(20),
@@ -375,14 +364,14 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 hintText: 'Search videos...',
                 hintStyle: AppTextStyles.bodySmall.copyWith(
                   fontSize: 14,
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 18,
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
@@ -441,12 +430,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     height: 60,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : AppColors.bgDivider,
                     ),
                     errorWidget: (context, url, error) => ColoredBox(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : AppColors.bgDivider,
                       child: const Icon(
@@ -781,7 +770,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           height: 52,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            color: widget.isDarkMode
+            color: isDarkMode
                 ? const Color(0xFF141414)
                 : AppColors.bgDivider,
             border: Border(bottom: BorderSide(color: borderColor)),
@@ -1300,7 +1289,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
       width: 175,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: widget.isDarkMode
+        color: isDarkMode
             ? const Color(0xFF242424)
             : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(6),
@@ -1504,7 +1493,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF1E1E1E)
                           : const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
@@ -1658,7 +1647,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 const SizedBox(height: 16),
                 Container(
                   decoration: BoxDecoration(
-                    color: widget.isDarkMode
+                    color: isDarkMode
                         ? const Color(0xFF1E1E1E)
                         : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(8),
@@ -1674,7 +1663,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 0
-                                  ? (widget.isDarkMode
+                                  ? (isDarkMode
                                         ? Colors.black45
                                         : AppColors.textPrimary)
                                   : Colors.transparent,
@@ -1690,7 +1679,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 0
                                     ? AppColors.brand
-                                    : (widget.isDarkMode
+                                    : (isDarkMode
                                           ? AppColors.textSecondary
                                           : Colors.black),
                               ),
@@ -1706,7 +1695,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 1
-                                  ? (widget.isDarkMode
+                                  ? (isDarkMode
                                         ? Colors.black45
                                         : AppColors.textPrimary)
                                   : Colors.transparent,
@@ -1722,7 +1711,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 1
                                     ? AppColors.brand
-                                    : (widget.isDarkMode
+                                    : (isDarkMode
                                           ? AppColors.textSecondary
                                           : Colors.black),
                               ),
@@ -1749,7 +1738,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       constraints: const BoxConstraints(maxHeight: 250),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: widget.isDarkMode
+                          color: isDarkMode
                               ? AppColors.bgDivider
                               : Colors.black12,
                         ),
@@ -1809,7 +1798,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       'Select target language',
                       style: AppTextStyles.bodySmall.copyWith(fontSize: 13),
                     ),
-                    dropdownColor: widget.isDarkMode
+                    dropdownColor: isDarkMode
                         ? const Color(0xFF1E1E1E)
                         : AppColors.textPrimary,
                     items: supportedLanguages.map((lang) {
@@ -1873,7 +1862,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: widget.isDarkMode
+                        color: isDarkMode
                             ? AppColors.textDisabled
                             : AppColors.textSecondary,
                       ),
@@ -1888,7 +1877,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 : 'No subtitle file selected (.vtt, .srt)',
                             style: AppTextStyles.bodySmall.copyWith(
                               color: dialogPickedFile.value != null
-                                  ? (widget.isDarkMode
+                                  ? (isDarkMode
                                         ? AppColors.textPrimary
                                         : Colors.black)
                                   : AppColors.textSecondary,

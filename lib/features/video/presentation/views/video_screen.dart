@@ -982,16 +982,22 @@ class VideoScreen extends GetView<VideoController> {
 
         final isAutoSwitching = controller.isAutoSwitching.value;
 
-        // Show thumbnail until video is initialized and playing
-        final isVideoReady = controller.isVpcInitialized;
-        final isPlaying = controller.isVpcPlaying;
-        final isAudioOnly = controller.isAudioOnly.value;
+        final vpc = controller.videoPlayerController;
+        final isVideoReady = vpc != null && vpc.value.isInitialized;
+        final isPlaying = vpc != null && vpc.value.isPlaying;
+
+        final isAdShowing =
+            Get.isRegistered<TowerPlayerController>(tag: controller.video.id)
+                ? Get.find<TowerPlayerController>(
+                    tag: controller.video.id,
+                  ).isShowingAd.value
+                : false;
         final showThumbnailOverlay =
             !isAutoSwitching &&
-            !isAudioOnly &&
+            !controller.isAudioOnly.value &&
+            !isAdShowing &&
             (!isVideoReady || (!isPlaying && controller.showThumbnail.value));
 
-        final vpc = controller.videoPlayerController;
         if (controller.chewieController == null ||
             vpc == null ||
             !isVideoReady) {
@@ -5966,6 +5972,14 @@ class RecommendationFeed extends StatelessWidget {
                         heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
                       );
                     }
+                    if (item is AdItem) {
+                      if (item.adType == 'homepage') {
+                        return const SizedBox.shrink();
+                      }
+                      return HomepageAdCard(
+                        ad: item,
+                      );
+                    }
                     return const SizedBox.shrink();
                   },
                 );
@@ -6000,6 +6014,17 @@ class RecommendationFeed extends StatelessWidget {
                     heroPrefix: 'rec_list_${videoTag ?? 'global'}',
                   );
                 }
+                if (item is AdItem) {
+                  if (item.adType == 'homepage') {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: ScrollAdCard(
+                      ad: item,
+                    ),
+                  );
+                }
                 return const SizedBox.shrink();
               },
             );
@@ -6015,7 +6040,7 @@ class RecommendationFeed extends StatelessWidget {
               final scrollAds = AdService.to.getAdsForType('scroll');
               final sponsorAd = AdService.to.getSponsorAdForVideo(controller.video.id);
               final displayAd = scrollAds.isNotEmpty ? scrollAds.first : sponsorAd;
-              if (displayAd == null) return const SizedBox.shrink();
+              if (displayAd == null || displayAd.adType == 'homepage') return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 8),
                 child: ScrollAdCard(ad: displayAd),
@@ -6500,21 +6525,18 @@ class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
 // ==========================================================================
 // TOPIC VIDEOS BOTTOM SHEET / POPUP
 // ==========================================================================
-class TopicVideosBottomSheet extends StatefulWidget {
+class TopicVideosBottomSheet extends StatelessWidget {
   final Topic topic;
   final String? videoTag;
 
-  const TopicVideosBottomSheet({
+  TopicVideosBottomSheet({
     required this.topic,
     super.key,
     this.videoTag,
-  });
+  }) {
+    _loadTopicVideos();
+  }
 
-  @override
-  State<TopicVideosBottomSheet> createState() => _TopicVideosBottomSheetState();
-}
-
-class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
   final RxString _selectedFilter = 'All'.obs;
   final RxList<Video> _allVideos = <Video>[].obs;
   final RxBool _isLoading = true.obs;
@@ -6530,9 +6552,9 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
 
   VideoController? get _videoController {
     try {
-      if (widget.videoTag != null &&
-          Get.isRegistered<VideoController>(tag: widget.videoTag)) {
-        return Get.find<VideoController>(tag: widget.videoTag);
+      if (videoTag != null &&
+          Get.isRegistered<VideoController>(tag: videoTag)) {
+        return Get.find<VideoController>(tag: videoTag);
       }
       if (Get.isRegistered<VideoController>()) {
         return Get.find<VideoController>();
@@ -6541,16 +6563,10 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
     return null;
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadTopicVideos();
-  }
-
   Future<void> _loadTopicVideos() async {
     try {
-      final slug = widget.topic.slug;
-      final topicId = widget.topic.id;
+      final slug = topic.slug;
+      final topicId = topic.id;
 
       // 1. Query by topic slug
       final snap = await FirebaseFirestore.instance
@@ -6562,8 +6578,8 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
       var fetched = snap.docs.map(Video.fromDocumentSnapshot).toList();
 
       // 2. If empty and featuredVideoIds present, fetch by IDs
-      if (fetched.isEmpty && widget.topic.featuredVideoIds.isNotEmpty) {
-        final ids = widget.topic.featuredVideoIds.take(10).toList();
+      if (fetched.isEmpty && topic.featuredVideoIds.isNotEmpty) {
+        final ids = topic.featuredVideoIds.take(10).toList();
         final snapIds = await FirebaseFirestore.instance
             .collection(FirestoreCollections.videos)
             .where(FieldPath.documentId, whereIn: ids)
@@ -6583,9 +6599,9 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
               (v) =>
                   v.topics.any((t) => t.toLowerCase() == slug.toLowerCase()) ||
                   v.tags.any(
-                    (t) => t.toLowerCase() == widget.topic.title.toLowerCase(),
+                    (t) => t.toLowerCase() == topic.title.toLowerCase(),
                   ) ||
-                  v.category.toLowerCase() == widget.topic.title.toLowerCase(),
+                  v.category.toLowerCase() == topic.title.toLowerCase(),
             )
             .toList();
         if (fetched.isEmpty && snapFallback.docs.isNotEmpty) {
@@ -6593,14 +6609,10 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
         }
       }
 
-      if (mounted) {
-        _allVideos.assignAll(fetched);
-        _isLoading.value = false;
-      }
+      _allVideos.assignAll(fetched);
+      _isLoading.value = false;
     } catch (e) {
-      if (mounted) {
-        _isLoading.value = false;
-      }
+      _isLoading.value = false;
     }
   }
 
@@ -6712,7 +6724,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.topic.title,
+                        topic.title,
                         style: GoogleFonts.outfit(
                           color: Colors.white,
                           fontSize: 18,
@@ -6841,7 +6853,7 @@ class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
                           '/watch?v=${video.id}',
                           arguments: {
                             'video': video,
-                            'topic': widget.topic,
+                            'topic': topic,
                             'fromTopic': true,
                           },
                         );

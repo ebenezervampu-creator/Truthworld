@@ -25,41 +25,13 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Premium comments and replies
 ///
 /// Responsive: desktop, tablet, mobile
-class TopicPage extends StatefulWidget {
+class TopicPage extends StatelessWidget {
   const TopicPage({super.key, this.slug});
   final String? slug;
 
-  @override
-  State<TopicPage> createState() => _TopicPageState();
-}
-
-class _TopicPageState extends State<TopicPage> {
-  final TopicController controller = Get.find<TopicController>();
-  final ScrollController _scrollController = ScrollController();
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _setupInfiniteScroll();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _setupInfiniteScroll() {
-    _scrollController.addListener(() {
-      if (!_scrollController.hasClients || _scrollController.positions.length != 1) return;
-      if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent - 500) {
-        controller.loadMoreVideos();
-      }
-    });
-  }
+  TopicController get controller => Get.find<TopicController>();
+  ScrollController get _scrollController => controller.scrollController;
+  TextEditingController get _searchController => controller.searchController;
 
   void _navigateToChannel(String? channelId) {
     if (channelId == null || channelId.isEmpty) return;

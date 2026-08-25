@@ -120,7 +120,7 @@ class ImageOptimizer {
 /// - Progressive fade-in
 /// - Responsive sizing
 /// - Automatic caching
-class OptimizedThumbnail extends StatefulWidget {
+class OptimizedThumbnail extends StatelessWidget {
   const OptimizedThumbnail({
     required this.imageUrl,
     super.key,
@@ -140,26 +140,19 @@ class OptimizedThumbnail extends StatefulWidget {
   final bool lazy;
 
   @override
-  State<OptimizedThumbnail> createState() => _OptimizedThumbnailState();
-}
-
-class _OptimizedThumbnailState extends State<OptimizedThumbnail> {
-  final bool _imageLoaded = false;
-
-  @override
   Widget build(BuildContext context) {
     // Build placeholder
     final placeholder = _buildPlaceholder();
 
     // If lazy loading, return placeholder and load image later
-    if (widget.lazy) {
+    if (lazy) {
       return InkWell(
-        onTap: widget.onTap,
+        onTap: onTap,
         child: Stack(
           fit: StackFit.expand,
           children: [
             placeholder,
-            if (_imageLoaded) _buildImage() else const SizedBox.shrink(),
+            _buildImage(),
           ],
         ),
       );
@@ -167,45 +160,35 @@ class _OptimizedThumbnailState extends State<OptimizedThumbnail> {
 
     // Non-lazy: load image immediately
     return InkWell(
-      onTap: widget.onTap,
+      onTap: onTap,
       child: CachedNetworkImage(
-        imageUrl: widget.imageUrl.replaceAll(' ', '%20'),
+        imageUrl: imageUrl.replaceAll(' ', '%20'),
         placeholder: (_, _) => placeholder,
         errorWidget: (_, _, _) => _buildErrorWidget(),
-        fit: widget.fit,
+        fit: fit,
         fadeInDuration: Durations.medium1,
-        width: widget.width,
-        height: widget.height,
+        width: width,
+        height: height,
       ),
     );
   }
 
   Widget _buildImage() {
     return CachedNetworkImage(
-      imageUrl: widget.imageUrl.replaceAll(' ', '%20'),
-      fit: widget.fit,
+      imageUrl: imageUrl.replaceAll(' ', '%20'),
+      fit: fit,
       fadeInDuration: Durations.medium1,
     );
   }
 
   Widget _buildPlaceholder() {
-    // Use BlurHash if available (Commented out because blurhash is not in pubspec)
-    /*
-    if (widget.blurHash != null && widget.blurHash!.isNotEmpty) {
-      return BlurHash(
-        hash: widget.blurHash!,
-        duration: Durations.short3,
-      );
-    }
-    */
-
     // Fallback to shimmer
     return Shimmer.fromColors(
       baseColor: AppTheme.colors.surface,
       highlightColor: AppTheme.colors.divider,
       child: Container(
-        width: widget.width,
-        height: widget.height,
+        width: width,
+        height: height,
         color: AppTheme.colors.surface,
       ),
     );
@@ -213,8 +196,8 @@ class _OptimizedThumbnailState extends State<OptimizedThumbnail> {
 
   Widget _buildErrorWidget() {
     return Container(
-      width: widget.width,
-      height: widget.height,
+      width: width,
+      height: height,
       color: AppTheme.colors.surface,
       child: Center(
         child: Icon(Icons.broken_image, color: AppTheme.colors.error),

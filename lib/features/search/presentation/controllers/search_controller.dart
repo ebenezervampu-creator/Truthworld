@@ -202,9 +202,19 @@ class SearchController extends BaseController {
     debugPrint('🎯 [Search] Filters initialized');
   }
 
+  late final TextEditingController textEditingController = trackTextController(TextEditingController());
+  late final ScrollController scrollController = trackScrollController(ScrollController());
+
   @override
   void onInit() {
     super.onInit();
+    scrollController.addListener(() {
+      if (!scrollController.hasClients || scrollController.positions.length != 1) return;
+      final position = scrollController.position;
+      if (position.pixels > position.maxScrollExtent * 0.8) {
+        loadNextPage();
+      }
+    });
     _initializeFilters();
     unawaited(_loadPersistentCache());
     unawaited(_loadRecentSearches());

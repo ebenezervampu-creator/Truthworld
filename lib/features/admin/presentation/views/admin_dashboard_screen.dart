@@ -22,23 +22,14 @@ import 'package:truthworld/features/admin/presentation/views/security_tab.dart';
 import 'package:truthworld/features/admin/presentation/views/user_management_tab.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
-
-  @override
-  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
-}
-
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  @override
-  void initState() {
-    super.initState();
+class AdminDashboardScreen extends StatelessWidget {
+  AdminDashboardScreen({super.key}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AdminController.to.ensureSubscriptionsStarted();
     });
   }
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +63,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 switch (controller.currentTab.value) {
                   case 'videos':
                     return _buildVideoQueueTab(context, controller);
+                  case 'topics':
+                    return _buildTopicQueueTab(context, controller);
                   case 'images':
                     return _buildImageQueueTab(context, controller);
                   case 'channels':
@@ -112,6 +105,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   // Mobile Bottom Navigation Bar (5 Key Destinations according to Industry Standards)
+  // Mobile Bottom Navigation Bar (5 Key Destinations according to Industry Standards)
   Widget _buildMobileBottomNavigationBar(
     BuildContext context,
     AdminController controller,
@@ -130,19 +124,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (currentIndex == -1) currentIndex = 0;
 
       return Container(
-        decoration: const BoxDecoration(
-          color: AppColors.bgSurface,
+        decoration: BoxDecoration(
+          color: const Color(0xFF181818),
           border: Border(
-            top: BorderSide(color: AppColors.bgDivider),
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
           ),
         ),
         child: BottomNavigationBar(
           currentIndex: currentIndex,
-          backgroundColor: AppColors.bgSurface,
+          backgroundColor: const Color(0xFF181818),
           selectedItemColor: Colors.white,
-          unselectedItemColor: AppColors.textPrimary,
+          unselectedItemColor: AppColors.textSecondary,
           selectedFontSize: 11,
           unselectedFontSize: 11,
+          selectedLabelStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+          ),
           type: BottomNavigationBarType.fixed,
           elevation: 8,
           onTap: (index) {
@@ -158,11 +159,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               controller.fetchAnalytics();
             } else if (targetTab == 'appeals') {
               controller.fetchAppeals();
+            } else if (targetTab == 'users') {
+              controller.fetchUsers();
             }
           },
           items: [
             const BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined, color: AppColors.textPrimary),
+              icon: Icon(Icons.dashboard_outlined, color: Colors.white),
               activeIcon: Icon(Icons.dashboard, color: Colors.white),
               label: 'Dashboard',
             ),
@@ -225,7 +228,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildBadgeIcon(IconData iconData, int badgeCount, bool isActive) {
-    final iconColor = isActive ? Colors.white : AppColors.textPrimary;
+    const iconColor = Colors.white;
     if (badgeCount <= 0) {
       return Icon(iconData, color: iconColor);
     }
@@ -249,6 +252,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Text(
               '$badgeCount',
               style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 color: Colors.white,
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
@@ -264,60 +268,65 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // Sidebar widget
   Widget _buildSidebar(BuildContext context, AdminController controller) {
     return Container(
-      width: 260,
-      decoration: const BoxDecoration(
-        color: AppColors.bgSurface,
+      width: 270,
+      decoration: BoxDecoration(
+        color: const Color(0xFF181818),
         border: Border(
-          right: BorderSide(color: AppColors.bgDivider),
+          right: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Sidebar Header
           Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                const AppLogo(
-                  size: 28,
-                  borderRadius: 6,
-                ),
-                const SizedBox(width: 10),
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [Color(0xFFE0B0FF), AppColors.brand],
-                  ).createShader(bounds),
-                  child: Text(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const AppLogo(
+                    size: 24,
+                    borderRadius: 6,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
                     'TruthWorld',
-                    style: context.typography.logo.copyWith(
-                      fontSize: 22,
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.brand.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Console',
-                    style: TextStyle(
-                      color: AppColors.brand,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: const Text(
+                      'Console',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          const Divider(color: AppColors.bgDivider, height: 1),
+          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
           const SizedBox(height: 16),
 
           // Navigation list
@@ -340,6 +349,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     label: 'Video Queue',
                     tabId: 'videos',
                     badgeCount: controller.pendingVideos.value,
+                    controller: controller,
+                    context: context,
+                  ),
+                ),
+                Obx(
+                  () => _buildNavItem(
+                    icon: Icons.tag_rounded,
+                    activeIcon: Icons.tag_rounded,
+                    label: 'Topics Queue',
+                    tabId: 'topics',
+                    badgeCount: controller.pendingTopics.value,
                     controller: controller,
                     context: context,
                   ),
@@ -391,7 +411,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Text(
                     'MANAGEMENT',
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textTertiary,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
@@ -459,7 +480,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Text(
                     'SYSTEM',
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textTertiary,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
@@ -496,7 +518,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
 
           // User Profile Info
-          const Divider(color: AppColors.bgDivider, height: 1),
+          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
           Obx(() {
             final email = controller.isAdmin.value
                 ? (FirebaseAuth.instance.currentUser?.email ?? 'Admin User')
@@ -507,11 +529,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: AppColors.brand.withValues(alpha: 0.2),
+                    backgroundColor: const Color(0xFF212121),
                     child: Text(
                       email[0].toUpperCase(),
                       style: const TextStyle(
-                        color: AppColors.brand,
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -524,9 +547,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         Text(
                           email,
                           style: const TextStyle(
+                            fontFamily: TWTypography.brandFamily,
                             color: AppColors.textPrimary,
                             fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.bold,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -534,7 +558,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         const Text(
                           'Moderation Administrator',
                           style: TextStyle(
-                            color: AppColors.textPrimary,
+                            fontFamily: TWTypography.uiFamily,
+                            color: AppColors.textTertiary,
                             fontSize: 11,
                           ),
                         ),
@@ -565,7 +590,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         margin: const EdgeInsets.only(bottom: 4),
         child: Material(
           color: isSelected
-              ? AppColors.brand.withValues(alpha: 0.1)
+              ? const Color(0xFF212121)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
@@ -579,6 +604,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               controller.selectedAppeal.value = null;
               if (tabId == 'analytics') {
                 controller.fetchAnalytics();
+              } else if (tabId == 'users') {
+                controller.fetchUsers();
               }
               if (_scaffoldKey.currentState?.isDrawerOpen == true) {
                 Navigator.of(context).pop();
@@ -590,7 +617,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 children: [
                   Icon(
                     isSelected ? activeIcon : icon,
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
+                    color: Colors.white,
                     size: 20,
                   ),
                   const SizedBox(width: 14),
@@ -598,9 +625,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     child: Text(
                       label,
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
                         color: isSelected
                             ? AppColors.textPrimary
-                            : AppColors.textPrimary,
+                            : AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: isSelected
                             ? FontWeight.w600
@@ -615,12 +643,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.brand,
+                        color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                       ),
                       child: Text(
                         '$badgeCount',
                         style: const TextStyle(
+                          fontFamily: TWTypography.brandFamily,
                           color: AppColors.textPrimary,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -643,7 +673,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     bool isDesktop,
   ) {
     return AppBar(
-      backgroundColor: AppColors.bgSurface,
+      backgroundColor: const Color(0xFF181818),
       elevation: 0,
       automaticallyImplyLeading: false,
       titleSpacing: isDesktop ? 24 : 8,
@@ -651,7 +681,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ? IconButton(
               icon: const Icon(
                 Icons.menu_rounded,
-                color: AppColors.textPrimary,
+                color: Colors.white,
               ),
               onPressed: () {
                 _scaffoldKey.currentState?.openDrawer();
@@ -662,6 +692,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         var title = 'Dashboard Overview';
         if (controller.currentTab.value == 'videos') {
           title = 'Video Verification Queue';
+        }
+        if (controller.currentTab.value == 'topics') {
+          title = 'Topics Verification Queue';
         }
         if (controller.currentTab.value == 'images') {
           title = 'Image Moderation Grid';
@@ -693,9 +726,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return Text(
           title,
           style: const TextStyle(
+            fontFamily: TWTypography.brandFamily,
             color: AppColors.textPrimary,
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
           ),
           overflow: TextOverflow.ellipsis,
         );
@@ -707,7 +741,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           icon: const Icon(
             Icons.sync_rounded,
             size: 20,
-            color: AppColors.textPrimary,
+            color: Colors.white,
           ),
         ),
         Padding(
@@ -717,11 +751,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             icon: const Icon(
               Icons.logout_rounded,
               size: 16,
-              color: AppColors.textPrimary,
+              color: Colors.white,
             ),
             label: const Text(
               'Sign Out',
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.error,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -730,9 +765,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ),
       ],
-      bottom: const PreferredSize(
-        preferredSize: Size.fromHeight(1),
-        child: Divider(color: AppColors.bgDivider, height: 1),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
       ),
     );
   }
@@ -780,6 +815,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     icon: Icons.video_collection_outlined,
                   ),
                   _buildStatCard(
+                    title: 'Pending Topic Reviews',
+                    value: controller.pendingTopics,
+                    subtitle: 'Awaiting topic verification',
+                    icon: Icons.tag_rounded,
+                  ),
+                  _buildStatCard(
                     title: 'Pending Image Reviews',
                     value: controller.pendingImages,
                     subtitle: 'Flagged by SafeSearch',
@@ -819,9 +860,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.bgSurface,
+              color: const Color(0xFF181818),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -829,15 +870,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const Text(
                   'Recent Moderation Feed (Real-time)',
                   style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 16),
                 Obx(() {
                   final list = [
                     ...controller.videos.map((v) => {'type': 'video', ...v}),
+                    ...controller.topics.map((t) => {'type': 'topic', ...t}),
                     ...controller.images.map(
                       (img) => {'type': 'image', ...img},
                     ),
@@ -874,7 +917,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Center(
                         child: Text(
                           'No recent activity records available.',
-                          style: TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     );
@@ -885,17 +931,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: list.take(6).length,
                     separatorBuilder: (context, index) =>
-                        const Divider(color: AppColors.bgDivider, height: 1),
+                        Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                     itemBuilder: (context, index) {
                       final item = list[index];
                       final type = item['type'] as String;
                       final isVideo = type == 'video';
+                      final isTopic = type == 'topic';
                       final isChannel = type == 'channel';
                       final isReport = type == 'report';
 
                       var titleText = 'Unknown Item';
                       if (isVideo) {
                         titleText = item['title'] ?? 'Untitled Video';
+                      } else if (isTopic) {
+                        titleText = '#${item['title'] ?? item['name'] ?? 'Untitled Topic'}';
                       } else if (isChannel) {
                         titleText =
                             item['channelName'] ??
@@ -919,6 +968,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       var status = 'pending';
                       if (isVideo) {
                         status = item['moderation']?['status'] ?? 'pending';
+                      } else if (isTopic) {
+                        status = item['status'] ?? 'underReview';
                       } else if (isChannel) {
                         status = item['status'] ?? 'underReview';
                       } else if (isReport) {
@@ -930,6 +981,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       var iconData = Icons.help_outline;
                       if (isVideo) {
                         iconData = Icons.movie_outlined;
+                      } else if (isTopic) {
+                        iconData = Icons.tag_rounded;
                       } else if (isChannel) {
                         iconData = Icons.account_circle_outlined;
                       } else if (isReport) {
@@ -946,7 +999,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: AppColors.bgElevated,
+                                color: const Color(0xFF212121),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
@@ -963,9 +1016,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   Text(
                                     titleText,
                                     style: const TextStyle(
+                                      fontFamily: TWTypography.brandFamily,
                                       color: AppColors.textPrimary,
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -974,7 +1028,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   Text(
                                     _formatTimestamp(timestamp),
                                     style: const TextStyle(
-                                      color: AppColors.textPrimary,
+                                      fontFamily: TWTypography.uiFamily,
+                                      color: AppColors.textTertiary,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -1006,9 +1061,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1020,9 +1075,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Text(
                   title,
                   style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1038,6 +1094,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             return Text(
               displayValue,
               style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 color: AppColors.textPrimary,
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
@@ -1048,7 +1105,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(
             subtitle,
             style: const TextStyle(
-              color: AppColors.textPrimary,
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
               fontSize: 11,
             ),
             maxLines: 1,
@@ -1079,7 +1137,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       final filterBar = Container(
         padding: const EdgeInsets.all(12),
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -1125,7 +1183,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Center(
                 child: Text(
                   'No videos found in this view.',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ),
@@ -1133,8 +1194,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       } else {
         listWidget = Container(
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
           ),
           child: Column(
             children: [
@@ -1143,7 +1204,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: ListView.separated(
                   itemCount: filteredList.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(color: AppColors.bgDivider, height: 1),
+                      Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                   itemBuilder: (context, index) {
                     final video = filteredList[index];
                     final isSelected = controller.selectedVideo.value?['id'] == video['id'];
@@ -1153,7 +1214,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
 
                     return Material(
-                      color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+                      color: isSelected ? const Color(0xFF212121) : Colors.transparent,
                       child: InkWell(
                         onTap: () {
                           controller.selectedVideo.value = video;
@@ -1170,7 +1231,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 width: 80,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: AppColors.bgElevated,
+                                  color: const Color(0xFF212121),
                                   borderRadius: BorderRadius.circular(6),
                                   image: video['thumbnailUrl'] != null &&
                                           video['thumbnailUrl'].toString().isNotEmpty
@@ -1184,7 +1245,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         video['thumbnailUrl'].toString().isEmpty
                                     ? const Icon(
                                         Icons.videocam_rounded,
-                                        color: AppColors.textPrimary,
+                                        color: Colors.white,
                                       )
                                     : null,
                               ),
@@ -1196,9 +1257,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     Text(
                                       title,
                                       style: const TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
                                         color: AppColors.textPrimary,
                                         fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -1207,7 +1269,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     Text(
                                       'User: ${video['userId'] ?? video['ownerId'] ?? 'Unknown'}',
                                       style: const TextStyle(
-                                        color: AppColors.textPrimary,
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textTertiary,
                                         fontSize: 11,
                                       ),
                                     ),
@@ -1231,6 +1294,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                             child: const Text(
                                               'TIMEOUT',
                                               style: TextStyle(
+                                                fontFamily: TWTypography.brandFamily,
                                                 color: AppColors.error,
                                                 fontSize: 9,
                                                 fontWeight: FontWeight.bold,
@@ -1262,7 +1326,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           return const Center(
             child: Text(
               'Select a video to inspect details and moderation controls',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
             ),
           );
         }
@@ -1294,16 +1361,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     label: const Text(
                       'Back to Videos',
-                      style: TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ),
               Text(
                 selected['title'] ?? 'Untitled Video',
                 style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 16),
@@ -1341,11 +1412,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               : (status == 'rejected'
                                     ? Icons.block_flipped
                                     : Icons.gavel_rounded),
-                          color: status == 'approved'
-                              ? AppColors.success
-                              : (status == 'rejected'
-                                    ? AppColors.error
-                                    : AppColors.warning),
+                          color: Colors.white,
                           size: 24,
                         ),
                         const SizedBox(width: 12),
@@ -1356,6 +1423,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               Text(
                                 'Verification Gateway Decision: ${status.toUpperCase()}',
                                 style: TextStyle(
+                                  fontFamily: TWTypography.brandFamily,
                                   color: status == 'approved'
                                       ? AppColors.success
                                       : (status == 'rejected'
@@ -1370,6 +1438,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 const Text(
                                   '⚡ Overridden by Admin',
                                   style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
                                     color: Colors.amber,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -1386,6 +1455,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         'Reason: ${mod?['reason'] ?? mod?['moderationReason']}',
                         style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
@@ -1416,12 +1486,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   height: 200,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppColors.bgSurface,
+                    color: const Color(0xFF181818),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
                     'No video URL metadata present.',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               const SizedBox(height: 24),
@@ -1430,9 +1503,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Text(
                 'Verification & Technical Metadata',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 12),
@@ -1475,7 +1549,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       size: 18,
                       color: Colors.white,
                     ),
-                    label: Text(status == 'approved' ? 'Approved (Re-confirm)' : 'Approve Video'),
+                    label: Text(
+                      status == 'approved' ? 'Approved (Re-confirm)' : 'Approve Video',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
@@ -1501,12 +1581,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     icon: const Icon(
                       Icons.block_flipped,
                       size: 18,
-                      color: AppColors.error,
+                      color: Colors.white,
                     ),
                     label: Text(
                       status == 'approved'
                           ? 'Override & Reject Video'
                           : 'Reject Video & Quarantine',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
@@ -1542,6 +1626,472 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     });
   }
 
+  // TAB: TOPICS QUEUE TAB
+  Widget _buildTopicQueueTab(BuildContext context, AdminController controller) {
+    final isMobile = MediaQuery.of(context).size.width <= 800;
+    return Obx(() {
+      final currentFilter = controller.topicFilterTab.value;
+      final allTopics = controller.topics;
+
+      final filteredList = allTopics.where((t) {
+        if (currentFilter == 'approved') {
+          return controller.isTopicApproved(t);
+        } else if (currentFilter == 'pending') {
+          return controller.isTopicPending(t);
+        } else if (currentFilter == 'rejected') {
+          return controller.isTopicRejected(t);
+        }
+        return true; // 'all'
+      }).toList();
+
+      final filterBar = Container(
+        padding: const EdgeInsets.all(12),
+        color: const Color(0xFF181818),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip(
+                controller,
+                'pending',
+                'Pending (${allTopics.where(controller.isTopicPending).length})',
+                controller.topicFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'all',
+                'All Topics (${allTopics.length})',
+                controller.topicFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'approved',
+                'Approved (${allTopics.where(controller.isTopicApproved).length})',
+                controller.topicFilterTab,
+              ),
+              const SizedBox(width: 8),
+              _buildFilterChip(
+                controller,
+                'rejected',
+                'Rejected (${allTopics.where(controller.isTopicRejected).length})',
+                controller.topicFilterTab,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      Widget listWidget;
+      if (filteredList.isEmpty) {
+        listWidget = Column(
+          children: [
+            filterBar,
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'No topics found in this view.',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      } else {
+        listWidget = Container(
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
+          ),
+          child: Column(
+            children: [
+              filterBar,
+              Expanded(
+                child: ListView.separated(
+                  itemCount: filteredList.length,
+                  separatorBuilder: (context, index) =>
+                      Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                  itemBuilder: (context, index) {
+                    final topic = filteredList[index];
+                    final isSelected =
+                        controller.selectedTopic.value?['id'] == topic['id'];
+                    final title = topic['title'] ?? topic['name'] ?? 'Untitled Topic';
+                    final handle = topic['handle'] ?? topic['slug'] ?? 'none';
+                    final status = topic['status'] ?? (topic['isApproved'] == true || topic['geminiApproved'] == true ? 'active' : 'underReview');
+                    final thumbUrl = topic['thumbnailUrl'] ?? topic['coverImageUrl'] ?? topic['imageUrl'];
+
+                    return Material(
+                      color: isSelected ? const Color(0xFF212121) : Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          controller.selectedTopic.value = topic;
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF212121),
+                                  borderRadius: BorderRadius.circular(8),
+                                  image: thumbUrl != null && thumbUrl.toString().isNotEmpty
+                                      ? DecorationImage(
+                                          image: CachedNetworkImageProvider(thumbUrl.toString()),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: thumbUrl == null || thumbUrl.toString().isEmpty
+                                    ? const Icon(
+                                        Icons.tag_rounded,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '#$title',
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Handle: @$handle • Category: ${topic['category'] ?? 'General'}',
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textTertiary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    _buildStatusBadge(status.toString()),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      final inspectorWidget = Obx(() {
+        final selected = controller.selectedTopic.value;
+        if (selected == null) {
+          return const Center(
+            child: Text(
+              'Select a topic to inspect details and verification controls',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          );
+        }
+
+        final title = selected['title'] ?? selected['name'] ?? 'Untitled Topic';
+        final handle = selected['handle'] ?? selected['slug'] ?? 'none';
+        final status = (selected['status'] ?? (selected['isApproved'] == true || selected['geminiApproved'] == true ? 'active' : 'underReview')).toString();
+        final thumbUrl = selected['thumbnailUrl'] ?? selected['coverImageUrl'] ?? selected['imageUrl'];
+        final reason = selected['moderationReason'] ?? selected['rejectionReason'] ?? selected['reason'];
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isMobile)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: TextButton.icon(
+                    onPressed: () => controller.selectedTopic.value = null,
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Back to Topics',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              Text(
+                '#$title',
+                style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Gemini Topic Verification Gateway Status Box
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (controller.isTopicApproved(selected)
+                          ? AppColors.success
+                          : (controller.isTopicRejected(selected)
+                                ? AppColors.error
+                                : AppColors.warning))
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (controller.isTopicApproved(selected)
+                            ? AppColors.success
+                            : (controller.isTopicRejected(selected)
+                                  ? AppColors.error
+                                  : AppColors.warning))
+                        .withValues(alpha: 0.25),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          controller.isTopicApproved(selected)
+                              ? Icons.verified_user_rounded
+                              : (controller.isTopicRejected(selected)
+                                    ? Icons.block_flipped
+                                    : Icons.gavel_rounded),
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Verification Gateway Decision: ${status.toUpperCase()}',
+                                style: TextStyle(
+                                  fontFamily: TWTypography.brandFamily,
+                                  color: controller.isTopicApproved(selected)
+                                      ? AppColors.success
+                                      : (controller.isTopicRejected(selected)
+                                            ? AppColors.error
+                                            : AppColors.warning),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (selected['manuallyVerified'] == true || selected['overriddenByAdmin'] == true) ...[
+                                const SizedBox(height: 2),
+                                const Text(
+                                  '⚡ Manually Verified / Overridden by Admin',
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    color: Colors.amber,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (reason != null && reason.toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Reason Log: $reason',
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Thumbnail Frame if available
+              if (thumbUrl != null && thumbUrl.toString().isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    height: 180,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF181818),
+                      image: DecorationImage(
+                        image: CachedNetworkImageProvider(thumbUrl.toString()),
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // Technical Metadata
+              const Text(
+                'Topic Verification & Metadata',
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildMetadataTable([
+                _MetadataRow('Topic ID', (selected['id'] ?? 'N/A').toString()),
+                _MetadataRow('Title', title.toString()),
+                _MetadataRow('Handle / Slug', '@$handle'),
+                _MetadataRow('Category', (selected['category'] ?? 'General').toString()),
+                _MetadataRow('Description', (selected['description'] ?? 'None').toString()),
+                _MetadataRow('Owner / Creator ID', (selected['ownerId'] ?? selected['userId'] ?? selected['creatorId'] ?? 'Unknown').toString()),
+                _MetadataRow('Status', status),
+                _MetadataRow(
+                  'Created At',
+                  _formatTimestamp(selected['createdAt']),
+                ),
+                if (selected['updatedAt'] != null)
+                  _MetadataRow(
+                    'Updated At',
+                    _formatTimestamp(selected['updatedAt']),
+                  ),
+              ]),
+              const SizedBox(height: 32),
+
+              // Action buttons (Approve / Reject)
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: controller.isActionSubmitting.value
+                        ? null
+                        : () => _showDecisionDialog(
+                            context,
+                            controller,
+                            selected['id'],
+                            'approve',
+                            false,
+                            isTopic: true,
+                          ),
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      controller.isTopicApproved(selected)
+                          ? 'Approved (Re-confirm)'
+                          : 'Approve Topic',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: controller.isActionSubmitting.value
+                        ? null
+                        : () => _showDecisionDialog(
+                            context,
+                            controller,
+                            selected['id'],
+                            'reject',
+                            false,
+                            isTopic: true,
+                          ),
+                    icon: const Icon(
+                      Icons.block_flipped,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      controller.isTopicApproved(selected)
+                          ? 'Override & Reject Topic'
+                          : 'Reject Topic & Quarantine',
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.error),
+                      foregroundColor: AppColors.error,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      });
+
+      if (isMobile) {
+        return controller.selectedTopic.value != null
+            ? inspectorWidget
+            : listWidget;
+      }
+
+      return Row(
+        children: [
+          Expanded(flex: 2, child: listWidget),
+          Expanded(flex: 3, child: inspectorWidget),
+        ],
+      );
+    });
+  }
+
   Widget _buildFilterChip(
     AdminController controller,
     String value,
@@ -1556,6 +2106,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         selectedColor: Colors.white,
         backgroundColor: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.85),
         labelStyle: TextStyle(
+          fontFamily: TWTypography.uiFamily,
           color: Colors.black,
           fontSize: 12,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
@@ -1591,7 +2142,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       final filterBar = Container(
         padding: const EdgeInsets.all(12),
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -1637,7 +2188,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Center(
                 child: Text(
                   'No channels found in this view.',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ),
@@ -1645,8 +2199,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       } else {
         listWidget = Container(
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
           ),
           child: Column(
             children: [
@@ -1655,7 +2209,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: ListView.separated(
                   itemCount: filteredList.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(color: AppColors.bgDivider, height: 1),
+                      Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                   itemBuilder: (context, index) {
                     final channel = filteredList[index];
                     final isSelected =
@@ -1665,7 +2219,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     final status = channel['status'] ?? 'underReview';
 
                     return Material(
-                      color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+                      color: isSelected ? const Color(0xFF212121) : Colors.transparent,
                       child: InkWell(
                         onTap: () {
                           controller.selectedChannel.value = channel;
@@ -1682,7 +2236,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: AppColors.bgElevated,
+                                  color: const Color(0xFF212121),
                                   shape: BoxShape.circle,
                                   image:
                                       channel['avatarUrl'] != null &&
@@ -1698,7 +2252,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         channel['avatarUrl'].toString().isEmpty
                                     ? const Icon(
                                         Icons.face_rounded,
-                                        color: AppColors.textPrimary,
+                                        color: Colors.white,
                                       )
                                     : null,
                               ),
@@ -1710,9 +2264,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     Text(
                                       title,
                                       style: const TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
                                         color: AppColors.textPrimary,
                                         fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -1721,7 +2276,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     Text(
                                       'Handle: @${channel['handle'] ?? channel['customUrl'] ?? 'none'}',
                                       style: const TextStyle(
-                                        color: AppColors.textPrimary,
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: AppColors.textTertiary,
                                         fontSize: 11,
                                       ),
                                     ),
@@ -1749,7 +2305,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           return const Center(
             child: Text(
               'Select a channel to inspect avatars, banners, and verification results',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
             ),
           );
         }
@@ -1777,7 +2336,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     label: const Text(
                       'Back to Channels',
-                      style: TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ),
@@ -1786,9 +2348,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const Text(
                   'Channel Banner Preview',
                   style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -1815,7 +2378,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         avatarUrl != null && avatarUrl.toString().isNotEmpty
                         ? CachedNetworkImageProvider(avatarUrl)
                         : null,
-                    backgroundColor: AppColors.bgElevated,
+                    backgroundColor: const Color(0xFF212121),
                     child: avatarUrl == null || avatarUrl.toString().isEmpty
                         ? const Icon(
                             Icons.face_rounded,
@@ -1834,16 +2397,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               selected['name'] ??
                               'Unnamed Channel',
                           style: const TextStyle(
+                            fontFamily: TWTypography.brandFamily,
                             color: AppColors.textPrimary,
                             fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '@${selected['handle'] ?? selected['customUrl'] ?? 'none'} • Owner: ${selected['ownerId'] ?? selected['userId'] ?? 'Unknown'}',
                           style: const TextStyle(
-                            color: AppColors.textPrimary,
+                            fontFamily: TWTypography.uiFamily,
+                            color: AppColors.textTertiary,
                             fontSize: 12,
                           ),
                         ),
@@ -1879,17 +2444,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      status == 'active'
-                          ? Icons.check_circle_outline
-                          : (status == 'verificationRejected'
-                                ? Icons.block_flipped
-                                : Icons.sync_rounded),
-                      color: status == 'active'
-                          ? AppColors.success
-                          : (status == 'verificationRejected'
-                                ? AppColors.error
-                                : AppColors.warning),
+                    const Icon(
+                      Icons.verified_user_rounded,
+                      color: Colors.white,
                       size: 24,
                     ),
                     const SizedBox(width: 12),
@@ -1900,6 +2457,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           Text(
                             'Verification Gateway: ${status == 'active' ? 'APPROVED / ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
                             style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               color: status == 'active'
                                   ? AppColors.success
                                   : (status == 'verificationRejected'
@@ -1913,6 +2471,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           Text(
                             'Verification Log: $verificationResponse',
                             style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               color: AppColors.textPrimary,
                               fontSize: 12,
                             ),
@@ -1943,7 +2502,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       size: 18,
                       color: Colors.white,
                     ),
-                    label: const Text('Approve Channel Verification'),
+                    label: const Text(
+                      'Approve Channel Verification',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
@@ -1969,9 +2534,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     icon: const Icon(
                       Icons.block_flipped,
                       size: 18,
-                      color: AppColors.error,
+                      color: Colors.white,
                     ),
-                    label: const Text('Reject Verification'),
+                    label: const Text(
+                      'Reject Verification',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
                       foregroundColor: AppColors.error,
@@ -2026,7 +2597,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       final filterBar = Container(
         padding: const EdgeInsets.all(12),
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -2065,7 +2636,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Center(
                 child: Text(
                   'No video reports found in this view.',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ),
@@ -2073,8 +2647,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       } else {
         listWidget = Container(
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
           ),
           child: Column(
             children: [
@@ -2083,7 +2657,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: ListView.separated(
                   itemCount: filteredList.length,
                   separatorBuilder: (context, index) =>
-                      const Divider(color: AppColors.bgDivider, height: 1),
+                      Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
                   itemBuilder: (context, index) {
                     final report = filteredList[index];
             final isSelected =
@@ -2109,7 +2683,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 'Anonymous User';
 
             return Material(
-              color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+              color: isSelected ? const Color(0xFF212121) : Colors.transparent,
               child: InkWell(
                 onTap: () {
                   controller.selectedReport.value = report;
@@ -2126,7 +2700,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         width: 40,
                         height: 40,
                         decoration: const BoxDecoration(
-                          color: AppColors.bgElevated,
+                          color: Color(0xFF212121),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -2142,9 +2716,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text(
                               reason,
                               style: const TextStyle(
+                                fontFamily: TWTypography.brandFamily,
                                 color: AppColors.textPrimary,
                                 fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -2153,7 +2728,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text(
                               'Reporter: $reporter',
                               style: const TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textTertiary,
                                 fontSize: 11,
                               ),
                               maxLines: 1,
@@ -2183,7 +2759,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           return const Center(
             child: Text(
               'Select a report to inspect details',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
             ),
           );
         }
@@ -2235,7 +2814,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     label: const Text(
                       'Back to Reports',
-                      style: TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ),
@@ -2269,11 +2851,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               : (status == 'resolved_rejected'
                                     ? Icons.cancel_outlined
                                     : Icons.check_circle_outline_rounded),
-                          color: (status == 'pending' || status == 'PENDING')
-                              ? AppColors.warning
-                              : (status == 'resolved_rejected'
-                                    ? AppColors.error
-                                    : AppColors.success),
+                          color: Colors.white,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -2285,6 +2863,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                       ? 'REPORT RESOLVED: VIDEO REJECTED'
                                       : 'REPORT RESOLVED: DISMISSED'),
                             style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               color:
                                   (status == 'pending' || status == 'PENDING')
                                   ? AppColors.warning
@@ -2309,6 +2888,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         'Resolution Note: ${selected['resolutionComment']}',
                         style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textPrimary,
                           fontSize: 13,
                         ),
@@ -2323,9 +2903,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Text(
                 'Reported Video Details',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2333,9 +2914,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.bgSurfaceHover,
+                    color: const Color(0xFF181818),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.bgDivider),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2353,7 +2934,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 Container(
                                   width: 120,
                                   height: 68,
-                                  color: AppColors.textPrimary,
+                                  color: const Color(0xFF212121),
                                   child: const Icon(
                                     Icons.broken_image,
                                     color: Colors.white,
@@ -2366,7 +2947,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           width: 120,
                           height: 68,
                           decoration: BoxDecoration(
-                            color: AppColors.bgElevated,
+                            color: const Color(0xFF212121),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -2382,6 +2963,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text(
                               video['title'] ?? 'Untitled Video',
                               style: const TextStyle(
+                                fontFamily: TWTypography.brandFamily,
                                 color: AppColors.textPrimary,
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -2393,7 +2975,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text(
                               'Channel: ${video['channelName'] ?? 'Unknown'}',
                               style: const TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textTertiary,
                                 fontSize: 12,
                               ),
                             ),
@@ -2401,7 +2984,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             Text(
                               'Status: ${video['moderation']?['status'] ?? 'unknown'}',
                               style: const TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textTertiary,
                                 fontSize: 11,
                               ),
                             ),
@@ -2416,14 +3000,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.bgSurfaceHover,
+                    color: const Color(0xFF181818),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.bgDivider),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   child: Text(
                     'Video ID: $videoId (Video details not cached or video deleted)',
                     style: const TextStyle(
-                      color: AppColors.textPrimary,
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
                       fontSize: 13,
                     ),
                   ),
@@ -2435,9 +3020,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Text(
                 'Report Submission Info',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2453,9 +3039,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Text(
                 'Reporter Comment',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
@@ -2463,13 +3050,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurfaceHover,
+                  color: const Color(0xFF181818),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.bgDivider),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                 ),
                 child: Text(
                   comment,
                   style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textPrimary,
                     fontSize: 13,
                     height: 1.4,
@@ -2500,7 +3088,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         size: 18,
                         color: Colors.white,
                       ),
-                      label: const Text('Dismiss Report (Keep Video)'),
+                      label: const Text(
+                        'Dismiss Report (Keep Video)',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,
@@ -2527,9 +3121,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       icon: const Icon(
                         Icons.block_flipped,
                         size: 18,
-                        color: AppColors.error,
+                        color: Colors.white,
                       ),
-                      label: const Text('Reject Video & Resolve'),
+                      label: const Text(
+                        'Reject Video & Resolve',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.error),
                         foregroundColor: AppColors.error,
@@ -2584,7 +3184,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       final filterBar = Container(
         padding: const EdgeInsets.all(12),
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -2630,7 +3230,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Center(
                 child: Text(
                   'No community posts or media found in this view.',
-                  style: TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ),
@@ -2638,8 +3241,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       } else {
         listWidget = Container(
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.bgDivider)),
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
           ),
           child: Column(
             children: [
@@ -2670,10 +3273,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
+                  color: const Color(0xFF181818),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isSelected ? AppColors.brand : AppColors.bgDivider,
+                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.08),
                     width: isSelected ? 2 : 1,
                   ),
                 ),
@@ -2711,9 +3314,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           Text(
                             img['title'] ?? img['fileName'] ?? 'Image File',
                             style: const TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               color: AppColors.textPrimary,
                               fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.bold,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2728,13 +3332,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.bgElevated,
+                                  color: const Color(0xFF212121),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
                                   img['category'] ?? 'Post',
                                   style: const TextStyle(
-                                    color: AppColors.textPrimary,
+                                    fontFamily: TWTypography.uiFamily,
+                                    color: AppColors.textSecondary,
                                     fontSize: 8,
                                   ),
                                 ),
@@ -2763,7 +3368,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           return const Center(
             child: Text(
               'Select an image to inspect details',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
             ),
           );
         }
@@ -2792,16 +3400,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     label: const Text(
                       'Back to Images',
-                      style: TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ),
               Text(
                 selected['title'] ?? selected['fileName'] ?? 'Inspect Image',
                 style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 16),
@@ -2810,7 +3422,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  color: AppColors.bgSurface,
+                  color: const Color(0xFF181818),
                   constraints: const BoxConstraints(maxHeight: 280),
                   width: double.infinity,
                   child: displayUrl.isNotEmpty
@@ -2843,9 +3455,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Text(
                 'AI SafeSearch Violations',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2866,9 +3479,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const Text(
                 'Verification Metadata',
                 style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 12),
@@ -2893,7 +3507,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 32),
 
               // Action buttons
-              if (selected['status'] == 'PENDING_REVIEW')
+              if (controller.isImagePostPending(selected))
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -2913,7 +3527,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         size: 18,
                         color: Colors.white,
                       ),
-                      label: const Text('Approve Image'),
+                      label: const Text(
+                        'Approve Image',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success,
                         foregroundColor: Colors.white,
@@ -2939,12 +3559,100 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       icon: const Icon(
                         Icons.block_flipped,
                         size: 18,
-                        color: AppColors.error,
+                        color: Colors.white,
                       ),
-                      label: const Text('Reject & Quarantine'),
+                      label: const Text(
+                        'Reject & Quarantine',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.error),
                         foregroundColor: AppColors.error,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else if (controller.isImagePostApproved(selected))
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: controller.isActionSubmitting.value
+                          ? null
+                          : () => _showDecisionDialog(
+                              context,
+                              controller,
+                              selected['id'],
+                              'reject',
+                              false,
+                            ),
+                      icon: const Icon(
+                        Icons.block_flipped,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Revoke & Reject',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.error),
+                        foregroundColor: AppColors.error,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: controller.isActionSubmitting.value
+                          ? null
+                          : () => _showDecisionDialog(
+                              context,
+                              controller,
+                              selected['id'],
+                              'approve',
+                              false,
+                            ),
+                      icon: const Icon(
+                        Icons.check_circle_outline,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        'Override & Approve Image',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 14,
@@ -2985,7 +3693,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         return const Center(
           child: Text(
             'No manual rejection logs recorded.',
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+            ),
           ),
         );
       }
@@ -2994,9 +3705,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         padding: const EdgeInsets.all(24),
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.bgSurface,
+            color: const Color(0xFF181818),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.bgDivider),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -3007,31 +3718,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 DataColumn(
                   label: Text(
                     'Original Location',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Quarantine GCS Path',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Reason Code',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Owner ID',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 DataColumn(
                   label: Text(
                     'Rejection Date',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -3042,6 +3773,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         log['originalPath'] ?? 'N/A',
                         style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
@@ -3051,9 +3783,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         log['quarantinePath'] ?? 'N/A',
                         style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 11,
                           fontFamily: 'monospace',
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
                         ),
                       ),
                     ),
@@ -3061,6 +3793,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         log['reason'] ?? 'N/A',
                         style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
@@ -3070,7 +3803,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         log['userId'] ?? 'N/A',
                         style: const TextStyle(
-                          color: AppColors.textPrimary,
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -3079,7 +3813,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Text(
                         _formatTimestamp(log['rejectedAt']),
                         style: const TextStyle(
-                          color: AppColors.textPrimary,
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textTertiary,
                           fontSize: 12,
                         ),
                       ),
@@ -3101,6 +3836,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     String id,
     String action,
     bool isVideo, {
+    bool isTopic = false,
     bool isChannel = false,
     bool isReport = false,
   }) {
@@ -3109,10 +3845,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     unawaited(
       Get.dialog(
         AlertDialog(
-          backgroundColor: AppColors.bgSurface,
+          backgroundColor: const Color(0xFF181818),
           title: Text(
             'Confirm Manual ${action.capitalizeFirst}',
             style: const TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
@@ -3125,7 +3862,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 'Are you sure you want to manually $action this resource? '
                 '${action == 'reject' ? 'This action logs an audit/moderation record.' : ''}',
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -3133,15 +3871,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               TextField(
                 controller: textCtrl,
                 maxLines: 3,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textPrimary,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Enter review reason (optional)...',
-                  hintStyle: const TextStyle(color: AppColors.textPrimary),
+                  hintStyle: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textTertiary,
+                  ),
                   fillColor: AppColors.bgInput,
                   filled: true,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                 ),
               ),
@@ -3152,7 +3900,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               onPressed: Get.back,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
             ElevatedButton(
@@ -3160,6 +3911,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Get.back();
                 if (isReport) {
                   await controller.moderateReport(id, action, textCtrl.text);
+                } else if (isTopic) {
+                  await controller.moderateTopic(id, action, textCtrl.text);
                 } else if (isChannel) {
                   await controller.moderateChannel(id, action, textCtrl.text);
                 } else if (isVideo) {
@@ -3172,9 +3925,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 backgroundColor: (action == 'approve' || action == 'dismiss')
                     ? AppColors.success
                     : AppColors.error,
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: Colors.white,
               ),
-              child: Text('Confirm ${action.capitalizeFirst}'),
+              child: Text(
+                'Confirm ${action.capitalizeFirst}',
+                style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -3192,7 +3951,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF212121),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: scoreColor, width: 1.5),
       ),
@@ -3202,7 +3961,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(
             '$label: ',
             style: const TextStyle(
-              color: Colors.black,
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textPrimary,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -3210,6 +3970,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(
             '$score',
             style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: scoreColor,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -3229,11 +3990,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
     for (final key in [
       'imageUrl',
+      'avatarUrl',
+      'bannerUrl',
+      'coverImageUrl',
+      'coverUrl',
       'mediaUrl',
       'url',
       'image',
       'photoUrl',
       'thumbnailUrl',
+      'thumbnail',
+      'photo',
+      'posterUrl',
+      'downloadUrl',
+      'processedUrl',
       'attachmentUrl',
       'gcsUri',
       'filePath',
@@ -3255,19 +4025,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       return 'REJECTED';
     }
     if (controller.isImagePostPending(img)) {
-      return (img['status'] ?? 'PENDING').toString().toUpperCase();
-    }
-    if (controller.isImagePostApproved(img)) {
-      final s = (img['status'] ?? img['moderation']?['status'] ?? '')
+      final s = (img['status'] ?? img['moderation']?['status'] ?? 'PENDING')
           .toString()
           .toUpperCase();
-      if (s.isEmpty ||
-          s == 'PENDING' ||
-          s == 'PENDING_REVIEW' ||
-          s == 'UNVERIFIED') {
-        return 'APPROVED';
+      if (s == 'VERIFICATIONREJECTED' || s == 'VERIFICATION_REJECTED') {
+        return 'FLAGGED (AI)';
+      }
+      if (s == 'FLAGGED' || s == 'FLAGGED_FOR_REVIEW') {
+        return 'FLAGGED';
       }
       return s;
+    }
+    if (controller.isImagePostApproved(img)) {
+      return 'APPROVED';
     }
     return (img['status'] ?? 'PENDING').toString().toUpperCase();
   }
@@ -3290,8 +4060,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         txt == 'FAILED' ||
         txt == 'RESOLVED_REJECTED') {
       color = AppColors.error;
-    } else if (txt == 'PENDING' ||
-        txt == 'PENDING_REVIEW' ||
+    } else if (txt.contains('PENDING') ||
+        txt.contains('FLAGGED') ||
+        txt.contains('VERIFICATION') ||
+        txt.contains('REVIEW') ||
         txt == 'PROCESSING' ||
         txt == 'UNDERREVIEW') {
       color = AppColors.warning;
@@ -3306,6 +4078,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Text(
         txt,
         style: TextStyle(
+          fontFamily: TWTypography.uiFamily,
           color: color,
           fontSize: 9,
           fontWeight: FontWeight.bold,
@@ -3329,9 +4102,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Text(
                 row.label,
                 style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -3340,7 +4114,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: Text(
                 row.value,
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -3411,7 +4186,11 @@ class _AdminVideoPlayerState extends State<AdminVideoPlayer> {
                 const SizedBox(height: 8),
                 Text(
                   _controller.error.value!,
-                  style: const TextStyle(color: AppColors.error, fontSize: 12),
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.error,
+                    fontSize: 12,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
@@ -3420,7 +4199,11 @@ class _AdminVideoPlayerState extends State<AdminVideoPlayer> {
                   icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
                   label: const Text(
                     'Retry',
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: Colors.white,
+                      fontSize: 12,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.bgSurfaceHover,

@@ -781,6 +781,24 @@
       "httpsTrigger": {},
       "entryPoint": "moderateImageManual"
     },
+    "setModerationModesManual": {
+      "availableMemoryMb": 256,
+      "timeoutSeconds": 30,
+      "minInstances": null,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "setModerationModesManual"
+    },
     "trackWatchEvent": {
       "availableMemoryMb": 256,
       "timeoutSeconds": 10,
@@ -1731,6 +1749,38 @@
         "retry": false
       },
       "entryPoint": "onAdCampaignWritten"
+    },
+    "triggerAdAIFeatures": {
+      "availableMemoryMb": 512,
+      "timeoutSeconds": 300,
+      "minInstances": 0,
+      "maxInstances": 2,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "cpu": "gcf_gen1",
+      "region": [
+        "asia-south1"
+      ],
+      "secretEnvironmentVariables": [
+        {
+          "key": "GEMINI_API_KEY"
+        },
+        {
+          "key": "ASSEMBLYAI_KEY"
+        },
+        {
+          "key": "ELEVENLABS_API_KEY"
+        },
+        {
+          "key": "GOOGLE_TRANSLATION_API_KEY"
+        }
+      ],
+      "labels": {},
+      "httpsTrigger": {},
+      "entryPoint": "triggerAdAIFeatures"
     },
     "makeMeAdmin": {
       "availableMemoryMb": 256,

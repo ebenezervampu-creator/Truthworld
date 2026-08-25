@@ -14,47 +14,19 @@ import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class TopicCommentsSection extends StatefulWidget {
-  const TopicCommentsSection({required this.topic, super.key});
+class TopicCommentsSection extends StatelessWidget {
+  TopicCommentsSection({required this.topic, super.key});
   final Topic topic;
 
-  @override
-  State<TopicCommentsSection> createState() => _TopicCommentsSectionState();
-}
-
-class _TopicCommentsSectionState extends State<TopicCommentsSection> {
-  final Rxn<TopicInteractionController> _controller =
-      Rxn<TopicInteractionController>();
   final RxBool isSortNewest = true.obs;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeController();
-  }
-
-  @override
-  void didUpdateWidget(covariant TopicCommentsSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.topic.id != oldWidget.topic.id) {
-      _initializeController();
-    }
-  }
-
-  void _initializeController() {
-    final TopicInteractionController currentController;
-    if (Get.isRegistered<TopicInteractionController>(tag: widget.topic.id)) {
-      currentController = Get.find<TopicInteractionController>(
-        tag: widget.topic.id,
-      );
-    } else {
-      currentController = Get.put(
-        TopicInteractionController(),
-        tag: widget.topic.id,
-      );
-    }
-    currentController.initializeTopic(widget.topic);
-    _controller.value = currentController;
+  TopicInteractionController get controller {
+    final currentController =
+        Get.isRegistered<TopicInteractionController>(tag: topic.id)
+            ? Get.find<TopicInteractionController>(tag: topic.id)
+            : Get.put(TopicInteractionController(), tag: topic.id);
+    currentController.initializeTopic(topic);
+    return currentController;
   }
 
   List<Comment> _getSortedComments(List<Comment> rawComments) {
@@ -109,16 +81,6 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
     final theme = Theme.of(context);
 
     return Obx(() {
-      final controller = _controller.value;
-      if (controller == null) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: CircularProgressIndicator(color: theme.colorScheme.primary),
-          ),
-        );
-      }
-
       final commentCount = controller.commentCount.value;
       final rawComments = controller.comments;
       final sortedComments = _getSortedComments(rawComments);
@@ -214,9 +176,9 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
 
             // Comment Input
             PremiumCommentInput(
-              videoId: widget.topic.id,
+              videoId: topic.id,
               onSubmit: (text, postAsChannel, channelId) async {
-                await controller.addComment(widget.topic.id, text);
+                await controller.addComment(topic.id, text);
               },
             ),
             const SizedBox(height: 24),
@@ -253,7 +215,7 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                   final comment = sortedComments[index];
                   return TopicCommentItemWidget(
                     comment: comment,
-                    topicId: widget.topic.id,
+                    topicId: topic.id,
                     controller: controller,
                     theme: theme,
                     isMobile: isMobile,
@@ -796,8 +758,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
   }
 }
 
-class TopicRepliesSection extends StatefulWidget {
-  const TopicRepliesSection({
+class TopicRepliesSection extends StatelessWidget {
+  TopicRepliesSection({
     required this.commentId,
     required this.topicId,
     required this.controller,
@@ -817,20 +779,15 @@ class TopicRepliesSection extends StatefulWidget {
   final bool isDesktop;
   final Function(String?) onNavigateToChannel;
 
-  @override
-  State<TopicRepliesSection> createState() => _TopicRepliesSectionState();
-}
-
-class _TopicRepliesSectionState extends State<TopicRepliesSection> {
   final RxBool _isRepliesExpanded = false.obs;
 
   @override
   Widget build(BuildContext context) {
     final repliesRef = FirebaseFirestore.instance
         .collection(FirestoreCollections.topics)
-        .doc(widget.topicId)
+        .doc(topicId)
         .collection('comments')
-        .doc(widget.commentId)
+        .doc(commentId)
         .collection('replies')
         .orderBy('createdAt', descending: false);
 
@@ -911,14 +868,14 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
                       Expanded(
                         child: TopicReplyItemWidget(
                           reply: reply,
-                          commentId: widget.commentId,
-                          topicId: widget.topicId,
-                          controller: widget.controller,
-                          theme: widget.theme,
-                          isMobile: widget.isMobile,
-                          isTablet: widget.isTablet,
-                          isDesktop: widget.isDesktop,
-                          onNavigateToChannel: widget.onNavigateToChannel,
+                          commentId: commentId,
+                          topicId: topicId,
+                          controller: controller,
+                          theme: theme,
+                          isMobile: isMobile,
+                          isTablet: isTablet,
+                          isDesktop: isDesktop,
+                          onNavigateToChannel: onNavigateToChannel,
                         ),
                       ),
                     ],

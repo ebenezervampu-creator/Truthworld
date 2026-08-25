@@ -13,8 +13,8 @@ import 'package:truthworld/theme/app_theme.dart';
 /// 1. Complete Topic Thumbnail without any title/text overlaid on it.
 /// 2. Topic Title & Collapsible description ("show more / show less").
 /// 3. Community icon + text row with Video count, Follow/Following button, and Notification Bell settings.
-class TopicHeroWidget extends StatefulWidget {
-  const TopicHeroWidget({
+class TopicHeroWidget extends StatelessWidget {
+  TopicHeroWidget({
     required this.isDesktop,
     required this.isTablet,
     super.key,
@@ -28,26 +28,21 @@ class TopicHeroWidget extends StatefulWidget {
   final VoidCallback? onCommunityTap;
   final VoidCallback? onCommentsTap;
 
-  @override
-  State<TopicHeroWidget> createState() => _TopicHeroWidgetState();
-}
-
-class _TopicHeroWidgetState extends State<TopicHeroWidget> {
   final RxBool _isExpanded = false.obs;
 
   @override
   Widget build(BuildContext context) {
-    if (widget.topic == null) {
+    final currentTopic = topic;
+    if (currentTopic == null) {
       return _buildSkeleton();
     }
 
-    final topic = widget.topic!;
-    final horizontalPadding = widget.isDesktop
+    final horizontalPadding = isDesktop
         ? 48.0
-        : (widget.isTablet ? 32.0 : 16.0);
-    final imageHeight = widget.isDesktop
+        : (isTablet ? 32.0 : 16.0);
+    final imageHeight = isDesktop
         ? 360.0
-        : (widget.isTablet ? 260.0 : 200.0);
+        : (isTablet ? 260.0 : 200.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +58,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
             child: SizedBox(
               height: imageHeight,
               width: double.infinity,
-              child: _buildThumbnail(topic),
+              child: _buildThumbnail(currentTopic),
             ),
           ),
         ),
@@ -79,7 +74,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
               // Category Badge & Title Row
               Row(
                 children: [
-                  _buildCategoryBadge(topic),
+                  _buildCategoryBadge(currentTopic),
                 ],
               ),
               const SizedBox(height: 10),
@@ -90,11 +85,11 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                 splashColor: Colors.transparent,
                 highlightColor: Colors.transparent,
                 child: Text(
-                  topic.title,
+                  currentTopic.title,
                   style: TextStyle(
-                    fontSize: widget.isDesktop
+                    fontSize: isDesktop
                         ? 32
-                        : (widget.isTablet ? 26 : 22),
+                        : (isTablet ? 26 : 22),
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                     height: 1.2,
@@ -105,7 +100,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
               const SizedBox(height: 8),
 
               // Collapsible Description ("show more / show less")
-              if (topic.description.isNotEmpty)
+              if (currentTopic.description.isNotEmpty)
                 InkWell(
                   onTap: _isExpanded.toggle,
                   borderRadius: BorderRadius.circular(8),
@@ -117,9 +112,9 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            topic.description,
+                            currentTopic.description,
                             style: TextStyle(
-                              fontSize: widget.isDesktop ? 16 : 14,
+                              fontSize: isDesktop ? 16 : 14,
                               color: AppColors.textSecondary,
                               height: 1.4,
                             ),
@@ -156,7 +151,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
               const SizedBox(height: 16),
 
               // 3. Videos Count Chip + Comments Chip + Follow/Following & Bell Settings Row
-              _buildCommunityAndActionsRow(context, topic),
+              _buildCommunityAndActionsRow(context, currentTopic),
 
               const SizedBox(height: 16),
               const Divider(color: AppColors.bgDivider, height: 1),
@@ -239,7 +234,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
       final isFollowed = followingController.isTopicFollowed(topic.id);
       final currentBellSetting =
           followingController.topicNotificationSettings[topic.id] ?? 'all';
-      final commentsHandler = widget.onCommentsTap ?? widget.onCommunityTap;
+      final commentsHandler = onCommentsTap ?? onCommunityTap;
 
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -520,7 +515,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
   }
 
   Widget _buildSkeleton() {
-    final height = widget.isDesktop ? 360.0 : (widget.isTablet ? 260.0 : 200.0);
+    final height = isDesktop ? 360.0 : (isTablet ? 260.0 : 200.0);
 
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceHover,

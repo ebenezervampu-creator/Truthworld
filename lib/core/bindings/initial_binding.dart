@@ -39,6 +39,7 @@ import 'package:truthworld/domain/repositories/video_repository.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_subscription_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/app_navigation_controller.dart';
@@ -88,6 +89,7 @@ class InitialBinding extends Bindings {
     // Core analytics services (lazy, fenix for recreation if needed)
     Get.lazyPut(GeolocationService.new, fenix: true);
     Get.lazyPut(VideoAnalyticsService.new, fenix: true);
+    Get.lazyPut(VideoPresenceService.new, fenix: true);
     Get.lazyPut(ViewerIdentityService.new, fenix: true);
     Get.lazyPut(ImpressionTrackingService.new, fenix: true);
     Get.lazyPut(WatchHistoryService.new, fenix: true);

@@ -90,9 +90,14 @@ class HomeDiscoveryController extends BaseController {
     try {
       final cachedData = _storage.read<List>(_kFeaturedTopicsCacheKey);
       if (cachedData != null && featuredTopics.isEmpty) {
-        final cachedTopics = cachedData.map((data) => Topic.fromMap(Map<String, dynamic>.from(data))).toList();
-        featuredTopics.assignAll(cachedTopics);
-        isLoadingFeaturedTopics.value = false;
+        final cachedTopics = cachedData
+            .map((data) => Topic.fromMap(Map<String, dynamic>.from(data)))
+            .where((t) => t.isValidTopic)
+            .toList();
+        if (cachedTopics.isNotEmpty) {
+          featuredTopics.assignAll(cachedTopics);
+          isLoadingFeaturedTopics.value = false;
+        }
       }
     } catch (e) {
       debugPrint('HomeDiscoveryController: Cached topics load error: $e');
@@ -101,7 +106,10 @@ class HomeDiscoveryController extends BaseController {
 
   void saveFeaturedTopicsToCache() {
     try {
-      final dataToCache = featuredTopics.map((t) => t.toCacheMap()).toList();
+      final dataToCache = featuredTopics
+          .where((t) => t.isValidTopic)
+          .map((t) => t.toCacheMap())
+          .toList();
       _storage.write(_kFeaturedTopicsCacheKey, dataToCache);
     } catch (e) {
       debugPrint('HomeDiscoveryController: Cached topics save error: $e');
@@ -118,7 +126,10 @@ class HomeDiscoveryController extends BaseController {
           .get();
       var topicsList = <Topic>[];
       if (snapshot.docs.isNotEmpty) {
-        topicsList = snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+        topicsList = snapshot.docs
+            .map(Topic.fromDocumentSnapshot)
+            .where((t) => t.isValidTopic)
+            .toList();
       }
       if (topicsList.isEmpty) {
         final fallbackSnapshot = await _firestore
@@ -127,8 +138,10 @@ class HomeDiscoveryController extends BaseController {
             .limit(6)
             .get();
         if (fallbackSnapshot.docs.isNotEmpty) {
-          topicsList =
-              fallbackSnapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+          topicsList = fallbackSnapshot.docs
+              .map(Topic.fromDocumentSnapshot)
+              .where((t) => t.isValidTopic)
+              .toList();
         }
       }
       if (topicsList.isNotEmpty) {

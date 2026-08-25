@@ -8,11 +8,15 @@ import 'package:truthworld/core/constants/firestore_collections.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/repositories/advertiser_repository_impl.dart';
+import 'package:truthworld/domain/repositories/advertiser_repository.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class AdvertiserPortalController extends BaseController {
-  Timer? _subtitleSimTimer;
-  Timer? _audioSimTimer;
+  final AdvertiserRepository _advertiserRepository = AdvertiserRepositoryImpl();
+  StreamSubscription<DocumentSnapshot>? _subtitlesJobSub;
+  StreamSubscription<DocumentSnapshot>? _dubbingJobSub;
+
   final RxInt selectedIndex = 0.obs;
   final RxString selectedMetric = 'spend'.obs; // 'spend', 'impressions', 'clicks', 'ctr'
   final RxList<Map<String, dynamic>> channelVideos = <Map<String, dynamic>>[].obs;
@@ -61,6 +65,30 @@ class AdvertiserPortalController extends BaseController {
     addWorker(ever(AuthService.to.isAuthenticated, (_) {
       fetchChannelVideos();
     }));
+    // Sync active campaign selections with real-time AdService campaigns list
+    addWorker(ever(AdService.to.customCampaigns, _syncSelectedAds));
+  }
+
+  @override
+  void onClose() {
+    _subtitlesJobSub?.cancel();
+    _dubbingJobSub?.cancel();
+    super.onClose();
+  }
+
+  void _syncSelectedAds(List<AdItem> campaigns) {
+    if (selectedAdForSubtitles.value != null) {
+      final updated = campaigns.firstWhereOrNull((a) => a.id == selectedAdForSubtitles.value!.id);
+      if (updated != null) {
+        selectedAdForSubtitles.value = updated;
+      }
+    }
+    if (selectedAdForAudio.value != null) {
+      final updated = campaigns.firstWhereOrNull((a) => a.id == selectedAdForAudio.value!.id);
+      if (updated != null) {
+        selectedAdForAudio.value = updated;
+      }
+    }
   }
 
   String getLanguageName(String code) {
@@ -238,123 +266,215 @@ class AdvertiserPortalController extends BaseController {
     }
   }
 
-  void startSubtitleTranslationSimulation(String targetLang) {
-    if (selectedAdForSubtitles.value == null) return;
+  Future<void> requestAdSubtitles(String targetLang) async {
+    final ad = selectedAdForSubtitles.value;
+    if (ad == null) return;
+
     isTranslatingSubtitles.value = true;
-    subtitleProgress.value = 0.0;
-    subtitleStatusText.value = 'Extracting audio track...';
+    subtitleProgress.value = 0.15;
+    subtitleStatusText.value =
+        'Connecting to AI pipeline for ${getLanguageName(targetLang)}...';
 
-    _subtitleSimTimer?.cancel();
-    _subtitleSimTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      if (subtitleProgress.value >= 1.0) {
-        timer.cancel();
+    try {
+      final result = await _advertiserRepository.triggerAdAIFeatures(
+        campaignId: ad.id,
+        features: ['subtitles'],
+        targetLanguages: [targetLang],
+      );
 
-        final updatedSubtitles = Map<String, String>.from(
-          selectedAdForSubtitles.value!.subtitles ?? {},
-        );
+      if (result.isSuccess) {
+        subtitleStatusText.value =
+            'Translating and aligning cues for ${getLanguageName(targetLang)}...';
+        subtitleProgress.value = 0.4;
 
-        var welcome = 'Welcome!';
-        var desc = selectedAdForSubtitles.value!.description;
-        var cta = 'Learn More';
-
-        if (targetLang == 'hi') {
-          welcome = 'स्वागत है!';
-          desc = 'यह ஒரு விளம்பரம்.';
-          cta = 'அறிந்துகொள்ளுங்கள்';
-        } else if (targetLang == 'es') {
-          welcome = '¡Bienvenido!';
-          desc = 'Este es un anuncio patrocinado.';
-          cta = 'Saber más';
-        } else if (targetLang == 'fr') {
-          welcome = 'Bienvenue!';
-          desc = 'Ceci est une annonce sponsorisée.';
-          cta = 'En savoir plus';
-        } else if (targetLang == 'de') {
-          welcome = 'Willkommen!';
-          desc = 'Dies ist eine gesponserte Anzeige.';
-          cta = 'Mehr erfahren';
-        } else if (targetLang == 'ta') {
-          welcome = 'வரவேற்கிறோம்!';
-          desc = 'இது ஒரு விளம்பரம்.';
-          cta = 'மேலும் அறிய';
-        }
-
-        final mockVtt =
-            'WEBVTT\n\n00:00:01.000 --> 00:00:05.000\n$welcome\n\n00:00:05.000 --> 00:00:10.000\n$desc\n\n00:00:10.000 --> 00:00:15.000\n$cta\n';
-        updatedSubtitles[targetLang] = mockVtt;
-
-        FirebaseFirestore.instance
+        _subtitlesJobSub?.cancel();
+        _subtitlesJobSub = FirebaseFirestore.instance
             .collection('ad_campaigns')
-            .doc(selectedAdForSubtitles.value!.id)
-            .update({'subtitles': updatedSubtitles})
-            .then((_) {
-              isTranslatingSubtitles.value = false;
-              selectedLanguageForSubtitles.value = targetLang;
-              loadCuesForAd(selectedAdForSubtitles.value!, targetLang);
-              AppSnackbar.show(
-                'Translation Ready',
-                'AI translation for ${getLanguageName(targetLang)} completed successfully!',
-                backgroundColor: AppColors.success,
-                colorText: AppColors.textPrimary,
-              );
+            .doc(ad.id)
+            .snapshots()
+            .listen((snapshot) {
+              if (!snapshot.exists) return;
+              final data = snapshot.data();
+              if (data == null) return;
+
+              final stages = data['stages'] as Map<String, dynamic>?;
+              final aiStage = stages?['ai'] as Map<String, dynamic>?;
+
+              if (aiStage != null) {
+                final progress =
+                    (aiStage['progress'] as num?)?.toDouble() ?? 0.0;
+                final stageText = aiStage['currentStage'] as String? ?? '';
+                final status = aiStage['status'] as String? ?? '';
+
+                if (progress > 0) {
+                  subtitleProgress.value = progress / 100.0;
+                }
+                if (stageText.isNotEmpty) {
+                  subtitleStatusText.value = stageText;
+                }
+
+                if (status == 'completed') {
+                  isTranslatingSubtitles.value = false;
+                  subtitleProgress.value = 1.0;
+                  selectedLanguageForSubtitles.value = targetLang;
+                  final updatedAd = AdItem.fromMap(
+                    Map<String, dynamic>.from(data),
+                  );
+                  selectedAdForSubtitles.value = updatedAd;
+                  loadCuesForAd(updatedAd, targetLang);
+                  AppSnackbar.show(
+                    'Translation Ready',
+                    'AI subtitles in ${getLanguageName(targetLang)} generated successfully!',
+                    backgroundColor: AppColors.success,
+                    colorText: AppColors.textPrimary,
+                  );
+                  _subtitlesJobSub?.cancel();
+                } else if (status == 'failed') {
+                  isTranslatingSubtitles.value = false;
+                  final errorMsg =
+                      aiStage['error'] ?? 'Subtitle translation failed';
+                  AppSnackbar.show(
+                    'AI Pipeline Error',
+                    '$errorMsg',
+                    backgroundColor: AppColors.error,
+                    colorText: AppColors.textPrimary,
+                  );
+                  _subtitlesJobSub?.cancel();
+                }
+              }
             });
       } else {
-        subtitleProgress.value += 0.1;
-        if (subtitleProgress.value > 0.8) {
-          subtitleStatusText.value = 'Aligning timestamps...';
-        } else if (subtitleProgress.value > 0.5) {
-          subtitleStatusText.value =
-              'Translating transcript to ${getLanguageName(targetLang)}...';
-        } else if (subtitleProgress.value > 0.2) {
-          subtitleStatusText.value = 'Transcribing speech to text...';
-        }
+        isTranslatingSubtitles.value = false;
+        AppSnackbar.show(
+          'Request Failed',
+          result.exceptionOrNull?.message ??
+              'Failed to trigger AI subtitle translation',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
       }
-    });
-    trackTimer(_subtitleSimTimer!);
+    } catch (e) {
+      isTranslatingSubtitles.value = false;
+      debugPrint('Error triggering subtitle translation: $e');
+      AppSnackbar.show(
+        'Error',
+        'Could not trigger AI translation: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+    }
   }
 
-  void startAudioDubbingSimulation(String targetLang) {
-    if (selectedAdForAudio.value == null) return;
+  Future<void> requestAdAudioDub(
+    String targetLang, {
+    String voiceStyle = 'natural',
+  }) async {
+    final ad = selectedAdForAudio.value;
+    if (ad == null) return;
+
     isTranslatingAudio.value = true;
-    audioProgress.value = 0.0;
-    audioStatusText.value = 'Analyzing original vocal pattern...';
+    audioProgress.value = 0.15;
+    audioStatusText.value =
+        'Synthesizing voice dubbing for ${getLanguageName(targetLang)}...';
 
-    _audioSimTimer?.cancel();
-    _audioSimTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
-      if (audioProgress.value >= 1.0) {
-        timer.cancel();
+    try {
+      final result = await _advertiserRepository.triggerAdAIFeatures(
+        campaignId: ad.id,
+        features: ['dubbing', 'subtitles'],
+        targetLanguages: [targetLang],
+        voiceStyle: voiceStyle,
+      );
 
-        final updatedAudioTracks = Map<String, String>.from(
-          selectedAdForAudio.value!.audioTracks ?? {},
-        );
-        updatedAudioTracks[targetLang] =
-            'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+      if (result.isSuccess) {
+        audioStatusText.value =
+            'Rendering vocal patterns & audio layers...';
+        audioProgress.value = 0.4;
 
-        FirebaseFirestore.instance
+        _dubbingJobSub?.cancel();
+        _dubbingJobSub = FirebaseFirestore.instance
             .collection('ad_campaigns')
-            .doc(selectedAdForAudio.value!.id)
-            .update({'audioTracks': updatedAudioTracks})
-            .then((_) {
-              isTranslatingAudio.value = false;
-              AppSnackbar.show(
-                'Dubbing Completed',
-                'AI audio dub in ${getLanguageName(targetLang)} is now live!',
-                backgroundColor: AppColors.success,
-                colorText: AppColors.textPrimary,
-              );
+            .doc(ad.id)
+            .snapshots()
+            .listen((snapshot) {
+              if (!snapshot.exists) return;
+              final data = snapshot.data();
+              if (data == null) return;
+
+              final stages = data['stages'] as Map<String, dynamic>?;
+              final aiStage = stages?['ai'] as Map<String, dynamic>?;
+
+              if (aiStage != null) {
+                final progress =
+                    (aiStage['progress'] as num?)?.toDouble() ?? 0.0;
+                final stageText = aiStage['currentStage'] as String? ?? '';
+                final status = aiStage['status'] as String? ?? '';
+
+                if (progress > 0) {
+                  audioProgress.value = progress / 100.0;
+                }
+                if (stageText.isNotEmpty) {
+                  audioStatusText.value = stageText;
+                }
+
+                if (status == 'completed') {
+                  isTranslatingAudio.value = false;
+                  audioProgress.value = 1.0;
+                  final updatedAd = AdItem.fromMap(
+                    Map<String, dynamic>.from(data),
+                  );
+                  selectedAdForAudio.value = updatedAd;
+                  AppSnackbar.show(
+                    'Dubbing Completed',
+                    'AI voice dubbing in ${getLanguageName(targetLang)} is now live!',
+                    backgroundColor: AppColors.success,
+                    colorText: AppColors.textPrimary,
+                  );
+                  _dubbingJobSub?.cancel();
+                } else if (status == 'failed') {
+                  isTranslatingAudio.value = false;
+                  final errorMsg =
+                      aiStage['error'] ?? 'Voice dubbing failed';
+                  AppSnackbar.show(
+                    'AI Pipeline Error',
+                    '$errorMsg',
+                    backgroundColor: AppColors.error,
+                    colorText: AppColors.textPrimary,
+                  );
+                  _dubbingJobSub?.cancel();
+                }
+              }
             });
       } else {
-        audioProgress.value += 0.1;
-        if (audioProgress.value > 0.8) {
-          audioStatusText.value = 'Mixing and matching background track...';
-        } else if (audioProgress.value > 0.5) {
-          audioStatusText.value =
-              'Synthesizing clone voice in ${getLanguageName(targetLang)}...';
-        } else if (audioProgress.value > 0.2) {
-          audioStatusText.value = 'Translating voice transcript...';
-        }
+        isTranslatingAudio.value = false;
+        AppSnackbar.show(
+          'Request Failed',
+          result.exceptionOrNull?.message ??
+              'Failed to trigger AI voice dubbing',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
+        );
       }
-    });
-    trackTimer(_audioSimTimer!);
+    } catch (e) {
+      isTranslatingAudio.value = false;
+      debugPrint('Error triggering audio dubbing: $e');
+      AppSnackbar.show(
+        'Error',
+        'Could not trigger AI voice dubbing: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
+      );
+    }
+  }
+
+  void startSubtitleTranslationSimulation(String targetLang) {
+    requestAdSubtitles(targetLang);
+  }
+
+  void startAudioDubbingSimulation(
+    String targetLang, [
+    String voiceStyle = 'natural',
+  ]) {
+    requestAdAudioDub(targetLang, voiceStyle: voiceStyle);
   }
 }
+

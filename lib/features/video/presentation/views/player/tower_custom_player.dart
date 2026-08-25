@@ -1,4 +1,3 @@
-import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
@@ -80,85 +79,80 @@ class TowerCustomPlayer extends StatelessWidget {
                         children: [
                           // ── Layer 0: Video ─────────────────────────────────────
                           Obx(() {
-                              final showAd = c.isShowingAd.value;
-                              final apc = c.adPlayerController;
+                            final showAd = c.isShowingAd.value;
+                            final apc = c.adPlayerController;
+                            final isInit = c.isInitialized.value;
+                            final isAudioOnly = c.isAudioOnly.value;
 
-                              return Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  // Main video player - always kept in the widget tree to prevent DOM unmounting on Web
-                                  Offstage(
-                                    offstage:
-                                        showAd ||
-                                        c.isAudioOnly.value ||
-                                        !c.isInitialized.value,
-                                    child: Obx(() {
-                                      if (!c.isInitialized.value ||
-                                          c.chewieController == null) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      final isZoom = c.isZoomToFill.value;
-                                      final scale = c.zoomScale.value;
-                                      final ar = c.aspectRatio.value;
+                            final isZoom = c.isZoomToFill.value;
+                            final scale = c.zoomScale.value;
+                            final ar = c.aspectRatio.value > 0
+                                ? c.aspectRatio.value
+                                : 16 / 9;
 
-                                      Widget basePlayer = isZoom
-                                          ? FittedBox(
-                                              fit: BoxFit.cover,
-                                              clipBehavior: Clip.hardEdge,
-                                              child: SizedBox(
-                                                width: ar * 1000,
-                                                height: 1000,
-                                                child: Chewie(
-                                                  controller:
-                                                      c.chewieController!,
-                                                ),
-                                              ),
-                                            )
-                                          : Center(
-                                              child: AspectRatio(
-                                                aspectRatio: ar,
-                                                child: Chewie(
-                                                  controller:
-                                                      c.chewieController!,
-                                                ),
-                                              ),
-                                            );
-
-                                      if (scale > 1.0) {
-                                        basePlayer = ClipRect(
-                                          child: Transform.scale(
-                                            scale: scale,
-                                            child: basePlayer,
+                            Widget basePlayer = isInit
+                                ? (isZoom
+                                    ? FittedBox(
+                                        fit: BoxFit.cover,
+                                        clipBehavior: Clip.hardEdge,
+                                        child: SizedBox(
+                                          width: ar * 1000,
+                                          height: 1000,
+                                          child: MobileFriendlyVideoPlayer(
+                                            controller: c.videoPlayerController,
                                           ),
-                                        );
-                                      }
+                                        ),
+                                      )
+                                    : Center(
+                                        child: AspectRatio(
+                                          aspectRatio: ar,
+                                          child: MobileFriendlyVideoPlayer(
+                                            controller: c.videoPlayerController,
+                                          ),
+                                        ),
+                                      ))
+                                : const SizedBox.shrink();
 
-                                      return basePlayer;
-                                    }),
-                                  ),
-
-                                  // Ad video player
-                                  if (showAd)
-                                    Center(
-                                      child:
-                                          apc != null && apc.value.isInitialized
-                                          ? AspectRatio(
-                                              aspectRatio:
-                                                  apc.value.aspectRatio,
-                                              child: MobileFriendlyVideoPlayer(
-                                                controller: apc,
-                                              ),
-                                            )
-                                          : const CircularProgressIndicator(
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    AppColors.warning,
-                                                  ),
-                                            ),
-                                    ),
-                                ],
+                            if (scale > 1.0 && isInit) {
+                              basePlayer = ClipRect(
+                                child: Transform.scale(
+                                  scale: scale,
+                                  child: basePlayer,
+                                ),
                               );
-                            }),
+                            }
+
+                            return Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                // Main video player - always kept in the widget tree to prevent DOM unmounting on Web
+                                Offstage(
+                                  offstage: showAd || isAudioOnly || !isInit,
+                                  child: basePlayer,
+                                ),
+
+                                // Ad video player
+                                if (showAd)
+                                  Center(
+                                    child: apc != null && apc.value.isInitialized
+                                        ? AspectRatio(
+                                            aspectRatio: apc.value.aspectRatio > 0
+                                                ? apc.value.aspectRatio
+                                                : 16 / 9,
+                                            child: MobileFriendlyVideoPlayer(
+                                              controller: apc,
+                                            ),
+                                          )
+                                        : const CircularProgressIndicator(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              AppColors.warning,
+                                            ),
+                                          ),
+                                  ),
+                              ],
+                            );
+                          }),
 
                             // ── Layer 0.1: Video Viewport Gestures (Background tap/seek/drag) ──
                             Positioned.fill(

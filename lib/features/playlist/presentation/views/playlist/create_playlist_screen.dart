@@ -4,11 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/create_playlist_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class CreatePlaylistScreen extends StatefulWidget {
+class CreatePlaylistScreen extends StatelessWidget {
   const CreatePlaylistScreen({
     super.key,
     this.initialVideoId,
@@ -16,21 +17,17 @@ class CreatePlaylistScreen extends StatefulWidget {
 
   final String? initialVideoId;
 
-  @override
-  State<CreatePlaylistScreen> createState() => _CreatePlaylistScreenState();
-}
-
-class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
-  late final CreatePlaylistController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = Get.put(CreatePlaylistController());
-    _c.loadInitialVideo(widget.initialVideoId);
+  CreatePlaylistController get _c {
+    final c = Get.isRegistered<CreatePlaylistController>()
+        ? Get.find<CreatePlaylistController>()
+        : Get.put(CreatePlaylistController());
+    if (initialVideoId != null && c.selectedVideos.isEmpty) {
+      c.loadInitialVideo(initialVideoId);
+    }
+    return c;
   }
 
-  void _openVideoSelectorModal() {
+  void _openVideoSelectorModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -49,9 +46,9 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
     );
   }
 
-  Future<void> _handleCreatePlaylist() async {
+  Future<void> _handleCreatePlaylist(BuildContext context) async {
     final success = await _c.submitCreatePlaylist();
-    if (success && mounted) {
+    if (success && context.mounted) {
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       } else {
@@ -113,7 +110,7 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
         Row(
           children: [
             IconButton(
-              onPressed: () => Get.back(),
+              onPressed: Get.back,
               icon: const Icon(Icons.arrow_back, color: Colors.white),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -569,7 +566,7 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
                 ],
               ),
               OutlinedButton.icon(
-                onPressed: _openVideoSelectorModal,
+                onPressed: () => _openVideoSelectorModal(context),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: BorderSide(
@@ -1084,7 +1081,6 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: Colors.white.withValues(alpha: 0.1),
-                                style: BorderStyle.solid,
                               ),
                             ),
                             child: Column(
@@ -1155,7 +1151,7 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           OutlinedButton(
-            onPressed: () => Get.back(),
+            onPressed: Get.back,
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
               side: BorderSide(
@@ -1170,7 +1166,7 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
           ),
           const SizedBox(width: 16),
           ElevatedButton(
-            onPressed: isCreating ? null : _handleCreatePlaylist,
+            onPressed: isCreating ? null : () => _handleCreatePlaylist(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -1219,7 +1215,7 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
           width: double.infinity,
           height: 48,
           child: ElevatedButton(
-            onPressed: isCreating ? null : _handleCreatePlaylist,
+            onPressed: isCreating ? null : () => _handleCreatePlaylist(context),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: Colors.black,
@@ -1243,25 +1239,99 @@ class _CreatePlaylistScreenState extends State<CreatePlaylistScreen> {
   }
 }
 
-// ================= Modal Sheet to Select Videos =================
 class _VideoSelectorSheet extends StatelessWidget {
   _VideoSelectorSheet({
     required this.currentlySelected,
     required this.onConfirm,
   }) {
     _selectedVideos.assignAll(currentlySelected);
+    _fetchUserVideos();
   }
 
   final List<Video> currentlySelected;
   final ValueChanged<List<Video>> onConfirm;
 
   final RxList<Video> _selectedVideos = <Video>[].obs;
+  final RxList<Video> _allVideos = <Video>[].obs;
+  final RxBool _isLoading = true.obs;
   final RxString _searchQuery = ''.obs;
+
+  Future<void> _fetchUserVideos() async {
+    _isLoading.value = true;
+    try {
+      final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final userChannelId = Get.isRegistered<AuthService>()
+          ? (AuthService.to.userChannel?.id ?? '')
+          : '';
+
+      final targetIds = <String>{};
+      if (currentUid.isNotEmpty) targetIds.add(currentUid);
+      if (userChannelId.isNotEmpty) targetIds.add(userChannelId);
+
+      final videos = <Video>[];
+      final seenIds = <String>{};
+
+      void addVideoDocs(Iterable<QueryDocumentSnapshot> docs) {
+        for (final doc in docs) {
+          if (!seenIds.contains(doc.id)) {
+            seenIds.add(doc.id);
+            try {
+              final video = Video.fromDocumentSnapshot(doc);
+              videos.add(video);
+            } catch (e) {
+              debugPrint('Error parsing video ${doc.id}: $e');
+            }
+          }
+        }
+      }
+
+      for (final id in targetIds) {
+        try {
+          final q1 = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where('channelId', isEqualTo: id)
+              .get();
+          addVideoDocs(q1.docs);
+        } catch (_) {}
+
+        try {
+          final q2 = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where('ownerId', isEqualTo: id)
+              .get();
+          addVideoDocs(q2.docs);
+        } catch (_) {}
+
+        try {
+          final q3 = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.videos)
+              .where('userId', isEqualTo: id)
+              .get();
+          addVideoDocs(q3.docs);
+        } catch (_) {}
+
+        try {
+          final qSub = await FirebaseFirestore.instance
+              .collection(FirestoreCollections.channels)
+              .doc(id)
+              .collection(FirestoreCollections.videos)
+              .get();
+          addVideoDocs(qSub.docs);
+        } catch (_) {}
+      }
+
+      // Sort newest videos first
+      videos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _allVideos.assignAll(videos);
+    } catch (e) {
+      debugPrint('Error fetching user videos for playlist: $e');
+    } finally {
+      _isLoading.value = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser?.uid ?? '';
-
     return Container(
       height: MediaQuery.of(context).size.height * 0.8,
       padding: const EdgeInsets.all(20),
@@ -1278,20 +1348,47 @@ class _VideoSelectorSheet extends StatelessWidget {
                   fontSize: 18,
                 ),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  onConfirm(_selectedVideos.toList());
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                ),
-                child: const Text(
-                  'Done',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+              Row(
+                children: [
+                  Obx(() {
+                    if (_allVideos.isEmpty) return const SizedBox.shrink();
+                    final allSelected = _selectedVideos.length == _allVideos.length;
+                    return TextButton(
+                      onPressed: () {
+                        if (allSelected) {
+                          _selectedVideos.clear();
+                        } else {
+                          _selectedVideos.assignAll(_allVideos);
+                        }
+                      },
+                      child: Text(
+                        allSelected ? 'Deselect All' : 'Select All',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      onConfirm(_selectedVideos.toList());
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                    ),
+                    child: Obx(() {
+                      return Text(
+                        'Done (${_selectedVideos.length})',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      );
+                    }),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1303,9 +1400,11 @@ class _VideoSelectorSheet extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Search videos...',
+              hintStyle: const TextStyle(color: Colors.white54, fontSize: 14),
               prefixIcon: const Icon(Icons.search, color: Colors.white),
               fillColor: const Color(0xFF161618),
               filled: true,
+              isDense: true,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -1315,104 +1414,158 @@ class _VideoSelectorSheet extends StatelessWidget {
           const SizedBox(height: 16),
 
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection(FirestoreCollections.videos)
-                  .where('ownerId', isEqualTo: currentUser)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  );
-                }
+            child: Obx(() {
+              if (_isLoading.value) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No videos found',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  );
-                }
-
-                return Obx(() {
-                  final query = _searchQuery.value;
-                  final videos = snapshot.data!.docs
-                      .map(Video.fromDocumentSnapshot)
+              final query = _searchQuery.value;
+              final displayVideos = query.isEmpty
+                  ? _allVideos
+                  : _allVideos
                       .where((v) =>
-                          query.isEmpty ||
-                          v.title.toLowerCase().contains(query))
+                          v.title.toLowerCase().contains(query) ||
+                          v.description.toLowerCase().contains(query))
                       .toList();
 
-                  return ListView.separated(
-                    itemCount: videos.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final video = videos[index];
-                      return Obx(() {
-                        final isChecked =
-                            _selectedVideos.any((v) => v.id == video.id);
+              if (displayVideos.isEmpty) {
+                return const Center(
+                  child: Text(
+                    'No videos found in your channel',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 14,
+                    ),
+                  ),
+                );
+              }
 
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF161618),
-                            borderRadius: BorderRadius.circular(10),
+              return ListView.separated(
+                itemCount: displayVideos.length,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final video = displayVideos[index];
+                  return Obx(() {
+                    final isChecked =
+                        _selectedVideos.any((v) => v.id == video.id);
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          if (isChecked) {
+                            _selectedVideos
+                                .removeWhere((v) => v.id == video.id);
+                          } else {
+                            _selectedVideos.add(video);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
-                          child: CheckboxListTile(
-                            value: isChecked,
-                            activeColor: Colors.white,
-                            checkColor: Colors.black,
-                            onChanged: (selected) {
-                              if (selected == true) {
-                                _selectedVideos.add(video);
-                              } else {
-                                _selectedVideos
-                                    .removeWhere((v) => v.id == video.id);
-                              }
-                            },
-                            secondary: ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: CachedNetworkImage(
-                                imageUrl: video.thumbnailUrl,
-                                width: 60,
-                                height: 36,
-                                fit: BoxFit.cover,
-                                errorWidget: (context, url, error) => Container(
-                                  width: 60,
-                                  height: 36,
-                                  color: Colors.grey[800],
+                          decoration: BoxDecoration(
+                            color: isChecked
+                                ? const Color(0xFF222226)
+                                : const Color(0xFF161618),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isChecked
+                                  ? Colors.white.withValues(alpha: 0.4)
+                                  : Colors.white.withValues(alpha: 0.06),
+                              width: isChecked ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: video.thumbnailUrl.isNotEmpty
+                                    ? CachedNetworkImage(
+                                        imageUrl: video.thumbnailUrl,
+                                        width: 60,
+                                        height: 36,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) =>
+                                            Container(
+                                          width: 60,
+                                          height: 36,
+                                          color: Colors.grey[800],
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 60,
+                                        height: 36,
+                                        color: Colors.grey[800],
+                                      ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      video.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      video.duration.isNotEmpty
+                                          ? video.duration
+                                          : '${video.views} views',
+                                      style: TextStyle(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.4),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                            title: Text(
-                              video.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                              const SizedBox(width: 10),
+                              Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: isChecked
+                                      ? const Color(0xFF27272A)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isChecked
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.4),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: isChecked
+                                    ? const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                        size: 16,
+                                      )
+                                    : null,
                               ),
-                            ),
-                            subtitle: Text(
-                              video.duration,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.4),
-                                fontSize: 12,
-                              ),
-                            ),
+                            ],
                           ),
-                        );
-                      });
-                    },
-                  );
-                });
-              },
-            ),
+                        ),
+                      ),
+                    );
+                  });
+                },
+              );
+            }),
           ),
         ],
       ),

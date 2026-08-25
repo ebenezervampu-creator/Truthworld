@@ -5,7 +5,7 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AudiencePage extends StatefulWidget {
+class AudiencePage extends StatelessWidget {
   const AudiencePage({
     required this.channelId,
     required this.isDarkMode,
@@ -14,47 +14,31 @@ class AudiencePage extends StatefulWidget {
   final String channelId;
   final bool isDarkMode;
 
-  @override
-  State<AudiencePage> createState() => _AudiencePageState();
-}
-
-class _AudiencePageState extends State<AudiencePage> {
-  late final AudienceController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.isRegistered<AudienceController>()
+  AudienceController get controller {
+    final ctrl = Get.isRegistered<AudienceController>()
         ? Get.find<AudienceController>()
-        : Get.put(AudienceController(initialChannelId: widget.channelId));
-    if (widget.channelId.isNotEmpty) {
-      controller.setChannelContext(widget.channelId);
+        : Get.put(AudienceController(initialChannelId: channelId));
+    if (channelId.isNotEmpty && ctrl.channelId != channelId) {
+      ctrl.setChannelContext(channelId);
     }
-  }
-
-  @override
-  void didUpdateWidget(covariant AudiencePage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.channelId != widget.channelId && widget.channelId.isNotEmpty) {
-      controller.setChannelContext(widget.channelId);
-    }
+    return ctrl;
   }
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColor = widget.isDarkMode
+    final surfaceColor = isDarkMode
         ? AppColors.bgInput
         : AppColors.textPrimary;
-    final backgroundColor = widget.isDarkMode
+    final backgroundColor = isDarkMode
         ? AppColors.bgPage
         : AppColors.bgPage;
-    final textColor = widget.isDarkMode
+    final textColor = isDarkMode
         ? AppColors.textPrimary
         : Colors.black;
-    final subtitleColor = widget.isDarkMode
+    final subtitleColor = isDarkMode
         ? AppColors.textSecondary
         : Colors.black;
-    final borderColor = widget.isDarkMode
+    final borderColor = isDarkMode
         ? const Color(0xFF2A2A2A)
         : AppColors.bgDivider;
 
@@ -96,7 +80,7 @@ class _AudiencePageState extends State<AudiencePage> {
           );
         }
 
-        final stateItems = controller.filteredStateItems;
+        final countryItems = controller.filteredCountryItems;
 
         return CustomScrollView(
           slivers: [
@@ -137,7 +121,7 @@ class _AudiencePageState extends State<AudiencePage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Track geographical viewers reach and localized subscriber conversions by state.',
+                                'Track global audience reach and localized subscriber conversions by country.',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: subtitleColor,
@@ -186,7 +170,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Regional Performance Matrix (States & UTs)',
+                          'Global Performance Matrix (Countries)',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -194,7 +178,9 @@ class _AudiencePageState extends State<AudiencePage> {
                           ),
                         ),
                         Text(
-                          'Showing ${stateItems.length} regions',
+                          countryItems.length == 1
+                              ? 'Showing 1 country'
+                              : 'Showing ${countryItems.length} countries',
                           style: TextStyle(
                             fontSize: 13,
                             color: subtitleColor,
@@ -206,8 +192,8 @@ class _AudiencePageState extends State<AudiencePage> {
                 ),
               ),
             ),
-            // Dynamic State Audience Breakdown Matrix List
-            if (stateItems.isEmpty)
+            // Dynamic Country Audience Breakdown Matrix List
+            if (countryItems.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
@@ -215,13 +201,15 @@ class _AudiencePageState extends State<AudiencePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(
-                        Icons.search_off_rounded,
+                        Icons.public_off_rounded,
                         size: 48,
                         color: Colors.white,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'No matching states or regions found.',
+                        controller.searchQuery.value.trim().isNotEmpty
+                            ? 'No matching countries found.'
+                            : 'No country viewer data recorded yet.',
                         style: TextStyle(color: subtitleColor, fontSize: 15),
                       ),
                     ],
@@ -237,8 +225,8 @@ class _AudiencePageState extends State<AudiencePage> {
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final item = stateItems[index];
-                      return _buildStateCard(
+                      final item = countryItems[index];
+                      return _buildCountryCard(
                         item,
                         surfaceColor,
                         borderColor,
@@ -246,7 +234,7 @@ class _AudiencePageState extends State<AudiencePage> {
                         subtitleColor,
                       );
                     },
-                    childCount: stateItems.length,
+                    childCount: countryItems.length,
                   ),
                 ),
               ),
@@ -502,12 +490,12 @@ class _AudiencePageState extends State<AudiencePage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: widget.isDarkMode
+              color: isDarkMode
                   ? const Color(0xFF1E293B)
                   : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: widget.isDarkMode
+                color: isDarkMode
                     ? const Color(0xFF334155)
                     : const Color(0xFFE2E8F0),
               ),
@@ -807,7 +795,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       ],
                     )
                   : Container(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : const Color(0xFFE2E8F0),
                     ),
@@ -988,7 +976,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       ],
                     )
                   : Container(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : const Color(0xFFE2E8F0),
                     ),
@@ -1035,7 +1023,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       ],
                     )
                   : Container(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : const Color(0xFFE2E8F0),
                     ),
@@ -1107,7 +1095,7 @@ class _AudiencePageState extends State<AudiencePage> {
         boxShadow: [
           BoxShadow(
             color: AppColors.bgPage.withValues(
-              alpha: widget.isDarkMode ? 0.2 : 0.02,
+              alpha: isDarkMode ? 0.2 : 0.02,
             ),
             blurRadius: 10,
             offset: const Offset(0, 4),
@@ -1175,7 +1163,7 @@ class _AudiencePageState extends State<AudiencePage> {
         style: TextStyle(color: textColor, fontSize: 14),
         decoration: InputDecoration(
           hintText:
-              'Search localized view matrix by State Name or Abbrev (e.g. Maharashtra, KA)...',
+              'Search global view matrix by Country Name or Code (e.g. United States, US, India, IN)...',
           hintStyle: TextStyle(color: subtitleColor, fontSize: 14),
           prefixIcon: const Icon(
             Icons.search_rounded,
@@ -1193,8 +1181,8 @@ class _AudiencePageState extends State<AudiencePage> {
     );
   }
 
-  Widget _buildStateCard(
-    StateAudienceItem item,
+  Widget _buildCountryCard(
+    CountryAudienceItem item,
     Color surfaceColor,
     Color borderColor,
     Color textColor,
@@ -1211,19 +1199,19 @@ class _AudiencePageState extends State<AudiencePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row Header: State name & tag
+          // Row Header: Country code & name
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? const Color(0xFF2A2A2A)
                       : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  item.stateCode,
+                  item.countryCode,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -1234,7 +1222,7 @@ class _AudiencePageState extends State<AudiencePage> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  item.stateName,
+                  item.countryName,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -1247,7 +1235,7 @@ class _AudiencePageState extends State<AudiencePage> {
           const SizedBox(height: 16),
           // Viewers bar meter breakdown
           _buildGaugeRow(
-            label: 'Regional Viewers',
+            label: 'Country Viewers',
             count: item.viewers,
             percentage: item.viewerPercentage,
             color: const Color(0xFF3B82F6),

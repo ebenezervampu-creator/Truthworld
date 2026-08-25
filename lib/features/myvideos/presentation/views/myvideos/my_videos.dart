@@ -22,24 +22,14 @@ const Color primaryText = AppColors.textPrimary;
 const Color secondaryText = AppColors.textSecondary;
 const Color buttonBg = AppColors.bgSurfaceHover;
 
-class MyVideos extends StatefulWidget {
+class MyVideos extends StatelessWidget {
   const MyVideos({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  @override
-  State<MyVideos> createState() => _MyVideosState();
-}
-
-class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
-  late final MyVideosController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = Get.isRegistered<MyVideosController>()
-        ? Get.find<MyVideosController>()
-        : Get.put(MyVideosController());
-  }
+  MyVideosController get _controller =>
+      Get.isRegistered<MyVideosController>()
+          ? Get.find<MyVideosController>()
+          : Get.put(MyVideosController());
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +55,7 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 48, 16, 16),
             child: Row(
               children: [
                 Expanded(
@@ -128,7 +118,7 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
                                   color: primaryText,
                                 ),
                                 onPressed: () {
-                                  if (widget.isDashboard) {
+                                  if (isDashboard) {
                                     Get.find<HomeController>()
                                             .sideNavSelectedIndex
                                             .value =

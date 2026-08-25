@@ -31,5 +31,11 @@ void main() {
       await controller.refreshData();
       expect(controller.refreshAllDataCalled, isTrue);
     });
+
+    test('rxBypassAds initializes to false and can be updated', () {
+      expect(controller.rxBypassAds.value, isFalse);
+      controller.rxBypassAds.value = true;
+      expect(controller.rxBypassAds.value, isTrue);
+    });
   });
 }

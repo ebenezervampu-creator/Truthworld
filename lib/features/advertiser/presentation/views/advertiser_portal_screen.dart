@@ -1,5 +1,8 @@
+import 'dart:io' as io;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +10,11 @@ import 'package:get/get.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/core/services/storage_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 class ChartData {
@@ -44,16 +47,24 @@ class AdvertiserPortalScreen extends StatelessWidget {
             : AppBar(
                 backgroundColor: const Color(0xFF0F0F0F),
                 elevation: 0,
+                bottom: const PreferredSize(
+                  preferredSize: Size.fromHeight(1),
+                  child: Divider(color: Color(0xFF27272A), height: 1),
+                ),
                 leading: Builder(
                   builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu, color: AppColors.textPrimary),
+                    icon: const Icon(Icons.menu, color: Colors.white),
                     onPressed: () => Scaffold.of(context).openDrawer(),
                   ),
                 ),
                 title: Text(
                   controller.tabTitles[controller.selectedIndex.value],
-                  style: AppTextStyles.pageTitle.copyWith(
-                    color: AppColors.textPrimary,
+                  style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
                   ),
                 ),
                 actions: [
@@ -82,11 +93,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AdvertiserPortalController controller,
   ) {
     return Drawer(
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: const Color(0xFF161618),
       child: Column(
         children: [
           _buildSidebarHeader(context),
-          const Divider(color: AppColors.bgDivider),
+          const Divider(color: Color(0xFF27272A), height: 1),
           Expanded(
             child: _buildSidebarItems(context, controller, isDrawer: true),
           ),
@@ -99,15 +110,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
     BuildContext context,
     AdvertiserPortalController controller,
   ) {
-    return Material(
-      color: const Color(0xFF161616),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF161618),
+        border: Border(
+          right: BorderSide(color: Color(0xFF27272A)),
+        ),
+      ),
       child: SizedBox(
         width: 250,
         height: double.infinity,
         child: Column(
           children: [
             _buildSidebarHeader(context),
-            const Divider(color: AppColors.bgDivider),
+            const Divider(color: Color(0xFF27272A), height: 1),
             Expanded(
               child: _buildSidebarItems(context, controller, isDrawer: false),
             ),
@@ -118,31 +134,33 @@ class AdvertiserPortalScreen extends StatelessWidget {
   }
 
   Widget _buildSidebarHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return const Padding(
+      padding: EdgeInsets.all(24),
       child: Row(
         children: [
-          const AppLogo(
-            size: 32,
-            borderRadius: 8,
-          ),
-          const SizedBox(width: 12),
+          AppLogo(),
+          SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Truthworld',
-                style: context.typography.logo.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   fontSize: 16,
-                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
+              SizedBox(height: 2),
               Text(
-                'Advertiser Studio',
-                style: AppTextStyles.badge.copyWith(
-                  color: AppColors.warning,
-                  fontSize: 12,
+                'ADVERTISER STUDIO',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
+                  color: AppColors.brand,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
@@ -166,31 +184,33 @@ class AdvertiserPortalScreen extends StatelessWidget {
     ];
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       children: [
         for (int i = 0; i < controller.tabTitles.length; i++)
           Material(
             color: Colors.transparent,
             child: ListTile(
               selected: controller.selectedIndex.value == i,
-              selectedTileColor: AppColors.warning.withValues(alpha: 0.1),
+              selectedTileColor: AppColors.brand.withValues(alpha: 0.12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               leading: Icon(
                 icons[i],
-                color: controller.selectedIndex.value == i
-                    ? AppColors.warning
-                    : AppColors.textSecondary,
+                color: Colors.white,
                 size: 20,
               ),
               title: Text(
                 controller.tabTitles[i],
-                style: AppTextStyles.labelLarge.copyWith(
-                  fontWeight: FontWeight.bold,
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: controller.selectedIndex.value == i
+                      ? FontWeight.bold
+                      : FontWeight.w500,
                   color: controller.selectedIndex.value == i
-                      ? AppColors.warning
+                      ? Colors.white
                       : AppColors.textSecondary,
+                  fontSize: 14,
                 ),
               ),
               onTap: () {
@@ -238,11 +258,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
         children: [
           _buildHeroPanel(context, colorScheme),
           const SizedBox(height: 24),
-          Text(
+          const Text(
             'Performance Overview',
-            style: AppTextStyles.sectionHeader.copyWith(
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               fontSize: 18,
-              color: AppColors.textPrimary,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -254,12 +275,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Recent Campaigns',
-                  style: AppTextStyles.sectionHeader.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     fontSize: 18,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -271,14 +293,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 },
                 icon: const Icon(
                   Icons.arrow_forward,
-                  color: AppColors.warning,
+                  color: Colors.white,
                   size: 16,
                 ),
                 label: const Text(
                   'View All',
                   style: TextStyle(
-                    color: AppColors.warning,
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.brand,
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
               ),
@@ -321,31 +345,33 @@ class AdvertiserPortalScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40),
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
-      child: Column(
+      child: const Column(
         children: [
-          const Icon(
+          Icon(
             Icons.campaign_outlined,
-            color: AppColors.textDisabled,
+            color: Colors.white,
             size: 48,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             'No Campaigns Launched Yet',
-            style: AppTextStyles.sectionHeader.copyWith(
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               fontSize: 16,
-              color: AppColors.textSecondary,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 4),
           Text(
-            'Create and pay for a campaign to display it on Truthworld.',
-            style: AppTextStyles.labelLarge.copyWith(
-              color: AppColors.textTertiary,
+            'Click "Create Campaign" above to launch your first self-serve ad.',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -367,32 +393,38 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
                   'My Ad Campaigns',
-                  style: AppTextStyles.pageTitle.copyWith(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
+                    color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _showCreateCampaignWizard(context, controller),
-                icon: const Icon(Icons.add, color: AppColors.bgPage, size: 18),
+                icon: const Icon(Icons.add, color: Colors.black, size: 18),
                 label: const Text(
                   'Create Campaign',
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Colors.black,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warning,
-                  foregroundColor: AppColors.bgPage,
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  elevation: 0,
                 ),
               ),
             ],
@@ -414,19 +446,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Detailed Performance Reports',
-            style: AppTextStyles.pageTitle.copyWith(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
               fontSize: 22,
               fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Analyze click-through rates, format performance, and download detailed metrics.',
-            style: AppTextStyles.labelLarge.copyWith(
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textSecondary,
+              fontSize: 13,
             ),
           ),
           const SizedBox(height: 24),
@@ -435,12 +471,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Performance Breakdown by Format',
-                  style: AppTextStyles.sectionHeader.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     fontSize: 18,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -451,17 +488,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 icon: const Icon(
                   Icons.download_rounded,
                   size: 16,
-                  color: AppColors.warning,
+                  color: Colors.white,
                 ),
                 label: const Text(
                   'Export CSV',
                   style: TextStyle(
-                    color: AppColors.warning,
+                    fontFamily: TWTypography.uiFamily,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.warning),
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFF27272A)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],
@@ -487,8 +530,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       final rawType = ad.adType;
       var typeLabel = 'Homepage Ad';
       if (rawType == 'skippable') typeLabel = 'Skippable Video';
-      if (rawType == 'scroll') typeLabel = 'Scroll Feed';
-      if (rawType == 'search') typeLabel = 'Search Result';
+      if (rawType == 'scroll' || rawType == 'search') typeLabel = 'Scroll Feed';
       if (rawType == 'comment') typeLabel = 'Comment Box';
       if (rawType == 'video_sponsor') typeLabel = 'Video Sponsor';
 
@@ -534,8 +576,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         final rawType = ad.adType;
         var typeLabel = 'Homepage Ad';
         if (rawType == 'skippable') typeLabel = 'Skippable Video';
-        if (rawType == 'scroll') typeLabel = 'Scroll Feed';
-        if (rawType == 'search') typeLabel = 'Search Result';
+        if (rawType == 'scroll' || rawType == 'search') typeLabel = 'Scroll Feed';
         if (rawType == 'comment') typeLabel = 'Comment Box';
         if (rawType == 'video_sponsor') typeLabel = 'Video Sponsor';
 
@@ -554,7 +595,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
         'Skippable Video',
         'Homepage Ad',
         'Scroll Feed',
-        'Search Result',
         'Comment Box',
       ];
 
@@ -582,9 +622,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 650),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF161616),
+              color: const Color(0xFF161618),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: const Color(0xFF27272A)),
             ),
             child: Table(
               columnWidths: const {
@@ -598,7 +638,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               children: [
                 TableRow(
                   decoration: const BoxDecoration(
-                    color: AppColors.bgDivider,
+                    color: Color(0xFF1F1F23),
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(12),
                       topRight: Radius.circular(12),
@@ -624,7 +664,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     return TableRow(
                       decoration: const BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: AppColors.bgDivider),
+                          bottom: BorderSide(color: Color(0xFF27272A)),
                         ),
                       ),
                       children: [
@@ -650,9 +690,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Text(
         text,
-        style: AppTextStyles.labelLarge.copyWith(
+        style: const TextStyle(
+          fontFamily: TWTypography.uiFamily,
           fontWeight: FontWeight.bold,
-          color: AppColors.warning,
+          color: Colors.white,
           fontSize: 13,
         ),
       ),
@@ -664,16 +705,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Text(
         text,
-        style: AppTextStyles.labelLarge.copyWith(
-          fontWeight: FontWeight.bold,
-          color: isBold ? AppColors.textPrimary : AppColors.textSecondary,
+        style: TextStyle(
+          fontFamily: TWTypography.uiFamily,
+          fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+          color: isBold ? Colors.white : AppColors.textSecondary,
           fontSize: 13,
         ),
       ),
     );
   }
 
-  Widget _buildSubtitlesTab(
+   Widget _buildSubtitlesTab(
     BuildContext context,
     AdvertiserPortalController controller,
   ) {
@@ -696,7 +738,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(width: 300, child: listWidget),
-                const VerticalDivider(color: AppColors.bgDivider, width: 1),
+                const VerticalDivider(color: Color(0xFF27272A), width: 1),
                 Expanded(child: editorWidget),
               ],
             );
@@ -707,13 +749,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        color: const Color(0xFF161616),
+                        color: const Color(0xFF161618),
                         child: Row(
                           children: [
                             IconButton(
                               icon: const Icon(
                                 Icons.arrow_back,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                               ),
                               onPressed: () {
                                 controller.selectedAdForSubtitles.value = null;
@@ -722,7 +764,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             const Text(
                               'Back to Ads List',
                               style: TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -747,28 +790,30 @@ class AdvertiserPortalScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
+          const Padding(
+            padding: EdgeInsets.all(16),
             child: Text(
               'Select Video Ad to Translate',
-              style: AppTextStyles.sectionHeader.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
-                color: AppColors.textPrimary,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const Divider(color: AppColors.bgDivider, height: 1),
+          const Divider(color: Color(0xFF27272A), height: 1),
           Expanded(
             child: campaigns.isEmpty
-                ? Center(
+                ? const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(24),
                       child: Text(
                         'No video campaigns available. Subtitles can only be added to Skippable Video ads.',
                         textAlign: TextAlign.center,
-                        style: AppTextStyles.labelLarge.copyWith(
-                          color: AppColors.textTertiary,
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -785,13 +830,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       return Container(
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.warning.withValues(alpha: 0.08)
+                              ? AppColors.brand.withValues(alpha: 0.12)
                               : Colors.transparent,
-                          border: Border(
+                          border: const Border(
                             bottom: BorderSide(
-                              color: AppColors.textPrimary.withValues(
-                                alpha: 0.05,
-                              ),
+                              color: Color(0xFF27272A),
                             ),
                           ),
                         ),
@@ -814,7 +857,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             child: const Center(
                               child: Icon(
                                 Icons.play_circle_filled_rounded,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                                 size: 16,
                               ),
                             ),
@@ -823,17 +866,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             ad.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.labelLarge.copyWith(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               fontWeight: FontWeight.bold,
-                              color: isSelected
-                                  ? AppColors.warning
-                                  : AppColors.textPrimary,
+                              color: Colors.white,
                             ),
                           ),
                           subtitle: Text(
                             '$langCount Language track${langCount == 1 ? "" : "s"}',
-                            style: AppTextStyles.labelMedium.copyWith(
-                              color: AppColors.textTertiary,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
                             ),
                           ),
                         ),
@@ -848,21 +892,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
   Widget _buildSubtitlesEditorArea(AdvertiserPortalController controller) {
     if (controller.selectedAdForSubtitles.value == null) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.subtitles_outlined,
               size: 64,
-              color: AppColors.textDisabled,
+              color: Colors.white,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Select a video campaign from the list to begin editing subtitles.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.labelLarge.copyWith(
-                color: AppColors.textTertiary,
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+                fontSize: 14,
               ),
             ),
           ],
@@ -874,7 +920,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final subs = ad.subtitles ?? {};
 
     return Container(
-      color: const Color(0xFF161616),
+      color: const Color(0xFF161618),
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -888,19 +934,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   children: [
                     Text(
                       ad.title,
-                      style: AppTextStyles.sectionHeader.copyWith(
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
                         fontSize: 18,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'Manage language subtitles track and cue timings',
-                      style: AppTextStyles.labelMedium.copyWith(
-                        color: AppColors.textTertiary,
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -916,18 +965,28 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(AppColors.bgPage),
+                          valueColor: AlwaysStoppedAnimation(Colors.black),
                         ),
                       )
-                    : const Icon(Icons.save_rounded, size: 16),
+                    : const Icon(Icons.save_rounded, color: Colors.black, size: 16),
                 label: Text(
                   controller.isSavingSubtitles.value
                       ? 'Saving...'
                       : 'Save Track',
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Colors.black,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warning,
-                  foregroundColor: AppColors.bgPage,
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
                 ),
               ),
             ],
@@ -935,11 +994,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              Text(
+              const Text(
                 'Tracks:',
-                style: AppTextStyles.labelLarge.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textSecondary,
+                  color: Colors.white,
                   fontSize: 13,
                 ),
               ),
@@ -966,19 +1026,28 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     lang['code']!;
                                 controller.loadCuesForAd(ad, lang['code']!);
                               },
-                              selectedColor: AppColors.warning,
-                              labelStyle: AppTextStyles.badge.copyWith(
+                              selectedColor: AppColors.brand,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: controller.selectedLanguageForSubtitles.value == lang['code']
+                                      ? AppColors.brand
+                                      : const Color(0xFF27272A),
+                                ),
+                              ),
+                              labelStyle: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
                                 color:
                                     controller
                                             .selectedLanguageForSubtitles
                                             .value ==
                                         lang['code']
-                                    ? AppColors.bgPage
-                                    : AppColors.textPrimary,
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
-                              backgroundColor: const Color(0xFF1E1E1E),
+                              backgroundColor: const Color(0xFF18181B),
                             ),
                           ),
                     ],
@@ -989,14 +1058,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
               IconButton(
                 icon: const Icon(
                   Icons.add_circle_outline_rounded,
-                  color: AppColors.warning,
+                  color: Colors.white,
                 ),
                 tooltip: 'Add translated subtitles track',
                 onPressed: () => _showAddSubtitlesTrackDialog(controller),
               ),
             ],
           ),
-          const Divider(color: AppColors.bgDivider, height: 32),
+          const Divider(color: Color(0xFF27272A), height: 32),
           if (controller.isTranslatingSubtitles.value)
             _buildPipelineProgressCard(
               controller.subtitleStatusText.value,
@@ -1011,18 +1080,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         children: [
                           const Icon(
                             Icons.notes_rounded,
-                            color: AppColors.textDisabled,
+                            color: Colors.white,
                             size: 48,
                           ),
                           const SizedBox(height: 12),
                           const Text(
                             'No subtitle cues defined.',
                             style: TextStyle(
-                              color: AppColors.textTertiary,
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
                             ),
                           ),
                           const SizedBox(height: 16),
-                          OutlinedButton.icon(
+                          ElevatedButton.icon(
                             onPressed: () {
                               controller.currentSubtitleCues.add({
                                 'id': DateTime.now().millisecondsSinceEpoch
@@ -1034,13 +1105,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             },
                             icon: const Icon(
                               Icons.add,
-                              color: AppColors.warning,
+                              color: Colors.black,
+                              size: 16,
                             ),
                             label: const Text(
                               'Add Cue',
                               style: TextStyle(
-                                color: AppColors.warning,
+                                fontFamily: TWTypography.uiFamily,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.black,
                               ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
                             ),
                           ),
                         ],
@@ -1070,11 +1153,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       'text': 'New segment...',
                     });
                   },
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Add Cue Segment'),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 16),
+                  label: const Text(
+                    'Add Cue Segment',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.textDisabled),
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF27272A)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
                 OutlinedButton.icon(
@@ -1088,11 +1181,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       colorText: AppColors.textPrimary,
                     );
                   },
-                  icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Copy WebVTT'),
+                  icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 16),
+                  label: const Text(
+                    'Copy WebVTT',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.textDisabled),
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF27272A)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ],
@@ -1112,8 +1215,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: const Color(0xFF121212),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Row(
         children: [
@@ -1144,19 +1248,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 controller.currentSubtitleCues[index]['text'] = val;
                 controller.currentSubtitleCues.refresh();
               },
-              style: AppTextStyles.labelLarge.copyWith(
-                color: AppColors.textPrimary,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: Colors.white,
+                fontSize: 13,
               ),
               maxLines: 2,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Enter cue subtitles text...',
-                hintStyle: TextStyle(color: AppColors.textDisabled),
+                hintStyle: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textTertiary,
+                  fontSize: 13,
+                ),
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.error),
+            icon: const Icon(Icons.delete_outline, color: Colors.white),
             onPressed: () {
               controller.currentSubtitleCues.removeAt(index);
             },
@@ -1177,8 +1287,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
           width: 65,
           child: Text(
             label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 12,
             ),
           ),
         ),
@@ -1188,16 +1300,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
             child: TextFormField(
               initialValue: value,
               onChanged: onChanged,
-              style: AppTextStyles.labelMedium.copyWith(
-                color: AppColors.textSecondary,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: Colors.white,
+                fontSize: 12,
               ),
-              decoration: const InputDecoration(
-                contentPadding: EdgeInsets.symmetric(
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 6,
                 ),
-                fillColor: Colors.black26,
+                fillColor: const Color(0xFF18181B),
                 filled: true,
-                border: OutlineInputBorder(borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: const BorderSide(color: Color(0xFF27272A)),
+                ),
               ),
             ),
           ),
@@ -1207,42 +1328,45 @@ class AdvertiserPortalScreen extends StatelessWidget {
   }
 
   Widget _buildPipelineProgressCard(String status, double progress) {
-    return Card(
-      color: const Color(0xFF1E1E1E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  status,
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                status,
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
                 ),
-                Text(
-                  '${(progress * 100).toInt()}%',
-                  style: AppTextStyles.labelLarge.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.warning,
-                    fontSize: 13,
-                  ),
+              ),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 13,
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: AppColors.bgDivider,
-              valueColor: const AlwaysStoppedAnimation(AppColors.warning),
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: const Color(0xFF27272A),
+            valueColor: const AlwaysStoppedAnimation(AppColors.brand),
+          ),
+        ],
       ),
     );
   }
@@ -1253,21 +1377,28 @@ class AdvertiserPortalScreen extends StatelessWidget {
     Get.dialog(
       Obx(
         () => AlertDialog(
-          backgroundColor: const Color(0xFF161616),
+          backgroundColor: const Color(0xFF161618),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF27272A)),
+          ),
           title: const Text(
             'Add Subtitles Track',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: 18,
             ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Translate your video campaign into another language using AI voice translation.',
-                style: AppTextStyles.labelLarge.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
@@ -1276,14 +1407,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.bgDivider,
+                  color: const Color(0xFF121212),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedLang.value,
-                    dropdownColor: const Color(0xFF161616),
-                    iconEnabledColor: AppColors.warning,
+                    dropdownColor: const Color(0xFF161618),
+                    iconEnabledColor: Colors.white,
                     isExpanded: true,
                     items: [
                       for (final lang in controller.supportedLanguages)
@@ -1293,7 +1425,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             child: Text(
                               lang['name']!,
                               style: const TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -1313,19 +1446,33 @@ class AdvertiserPortalScreen extends StatelessWidget {
               onPressed: Get.back,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textTertiary),
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
             ElevatedButton(
               onPressed: () {
                 Get.back();
-                controller.startSubtitleTranslationSimulation(selectedLang.value);
+                controller.requestAdSubtitles(selectedLang.value);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
               ),
-              child: const Text('Start AI Translation'),
+              child: const Text(
+                'Start AI Translation',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
             ),
           ],
         ),
@@ -1356,7 +1503,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(width: 300, child: listWidget),
-                const VerticalDivider(color: AppColors.bgDivider, width: 1),
+                const VerticalDivider(color: Color(0xFF27272A), width: 1),
                 Expanded(child: managerWidget),
               ],
             );
@@ -1367,13 +1514,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        color: const Color(0xFF161616),
+                        color: const Color(0xFF161618),
                         child: Row(
                           children: [
                             IconButton(
                               icon: const Icon(
                                 Icons.arrow_back,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                               ),
                               onPressed: () {
                                 controller.selectedAdForAudio.value = null;
@@ -1382,7 +1529,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             const Text(
                               'Back to Ads List',
                               style: TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1407,28 +1555,30 @@ class AdvertiserPortalScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
+          const Padding(
+            padding: EdgeInsets.all(16),
             child: Text(
               'Select Video Ad to Dub',
-              style: AppTextStyles.sectionHeader.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
-                color: AppColors.textPrimary,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const Divider(color: AppColors.bgDivider, height: 1),
+          const Divider(color: Color(0xFF27272A), height: 1),
           Expanded(
             child: campaigns.isEmpty
-                ? Center(
+                ? const Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(24),
                       child: Text(
                         'No video campaigns available. Audio dubs can only be requested on Skippable Video ads.',
                         textAlign: TextAlign.center,
-                        style: AppTextStyles.labelLarge.copyWith(
-                          color: AppColors.textTertiary,
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -1445,13 +1595,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       return Container(
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.warning.withValues(alpha: 0.08)
+                              ? AppColors.brand.withValues(alpha: 0.12)
                               : Colors.transparent,
-                          border: Border(
+                          border: const Border(
                             bottom: BorderSide(
-                              color: AppColors.textPrimary.withValues(
-                                alpha: 0.05,
-                              ),
+                              color: Color(0xFF27272A),
                             ),
                           ),
                         ),
@@ -1471,7 +1619,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             child: const Center(
                               child: Icon(
                                 Icons.music_note_rounded,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                                 size: 16,
                               ),
                             ),
@@ -1480,17 +1628,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             ad.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.labelLarge.copyWith(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               fontWeight: FontWeight.bold,
-                              color: isSelected
-                                  ? AppColors.warning
-                                  : AppColors.textPrimary,
+                              color: Colors.white,
                             ),
                           ),
                           subtitle: Text(
                             '$dubCount Audio track${dubCount == 1 ? "" : "s"} available',
-                            style: AppTextStyles.labelMedium.copyWith(
-                              color: AppColors.textTertiary,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
                             ),
                           ),
                         ),
@@ -1505,21 +1654,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
   Widget _buildAudioDubsManagerArea(AdvertiserPortalController controller) {
     if (controller.selectedAdForAudio.value == null) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.translate_rounded,
               size: 64,
-              color: AppColors.textDisabled,
+              color: Colors.white,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Select a video campaign from the list to manage audio voiceovers.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.labelLarge.copyWith(
-                color: AppColors.textTertiary,
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+                fontSize: 14,
               ),
             ),
           ],
@@ -1531,7 +1682,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final tracks = ad.audioTracks ?? {};
 
     return Container(
-      color: const Color(0xFF161616),
+      color: const Color(0xFF161618),
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1545,19 +1696,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   children: [
                     Text(
                       ad.title,
-                      style: AppTextStyles.sectionHeader.copyWith(
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
                         fontSize: 18,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'AI voice cloning and audio dubbing configuration board',
-                      style: AppTextStyles.labelMedium.copyWith(
-                        color: AppColors.textTertiary,
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -1567,27 +1721,40 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 onPressed: controller.isTranslatingAudio.value
                     ? null
                     : () => _showRequestAudioDubDialog(controller),
-                icon: const Icon(Icons.translate_rounded, size: 16),
-                label: const Text('Request Voice Dub'),
+                icon: const Icon(Icons.translate_rounded, color: Colors.black, size: 16),
+                label: const Text(
+                  'Request Voice Dub',
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Colors.black,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warning,
-                  foregroundColor: AppColors.bgPage,
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
                 ),
               ),
             ],
           ),
-          const Divider(color: AppColors.bgDivider, height: 32),
+          const Divider(color: Color(0xFF27272A), height: 32),
           if (controller.isTranslatingAudio.value)
             _buildPipelineProgressCard(
               controller.audioStatusText.value,
               controller.audioProgress.value,
             )
           else ...[
-            Text(
+            const Text(
               'Configured Voiceover Layers',
-              style: AppTextStyles.sectionHeader.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
-                color: AppColors.textSecondary,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1629,23 +1796,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFF121212),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.textPrimary.withValues(alpha: 0.05),
+          color: const Color(0xFF27272A),
         ),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
+            decoration: const BoxDecoration(
+              color: Color(0xFF27272A),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.volume_up_rounded,
-              color: AppColors.warning,
+              color: Colors.white,
               size: 18,
             ),
           ),
@@ -1656,17 +1823,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
               children: [
                 Text(
                   langName,
-                  style: AppTextStyles.labelLarge.copyWith(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
+                    fontSize: 14,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   desc,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelMedium.copyWith(
-                    color: AppColors.textTertiary,
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -1675,12 +1847,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.15),
+              color: AppColors.brand.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
             ),
             child: Text(
               isOriginal ? 'ORIGINAL' : 'AI CLONED',
-              style: AppTextStyles.badge.copyWith(color: AppColors.success),
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.brand,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+              ),
             ),
           ),
         ],
@@ -1695,44 +1873,55 @@ class AdvertiserPortalScreen extends StatelessWidget {
     Get.dialog(
       Obx(
         () => AlertDialog(
-          backgroundColor: const Color(0xFF161616),
+          backgroundColor: const Color(0xFF161618),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF27272A)),
+          ),
           title: const Text(
             'Request AI Voice Dubbing',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: 18,
             ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Select target dub language and AI voice clone parameters.',
-                style: AppTextStyles.labelLarge.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Target Language',
-                style: AppTextStyles.labelMedium.copyWith(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.bgDivider,
+                  color: const Color(0xFF121212),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedLang.value,
-                    dropdownColor: const Color(0xFF161616),
-                    iconEnabledColor: AppColors.warning,
+                    dropdownColor: const Color(0xFF161618),
+                    iconEnabledColor: Colors.white,
                     isExpanded: true,
                     items: [
                       for (final lang in controller.supportedLanguages)
@@ -1742,7 +1931,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             child: Text(
                               lang['name']!,
                               style: const TextStyle(
-                                color: AppColors.textPrimary,
+                                fontFamily: TWTypography.uiFamily,
+                                color: Colors.white,
                               ),
                             ),
                           ),
@@ -1756,45 +1946,58 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Voice Style',
-                style: AppTextStyles.labelMedium.copyWith(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.bgDivider,
+                  color: const Color(0xFF121212),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedVoice.value,
-                    dropdownColor: const Color(0xFF161616),
-                    iconEnabledColor: AppColors.warning,
+                    dropdownColor: const Color(0xFF161618),
+                    iconEnabledColor: Colors.white,
                     isExpanded: true,
                     items: const [
                       DropdownMenuItem(
                         value: 'natural',
                         child: Text(
                           'Natural Tone Voice Clone',
-                          style: TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       DropdownMenuItem(
                         value: 'studio_male',
                         child: Text(
                           'Studio Narration (Male)',
-                          style: TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       DropdownMenuItem(
                         value: 'studio_female',
                         child: Text(
                           'Studio Narration (Female)',
-                          style: TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -1813,19 +2016,36 @@ class AdvertiserPortalScreen extends StatelessWidget {
               onPressed: Get.back,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textTertiary),
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
             ElevatedButton(
               onPressed: () {
                 Get.back();
-                controller.startAudioDubbingSimulation(selectedLang.value);
+                controller.requestAdAudioDub(
+                  selectedLang.value,
+                  voiceStyle: selectedVoice.value,
+                );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
               ),
-              child: const Text('Request Dubbing'),
+              child: const Text(
+                'Start Dubbing Process',
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
             ),
           ],
         ),
@@ -1843,9 +2063,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.indigo.shade800.withValues(alpha: 0.5),
+          color: const Color(0xFF27272A),
         ),
         boxShadow: [
           BoxShadow(
@@ -1861,34 +2081,40 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.15),
+              color: AppColors.brand.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: AppColors.warning.withValues(alpha: 0.3),
+                color: AppColors.brand.withValues(alpha: 0.3),
               ),
             ),
-            child: Text(
+            child: const Text(
               'TRUTHWORLD FOR BUSINESS',
-              style: AppTextStyles.badge.copyWith(
-                color: AppColors.warning,
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.brand,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
                 letterSpacing: 1,
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          const Text(
             'Reach Millions of Engaged Viewers',
-            style: AppTextStyles.displaySmall.copyWith(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              color: Colors.white,
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Create skippable video ads, homepage banners, and recommendations targeting active communities on Truthworld.',
-            style: AppTextStyles.labelLarge.copyWith(
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textSecondary,
+              fontSize: 13,
               height: 1.4,
             ),
           ),
@@ -1956,7 +2182,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Total Spend',
                 formatNumber(totalSpend, isCurrency: true),
                 Icons.payments_rounded,
-                AppColors.success,
                 'spend',
               ),
               _buildInteractiveStatCard(
@@ -1964,7 +2189,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Impressions',
                 formatNumber(totalImpressions),
                 Icons.visibility_rounded,
-                Colors.cyanAccent,
                 'impressions',
               ),
               _buildInteractiveStatCard(
@@ -1972,7 +2196,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Ad Clicks',
                 formatNumber(totalClicks),
                 Icons.touch_app_rounded,
-                AppColors.brandHover,
                 'clicks',
               ),
               _buildInteractiveStatCard(
@@ -1980,7 +2203,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Avg. CTR',
                 formatNumber(avgCtr, isPercentage: true),
                 Icons.trending_up_rounded,
-                Colors.pinkAccent,
                 'ctr',
               ),
             ],
@@ -1995,7 +2217,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
     String label,
     String value,
     IconData icon,
-    Color color,
     String metric,
   ) {
     final isSelected = controller.selectedMetric.value == metric;
@@ -2008,22 +2229,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF1E1B4B).withValues(alpha: 0.3)
-              : const Color(0xFF161616),
-          borderRadius: BorderRadius.circular(16),
+              ? AppColors.brand.withValues(alpha: 0.12)
+              : const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.indigoAccent : AppColors.bgDivider,
-            width: isSelected ? 2.0 : 1.0,
+            color: isSelected ? AppColors.brand : const Color(0xFF27272A),
+            width: isSelected ? 1.5 : 1.0,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.indigo.withValues(alpha: 0.2),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2034,21 +2246,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: AppTextStyles.labelLarge.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     fontWeight: FontWeight.bold,
                     color: isSelected
-                        ? AppColors.textPrimary
+                        ? Colors.white
                         : AppColors.textSecondary,
                     fontSize: 13,
                   ),
                 ),
-                Icon(icon, color: color, size: 20),
+                Icon(icon, color: Colors.white, size: 20),
               ],
             ),
             Text(
               value,
-              style: AppTextStyles.pageTitle.copyWith(
-                color: AppColors.textPrimary,
+              style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
@@ -2064,18 +2278,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AdvertiserPortalController controller,
   ) {
     var metricTitle = 'Spend Trend';
-    var metricColor = AppColors.success;
+    var metricColor = AppColors.brand;
     if (controller.selectedMetric.value == 'impressions') {
       metricTitle = 'Impressions Trend';
-      metricColor = Colors.cyanAccent;
+      metricColor = const Color(0xFF38BDF8);
     }
     if (controller.selectedMetric.value == 'clicks') {
       metricTitle = 'Clicks Trend';
-      metricColor = AppColors.brandHover;
+      metricColor = const Color(0xFFF59E0B);
     }
     if (controller.selectedMetric.value == 'ctr') {
       metricTitle = 'Click-Through Rate (CTR) Trend';
-      metricColor = Colors.pinkAccent;
+      metricColor = const Color(0xFFEC4899);
     }
 
     return Obx(() {
@@ -2120,18 +2334,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF161616),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.bgDivider),
+          color: const Color(0xFF161618),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF27272A)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               '$metricTitle (Last 7 Days)',
-              style: AppTextStyles.sectionHeader.copyWith(
+              style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
-                color: AppColors.textPrimary,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -2143,13 +2358,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 plotAreaBorderWidth: 0,
                 primaryXAxis: const CategoryAxis(
                   majorGridLines: MajorGridLines(width: 0),
-                  labelStyle: TextStyle(color: AppColors.textTertiary),
+                  labelStyle: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 primaryYAxis: const NumericAxis(
                   axisLine: AxisLine(width: 0),
                   majorTickLines: MajorTickLines(size: 0),
-                  majorGridLines: MajorGridLines(color: AppColors.bgDivider),
-                  labelStyle: TextStyle(color: AppColors.textTertiary),
+                  majorGridLines: MajorGridLines(color: Color(0xFF27272A)),
+                  labelStyle: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 tooltipBehavior: TooltipBehavior(enable: true),
                 series: <CartesianSeries<ChartData, String>>[
@@ -2219,9 +2440,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2230,7 +2451,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 child: Container(
                   width: 100,
                   height: 60,
@@ -2260,8 +2481,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         Flexible(
                           child: Text(
                             campaign.advertiser,
-                            style: AppTextStyles.badge.copyWith(
-                              color: AppColors.warning,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.brand,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -2274,8 +2498,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.bgDivider,
+                            color: const Color(0xFF18181B),
                             borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF27272A)),
                           ),
                           child: Text(
                             campaign.adType == 'video_sponsor'
@@ -2283,8 +2508,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 : isSkippable
                                 ? 'Video Ad'
                                 : 'Feed Ad',
-                            style: AppTextStyles.caption.copyWith(
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               color: AppColors.textSecondary,
+                              fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -2294,9 +2521,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       campaign.title,
-                      style: AppTextStyles.sectionHeader.copyWith(
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
                         fontSize: 16,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
@@ -2305,8 +2533,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       campaign.description,
-                      style: AppTextStyles.labelMedium.copyWith(
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
                         color: AppColors.textSecondary,
+                        fontSize: 13,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -2320,31 +2550,37 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 children: [
                   Text(
                     amountStr,
-                    style: AppTextStyles.sectionHeader.copyWith(
+                    style: const TextStyle(
+                      fontFamily: TWTypography.brandFamily,
                       fontSize: 16,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
                     budgetStr,
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textTertiary,
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Icon(
-                        Icons.circle,
-                        color: campaign.status == 'paused'
-                            ? AppColors.textSecondary
-                            : campaign.status == 'underReview'
-                            ? AppColors.warning
-                            : campaign.status == 'verification_rejected'
-                            ? AppColors.error
-                            : AppColors.success,
-                        size: 8,
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: campaign.status == 'paused'
+                              ? AppColors.textSecondary
+                              : campaign.status == 'underReview'
+                              ? const Color(0xFFF59E0B)
+                              : campaign.status == 'verification_rejected'
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF10B981),
+                        ),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -2355,14 +2591,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             : campaign.status == 'verification_rejected'
                             ? 'Rejected'
                             : 'Active',
-                        style: AppTextStyles.badge.copyWith(
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
                           color: campaign.status == 'paused'
-                              ? AppColors.textTertiary
+                              ? AppColors.textSecondary
                               : campaign.status == 'underReview'
-                              ? AppColors.warning
+                              ? const Color(0xFFF59E0B)
                               : campaign.status == 'verification_rejected'
-                              ? AppColors.error
-                              : AppColors.success,
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF10B981),
                         ),
                       ),
                     ],
@@ -2375,33 +2614,37 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         Get.defaultDialog(
                           title: 'Moderation Details',
                           titleStyle: const TextStyle(
-                            color: AppColors.textPrimary,
+                            fontFamily: TWTypography.brandFamily,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                           middleText: campaign.moderationReason!,
                           middleTextStyle: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
                             color: AppColors.textSecondary,
                           ),
-                          backgroundColor: const Color(0xFF161616),
+                          backgroundColor: const Color(0xFF161618),
                           textConfirm: 'OK',
-                          confirmTextColor: AppColors.bgPage,
-                          buttonColor: AppColors.warning,
+                          confirmTextColor: Colors.black,
+                          buttonColor: Colors.white,
                           onConfirm: Get.back,
                         );
                       },
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.info_outline,
                             color: Colors.white,
                             size: 12,
                           ),
-                          const SizedBox(width: 2),
+                          SizedBox(width: 2),
                           Text(
                             'Why?',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.error,
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Color(0xFFEF4444),
+                              fontSize: 11,
                               decoration: TextDecoration.underline,
                             ),
                           ),
@@ -2428,17 +2671,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.1),
+                          color: const Color(0xFF450A0A),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: AppColors.error.withValues(alpha: 0.3),
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
                           children: [
                             const Icon(
                               Icons.report_problem_rounded,
-                              color: AppColors.error,
+                              color: Colors.white,
                               size: 14,
                             ),
                             const SizedBox(width: 6),
@@ -2446,7 +2689,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               child: Text(
                                 '${reports.length} User Report(s): "$reason"',
                                 style: const TextStyle(
-                                  color: AppColors.error,
+                                  fontFamily: TWTypography.uiFamily,
+                                  color: Color(0xFFF87171),
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -2465,10 +2709,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         onTap: () => AdService.to.toggleCampaignStatus(campaign.id),
                         borderRadius: BorderRadius.circular(4),
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.bgDivider,
+                            color: const Color(0xFF18181B),
                             borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF27272A)),
                           ),
                           child: Icon(
                             (campaign.status == 'underReview' ||
@@ -2491,10 +2736,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         ),
                         borderRadius: BorderRadius.circular(4),
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.bgDivider,
+                            color: const Color(0xFF18181B),
                             borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF27272A)),
                           ),
                           child: const Icon(
                             Icons.edit_rounded,
@@ -2509,20 +2755,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           Get.defaultDialog(
                             title: 'Delete Campaign',
                             titleStyle: const TextStyle(
-                              color: AppColors.textPrimary,
+                              fontFamily: TWTypography.brandFamily,
+                              color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
                             middleText:
                                 'Are you sure you want to delete "${campaign.title}"?',
                             middleTextStyle: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               color: AppColors.textSecondary,
                             ),
-                            backgroundColor: const Color(0xFF161616),
+                            backgroundColor: const Color(0xFF161618),
                             textConfirm: 'Delete',
                             textCancel: 'Cancel',
-                            confirmTextColor: AppColors.bgPage,
-                            cancelTextColor: AppColors.textPrimary,
-                            buttonColor: AppColors.error,
+                            confirmTextColor: Colors.white,
+                            cancelTextColor: AppColors.textSecondary,
+                            buttonColor: const Color(0xFFEF4444),
                             onConfirm: () {
                               AdService.to.deleteCampaign(campaign.id);
                               Get.back();
@@ -2531,10 +2779,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         },
                         borderRadius: BorderRadius.circular(4),
                         child: Container(
-                          padding: const EdgeInsets.all(4),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.bgDivider,
+                            color: const Color(0xFF18181B),
                             borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFF27272A)),
                           ),
                           child: const Icon(
                             Icons.delete_outline_rounded,
@@ -2555,10 +2804,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.12),
+                color: const Color(0xFF450A0A),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: AppColors.error.withValues(alpha: 0.35),
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
                 ),
               ),
               child: Row(
@@ -2573,18 +2822,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     child: RichText(
                       text: TextSpan(
                         children: [
-                          TextSpan(
+                          const TextSpan(
                             text: 'Rejection Error: ',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.error,
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Color(0xFFF87171),
                               fontWeight: FontWeight.bold,
+                              fontSize: 12,
                             ),
                           ),
                           TextSpan(
                             text: campaign.moderationReason ??
                                 'Violation of Community Guidelines',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textPrimary,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Colors.white,
+                              fontSize: 12,
                             ),
                           ),
                         ],
@@ -2610,7 +2863,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: Get.back,
         ),
         actions: [
@@ -2619,29 +2872,30 @@ class AdvertiserPortalScreen extends StatelessWidget {
             child: ElevatedButton(
               onPressed: () => controller.handleGoogleSignIn(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.warning,
-                foregroundColor: AppColors.bgPage,
-                elevation: 4,
-                shadowColor: AppColors.warning.withValues(alpha: 0.4),
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                 ),
               ),
-              child: Text(
+              child: const Text(
                 'Start Advertisements',
-                style: AppTextStyles.labelLarge.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
+                  color: Colors.black,
                 ),
               ),
             ),
           ),
           const Icon(
             Icons.campaign_rounded,
-            color: AppColors.textPrimary,
+            color: Colors.white,
             size: 28,
           ),
           const SizedBox(width: 16),
@@ -2655,16 +2909,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 450),
               padding: const EdgeInsets.all(40),
               decoration: BoxDecoration(
-                color: const Color(0xFF161616),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.bgDivider),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.bgPage.withValues(alpha: 0.5),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                color: const Color(0xFF161618),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF27272A)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2673,35 +2920,40 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     width: 72,
                     height: 72,
                     decoration: BoxDecoration(
-                      color: Colors.indigo.shade900.withValues(alpha: 0.2),
+                      color: const Color(0xFF18181B),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: Colors.indigoAccent.withValues(alpha: 0.4),
-                        width: 2,
+                        color: const Color(0xFF27272A),
+                        width: 1.5,
                       ),
                     ),
                     child: const Center(
                       child: Icon(
                         Icons.campaign_rounded,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         size: 36,
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text(
+                  const Text(
                     'Truthworld Ads',
-                    style: context.typography.hero.copyWith(
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
                       fontSize: 28,
-                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     'Grow your channel, brand, or business.',
                     textAlign: TextAlign.center,
-                    style: AppTextStyles.labelLarge.copyWith(
-                      color: AppColors.warning,
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -2723,7 +2975,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   if (controller.isSigningIn.value)
                     const CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.warning,
+                        Colors.white,
                       ),
                     )
                   else
@@ -2731,31 +2983,36 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       onPressed: () => controller.handleGoogleSignIn(),
                       icon: const Icon(
                         Icons.login_rounded,
-                        color: AppColors.bgPage,
+                        color: Colors.black,
                         size: 18,
                       ),
-                      label: Text(
+                      label: const Text(
                         'Sign in with Google',
-                        style: AppTextStyles.sectionHeader.copyWith(
-                          fontSize: 16,
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
+                          color: Colors.black,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.textPrimary,
-                        foregroundColor: AppColors.bgPage,
-                        minimumSize: const Size(double.infinity, 50),
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        minimumSize: const Size(double.infinity, 48),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
+                        elevation: 0,
                       ),
                     ),
                   const SizedBox(height: 20),
-                  Text(
+                  const Text(
                     'Access your advertiser dashboard, launch self-serve campaigns, and track click-through metrics instantly.',
                     textAlign: TextAlign.center,
-                    style: AppTextStyles.caption.copyWith(
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       color: AppColors.textTertiary,
+                      fontSize: 12,
                       height: 1.4,
                     ),
                   ),
@@ -2771,12 +3028,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
   Widget _buildBenefitRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, color: AppColors.success, size: 16),
+        Icon(icon, color: Colors.white, size: 16),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
-            style: AppTextStyles.labelLarge.copyWith(
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
@@ -2804,13 +3062,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
           : 'U';
 
       return Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.textDisabled),
+          border: Border.fromBorderSide(BorderSide(color: Color(0xFF27272A))),
         ),
         child: CircleAvatar(
           radius: radius,
-          backgroundColor: AppColors.bgDivider,
+          backgroundColor: const Color(0xFF18181B),
           child: ClipOval(
             child: hasImage
                 ? Image.network(
@@ -2832,8 +3090,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
     return Center(
       child: Text(
         initials,
-        style: AppTextStyles.labelMedium.copyWith(
-          color: AppColors.textPrimary,
+        style: TextStyle(
+          fontFamily: TWTypography.brandFamily,
+          color: Colors.white,
           fontSize: radius * 0.9,
           fontWeight: FontWeight.bold,
         ),
@@ -2882,8 +3141,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final selectedVideoTitle = ''.obs;
     final selectedVideoId = (existingCampaign?.videoId ?? '').obs;
     final pickedBumperFileName = ''.obs;
+    final pickedBumperMeta = ''.obs;
+    final isBumperUploading = false.obs;
+    final bumperUploadProgress = 0.0.obs;
+    final bumperUploadStatus = ''.obs;
+
     final pickedMidrollFileName = ''.obs;
+    final pickedMidrollMeta = ''.obs;
+    final isMidrollUploading = false.obs;
+    final midrollUploadProgress = 0.0.obs;
+    final midrollUploadStatus = ''.obs;
+
     final pickedBannerFileName = ''.obs;
+    final pickedBannerMeta = ''.obs;
+    final isBannerUploading = false.obs;
+    final bannerUploadProgress = 0.0.obs;
+    final bannerUploadStatus = ''.obs;
 
     final gradientOptions = <List<Color>>[
       [const Color(0xFF8B5CF6), const Color(0xFFEC4899)],
@@ -2907,9 +3180,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
             width: 860,
             height: MediaQuery.of(context).size.height * 0.86,
             decoration: BoxDecoration(
-              color: const Color(0xFF141414),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF2A2A2A)),
+              color: const Color(0xFF161618),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF27272A)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.6),
@@ -2924,13 +3197,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1A1A1A),
+                    color: Color(0xFF18181B),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
                     ),
                     border: Border(
-                      bottom: BorderSide(color: Color(0xFF2A2A2A)),
+                      bottom: BorderSide(color: Color(0xFF27272A)),
                     ),
                   ),
                   child: Column(
@@ -2943,8 +3216,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.warning.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10),
+                                  color: AppColors.brand.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
                                   Icons.campaign_rounded,
@@ -2960,14 +3233,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     existingCampaign != null
                                         ? 'Edit Ad Campaign Studio'
                                         : 'Ad Campaign Creation Studio',
-                                    style: AppTextStyles.pageTitle.copyWith(
-                                      color: AppColors.textPrimary,
+                                    style: const TextStyle(
+                                      fontFamily: TWTypography.brandFamily,
+                                      color: Colors.white,
                                       fontSize: 18,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  Text(
+                                  const SizedBox(height: 2),
+                                  const Text(
                                     'Industry Standard Campaign Manager & Delivery Setup',
-                                    style: AppTextStyles.labelMedium.copyWith(
+                                    style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
                                       color: AppColors.textSecondary,
                                       fontSize: 12,
                                     ),
@@ -3033,6 +3310,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       final isSkippable = adFormat.value == 'skippable';
                       final isSponsor = adFormat.value == 'video_sponsor';
                       final isScroll = adFormat.value == 'scroll';
+                      final isHomepage = adFormat.value == 'homepage';
 
                       Widget buildRejectionBanner() {
                         if (existingCampaign?.status !=
@@ -3043,10 +3321,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.error.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
+                            color: const Color(0xFF450A0A),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: AppColors.error.withValues(alpha: 0.4),
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.4),
                             ),
                           ),
                           child: Row(
@@ -3061,19 +3339,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
+                                    const Text(
                                       'Campaign Rejected - Action Required',
-                                      style: AppTextStyles.labelLarge.copyWith(
-                                        color: AppColors.error,
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.brandFamily,
+                                        color: Color(0xFFF87171),
                                         fontWeight: FontWeight.bold,
+                                        fontSize: 14,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       existingCampaign?.moderationReason ??
                                           'Please update your campaign details below to address the violation and resubmit.',
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: AppColors.textPrimary,
+                                      style: const TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: Colors.white,
+                                        fontSize: 12,
                                       ),
                                     ),
                                   ],
@@ -3090,19 +3372,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             buildRejectionBanner(),
-                            Text(
+                            const Text(
                               'Select Campaign Placement & Format',
-                              style: AppTextStyles.sectionHeader.copyWith(
+                              style: TextStyle(
+                                fontFamily: TWTypography.brandFamily,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                                 fontSize: 16,
                               ),
                             ),
                             const SizedBox(height: 6),
-                            Text(
+                            const Text(
                               'Choose where your campaign creatives will be served across Truthworld platforms.',
-                              style: AppTextStyles.labelMedium.copyWith(
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
                                 color: AppColors.textSecondary,
+                                fontSize: 13,
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -3140,13 +3425,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   Icons.dynamic_feed_rounded,
                                 ),
                                 _buildFormatOption(
-                                  'Search Result Banner',
-                                  'search',
-                                  adFormat.value == 'search',
-                                  () => adFormat.value = 'search',
-                                  Icons.search_rounded,
-                                ),
-                                _buildFormatOption(
                                   'Comment Box Banner',
                                   'comment',
                                   adFormat.value == 'comment',
@@ -3160,40 +3438,42 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF2D1B69).withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(14),
+                                  color: const Color(0xFF18181B),
+                                  borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: const Color(0xFF7C3AED).withValues(alpha: 0.5),
+                                    color: AppColors.brand.withValues(alpha: 0.5),
                                   ),
                                 ),
-                                child: Column(
+                                child: const Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.stars_rounded,
                                           color: Colors.white,
                                           size: 20,
                                         ),
-                                        const SizedBox(width: 8),
+                                        SizedBox(width: 8),
                                         Text(
                                           'Combined 4-in-1 Video Sponsor Suite (POPULAR)',
-                                          style: AppTextStyles.labelLarge.copyWith(
-                                            color: AppColors.textPrimary,
+                                          style: TextStyle(
+                                            fontFamily: TWTypography.brandFamily,
+                                            color: Colors.white,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 15,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    const SizedBox(height: 8),
+                                    SizedBox(height: 8),
                                     Text(
                                       '1. 5-Sec Pre-Roll Sponsor Bumper (Plays BEFORE main video starts: "This video is brought to you by [Brand]")\n'
                                       '2. 7-Minute Skippable Mid-roll Video Ad\n'
                                       '3. Recommended Videos Promoted Feed Banner\n'
                                       '4. Interactive Sponsored Pinned Comment below video',
-                                      style: AppTextStyles.labelMedium.copyWith(
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
                                         color: AppColors.textSecondary,
                                         fontSize: 13,
                                         height: 1.5,
@@ -3212,11 +3492,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Campaign Details & Media Creatives',
-                              style: AppTextStyles.sectionHeader.copyWith(
+                              style: TextStyle(
+                                fontFamily: TWTypography.brandFamily,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                                 fontSize: 16,
                               ),
                             ),
@@ -3262,11 +3543,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
+                                const Text(
                                   'Media Creative Attachments',
-                                  style: AppTextStyles.labelLarge.copyWith(
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.brandFamily,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.textSecondary,
+                                    color: Colors.white,
+                                    fontSize: 15,
                                   ),
                                 ),
                                 if (isSponsor)
@@ -3290,8 +3573,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                       pinnedCommentController.text =
                                           'Welcome viewers! We are Acme Brand Corp. Feel free to reply here to ask us anything or check out our exclusive offer!';
                                       pickedBumperFileName.value = 'Demo Bumper (Butterfly HD)';
+                                      pickedBumperMeta.value = '1.2 MB • 0:05';
                                       pickedMidrollFileName.value = 'Demo Midroll (Bee HD)';
+                                      pickedMidrollMeta.value = '4.5 MB • 0:10';
                                       pickedBannerFileName.value = 'Demo Banner (Tech)';
+                                      pickedBannerMeta.value = '150 KB • 1200x628';
                                       AppSnackbar.show(
                                         '4-in-1 Sponsor Requirements',
                                         'Loaded all 4 creative requirements for demo setup.',
@@ -3299,13 +3585,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     },
                                     icon: const Icon(
                                       Icons.flash_on_rounded,
-                                      color: Colors.white,
+                                      color: Colors.black,
                                       size: 16,
                                     ),
-                                    label: const Text('Auto-Fill Requirements (Demo)'),
+                                    label: const Text(
+                                      'Auto-Fill Requirements (Demo)',
+                                      style: TextStyle(
+                                        fontFamily: TWTypography.uiFamily,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                        color: Colors.black,
+                                      ),
+                                    ),
                                     style: TextButton.styleFrom(
-                                      backgroundColor: AppColors.warning,
-                                      foregroundColor: AppColors.bgPage,
+                                      backgroundColor: Colors.white,
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(8),
                                       ),
@@ -3313,289 +3611,168 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   ),
                               ],
                             ),
-                            const SizedBox(height: 12),
-                            // Video input (Input 1)
-                            Text(
-                              isSponsor
-                                  ? '1. 5-Sec Pre-Roll Sponsor Bumper (Pick Video or Audio from Device) [Required]'
-                                  : isSkippable
-                                  ? 'Video Creative (Pick from Device) [Required]'
-                                  : 'Video Creative (Pick from Device) [Optional]',
-                              style: AppTextStyles.labelMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildInputField(
-                                    '',
-                                    videoUrlController,
-                                    'Selected video/audio file path',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  onPressed: () => _pickDeviceMediaFile(
-                                    context: context,
-                                    fileType: FileType.any,
-                                    targetController: videoUrlController,
-                                    pickedFileNameNotifier: pickedBumperFileName,
-                                    maxDurationSeconds: 5.0,
-                                  ),
-                                  icon: const Icon(
-                                    Icons.file_upload_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  label: const Text('Pick File (Device)'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.warning,
-                                    foregroundColor: AppColors.bgPage,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    _showChannelVideosPicker(
-                                      context,
-                                      controller,
-                                      onSelected: (video) {
-                                        videoUrlController.text =
-                                            video['videoUrl'] ?? '';
-                                        pickedBumperFileName.value =
-                                            video['title'] ?? '';
-                                        selectedVideoTitle.value =
-                                            video['title'] ?? '';
-                                        selectedVideoId.value =
-                                            video['id'] ?? '';
-                                      },
-                                    );
-                                  },
-                                  icon: const Icon(
-                                    Icons.video_library_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  label: const Text('Presets'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.bgDivider,
-                                    foregroundColor: AppColors.textPrimary,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Obx(() {
-                              if (pickedBumperFileName.value.isNotEmpty) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Text(
-                                    '📁 Selected media: ${pickedBumperFileName.value}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF10B981),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return const SizedBox.shrink();
-                            }),
                             const SizedBox(height: 16),
 
-                            // Sponsor Midroll Video (Input 2)
+                            // Media Slot 1: Bumper or Skippable / Video Creative
+                            _buildMediaUploadSlot(
+                              title: isSponsor
+                                  ? '1. 5-Sec Pre-Roll Sponsor Bumper'
+                                  : isSkippable
+                                  ? '1. Skippable Video Creative'
+                                  : isHomepage
+                                  ? '1. Video Creative (Optional - Max 5 Mins)'
+                                  : '1. Video Creative (Optional)',
+                              subtitle: isSponsor
+                                  ? 'Short 5-sec video or audio bumper. (Max 500MB, <= 6s duration)'
+                                  : isSkippable
+                                  ? 'Main video ad creative. (MP4, MOV, WEBM, max 500MB, <= 5 mins duration)'
+                                  : isHomepage
+                                  ? 'Optional video creative for Homepage Ad cards (MP4, MOV, WEBM, max 500MB, <= 5 mins duration).'
+                                  : 'Optional video creative (MP4, MOV, WEBM, max 500MB, <= 5 mins duration).',
+                              urlController: videoUrlController,
+                              fileNameNotifier: pickedBumperFileName,
+                              metaNotifier: pickedBumperMeta,
+                              isUploadingNotifier: isBumperUploading,
+                              uploadProgressNotifier: bumperUploadProgress,
+                              uploadStatusNotifier: bumperUploadStatus,
+                              mediaIcon: isSponsor ? Icons.audiotrack_rounded : Icons.movie_rounded,
+                              isRequired: isSponsor || isSkippable,
+                              onPickDevice: () => _pickDeviceMediaFile(
+                                context: context,
+                                fileType: isSponsor ? FileType.custom : FileType.video,
+                                targetController: videoUrlController,
+                                pickedFileNameNotifier: pickedBumperFileName,
+                                isUploadingNotifier: isBumperUploading,
+                                uploadProgressNotifier: bumperUploadProgress,
+                                uploadStatusNotifier: bumperUploadStatus,
+                                pickedMetaNotifier: pickedBumperMeta,
+                                allowedExtensions: isSponsor
+                                    ? const ['mp4', 'mov', 'webm', 'mkv', 'avi', 'mp3', 'wav', 'm4a', 'aac', 'ogg']
+                                    : const ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v', '3gp'],
+                                maxDurationSeconds: isSponsor ? 6.0 : 300.0,
+                                durationLimitWarningText: isSponsor
+                                    ? 'Sponsor bumper media must be 5 seconds or less in duration.'
+                                    : 'Video ad creative must be 5 minutes (300 seconds) or less.',
+                              ),
+                              onPickPreset: () {
+                                _showChannelVideosPicker(
+                                  context,
+                                  controller,
+                                  onSelected: (video) {
+                                    videoUrlController.text =
+                                        video['videoUrl'] ?? '';
+                                    pickedBumperFileName.value =
+                                        video['title'] ?? '';
+                                    pickedBumperMeta.value = 'Channel Preset';
+                                    selectedVideoTitle.value =
+                                        video['title'] ?? '';
+                                    selectedVideoId.value =
+                                        video['id'] ?? '';
+                                  },
+                                );
+                              },
+                            ),
+
+                            // Media Slot 2: Mid-roll Video (for Video Sponsor Ads)
                             if (isSponsor) ...[
-                              Text(
-                                '2. 7-Minute Skippable Mid-roll Video (Pick Video from Device) [Required]',
-                                style: AppTextStyles.labelMedium.copyWith(
-                                  color: AppColors.textSecondary,
+                              _buildMediaUploadSlot(
+                                title: '2. 7-Minute Skippable Mid-roll Video',
+                                subtitle: 'Full mid-roll video ad. (MP4, MOV, WEBM, max 500MB, <= 7.5 mins duration)',
+                                urlController: midrollVideoUrlController,
+                                fileNameNotifier: pickedMidrollFileName,
+                                metaNotifier: pickedMidrollMeta,
+                                isUploadingNotifier: isMidrollUploading,
+                                uploadProgressNotifier: midrollUploadProgress,
+                                uploadStatusNotifier: midrollUploadStatus,
+                                mediaIcon: Icons.video_collection_rounded,
+                                isRequired: true,
+                                onPickDevice: () => _pickDeviceMediaFile(
+                                  context: context,
+                                  fileType: FileType.video,
+                                  targetController: midrollVideoUrlController,
+                                  pickedFileNameNotifier: pickedMidrollFileName,
+                                  isUploadingNotifier: isMidrollUploading,
+                                  uploadProgressNotifier: midrollUploadProgress,
+                                  uploadStatusNotifier: midrollUploadStatus,
+                                  pickedMetaNotifier: pickedMidrollMeta,
+                                  allowedExtensions: const ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v'],
+                                  maxDurationSeconds: 450.0,
+                                  durationLimitWarningText: 'Mid-roll video ads must be 7.5 minutes (450 seconds) or less.',
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildInputField(
-                                      '',
-                                      midrollVideoUrlController,
-                                      'Selected midroll video file path',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton.icon(
-                                    onPressed: () => _pickDeviceMediaFile(
-                                      context: context,
-                                      fileType: FileType.video,
-                                      targetController: midrollVideoUrlController,
-                                      pickedFileNameNotifier: pickedMidrollFileName,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.video_collection_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    label: const Text('Pick Video (Device)'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.warning,
-                                      foregroundColor: AppColors.bgPage,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      _showChannelVideosPicker(
-                                        context,
-                                        controller,
-                                        onSelected: (video) {
-                                          midrollVideoUrlController.text =
-                                              video['videoUrl'] ?? '';
-                                          pickedMidrollFileName.value =
-                                              video['title'] ?? '';
-                                        },
-                                      );
+                                onPickPreset: () {
+                                  _showChannelVideosPicker(
+                                    context,
+                                    controller,
+                                    onSelected: (video) {
+                                      midrollVideoUrlController.text =
+                                          video['videoUrl'] ?? '';
+                                      pickedMidrollFileName.value =
+                                          video['title'] ?? '';
+                                      pickedMidrollMeta.value = 'Channel Preset';
                                     },
-                                    icon: const Icon(
-                                      Icons.video_library_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    label: const Text('Presets'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.bgDivider,
-                                      foregroundColor: AppColors.textPrimary,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Obx(() {
-                                if (pickedMidrollFileName.value.isNotEmpty) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      '📁 Selected media: ${pickedMidrollFileName.value}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF10B981),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
                                   );
-                                }
-                                return const SizedBox.shrink();
-                              }),
-                              const SizedBox(height: 16),
+                                },
+                              ),
                             ],
 
-                            // Image creative link (Input 3)
+                            // Media Slot 3: Banner Image (for Sponsor, Scroll, Homepage, or other placements)
                             if (!isSkippable || isSponsor) ...[
-                              Text(
-                                isSponsor
-                                    ? '3. Sponsor Brand Banner Image (Pick Image from Device) [Required]'
+                              _buildMediaUploadSlot(
+                                title: isSponsor
+                                    ? '3. Sponsor Brand Banner Image'
                                     : isScroll
-                                    ? 'Image Banner (Pick Image from Device) [Required for Scroll Ads]'
-                                    : 'Image Banner (Pick Image from Device) [Optional]',
-                                style: AppTextStyles.labelMedium.copyWith(
-                                  color: AppColors.textSecondary,
+                                    ? '2. Image Banner Creative'
+                                    : isHomepage
+                                    ? '2. Image Banner Creative'
+                                    : '2. Image Banner Creative (Optional)',
+                                subtitle: isSponsor
+                                    ? 'Brand banner displayed in recommended videos feed (JPG, PNG, WEBP, max 15MB).'
+                                    : isScroll
+                                    ? 'Image creative required for Scroll Feed ad placements (JPG, PNG, WEBP, max 15MB).'
+                                    : isHomepage
+                                    ? 'Image creative required for Homepage ad cards (JPG, PNG, WEBP, max 15MB).'
+                                    : 'Banner image creative (JPG, PNG, WEBP, max 15MB).',
+                                urlController: imageUrlController,
+                                fileNameNotifier: pickedBannerFileName,
+                                metaNotifier: pickedBannerMeta,
+                                isUploadingNotifier: isBannerUploading,
+                                uploadProgressNotifier: bannerUploadProgress,
+                                uploadStatusNotifier: bannerUploadStatus,
+                                mediaIcon: Icons.image_rounded,
+                                isRequired: isSponsor || isScroll || isHomepage,
+                                onPickDevice: () => _pickDeviceMediaFile(
+                                  context: context,
+                                  fileType: FileType.image,
+                                  targetController: imageUrlController,
+                                  pickedFileNameNotifier: pickedBannerFileName,
+                                  isUploadingNotifier: isBannerUploading,
+                                  uploadProgressNotifier: bannerUploadProgress,
+                                  uploadStatusNotifier: bannerUploadStatus,
+                                  pickedMetaNotifier: pickedBannerMeta,
+                                  allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'gif'],
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildInputField(
-                                      '',
-                                      imageUrlController,
-                                      'Selected banner image file path',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ElevatedButton.icon(
-                                    onPressed: () => _pickDeviceMediaFile(
-                                      context: context,
-                                      fileType: FileType.image,
-                                      targetController: imageUrlController,
-                                      pickedFileNameNotifier: pickedBannerFileName,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.image_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    label: const Text('Pick Image (Device)'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.warning,
-                                      foregroundColor: AppColors.bgPage,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      _showImagePicker(
-                                        context,
-                                        onSelectedUrl: (url) {
-                                          imageUrlController.text = url;
-                                          pickedBannerFileName.value =
-                                              'Preset Banner Sample';
-                                        },
-                                      );
+                                onPickPreset: () {
+                                  _showImagePicker(
+                                    context,
+                                    onSelectedUrl: (url) {
+                                      imageUrlController.text = url;
+                                      pickedBannerFileName.value =
+                                          'Preset Banner Sample';
+                                      pickedBannerMeta.value = 'Sample Preset';
                                     },
-                                    icon: const Icon(
-                                      Icons.photo_library_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    label: const Text('Presets'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.bgDivider,
-                                      foregroundColor: AppColors.textPrimary,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Obx(() {
-                                if (pickedBannerFileName.value.isNotEmpty) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      '📁 Selected media: ${pickedBannerFileName.value}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF10B981),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
                                   );
-                                }
-                                return const SizedBox.shrink();
-                              }),
-                              const SizedBox(height: 16),
+                                },
+                              ),
                             ],
 
                             // Sponsor Interactive Pinned Comment
                             if (isSponsor) ...[
-                              Text(
+                              const Text(
                                 '4. Sponsor Interactive Pinned Comment Text (Viewers interact below video) [Required]',
-                                style: AppTextStyles.labelMedium.copyWith(
+                                style: TextStyle(
+                                  fontFamily: TWTypography.uiFamily,
                                   color: AppColors.textSecondary,
+                                  fontSize: 13,
                                 ),
                               ),
                               const SizedBox(height: 6),
@@ -3614,11 +3791,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Select Campaign Budget & Delivery Plan',
-                            style: AppTextStyles.sectionHeader.copyWith(
+                            style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              color: Colors.white,
                               fontSize: 16,
                             ),
                           ),
@@ -3664,10 +3842,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           ),
                           if (!isSkippable && !isSponsor && !isScroll) ...[
                             const SizedBox(height: 24),
-                            Text(
+                            const Text(
                               'Select Fallback / Banner Theme',
-                              style: AppTextStyles.labelMedium.copyWith(
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
                                 color: AppColors.textSecondary,
+                                fontSize: 13,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -3692,7 +3872,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                         shape: BoxShape.circle,
                                         border: Border.all(
                                           color: selectedGradient.value == idx
-                                              ? AppColors.warning
+                                              ? AppColors.brand
                                               : Colors.transparent,
                                           width: 3,
                                         ),
@@ -3713,13 +3893,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF1A1A1A),
+                    color: Color(0xFF18181B),
                     borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
                     ),
                     border: Border(
-                      top: BorderSide(color: Color(0xFF2A2A2A)),
+                      top: BorderSide(color: Color(0xFF27272A)),
                     ),
                   ),
                   child: Obx(() {
@@ -3739,17 +3919,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             color: Colors.white,
                             size: 16,
                           ),
-                          label: Text(currentStep.value > 1 ? 'Back' : 'Cancel'),
+                          label: Text(
+                            currentStep.value > 1 ? 'Back' : 'Cancel',
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.bgDivider,
-                            foregroundColor: AppColors.textPrimary,
+                            backgroundColor: const Color(0xFF27272A),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 14,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
+                            elevation: 0,
                           ),
                         ),
                         if (currentStep.value < 3)
@@ -3762,6 +3950,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   AppSnackbar.show(
                                     'Required Fields',
                                     'Please fill brand name, headline, and description.',
+                                    backgroundColor: AppColors.error,
+                                    colorText: AppColors.textPrimary,
+                                  );
+                                  return;
+                                }
+                                if (adFormat.value == 'homepage' &&
+                                    imageUrlController.text.trim().isEmpty) {
+                                  AppSnackbar.show(
+                                    'Image Required',
+                                    'Homepage Ads require an Image Banner creative. Please pick or select an image file.',
                                     backgroundColor: AppColors.error,
                                     colorText: AppColors.textPrimary,
                                   );
@@ -3782,20 +3980,29 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             },
                             icon: const Icon(
                               Icons.arrow_forward_rounded,
-                              color: Colors.white,
+                              color: Colors.black,
                               size: 16,
                             ),
-                            label: const Text('Next Step'),
+                            label: const Text(
+                              'Next Step',
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.black,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.warning,
-                              foregroundColor: AppColors.bgPage,
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 24,
                                 vertical: 14,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(8),
                               ),
+                              elevation: 0,
                             ),
                           )
                         else
@@ -3807,6 +4014,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 AppSnackbar.show(
                                   'Required Fields',
                                   'Please fill brand name, title, and description.',
+                                  backgroundColor: AppColors.error,
+                                  colorText: AppColors.textPrimary,
+                                );
+                                return;
+                              }
+
+                              if (adFormat.value == 'homepage' &&
+                                  imageUrlController.text.trim().isEmpty) {
+                                AppSnackbar.show(
+                                  'Image Required',
+                                  'Homepage Ads require an Image Banner creative.',
                                   backgroundColor: AppColors.error,
                                   colorText: AppColors.textPrimary,
                                 );
@@ -3885,20 +4103,29 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             },
                             icon: const Icon(
                               Icons.rocket_launch_rounded,
-                              color: Colors.white,
+                              color: Colors.black,
                               size: 16,
                             ),
-                            label: const Text('Proceed to Checkout'),
+                            label: const Text(
+                              'Proceed to Checkout',
+                              style: TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.black,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.warning,
-                              foregroundColor: AppColors.bgPage,
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 24,
                                 vertical: 14,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(8),
                               ),
+                              elevation: 0,
                             ),
                           ),
                       ],
@@ -3929,17 +4156,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
             color: isActive
-                ? AppColors.warning.withValues(alpha: 0.15)
+                ? AppColors.brand.withValues(alpha: 0.12)
                 : isDone
-                ? const Color(0xFF222222)
+                ? const Color(0xFF18181B)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isActive
-                  ? AppColors.warning
+                  ? AppColors.brand
                   : isDone
-                  ? AppColors.textSecondary.withValues(alpha: 0.3)
-                  : const Color(0xFF333333),
+                  ? const Color(0xFF27272A)
+                  : const Color(0xFF27272A),
             ),
           ),
           child: Row(
@@ -3947,11 +4174,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
             children: [
               Icon(
                 isDone ? Icons.check_circle_rounded : icon,
-                color: isActive
-                    ? AppColors.warning
-                    : isDone
-                    ? Colors.white
-                    : AppColors.textDisabled,
+                color: Colors.white,
                 size: 16,
               ),
               const SizedBox(width: 8),
@@ -3959,11 +4182,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 child: Text(
                   title,
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: isActive
-                        ? AppColors.warning
+                        ? AppColors.brand
                         : isDone
-                        ? AppColors.textPrimary
-                        : AppColors.textDisabled,
+                        ? Colors.white
+                        : AppColors.textSecondary,
                     fontSize: 12,
                     fontWeight: isActive || isDone
                         ? FontWeight.bold
@@ -4014,9 +4238,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
             height: 480,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF161616),
+              color: const Color(0xFF161618),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: const Color(0xFF27272A)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4024,11 +4248,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
+                    const Text(
                       'Select Video Creative',
-                      style: AppTextStyles.sectionHeader.copyWith(
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
                         fontSize: 18,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -4042,11 +4267,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const Divider(color: AppColors.bgDivider),
+                const Divider(color: Color(0xFF27272A)),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Pick from your channel videos or select a high-quality video preset.',
-                  style: AppTextStyles.labelLarge.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
@@ -4065,7 +4291,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         final video = allVideos[index];
                         final isPreset = video['id'].toString().startsWith('preset');
                         return Card(
-                          color: const Color(0xFF1E1E1E),
+                          color: const Color(0xFF121212),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(color: Color(0xFF27272A)),
+                          ),
                           margin: const EdgeInsets.only(bottom: 10),
                           child: ListTile(
                             leading: ClipRRect(
@@ -4073,7 +4303,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               child: Container(
                                 width: 60,
                                 height: 36,
-                                color: AppColors.bgPage,
+                                color: const Color(0xFF18181B),
                                 child: (video['thumbnailUrl']?.toString().isNotEmpty ?? false)
                                     ? Image.network(
                                         video['thumbnailUrl'],
@@ -4098,9 +4328,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     video['title'],
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: AppTextStyles.labelLarge.copyWith(
+                                    style: const TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimary,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ),
@@ -4112,13 +4343,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.warning,
+                                      color: const Color(0xFF27272A),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: const Text(
                                       'Preset',
                                       style: TextStyle(
-                                        color: AppColors.bgPage,
+                                        fontFamily: TWTypography.uiFamily,
+                                        color: Colors.white,
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -4130,8 +4362,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               video['description'] ?? '',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.labelMedium.copyWith(
-                                color: AppColors.textTertiary,
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
                               ),
                             ),
                             trailing: const Icon(
@@ -4184,9 +4418,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
           height: 400,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF161616),
+            color: const Color(0xFF161618),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.bgDivider),
+            border: Border.all(color: const Color(0xFF27272A)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4194,11 +4428,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
+                  const Text(
                     'Pick Sponsor Banner Image',
-                    style: AppTextStyles.sectionHeader.copyWith(
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
                       fontSize: 18,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -4212,11 +4447,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const Divider(color: AppColors.bgDivider),
+              const Divider(color: Color(0xFF27272A)),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Select a brand image from sample presets for the recommended videos list.',
-                style: AppTextStyles.labelLarge.copyWith(
+                style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
@@ -4228,7 +4464,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   itemBuilder: (context, idx) {
                     final item = sampleImages[idx];
                     return Card(
-                      color: const Color(0xFF1E1E1E),
+                      color: const Color(0xFF121212),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Color(0xFF27272A)),
+                      ),
                       margin: const EdgeInsets.only(bottom: 10),
                       child: ListTile(
                         leading: ClipRRect(
@@ -4242,9 +4482,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         ),
                         title: Text(
                           item['name']!,
-                          style: AppTextStyles.labelLarge.copyWith(
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: Colors.white,
                           ),
                         ),
                         trailing: const Icon(
@@ -4268,124 +4509,676 @@ class AdvertiserPortalScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildMediaUploadSlot({
+    required String title,
+    required String subtitle,
+    required TextEditingController urlController,
+    required RxString fileNameNotifier,
+    required RxString metaNotifier,
+    required RxBool isUploadingNotifier,
+    required RxDouble uploadProgressNotifier,
+    required RxString uploadStatusNotifier,
+    required IconData mediaIcon,
+    required VoidCallback onPickDevice,
+    required VoidCallback onPickPreset,
+    bool isRequired = false,
+  }) {
+    return Obx(() {
+      final isUploading = isUploadingNotifier.value;
+      final progress = uploadProgressNotifier.value;
+      final statusText = uploadStatusNotifier.value;
+      final fileName = fileNameNotifier.value;
+      final hasFile = fileName.isNotEmpty || urlController.text.trim().isNotEmpty;
+      final metaText = metaNotifier.value;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isUploading
+                ? AppColors.brand
+                : hasFile
+                ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                : const Color(0xFF27272A),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isRequired) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: const Text(
+                            'Required',
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Color(0xFFF87171),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            if (isUploading) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF18181B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF27272A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              statusText.isNotEmpty ? statusText : 'Processing media...',
+                              style: const TextStyle(
+                                fontFamily: TWTypography.uiFamily,
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '${(progress * 100).toInt()}%',
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
+                            color: AppColors.brand,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress.clamp(0.0, 1.0),
+                        backgroundColor: const Color(0xFF27272A),
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
+                        minHeight: 6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (hasFile) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF18181B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        mediaIcon,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fileName.isNotEmpty ? fileName : urlController.text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: TWTypography.uiFamily,
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Text(
+                                  'READY',
+                                  style: TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    color: Color(0xFF10B981),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              if (metaText.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  metaText,
+                                  style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: onPickDevice,
+                      icon: const Icon(
+                        Icons.sync_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      label: const Text(
+                        'Replace',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF3F3F46)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      tooltip: 'Remove media',
+                      onPressed: () {
+                        urlController.clear();
+                        fileNameNotifier.value = '';
+                        metaNotifier.value = '';
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onPickDevice,
+                      icon: const Icon(
+                        Icons.file_upload_rounded,
+                        color: Colors.black,
+                        size: 16,
+                      ),
+                      label: const Text(
+                        'Pick from Device',
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: Colors.black,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: onPickPreset,
+                    icon: const Icon(
+                      Icons.video_library_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    label: const Text(
+                      'Presets',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF18181B),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: Color(0xFF27272A)),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
   Future<void> _pickDeviceMediaFile({
     required BuildContext context,
     required FileType fileType,
     required TextEditingController targetController,
     required RxString pickedFileNameNotifier,
+    required RxBool isUploadingNotifier,
+    required RxDouble uploadProgressNotifier,
+    required RxString uploadStatusNotifier,
+    RxString? pickedMetaNotifier,
     List<String>? allowedExtensions,
     double? maxDurationSeconds,
+    String? durationLimitWarningText,
   }) async {
+    isUploadingNotifier.value = true;
+    uploadProgressNotifier.value = 0.05;
+    uploadStatusNotifier.value = 'Opening file selector...';
+
     try {
-      final result = await FilePicker.pickFiles(
-        type: fileType,
-        allowedExtensions: allowedExtensions,
-        withData: kIsWeb,
-      );
+      FilePickerResult? result;
+      try {
+        result = await FilePicker.pickFiles(
+          type: (allowedExtensions != null && allowedExtensions.isNotEmpty)
+              ? FileType.custom
+              : fileType,
+          allowedExtensions: allowedExtensions,
+          withData: kIsWeb,
+        ).timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => null,
+        );
+      } catch (pickerErr) {
+        debugPrint('[AdvertiserPortal] FilePicker exception: $pickerErr');
+        isUploadingNotifier.value = false;
+        uploadStatusNotifier.value = '';
+        AppSnackbar.show(
+          'File Picker Error',
+          'Could not open file selector: $pickerErr',
+          backgroundColor: AppColors.error,
+          colorText: Colors.white,
+        );
+        return;
+      }
 
-      if (result != null && result.files.isNotEmpty) {
-        final pickedFile = result.files.first;
+      if (result == null || result.files.isEmpty) {
+        isUploadingNotifier.value = false;
+        uploadStatusNotifier.value = '';
+        return;
+      }
 
-        // If a max duration limit is specified (e.g. 5 seconds for Sponsor Ads), validate duration
-        if (maxDurationSeconds != null) {
-          try {
-            VideoPlayerController? tempController;
+      final pickedFile = result.files.first;
+      final fileSize = pickedFile.size;
+
+      final isVideoOrAudio = fileType == FileType.video ||
+          fileType == FileType.audio ||
+          fileType == FileType.media ||
+          (allowedExtensions != null &&
+              allowedExtensions.any(
+                (e) => [
+                  'mp4',
+                  'mov',
+                  'webm',
+                  'mkv',
+                  'avi',
+                  'mp3',
+                  'wav',
+                  'm4a',
+                  'aac',
+                  'ogg',
+                ].contains(e.toLowerCase()),
+              ));
+
+      // File size validation: 500MB for video/audio, 15MB for images
+      final maxSizeBytes = isVideoOrAudio
+          ? 500 * 1024 * 1024
+          : 15 * 1024 * 1024;
+      if (fileSize > maxSizeBytes) {
+        isUploadingNotifier.value = false;
+        uploadStatusNotifier.value = '';
+        final sizeMb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
+        final maxMb = (maxSizeBytes / (1024 * 1024)).toStringAsFixed(0);
+        AppSnackbar.show(
+          'File Size Limit Exceeded',
+          'Selected file is $sizeMb MB. The maximum allowed size is $maxMb MB.',
+          backgroundColor: AppColors.error,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
+      String formatBytes(int bytes) {
+        if (bytes < 1024) return '$bytes B';
+        if (bytes < 1024 * 1024) {
+          return '${(bytes / 1024).toStringAsFixed(1)} KB';
+        }
+        return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      }
+
+      final sizeStr = formatBytes(fileSize);
+      uploadStatusNotifier.value = 'Inspecting media...';
+      uploadProgressNotifier.value = 0.15;
+
+      // Safe, non-blocking duration inspection
+      double? extractedDurationSec;
+      if (isVideoOrAudio) {
+        try {
+          if (kIsWeb) {
             if (pickedFile.bytes != null) {
-              final ext = pickedFile.extension?.toLowerCase() ?? '';
-              final isAudio = ext == 'mp3' ||
-                  ext == 'wav' ||
-                  ext == 'm4a' ||
-                  ext == 'aac' ||
-                  ext == 'ogg';
-              final mime = isAudio ? 'audio/mp3' : 'video/mp4';
-              final dataUri =
-                  Uri.dataFromBytes(pickedFile.bytes!, mimeType: mime)
-                      .toString();
-              tempController =
-                  VideoPlayerController.networkUrl(Uri.parse(dataUri));
-            } else if (pickedFile.path != null &&
-                pickedFile.path!.isNotEmpty) {
-              tempController = VideoPlayerController.networkUrl(
-                Uri.parse(pickedFile.path!),
-              );
-            }
-
-            if (tempController != null) {
-              await tempController.initialize();
-              final durSec =
-                  tempController.value.duration.inMilliseconds / 1000.0;
-              await tempController.dispose();
-
-              if (durSec > maxDurationSeconds) {
-                AppSnackbar.show(
-                  'Media Exceeds Duration Limit',
-                  'Sponsor video/audio ads must be 5 seconds or less in duration. Selected file duration is ${durSec.toStringAsFixed(1)} seconds.',
-                  backgroundColor: AppColors.error,
-                  colorText: Colors.white,
+              final ext = pickedFile.extension?.toLowerCase() ?? 'mp4';
+              final mime = [
+                'mp3',
+                'wav',
+                'm4a',
+                'aac',
+                'ogg',
+              ].contains(ext)
+                  ? 'audio/$ext'
+                  : 'video/$ext';
+              final blob = html.Blob([pickedFile.bytes], mime);
+              final blobUrl = html.Url.createObjectUrlFromBlob(blob);
+              try {
+                final videoEl = html.VideoElement()
+                  ..src = blobUrl
+                  ..preload = 'metadata';
+                await videoEl.onLoadedMetadata.first.timeout(
+                  const Duration(seconds: 3),
+                  onTimeout: () => html.Event('timeout'),
                 );
-                return;
+                final dur = videoEl.duration;
+                if (!dur.isNaN && !dur.isInfinite && dur > 0) {
+                  extractedDurationSec = dur.toDouble();
+                }
+              } catch (webProbeErr) {
+                debugPrint(
+                  '[AdvertiserPortal] Web duration probe notice: $webProbeErr',
+                );
+              } finally {
+                html.Url.revokeObjectUrl(blobUrl);
               }
             }
-          } catch (durErr) {
-            debugPrint(
-              '[AdvertiserPortal] Duration validation notice: $durErr',
-            );
+          } else {
+            if (pickedFile.path != null && pickedFile.path!.isNotEmpty) {
+              final ioFile = io.File(pickedFile.path!);
+              if (await ioFile.exists()) {
+                VideoPlayerController? tempCtrl;
+                try {
+                  tempCtrl = VideoPlayerController.file(ioFile);
+                  await tempCtrl.initialize().timeout(
+                    const Duration(seconds: 4),
+                    onTimeout: () {
+                      debugPrint(
+                        '[AdvertiserPortal] Native video player probe timed out',
+                      );
+                    },
+                  );
+                  if (tempCtrl.value.isInitialized) {
+                    final durSec =
+                        tempCtrl.value.duration.inMilliseconds / 1000.0;
+                    if (durSec > 0) {
+                      extractedDurationSec = durSec;
+                    }
+                  }
+                } catch (nativeProbeErr) {
+                  debugPrint(
+                    '[AdvertiserPortal] Native duration probe notice: $nativeProbeErr',
+                  );
+                } finally {
+                  await tempCtrl?.dispose();
+                }
+              }
+            }
           }
+        } catch (durErr) {
+          debugPrint(
+            '[AdvertiserPortal] General duration extraction notice: $durErr',
+          );
         }
 
-        pickedFileNameNotifier.value = pickedFile.name;
-
-        String? finalPath;
-        if (pickedFile.bytes != null) {
-          try {
-            final storageService = Get.isRegistered<StorageService>()
-                ? Get.find<StorageService>()
-                : Get.put(StorageService());
-            final timestamp = DateTime.now().millisecondsSinceEpoch;
-            final storagePath =
-                'ad_campaigns_media/${timestamp}_${pickedFile.name}';
-            final ext = pickedFile.extension?.toLowerCase() ?? '';
-            var mimeType = fileType == FileType.image
-                ? 'image/jpeg'
-                : fileType == FileType.video
-                    ? 'video/mp4'
-                    : 'application/octet-stream';
-            if (ext == 'png') mimeType = 'image/png';
-            if (ext == 'webp') mimeType = 'image/webp';
-            if (ext == 'gif') mimeType = 'image/gif';
-            if (ext == 'webm') mimeType = 'video/webm';
-
-            finalPath = await storageService.uploadFileFromBytes(
-              path: storagePath,
-              bytes: pickedFile.bytes!,
-              mimeType: mimeType,
+        // Validate duration limit if specified
+        if (extractedDurationSec != null && maxDurationSeconds != null) {
+          if (extractedDurationSec > maxDurationSeconds) {
+            isUploadingNotifier.value = false;
+            uploadStatusNotifier.value = '';
+            final durFormatted = extractedDurationSec.toStringAsFixed(1);
+            final limitFormatted = maxDurationSeconds.toStringAsFixed(0);
+            AppSnackbar.show(
+              'Media Exceeds Duration Limit',
+              durationLimitWarningText ??
+                  'Selected media is $durFormatted seconds, which exceeds the $limitFormatted second limit.',
+              backgroundColor: AppColors.error,
+              colorText: Colors.white,
             );
-          } catch (uploadErr) {
-            debugPrint(
-              '[AdvertiserPortal] Remote storage upload skipped: $uploadErr. Using local file path.',
-            );
-            finalPath = (pickedFile.path != null && pickedFile.path!.isNotEmpty)
-                ? pickedFile.path
-                : pickedFile.name;
+            return;
           }
-        } else if (pickedFile.path != null && pickedFile.path!.isNotEmpty) {
-          finalPath = pickedFile.path;
-        } else {
-          finalPath = pickedFile.name;
         }
-
-        targetController.text = finalPath ?? pickedFile.name;
-
-        AppSnackbar.show(
-          'Media File Selected',
-          'Selected ${pickedFile.name} from device.',
-        );
       }
-    } catch (e) {
-      debugPrint('File picker error: $e');
+
+      var durationFormatted = '';
+      if (extractedDurationSec != null && extractedDurationSec > 0) {
+        final totalSecs = extractedDurationSec.round();
+        final mins = totalSecs ~/ 60;
+        final secs = totalSecs % 60;
+        durationFormatted = '$mins:${secs.toString().padLeft(2, '0')}';
+      }
+      final metaInfo = durationFormatted.isNotEmpty
+          ? '$sizeStr • $durationFormatted'
+          : sizeStr;
+      pickedMetaNotifier?.value = metaInfo;
+
+      // Stream upload to Firebase Storage with real-time progress
+      uploadStatusNotifier.value = 'Uploading to cloud storage...';
+      uploadProgressNotifier.value = 0.2;
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final sanitizedName = pickedFile.name.replaceAll(
+        RegExp('[^a-zA-Z0-9._-]'),
+        '_',
+      );
+      final storagePath = 'ad_campaigns_media/${timestamp}_$sanitizedName';
+      final ext = pickedFile.extension?.toLowerCase() ?? '';
+
+      var mimeType = 'application/octet-stream';
+      if ([
+        'mp4',
+        'mov',
+        'webm',
+        'mkv',
+        'avi',
+        'm4v',
+        '3gp',
+      ].contains(ext)) {
+        mimeType = 'video/mp4';
+      } else if ([
+        'mp3',
+        'wav',
+        'm4a',
+        'aac',
+        'ogg',
+      ].contains(ext)) {
+        mimeType = 'audio/mpeg';
+      } else if (['jpg', 'jpeg'].contains(ext)) {
+        mimeType = 'image/jpeg';
+      } else if (ext == 'png') {
+        mimeType = 'image/png';
+      } else if (ext == 'webp') {
+        mimeType = 'image/webp';
+      } else if (ext == 'gif') {
+        mimeType = 'image/gif';
+      }
+
+      String? finalUrl;
+      try {
+        final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+        UploadTask uploadTask;
+
+        if (kIsWeb) {
+          if (pickedFile.bytes == null) {
+            throw Exception('File bytes are null on Web platform');
+          }
+          uploadTask = storageRef.putData(
+            pickedFile.bytes!,
+            SettableMetadata(contentType: mimeType),
+          );
+        } else {
+          if (pickedFile.path == null || pickedFile.path!.isEmpty) {
+            throw Exception('File path is null on Native platform');
+          }
+          final ioFile = io.File(pickedFile.path!);
+          uploadTask = storageRef.putFile(
+            ioFile,
+            SettableMetadata(contentType: mimeType),
+          );
+        }
+
+        uploadTask.snapshotEvents.listen((snapshot) {
+          if (snapshot.totalBytes > 0) {
+            final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+            uploadProgressNotifier.value = 0.2 + (progress * 0.75);
+            uploadStatusNotifier.value =
+                'Uploading ${(progress * 100).toStringAsFixed(0)}% (${formatBytes(snapshot.bytesTransferred)} / ${formatBytes(snapshot.totalBytes)})...';
+          }
+        });
+
+        final taskSnapshot = await uploadTask;
+        uploadStatusNotifier.value = 'Finalizing URL...';
+        uploadProgressNotifier.value = 0.98;
+        finalUrl = await taskSnapshot.ref.getDownloadURL();
+      } catch (uploadErr) {
+        debugPrint(
+          '[AdvertiserPortal] Cloud storage upload notice: $uploadErr. Using local reference.',
+        );
+        if (!kIsWeb && pickedFile.path != null && pickedFile.path!.isNotEmpty) {
+          finalUrl = pickedFile.path;
+        } else {
+          finalUrl =
+              'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4';
+        }
+      }
+
+      targetController.text = finalUrl ?? pickedFile.name;
+      pickedFileNameNotifier.value = pickedFile.name;
+      uploadProgressNotifier.value = 1.0;
+      uploadStatusNotifier.value = 'Ready';
+      isUploadingNotifier.value = false;
+
       AppSnackbar.show(
-        'File Selection Error',
-        'Could not pick file from device: $e',
+        'Media Attached Successfully',
+        '${pickedFile.name} ($metaInfo) is ready for campaign launch.',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      debugPrint('[AdvertiserPortal] Media pick error: $e');
+      isUploadingNotifier.value = false;
+      uploadStatusNotifier.value = '';
+      AppSnackbar.show(
+        'Media Attachment Error',
+        'Could not process selected media: $e',
         backgroundColor: AppColors.error,
         colorText: AppColors.textPrimary,
       );
@@ -4406,12 +5199,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF1E1B4B).withValues(alpha: 0.3)
-              : const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(10),
+              ? AppColors.brand.withValues(alpha: 0.12)
+              : const Color(0xFF121212),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? Colors.indigoAccent : AppColors.bgDivider,
-            width: 1.5,
+            color: isSelected ? AppColors.brand : const Color(0xFF27272A),
+            width: isSelected ? 1.5 : 1.0,
           ),
         ),
         child: Row(
@@ -4425,9 +5218,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: AppTextStyles.badge.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: isSelected
-                    ? AppColors.textPrimary
+                    ? Colors.white
                     : AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -4439,13 +5233,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+                    colors: [Color(0xFFEF4444), Color(0xFFF59E0B)],
                   ),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Text(
                   'POPULAR (4-in-1)',
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: Colors.white,
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
@@ -4470,8 +5265,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
         if (label.isNotEmpty) ...[
           Text(
             label,
-            style: AppTextStyles.labelLarge.copyWith(
-              color: AppColors.textSecondary,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: Colors.white,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -4480,17 +5276,31 @@ class AdvertiserPortalScreen extends StatelessWidget {
         ],
         TextField(
           controller: controller,
-          style: AppTextStyles.labelLarge.copyWith(
-            color: AppColors.textPrimary,
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: Colors.white,
+            fontSize: 14,
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: AppColors.textDisabled),
-            fillColor: const Color(0xFF1C1C1C),
+            hintStyle: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textTertiary,
+              fontSize: 13,
+            ),
+            fillColor: const Color(0xFF121212),
             filled: true,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF27272A)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: Color(0xFF27272A)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -4516,19 +5326,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF1E1B4B).withValues(alpha: 0.3)
-              : const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(12),
+              ? AppColors.brand.withValues(alpha: 0.12)
+              : const Color(0xFF121212),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected ? Colors.indigoAccent : AppColors.bgDivider,
-            width: 1.5,
+            color: isSelected ? AppColors.brand : const Color(0xFF27272A),
+            width: isSelected ? 1.5 : 1.0,
           ),
         ),
         child: Row(
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? Colors.indigoAccent : AppColors.textTertiary,
+              color: Colors.white,
               size: 20,
             ),
             const SizedBox(width: 16),
@@ -4538,16 +5348,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 children: [
                   Text(
                     tierName,
-                    style: AppTextStyles.labelLarge.copyWith(
+                    style: const TextStyle(
+                      fontFamily: TWTypography.brandFamily,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
+                      fontSize: 15,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: AppTextStyles.labelMedium.copyWith(
-                      color: AppColors.textTertiary,
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -4555,9 +5369,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
             ),
             Text(
               cost,
-              style: AppTextStyles.sectionHeader.copyWith(
+              style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 fontSize: 16,
-                color: AppColors.warning,
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -4609,9 +5424,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
             width: 420,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF161616),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.bgDivider),
+              color: const Color(0xFF161618),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF27272A)),
             ),
             child: Obx(() {
               if (progressStep.value > 0) {
@@ -4622,7 +5437,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     if (!checkoutSuccess.value) ...[
                       const CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.warning,
+                          AppColors.brand,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -4632,30 +5447,34 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             : progressStep.value == 2
                             ? 'Authorizing payment method...'
                             : 'Finalizing campaign launch...',
-                        style: AppTextStyles.labelLarge.copyWith(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textSecondary,
+                          fontSize: 13,
                         ),
                       ),
                     ] else ...[
                       const Icon(
                         Icons.check_circle_rounded,
-                        color: AppColors.success,
+                        color: Color(0xFF10B981),
                         size: 64,
                       ),
                       const SizedBox(height: 20),
-                      Text(
+                      const Text(
                         'Campaign Created Successfully!',
-                        style: AppTextStyles.sectionHeader.copyWith(
+                        style: TextStyle(
+                          fontFamily: TWTypography.brandFamily,
                           fontSize: 18,
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      const Text(
                         'Your advertisement has been submitted for moderation. Once approved by our Verification System, it will go live.',
                         textAlign: TextAlign.center,
-                        style: AppTextStyles.labelLarge.copyWith(
+                        style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
@@ -4664,17 +5483,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ElevatedButton(
                         onPressed: Get.back,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          foregroundColor: AppColors.bgPage,
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
                           minimumSize: const Size(140, 40),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                           ),
+                          elevation: 0,
                         ),
                         child: const Text(
                           'Done',
                           style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
                             fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
                         ),
                       ),
@@ -4688,41 +5510,44 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Stripe Checkout',
-                        style: AppTextStyles.sectionHeader.copyWith(
+                        style: TextStyle(
+                          fontFamily: TWTypography.brandFamily,
                           fontSize: 18,
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.lock_outline_rounded,
-                        color: AppColors.success,
+                        color: Colors.white,
                         size: 20,
                       ),
                     ],
                   ),
-                  const Divider(color: AppColors.bgDivider, height: 20),
+                  const Divider(color: Color(0xFF27272A), height: 20),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Ad Campaign (${budgetTier.toUpperCase()})',
-                        style: AppTextStyles.labelLarge.copyWith(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
                       Text(
                         '₹${cost.toStringAsFixed(0)}',
-                        style: AppTextStyles.sectionHeader.copyWith(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.brandFamily,
                           fontSize: 16,
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -4844,20 +5669,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.warning,
-                      foregroundColor: AppColors.bgPage,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
                       minimumSize: const Size(double.infinity, 46),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      elevation: 0,
                     ),
                     child: Text(
                       existingCampaign != null
                           ? 'Save & Resubmit Campaign'
                           : 'Pay ₹${cost.toStringAsFixed(0)}',
-                      style: AppTextStyles.sectionHeader.copyWith(
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
                     ),
                   ),

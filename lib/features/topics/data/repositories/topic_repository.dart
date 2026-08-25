@@ -275,7 +275,9 @@ class TopicRepository {
             .get();
 
         allTopics.addAll(
-          query.docs.map(Topic.fromDocumentSnapshot),
+          query.docs
+              .map(Topic.fromDocumentSnapshot)
+              .where((t) => t.isValidTopic),
         );
       }
 
@@ -303,7 +305,7 @@ class TopicRepository {
 
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
-          .where((t) => t.slug != excludeSlug)
+          .where((t) => t.isValidTopic && t.slug != excludeSlug)
           .toList();
     } catch (e) {
       debugPrint('Error fetching similar topics: $e');
@@ -324,7 +326,10 @@ class TopicRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+      return snapshot.docs
+          .map(Topic.fromDocumentSnapshot)
+          .where((t) => t.isValidTopic)
+          .toList();
     } catch (e) {
       debugPrint('Error fetching popular topics: $e');
       return [];
@@ -344,7 +349,10 @@ class TopicRepository {
           .limit(limit)
           .get();
 
-      return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+      return snapshot.docs
+          .map(Topic.fromDocumentSnapshot)
+          .where((t) => t.isValidTopic)
+          .toList();
     } catch (e) {
       debugPrint('Error searching topics: $e');
       return [];
@@ -359,7 +367,11 @@ class TopicRepository {
           .limit(limit)
           .get();
       if (snapshot.docs.isNotEmpty) {
-        return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+        final list = snapshot.docs
+            .map(Topic.fromDocumentSnapshot)
+            .where((t) => t.isValidTopic)
+            .toList();
+        if (list.isNotEmpty) return list;
       }
       return getPopularTopics(limit: limit);
     } catch (e) {
@@ -383,7 +395,10 @@ class TopicRepository {
         query = query.startAfterDocument(lastDoc);
       }
       final snapshot = await query.get();
-      return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+      return snapshot.docs
+          .map(Topic.fromDocumentSnapshot)
+          .where((t) => t.isValidTopic)
+          .toList();
     } catch (e) {
       debugPrint('Error fetchTrendingTopics: $e');
       return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
@@ -405,7 +420,10 @@ class TopicRepository {
         query = query.startAfterDocument(lastDoc);
       }
       final snapshot = await query.get();
-      return snapshot.docs.map(Topic.fromDocumentSnapshot).toList();
+      return snapshot.docs
+          .map(Topic.fromDocumentSnapshot)
+          .where((t) => t.isValidTopic)
+          .toList();
     } catch (e) {
       debugPrint('Error fetchTopics: $e');
       return [];
@@ -461,7 +479,10 @@ class TopicRepository {
                 .collection(FirestoreCollections.topics)
                 .where(FieldPath.documentId, whereIn: batch)
                 .get();
-            return query.docs.map(Topic.fromDocumentSnapshot).toList();
+            return query.docs
+                .map(Topic.fromDocumentSnapshot)
+                .where((t) => t.isValidTopic)
+                .toList();
           } catch (e) {
             debugPrint('Error batch fetching topics by IDs: $e');
             return <Topic>[];

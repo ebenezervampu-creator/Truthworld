@@ -20,13 +20,29 @@ class WatchLaterController extends BaseController {
 
   final RxString searchQuery = ''.obs;
   final RxBool isSearching = false.obs;
+  final RxString selectedCategory = 'All'.obs;
+  final RxString sortBy = 'recent'.obs; // recent, views, likes, title
+  final RxBool isAscending = false.obs;
+  final RxBool showFab = true.obs;
+
+  final TextEditingController searchController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
 
   StreamSubscription<QuerySnapshot>? _subscription;
 
   @override
   void onInit() {
     super.onInit();
+    scrollController.addListener(_onScroll);
     fetchWatchLaterVideos();
+  }
+
+  void _onScroll() {
+    if (scrollController.offset > 100 && showFab.value) {
+      showFab.value = false;
+    } else if (scrollController.offset <= 100 && !showFab.value) {
+      showFab.value = true;
+    }
   }
 
   void fetchWatchLaterVideos() {
@@ -293,8 +309,105 @@ class WatchLaterController extends BaseController {
     isSearching.value = !isSearching.value;
     if (!isSearching.value) {
       searchQuery.value = '';
+      searchController.clear();
     }
   }
+
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+  }
+
+  void setCategory(String category) {
+    selectedCategory.value = category;
+  }
+
+  void updateSort(String value) {
+    if (sortBy.value == value) {
+      isAscending.value = !isAscending.value;
+    } else {
+      sortBy.value = value;
+      isAscending.value = false;
+    }
+  }
+
+  void sortVideos(List<Video> videos) {
+    if (sortBy.value == 'recent' && !isAscending.value) return;
+
+    switch (sortBy.value) {
+      case 'recent':
+        videos.sort(
+          (a, b) => isAscending.value
+              ? a.uploadedAt.compareTo(b.uploadedAt)
+              : b.uploadedAt.compareTo(a.uploadedAt),
+        );
+      case 'views':
+        videos.sort(
+          (a, b) => isAscending.value
+              ? a.views.compareTo(b.views)
+              : b.views.compareTo(a.views),
+        );
+      case 'likes':
+        videos.sort(
+          (a, b) => isAscending.value
+              ? a.likeCount.compareTo(b.likeCount)
+              : b.likeCount.compareTo(a.likeCount),
+        );
+      case 'title':
+        videos.sort(
+          (a, b) => isAscending.value
+              ? a.title.toLowerCase().compareTo(b.title.toLowerCase())
+              : b.title.toLowerCase().compareTo(a.title.toLowerCase()),
+        );
+    }
+  }
+
+  Map<String, List<Video>> groupVideosByDate(List<Video> videos) {
+    final groups = <String, List<Video>>{};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    for (final video in videos) {
+      final uploadDate = video.uploadedAt.toDate();
+      final date = DateTime(uploadDate.year, uploadDate.month, uploadDate.day);
+      String key;
+      if (date == today) {
+        key = 'Today';
+      } else if (date == yesterday) {
+        key = 'Yesterday';
+      } else {
+        key = '${date.day} ${_getMonthName(date.month)} ${date.year}';
+      }
+
+      if (!groups.containsKey(key)) {
+        groups[key] = [];
+      }
+      groups[key]!.add(video);
+    }
+    return groups;
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return months[month - 1];
+  }
+
+  void deleteWatchLaterItem(String videoId) => removeFromWatchLater(videoId);
+
+  void clearAllWatchLater() => clearAll();
 
   void playAll() {
     if (watchLaterVideos.isNotEmpty) {
@@ -303,5 +416,12 @@ class WatchLaterController extends BaseController {
         arguments: {'video': watchLaterVideos.first},
       );
     }
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    scrollController.dispose();
+    super.onClose();
   }
 }

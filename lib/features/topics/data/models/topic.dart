@@ -49,25 +49,34 @@ class Topic {
   /// Create from Firestore document
   /// Create from Firestore document
   factory Topic.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data()! as Map<String, dynamic>;
-    final slugVal = data['slug'] ?? '';
+    final data = (doc.data() as Map<String, dynamic>?) ?? {};
+    final slugVal = (data['slug'] as String?)?.trim() ?? '';
     var rawTitle = (data['title'] as String?)?.trim() ?? '';
     if (rawTitle.isEmpty || rawTitle.toLowerCase().startsWith('untitled')) {
-      rawTitle = slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : 'Featured Topic';
+      rawTitle = slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : '';
     }
+
+    final rawHandle = (data['handle'] as String?)?.trim() ?? '';
+    final handleVal = rawHandle.isNotEmpty
+        ? rawHandle
+        : (slugVal.isNotEmpty ? 'T/$slugVal' : '');
+    final rawHandleLower = (data['handleLowercase'] as String?)?.trim() ?? '';
+    final handleLowerVal = rawHandleLower.isNotEmpty
+        ? rawHandleLower
+        : (slugVal.isNotEmpty ? 't/${slugVal.toLowerCase()}' : '');
 
     return Topic(
       id: doc.id,
       title: rawTitle,
       slug: slugVal,
-      handle: data['handle'] ?? 'T/$slugVal',
-      handleLowercase: data['handleLowercase'] ?? 't/${slugVal.toLowerCase()}',
-      description: data['description'] ?? '',
-      category: data['category'] ?? '',
-      thumbnailUrl: data['thumbnailUrl'],
-      coverImage: data['coverImage'],
-      videoCount: data['videoCount'] ?? 0,
-      postCount: data['postCount'] ?? 0,
+      handle: handleVal,
+      handleLowercase: handleLowerVal,
+      description: (data['description'] as String?) ?? '',
+      category: (data['category'] as String?) ?? '',
+      thumbnailUrl: data['thumbnailUrl'] as String?,
+      coverImage: data['coverImage'] as String?,
+      videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
+      postCount: (data['postCount'] as num?)?.toInt() ?? 0,
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(data['relatedTopics'] ?? []),
       tags: List<String>.from(data['tags'] ?? []).take(5).toList(),
@@ -75,18 +84,18 @@ class Topic {
           TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
       updatedAt:
           TimestampUtils.parseToDateTime(data['updatedAt']) ?? DateTime.now(),
-      likeCount: data['likeCount'] ?? 0,
-      commentCount: data['commentCount'] ?? 0,
-      views: data['views'] ?? 0,
+      likeCount: (data['likeCount'] as num?)?.toInt() ?? 0,
+      commentCount: (data['commentCount'] as num?)?.toInt() ?? 0,
+      views: (data['views'] as num?)?.toInt() ?? 0,
       trendingScore: (data['trendingScore'] as num?)?.toDouble() ?? 0.0,
-      channelId: data['channelId'],
-      creatorId: data['creatorId'],
+      channelId: data['channelId'] as String?,
+      creatorId: data['creatorId'] as String?,
       visibilityType: TopicVisibilityType.fromJson(
-        data['visibilityType'] ?? 'public',
+        data['visibilityType'] as String? ?? 'public',
       ),
-      accessCode: data['accessCode'],
-      followerCount: data['followerCount'] ?? 0,
-      status: data['status'] ?? 'active',
+      accessCode: data['accessCode'] as String?,
+      followerCount: (data['followerCount'] as num?)?.toInt() ?? 0,
+      status: (data['status'] as String?) ?? 'active',
       geminiApproved: data['geminiApproved'] as bool?,
       moderationReason: data['moderationReason'] as String?,
     );
@@ -94,24 +103,33 @@ class Topic {
 
   /// Create from Map (e.g. from local storage cache)
   factory Topic.fromMap(Map<String, dynamic> map, {String? docId}) {
-    final slugVal = map['slug'] ?? '';
+    final slugVal = (map['slug'] as String?)?.trim() ?? '';
     var rawTitle = (map['title'] as String?)?.trim() ?? '';
     if (rawTitle.isEmpty || rawTitle.toLowerCase().startsWith('untitled')) {
-      rawTitle = slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : 'Featured Topic';
+      rawTitle = slugVal.isNotEmpty ? slugVal.replaceAll('-', ' ') : '';
     }
+
+    final rawHandle = (map['handle'] as String?)?.trim() ?? '';
+    final handleVal = rawHandle.isNotEmpty
+        ? rawHandle
+        : (slugVal.isNotEmpty ? 'T/$slugVal' : '');
+    final rawHandleLower = (map['handleLowercase'] as String?)?.trim() ?? '';
+    final handleLowerVal = rawHandleLower.isNotEmpty
+        ? rawHandleLower
+        : (slugVal.isNotEmpty ? 't/${slugVal.toLowerCase()}' : '');
 
     return Topic(
       id: docId ?? map['id'] ?? '',
       title: rawTitle,
       slug: slugVal,
-      handle: map['handle'] ?? 'T/$slugVal',
-      handleLowercase: map['handleLowercase'] ?? 't/${slugVal.toLowerCase()}',
-      description: map['description'] ?? '',
-      category: map['category'] ?? '',
-      thumbnailUrl: map['thumbnailUrl'],
-      coverImage: map['coverImage'],
-      videoCount: map['videoCount'] ?? 0,
-      postCount: map['postCount'] ?? 0,
+      handle: handleVal,
+      handleLowercase: handleLowerVal,
+      description: (map['description'] as String?) ?? '',
+      category: (map['category'] as String?) ?? '',
+      thumbnailUrl: map['thumbnailUrl'] as String?,
+      coverImage: map['coverImage'] as String?,
+      videoCount: (map['videoCount'] as num?)?.toInt() ?? 0,
+      postCount: (map['postCount'] as num?)?.toInt() ?? 0,
       featuredVideoIds: List<String>.from(map['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(map['relatedTopics'] ?? []),
       tags: List<String>.from(map['tags'] ?? []).take(5).toList(),
@@ -119,18 +137,18 @@ class Topic {
           TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt:
           TimestampUtils.parseToDateTime(map['updatedAt']) ?? DateTime.now(),
-      likeCount: map['likeCount'] ?? 0,
-      commentCount: map['commentCount'] ?? 0,
-      views: map['views'] ?? 0,
+      likeCount: (map['likeCount'] as num?)?.toInt() ?? 0,
+      commentCount: (map['commentCount'] as num?)?.toInt() ?? 0,
+      views: (map['views'] as num?)?.toInt() ?? 0,
       trendingScore: (map['trendingScore'] as num?)?.toDouble() ?? 0.0,
-      channelId: map['channelId'],
-      creatorId: map['creatorId'],
+      channelId: map['channelId'] as String?,
+      creatorId: map['creatorId'] as String?,
       visibilityType: TopicVisibilityType.fromJson(
-        map['visibilityType'] ?? 'public',
+        map['visibilityType'] as String? ?? 'public',
       ),
-      accessCode: map['accessCode'],
-      followerCount: map['followerCount'] ?? 0,
-      status: map['status'] ?? 'active',
+      accessCode: map['accessCode'] as String?,
+      followerCount: (map['followerCount'] as num?)?.toInt() ?? 0,
+      status: (map['status'] as String?) ?? 'active',
       geminiApproved: map['geminiApproved'] as bool?,
       moderationReason: map['moderationReason'] as String?,
     );
@@ -292,22 +310,41 @@ class Topic {
     );
   }
 
+  /// Check if the topic has valid content and metadata to be displayed in feeds/discovery.
+  bool get isValidTopic {
+    if (slug.trim().isEmpty) return false;
+    if (title.trim().isEmpty) return false;
+    final lowerTitle = title.trim().toLowerCase();
+    if (lowerTitle == 'featured topic' ||
+        lowerTitle == 'topic' ||
+        lowerTitle.startsWith('untitled')) {
+      return false;
+    }
+    if (status.trim().toLowerCase() != 'active') return false;
+    return true;
+  }
+
   /// Returns the routing parameter (the handle without "T/" prefix, or slug as fallback)
   String get routePathParameter {
     if (handle.isNotEmpty) {
       final clean = handle.trim();
-      if (clean.startsWith('T/')) {
-        return clean.substring(2);
+      if (clean.startsWith('T/') || clean.startsWith('t/')) {
+        final sub = clean.substring(2).trim();
+        if (sub.isNotEmpty) return sub;
+      } else if (clean.isNotEmpty && clean != 'T' && clean != 't') {
+        return clean;
       }
-      if (clean.startsWith('t/')) {
-        return clean.substring(2);
-      }
-      return clean;
     }
-    return slug;
+    return slug.trim();
   }
 
-  String get topicRoute => '/T/$routePathParameter';
+  String get topicRoute {
+    final param = routePathParameter;
+    if (param.isEmpty) {
+      return '/explore-topics';
+    }
+    return '/T/$param';
+  }
 }
 
 /// Lightweight topic reference for related topics list

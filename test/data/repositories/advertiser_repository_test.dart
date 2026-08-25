@@ -75,6 +75,17 @@ class FakeAdvertiserRepository implements AdvertiserRepository {
   Future<Result<void>> saveAdAudioTrack(String adId, Map<String, String> audioTracks) async {
     return Result.success(null);
   }
+
+  @override
+  Future<Result<void>> triggerAdAIFeatures({
+    required String campaignId,
+    required List<String> features,
+    required List<String> targetLanguages,
+    String voiceStyle = 'natural',
+    String sourceLang = 'en',
+  }) async {
+    return Result.success(null);
+  }
 }
 
 void main() {

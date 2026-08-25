@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 
 /// Controller responsible for managing playback metrics, stopwatch timers, milestone tracking, and view qualification.
@@ -14,12 +15,23 @@ class VideoAnalyticsController extends BaseController {
 
   String trafficSource = 'direct';
   String viewerHash = '';
+  String? currentVideoId;
 
   int get watchTimeSeconds => _watchStopwatch.elapsed.inSeconds;
 
-  void startTimer() {
+  void startTimer({String? videoId, double position = 0}) {
+    if (videoId != null && videoId.isNotEmpty) {
+      currentVideoId = videoId;
+    }
     if (!_watchStopwatch.isRunning) {
       _watchStopwatch.start();
+    }
+    if (currentVideoId != null && currentVideoId!.isNotEmpty) {
+      VideoPresenceService.to.startWatching(
+        videoId: currentVideoId!,
+        position: position,
+        watchedSeconds: watchTimeSeconds,
+      );
     }
   }
 
@@ -27,12 +39,14 @@ class VideoAnalyticsController extends BaseController {
     if (_watchStopwatch.isRunning) {
       _watchStopwatch.stop();
     }
+    VideoPresenceService.to.stopWatching();
   }
 
   void resetTimer() {
     _watchStopwatch.reset();
     _hasCountedQualifiedView = false;
     _firedMilestones.clear();
+    VideoPresenceService.to.stopWatching();
   }
 
   Future<void> resolveViewerIdentity() async {
@@ -53,6 +67,13 @@ class VideoAnalyticsController extends BaseController {
     double totalDurationSeconds,
   ) {
     if (totalDurationSeconds <= 0 || videoId.isEmpty) return;
+    currentVideoId = videoId;
+
+    // Send heartbeat to RTDB live presence tracker
+    VideoPresenceService.to.heartbeat(
+      position: currentPositionSeconds,
+      watchedSeconds: watchTimeSeconds,
+    );
 
     final progressPct = (currentPositionSeconds / totalDurationSeconds * 100)
         .clamp(0, 100);

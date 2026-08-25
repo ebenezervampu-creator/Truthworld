@@ -18,6 +18,7 @@ class VideoOptionsSheet extends StatelessWidget {
     required this.video,
     super.key,
     this.onRemoveFromHistory,
+    this.onRemoveFromWatchLater,
     this.onSaveToWatchLater,
     this.onSaveToPlaylist,
     this.onDownloadVideo,
@@ -28,6 +29,7 @@ class VideoOptionsSheet extends StatelessWidget {
   });
   final Video video;
   final VoidCallback? onRemoveFromHistory;
+  final VoidCallback? onRemoveFromWatchLater;
   final VoidCallback? onSaveToWatchLater;
   final VoidCallback? onSaveToPlaylist;
   final VoidCallback? onDownloadVideo;
@@ -40,6 +42,7 @@ class VideoOptionsSheet extends StatelessWidget {
     BuildContext context,
     Video video, {
     VoidCallback? onRemoveFromHistory,
+    VoidCallback? onRemoveFromWatchLater,
     VoidCallback? onSaveToWatchLater,
     VoidCallback? onSaveToPlaylist,
     VoidCallback? onDownloadVideo,
@@ -52,6 +55,7 @@ class VideoOptionsSheet extends StatelessWidget {
       VideoOptionsSheet(
         video: video,
         onRemoveFromHistory: onRemoveFromHistory,
+        onRemoveFromWatchLater: onRemoveFromWatchLater,
         onSaveToWatchLater: onSaveToWatchLater,
         onSaveToPlaylist: onSaveToPlaylist,
         onDownloadVideo: onDownloadVideo,
@@ -100,22 +104,37 @@ class VideoOptionsSheet extends StatelessWidget {
                         onRemoveFromHistory!();
                       },
                     ),
-                  _buildMenuItem(
-                    context,
-                    icon: const Icon(
-                      Icons.watch_later_outlined,
-                      color: AppColors.textPrimary,
-                      size: 24,
+                  if (onRemoveFromWatchLater != null)
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: AppColors.error,
+                        size: 24,
+                      ),
+                      title: 'Remove from Watch Later',
+                      onTap: () {
+                        Get.back();
+                        onRemoveFromWatchLater!();
+                      },
                     ),
-                    title: 'Save to Watch later',
-                    onTap: () {
-                      Get.back();
-                      showModernizedPlaylistDialog(
-                        context: context,
-                        videoId: video.id,
-                      );
-                    },
-                  ),
+                  if (onRemoveFromWatchLater == null)
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.watch_later_outlined,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
+                      title: 'Save to Watch later',
+                      onTap: () {
+                        Get.back();
+                        showModernizedPlaylistDialog(
+                          context: context,
+                          videoId: video.id,
+                        );
+                      },
+                    ),
                   _buildMenuItem(
                     context,
                     icon: const Icon(

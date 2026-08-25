@@ -5,30 +5,11 @@ import 'package:truthworld/core/widgets/app_logo.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AdminLoginScreen extends StatefulWidget {
+class AdminLoginScreen extends StatelessWidget {
   const AdminLoginScreen({super.key});
 
-  @override
-  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
-}
-
-class _AdminLoginScreenState extends State<AdminLoginScreen> {
-  late final TextEditingController _emailController;
-  late final TextEditingController _passwordController;
-
-  @override
-  void initState() {
-    super.initState();
-    _emailController = TextEditingController();
-    _passwordController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  TextEditingController get _emailController => AdminController.to.emailController;
+  TextEditingController get _passwordController => AdminController.to.passwordController;
 
   @override
   Widget build(BuildContext context) {
@@ -102,9 +83,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     return Container(
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         boxShadow: [
           BoxShadow(
             color: AppColors.bgPage.withValues(alpha: 0.3),
@@ -121,13 +102,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             height: 48,
             child: CircularProgressIndicator(
               strokeWidth: 3.5,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
           SizedBox(height: 24),
           Text(
             'Verifying console credentials...',
             style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w400,
@@ -143,9 +125,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         boxShadow: [
           BoxShadow(
             color: AppColors.bgPage.withValues(alpha: 0.4),
@@ -166,19 +148,15 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Center(
-            child: ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFFE0B0FF), AppColors.brand],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: Text(
-                'TruthWorld',
-                style: context.typography.logo.copyWith(
-                  fontSize: 38,
-                  color: AppColors.textPrimary,
-                ),
+          const Center(
+            child: Text(
+              'TruthWorld',
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                letterSpacing: -0.5,
               ),
             ),
           ),
@@ -187,19 +165,21 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             child: Text(
               'Moderator & Audit Center',
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w400,
                 letterSpacing: 0.5,
               ),
             ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 40),
 
           // Welcome message
           const Text(
             'Admin authentication is required to access data layers, manual queues, and quarantine overrides.',
             style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textTertiary,
               fontSize: 13,
               height: 1.5,
@@ -224,6 +204,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   Text(
                     'Active Session: ${FirebaseAuth.instance.currentUser?.email ?? 'Authenticated Admin'}',
                     style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
@@ -243,6 +224,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     child: const Text(
                       'Open Admin Dashboard',
                       style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -257,20 +239,30 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           TextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textPrimary,
+            ),
             decoration: InputDecoration(
               hintText: 'ebenezervampu4@gmail.com',
               labelText: 'Admin Email',
-              labelStyle: const TextStyle(color: AppColors.textSecondary),
+              labelStyle: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
               filled: true,
               fillColor: AppColors.bgInput,
               prefixIcon: const Icon(
                 Icons.email_outlined,
-                color: AppColors.textPrimary,
+                color: Colors.white,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.bgDivider),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -284,20 +276,30 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           TextField(
             controller: _passwordController,
             obscureText: true,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textPrimary,
+            ),
             decoration: InputDecoration(
               hintText: '••••••••',
               labelText: 'Admin Password',
-              labelStyle: const TextStyle(color: AppColors.textSecondary),
+              labelStyle: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+              ),
               filled: true,
               fillColor: AppColors.bgInput,
               prefixIcon: const Icon(
                 Icons.lock_outline_rounded,
-                color: AppColors.textPrimary,
+                color: Colors.white,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.bgDivider),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -335,6 +337,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 : const Text(
                     'Sign In with Email & Password',
                     style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.2,
@@ -351,6 +354,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 child: Text(
                   'OR',
                   style: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textTertiary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -399,6 +403,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       const Text(
                         'Continue with Google',
                         style: TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
@@ -414,11 +419,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             decoration: BoxDecoration(
               color: AppColors.bgSurfaceHigh,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: const Text(
               'Authorized Owner: ebenezervampu4@gmail.com',
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -433,13 +439,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             children: [
               Icon(
                 Icons.lock_outline_rounded,
-                color: AppColors.textTertiary,
+                color: Colors.white,
                 size: 14,
               ),
               SizedBox(width: 6),
               Text(
                 'Secured with Firebase Auth',
                 style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textTertiary,
                   fontSize: 12,
                 ),

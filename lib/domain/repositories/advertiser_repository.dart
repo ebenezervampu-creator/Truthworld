@@ -50,4 +50,14 @@ abstract class AdvertiserRepository {
     String adId,
     Map<String, String> audioTracks,
   );
+
+  /// Trigger on-demand AI features (subtitles, audio dubbing) via Cloud Functions AI pipeline.
+  Future<Result<void>> triggerAdAIFeatures({
+    required String campaignId,
+    required List<String> features,
+    required List<String> targetLanguages,
+    String voiceStyle = 'natural',
+    String sourceLang = 'en',
+  });
 }
+

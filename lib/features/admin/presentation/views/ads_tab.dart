@@ -18,17 +18,18 @@ class AdsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Page Title
-            Row(
+            const Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.campaign_rounded,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                   size: 28,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Text(
                   'Ad Campaigns Moderation',
-                  style: AppTextStyles.pageTitle.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -37,9 +38,10 @@ class AdsTab extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
+            const Text(
               'Review, approve, or reject advertiser campaign submissions across Feed, Video, and Sponsor formats.',
-              style: AppTextStyles.labelLarge.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),
@@ -60,19 +62,20 @@ class AdsTab extends StatelessWidget {
                 final filteredList = _getFilteredAds();
 
                 if (filteredList.isEmpty) {
-                  return Center(
+                  return const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.campaign_outlined,
                           size: 48,
-                          color: AppColors.textSecondary,
+                          color: Colors.white,
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Text(
                           'No ad campaigns match the selected filters.',
-                          style: AppTextStyles.sectionHeader.copyWith(
+                          style: TextStyle(
+                            fontFamily: TWTypography.brandFamily,
                             color: AppColors.textSecondary,
                             fontSize: 15,
                           ),
@@ -151,9 +154,9 @@ class AdsTab extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.bgSurface,
+          color: const Color(0xFF181818),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.bgDivider),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         child: Row(
           children: [
@@ -172,6 +175,7 @@ class AdsTab extends StatelessWidget {
                 Text(
                   value,
                   style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -180,6 +184,7 @@ class AdsTab extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
@@ -191,7 +196,6 @@ class AdsTab extends StatelessWidget {
       ),
     );
   }
-
   Widget _buildFilterAndSearchBar(BuildContext context) {
     return Row(
       children: [
@@ -215,9 +219,10 @@ class AdsTab extends StatelessWidget {
                   label: Text(f['label']!),
                   selected: isSelected,
                   onSelected: (_) => controller.adFilterTab.value = f['id']!,
-                  backgroundColor: AppColors.bgSurface,
+                  backgroundColor: const Color(0xFF181818),
                   selectedColor: AppColors.brand,
                   labelStyle: TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: isSelected
                         ? AppColors.textPrimary
                         : AppColors.textSecondary,
@@ -230,7 +235,7 @@ class AdsTab extends StatelessWidget {
                     side: BorderSide(
                       color: isSelected
                           ? AppColors.brand
-                          : AppColors.bgDivider,
+                          : Colors.white.withValues(alpha: 0.08),
                     ),
                   ),
                 ),
@@ -247,10 +252,15 @@ class AdsTab extends StatelessWidget {
           height: 38,
           child: TextField(
             onChanged: (val) => controller.searchQuery.value = val,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textPrimary,
+              fontSize: 13,
+            ),
             decoration: InputDecoration(
               hintText: 'Search campaign or advertiser...',
               hintStyle: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textTertiary,
                 fontSize: 13,
               ),
@@ -261,14 +271,14 @@ class AdsTab extends StatelessWidget {
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 8),
               filled: true,
-              fillColor: AppColors.bgSurface,
+              fillColor: const Color(0xFF181818),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.bgDivider),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.bgDivider),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
               ),
             ),
           ),
@@ -325,9 +335,9 @@ class AdsTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,9 +372,11 @@ class AdsTab extends StatelessWidget {
                     Flexible(
                       child: Text(
                         advertiser,
-                        style: AppTextStyles.badge.copyWith(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.warning,
                           fontWeight: FontWeight.bold,
+                          fontSize: 11,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -377,7 +389,7 @@ class AdsTab extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.bgDivider,
+                        color: Colors.white.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -386,9 +398,11 @@ class AdsTab extends StatelessWidget {
                             : isSkippable
                                 ? 'Video Ad'
                                 : 'Feed Ad',
-                        style: AppTextStyles.caption.copyWith(
+                        style: const TextStyle(
+                          fontFamily: TWTypography.uiFamily,
                           color: AppColors.textSecondary,
                           fontWeight: FontWeight.w500,
+                          fontSize: 11,
                         ),
                       ),
                     ),
@@ -399,7 +413,8 @@ class AdsTab extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   title,
-                  style: AppTextStyles.sectionHeader.copyWith(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     fontSize: 16,
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -410,7 +425,8 @@ class AdsTab extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: AppTextStyles.labelMedium.copyWith(
+                  style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
@@ -432,9 +448,11 @@ class AdsTab extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'Rejection Reason: $moderationReason',
-                          style: AppTextStyles.caption.copyWith(
+                          style: const TextStyle(
+                            fontFamily: TWTypography.uiFamily,
                             color: AppColors.error,
                             fontWeight: FontWeight.w500,
+                            fontSize: 11,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -454,7 +472,8 @@ class AdsTab extends StatelessWidget {
             children: [
               Text(
                 '₹${budgetAmount.toStringAsFixed(0)}',
-                style: AppTextStyles.sectionHeader.copyWith(
+                style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   fontSize: 17,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
@@ -462,7 +481,8 @@ class AdsTab extends StatelessWidget {
               ),
               Text(
                 budgetTier.toUpperCase(),
-                style: AppTextStyles.caption.copyWith(
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textTertiary,
                   fontSize: 11,
                 ),
@@ -470,7 +490,8 @@ class AdsTab extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 '👁 $impressions  •  👆 $clicks',
-                style: AppTextStyles.caption.copyWith(
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: AppColors.textSecondary,
                   fontSize: 11,
                 ),
@@ -507,7 +528,7 @@ class AdsTab extends StatelessWidget {
                     label: Text(status == 'active' ? 'Approved' : 'Approve'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: status == 'active'
-                          ? AppColors.bgDivider
+                          ? Colors.white.withValues(alpha: 0.08)
                           : const Color(0xFF2BA640),
                       foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(
@@ -596,6 +617,7 @@ class AdsTab extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: color,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -614,6 +636,7 @@ class AdsTab extends StatelessWidget {
     Get.defaultDialog(
       title: 'Reject Campaign',
       titleStyle: const TextStyle(
+        fontFamily: TWTypography.brandFamily,
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
       ),
@@ -624,6 +647,7 @@ class AdsTab extends StatelessWidget {
             Text(
               'Please provide a moderation reason for rejecting "${ad['title']}":',
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),
@@ -632,22 +656,28 @@ class AdsTab extends StatelessWidget {
             TextField(
               controller: reasonController,
               maxLines: 3,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textPrimary,
+              ),
               decoration: InputDecoration(
                 hintText: 'Enter reason for advertiser...',
-                hintStyle: const TextStyle(color: AppColors.textTertiary),
+                hintStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textTertiary,
+                ),
                 filled: true,
-                fillColor: AppColors.bgSurface,
+                fillColor: const Color(0xFF181818),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.bgDivider),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                 ),
               ),
             ),
           ],
         ),
       ),
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: const Color(0xFF181818),
       textConfirm: 'Reject Campaign',
       textCancel: 'Cancel',
       confirmTextColor: AppColors.textPrimary,
@@ -669,6 +699,7 @@ class AdsTab extends StatelessWidget {
     Get.defaultDialog(
       title: 'Campaign Full Details',
       titleStyle: const TextStyle(
+        fontFamily: TWTypography.brandFamily,
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
       ),
@@ -701,7 +732,7 @@ class AdsTab extends StatelessWidget {
           ),
         ),
       ),
-      backgroundColor: const Color(0xFF161616),
+      backgroundColor: const Color(0xFF181818),
       textConfirm: 'Close',
       confirmTextColor: AppColors.textPrimary,
       buttonColor: AppColors.brand,
@@ -718,6 +749,7 @@ class AdsTab extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textTertiary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -727,6 +759,7 @@ class AdsTab extends StatelessWidget {
           SelectableText(
             value,
             style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textPrimary,
               fontSize: 13,
             ),

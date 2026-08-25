@@ -736,8 +736,13 @@ class HomeFeedController extends BaseController {
       try {
         final topicDocs = await _firestore.collection('topics').where('category', isEqualTo: category).limit(10).get();
         if (topicDocs.docs.isNotEmpty && Get.isRegistered<HomeDiscoveryController>()) {
-          final catTopics = topicDocs.docs.map(Topic.fromDocumentSnapshot).toList();
-          Get.find<HomeDiscoveryController>().featuredTopics.assignAll(catTopics);
+          final catTopics = topicDocs.docs
+              .map(Topic.fromDocumentSnapshot)
+              .where((t) => t.isValidTopic)
+              .toList();
+          if (catTopics.isNotEmpty) {
+            Get.find<HomeDiscoveryController>().featuredTopics.assignAll(catTopics);
+          }
         }
       } catch (e) {
         debugPrint('Error fetching category topics: $e');

@@ -43,7 +43,7 @@ class ChannelMembershipTier {
   };
 }
 
-class MembershipsScreen extends StatefulWidget {
+class MembershipsScreen extends StatelessWidget {
   const MembershipsScreen({
     super.key,
     this.channelId,
@@ -53,16 +53,13 @@ class MembershipsScreen extends StatefulWidget {
   final String? channelId;
   final bool isDarkMode;
 
-  @override
-  State<MembershipsScreen> createState() => _MembershipsScreenState();
-}
+  BuildContext get context => Get.context!;
 
-class _MembershipsScreenState extends State<MembershipsScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   String get activeChannelId {
-    if (widget.channelId != null && widget.channelId!.isNotEmpty) {
-      return widget.channelId!;
+    if (channelId != null && channelId!.isNotEmpty) {
+      return channelId!;
     }
     return FirebaseAuth.instance.currentUser?.uid ?? '';
   }
@@ -83,7 +80,7 @@ class _MembershipsScreenState extends State<MembershipsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = widget.isDarkMode;
+    final isDarkMode = this.isDarkMode;
 
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.textSecondary,

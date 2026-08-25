@@ -19,6 +19,7 @@ import 'package:truthworld/core/utils/error_handler_utils.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/main.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 void main() {
   unawaited(
@@ -26,6 +27,7 @@ void main() {
       () async {
         setPathUrlStrategy();
         WidgetsFlutterBinding.ensureInitialized();
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
         logger.init(
           minLogLevel: kDebugMode ? 2 : 4,

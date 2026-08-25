@@ -13,7 +13,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Professional Comment Card Widget (Industry Standard)
 /// Displays a single comment with like/dislike/reply functionality
-class CommentCardWidget extends StatefulWidget {
+class CommentCardWidget extends StatelessWidget {
   const CommentCardWidget({
     required this.comment,
     required this.onLike,
@@ -37,17 +37,12 @@ class CommentCardWidget extends StatefulWidget {
   final int replyCount;
 
   @override
-  State<CommentCardWidget> createState() => _CommentCardWidgetState();
-}
-
-class _CommentCardWidgetState extends State<CommentCardWidget> {
-  @override
   Widget build(BuildContext context) {
     final isDonated =
-        widget.comment.isDonatedComment || widget.comment.donationAmount > 0;
+        comment.isDonatedComment || comment.donationAmount > 0;
     final donationColor = isDonated
-        ? (widget.comment.donationColorHex != null
-              ? Color(int.parse(widget.comment.donationColorHex!))
+        ? (comment.donationColorHex != null
+              ? Color(int.parse(comment.donationColorHex!))
               : const Color(0xFF1E88E5))
         : null;
 
@@ -71,8 +66,8 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 children: [
                   UserAvatar(
                     radius: 16,
-                    photoUrl: widget.comment.avatarUrl,
-                    displayName: widget.comment.displayName,
+                    photoUrl: comment.avatarUrl,
+                    displayName: comment.displayName,
                     fontSize: 16,
                   ),
                   const SizedBox(width: 10),
@@ -81,7 +76,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.comment.displayName,
+                          comment.displayName,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
@@ -89,7 +84,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                           ),
                         ),
                         Text(
-                          _formatTimeAgo(widget.comment.createdAt.toDate()),
+                          _formatTimeAgo(comment.createdAt.toDate()),
                           style: const TextStyle(
                             fontSize: 11,
                             color: Colors.white70,
@@ -117,7 +112,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                         ),
                         const SizedBox(width: 2),
                         Text(
-                          '${widget.comment.donationCurrency}${widget.comment.donationAmount.toStringAsFixed(2)}',
+                          '${comment.donationCurrency}${comment.donationAmount.toStringAsFixed(2)}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -150,10 +145,10 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: widget.isCreatorComment
+        color: isCreatorComment
             ? AppColors.brand.withValues(alpha: 0.05)
             : Colors.transparent,
-        border: widget.isCreatorComment
+        border: isCreatorComment
             ? const Border(
                 left: BorderSide(
                   color: AppColors.brand,
@@ -190,8 +185,8 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
         // Avatar
         UserAvatar(
           radius: 18,
-          photoUrl: widget.comment.avatarUrl,
-          displayName: widget.comment.displayName,
+          photoUrl: comment.avatarUrl,
+          displayName: comment.displayName,
           fontSize: 18,
         ),
         const SizedBox(width: 12),
@@ -203,7 +198,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               Row(
                 children: [
                   Text(
-                    widget.comment.displayName,
+                    comment.displayName,
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -211,7 +206,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                     ),
                   ),
                   // Channel badge
-                  if (widget.comment.channelId.isNotEmpty)
+                  if (comment.channelId.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(left: 6),
                       child: Container(
@@ -237,7 +232,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               ),
               const SizedBox(height: 2),
               Text(
-                _formatTimeAgo(widget.comment.createdAt.toDate()),
+                _formatTimeAgo(comment.createdAt.toDate()),
                 style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textSecondary,
@@ -255,7 +250,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
           ),
           onSelected: (value) async {
             if (value == 'copy') {
-              Clipboard.setData(ClipboardData(text: widget.comment.text));
+              Clipboard.setData(ClipboardData(text: comment.text));
               HapticFeedback.lightImpact();
               Get.snackbar(
                 'Copied',
@@ -284,7 +279,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                   .collection(FirestoreCollections.users)
                   .doc(user.uid)
                   .collection('savedComments')
-                  .doc(widget.comment.id);
+                  .doc(comment.id);
 
               try {
                 final docSnap = await docRef.get();
@@ -296,9 +291,9 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                   );
                 } else {
                   await docRef.set({
-                    'text': widget.comment.text,
-                    'userName': widget.comment.displayName,
-                    'userImage': widget.comment.avatarUrl,
+                    'text': comment.text,
+                    'userName': comment.displayName,
+                    'userImage': comment.avatarUrl,
                     'sourceType': 'video',
                     'sourceId': '',
                     'sourceTitle': 'Video',
@@ -361,7 +356,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 ],
               ),
             ),
-            if (widget.isCreatorComment)
+            if (isCreatorComment)
               const PopupMenuItem<String>(
                 value: 'helpful',
                 child: Row(
@@ -402,7 +397,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
 
   Widget _buildCommentText() {
     final formattedData = ClickableUrlText.formatMarkdownLinks(
-      widget.comment.text,
+      comment.text,
     );
     return MarkdownBody(
       data: formattedData,
@@ -439,34 +434,34 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
       children: [
         // Like button
         AnimatedLikeButton(
-          isLiked: widget.isLiked,
+          isLiked: isLiked,
           size: 16,
           activeColor: AppColors.brand,
           inactiveColor: AppColors.textSecondary,
-          onTap: widget.onLike,
+          onTap: onLike,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                widget.isLiked
+                isLiked
                     ? Icons.thumb_up_rounded
                     : Icons.thumb_up_outlined,
                 size: 16,
-                color: widget.isLiked
+                color: isLiked
                     ? AppColors.brand
                     : AppColors.textSecondary,
               ),
               const SizedBox(width: 4),
               Text(
-                widget.comment.likeCount > 0
-                    ? widget.comment.likeCount.toString()
+                comment.likeCount > 0
+                    ? comment.likeCount.toString()
                     : 'Like',
                 style: TextStyle(
                   fontSize: 12,
-                  color: widget.isLiked
+                  color: isLiked
                       ? AppColors.brand
                       : AppColors.textSecondary,
-                  fontWeight: widget.isLiked
+                  fontWeight: isLiked
                       ? FontWeight.w600
                       : FontWeight.w500,
                 ),
@@ -477,34 +472,34 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
         const SizedBox(width: 12),
         // Dislike button
         AnimatedDislikeButton(
-          isDisliked: widget.isDisliked,
+          isDisliked: isDisliked,
           size: 16,
           activeColor: AppColors.brand,
           inactiveColor: AppColors.textSecondary,
-          onTap: widget.onDislike,
+          onTap: onDislike,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                widget.isDisliked
+                isDisliked
                     ? Icons.thumb_down_rounded
                     : Icons.thumb_down_outlined,
                 size: 16,
-                color: widget.isDisliked
+                color: isDisliked
                     ? AppColors.brand
                     : AppColors.textSecondary,
               ),
               const SizedBox(width: 4),
               Text(
-                widget.comment.dislikeCount > 0
-                    ? widget.comment.dislikeCount.toString()
+                comment.dislikeCount > 0
+                    ? comment.dislikeCount.toString()
                     : 'Dislike',
                 style: TextStyle(
                   fontSize: 12,
-                  color: widget.isDisliked
+                  color: isDisliked
                       ? AppColors.brand
                       : AppColors.textSecondary,
-                  fontWeight: widget.isDisliked
+                  fontWeight: isDisliked
                       ? FontWeight.w600
                       : FontWeight.w500,
                 ),
@@ -518,10 +513,10 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
           icon: Icons.reply_rounded,
           label: 'Reply',
           isActive: false,
-          onTap: widget.onReply,
+          onTap: onReply,
         ),
         // Creator Heart Badge
-        if (widget.comment.isHeartedByCreator)
+        if (comment.isHeartedByCreator)
           Padding(
             padding: const EdgeInsets.only(left: 12),
             child: Row(
@@ -552,7 +547,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Hearted by ${widget.comment.creatorHeartName ?? 'Creator'}',
+                  'Hearted by ${comment.creatorHeartName ?? 'Creator'}',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -563,14 +558,14 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
             ),
           ),
         // Show replies if available
-        if (widget.replyCount > 0) ...[
+        if (replyCount > 0) ...[
           const Spacer(),
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: widget.onShowReplies,
+              onTap: onShowReplies,
               child: Text(
-                '${widget.replyCount} ${widget.replyCount == 1 ? 'reply' : 'replies'}',
+                '$replyCount ${replyCount == 1 ? 'reply' : 'replies'}',
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,

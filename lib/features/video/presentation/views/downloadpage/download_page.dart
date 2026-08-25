@@ -49,16 +49,10 @@ class ResponsiveUtils {
 // MAIN WIDGET
 // ==========================================================================
 
-class DownloadsPage extends StatefulWidget {
+class DownloadsPage extends StatelessWidget {
   const DownloadsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  @override
-  State<DownloadsPage> createState() => _DownloadsPageState();
-}
-
-class _DownloadsPageState extends State<DownloadsPage>
-    with TickerProviderStateMixin {
   DownloadsController get controller =>
       Get.isRegistered<DownloadsController>()
           ? Get.find<DownloadsController>()
@@ -68,16 +62,16 @@ class _DownloadsPageState extends State<DownloadsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: _buildMainContent(),
+      body: _buildMainContent(context),
     );
   }
 
-  Widget _buildMainContent() {
+  Widget _buildMainContent(BuildContext context) {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, widget.isDashboard ? 16 : 48, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, isDashboard ? 16 : 48, 16, 16),
             child: Row(
               children: [
                 Expanded(
@@ -142,7 +136,7 @@ class _DownloadsPageState extends State<DownloadsPage>
                                   color: AppColors.textPrimary,
                                 ),
                                 onPressed: () {
-                                  if (widget.isDashboard) {
+                                  if (isDashboard) {
                                     Get.find<HomeController>()
                                             .sideNavSelectedIndex
                                             .value =
@@ -673,8 +667,8 @@ class _DownloadVideoListCard extends StatelessWidget {
   }
 }
 
-class _RecommendedDownloadCard extends StatefulWidget {
-  const _RecommendedDownloadCard({
+class _RecommendedDownloadCard extends StatelessWidget {
+  _RecommendedDownloadCard({
     required this.video,
     required this.isDownloaded,
     required this.onDownload,
@@ -683,32 +677,26 @@ class _RecommendedDownloadCard extends StatefulWidget {
   final bool isDownloaded;
   final VoidCallback onDownload;
 
-  @override
-  State<_RecommendedDownloadCard> createState() =>
-      _RecommendedDownloadCardState();
-}
-
-class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
   final RxBool isDownloading = false.obs;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        if (widget.isDownloaded) {
+        if (isDownloaded) {
           final downloadsCtrl = Get.isRegistered<DownloadsController>()
               ? Get.find<DownloadsController>()
               : Get.put(DownloadsController());
           final offline = downloadsCtrl.videos
-              .firstWhereOrNull((v) => v.id == widget.video.id);
+              .firstWhereOrNull((v) => v.id == video.id);
           if (offline != null) {
             downloadsCtrl.playVideo(offline);
             return;
           }
         }
         Get.toNamed(
-          '/watch?v=${widget.video.id}',
-          arguments: {'video': widget.video},
+          '/watch?v=${video.id}',
+          arguments: {'video': video},
         );
       },
       child: Padding(
@@ -721,7 +709,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
               child: Stack(
                 children: [
                   CachedNetworkImage(
-                    imageUrl: widget.video.thumbnailUrl,
+                    imageUrl: video.thumbnailUrl,
                     width: 140,
                     height: 80,
                     fit: BoxFit.cover,
@@ -730,7 +718,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                     errorWidget: (context, url, error) =>
                         Container(color: AppColors.bgSurfaceHover),
                   ),
-                  if (widget.video.duration.isNotEmpty)
+                  if (video.duration.isNotEmpty)
                     Positioned(
                       bottom: 4,
                       right: 4,
@@ -744,7 +732,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          widget.video.duration,
+                          video.duration,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 10,
@@ -762,7 +750,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.video.title,
+                    video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -773,7 +761,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.video.channelName} • ${FormatUtils.formatCount(widget.video.views)} views',
+                    '${video.channelName} • ${FormatUtils.formatCount(video.views)} views',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -788,14 +776,12 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
             Obx(() {
               final downloading = isDownloading.value;
               return IconButton(
-                onPressed: (widget.isDownloaded || downloading)
+                onPressed: (isDownloaded || downloading)
                     ? null
                     : () async {
                         isDownloading.value = true;
-                        widget.onDownload();
-                        if (mounted) {
-                          isDownloading.value = false;
-                        }
+                        onDownload();
+                        isDownloading.value = false;
                       },
                 icon: downloading
                     ? const SizedBox(
@@ -807,7 +793,7 @@ class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
                         ),
                       )
                     : Icon(
-                        widget.isDownloaded
+                        isDownloaded
                             ? Icons.download_done_rounded
                             : Icons.download_for_offline_outlined,
                         color: AppColors.textPrimary,

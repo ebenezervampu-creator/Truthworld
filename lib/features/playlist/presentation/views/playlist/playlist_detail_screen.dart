@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -41,7 +42,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   Widget build(BuildContext context) {
     // Initialize controller if not already registered
     if (!Get.isRegistered<PlaylistDetailController>()) {
-      Get.find<PlaylistDetailController>();
+      Get.put(PlaylistDetailController());
     }
 
     var activePlaylist = playlist;
@@ -344,6 +345,38 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // CHANNEL INFO
   // ==========================================================================
   Widget _buildChannelInfo(PlaylistModel playlist) {
+    if (playlist.channelId.isEmpty) {
+      final user = FirebaseAuth.instance.currentUser;
+      final displayName = user?.displayName?.isNotEmpty == true
+          ? user!.displayName!
+          : (playlist.ownerId.isNotEmpty ? playlist.ownerId : 'You');
+      final photoUrl = user?.photoURL ?? '';
+
+      return Row(
+        children: [
+          UserAvatar(
+            radius: 16,
+            photoUrl: photoUrl,
+            displayName: displayName,
+            backgroundColor: ytSurfaceLight,
+            textColor: ytTextSecondary,
+            fontSize: 16,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              displayName,
+              style: const TextStyle(
+                fontSize: 14,
+                color: ytTextSecondary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
           .collection(FirestoreCollections.channels)

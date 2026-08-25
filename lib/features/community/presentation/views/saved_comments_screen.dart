@@ -11,21 +11,8 @@ import 'package:truthworld/theme/app_theme.dart';
 
 enum _CardMenuOption { openSource, copyText, unsave }
 
-class SavedCommentsScreen extends StatefulWidget {
+class SavedCommentsScreen extends GetView<SavedCommentsController> {
   const SavedCommentsScreen({super.key});
-
-  @override
-  State<SavedCommentsScreen> createState() => _SavedCommentsScreenState();
-}
-
-class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
-  late final SavedCommentsController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.find<SavedCommentsController>();
-  }
 
   void _navigateToSource(SavedCommentModel comment) {
     if (comment.sourceId.isEmpty) {

@@ -555,7 +555,7 @@ class ReplyController extends BaseController {
 // MAIN SCREEN
 // ------------------------------------------------------------
 
-class StudioCommentsScreen extends StatefulWidget {
+class StudioCommentsScreen extends StatelessWidget {
   const StudioCommentsScreen({
     required this.channelId,
     required this.channelImageUrl,
@@ -569,27 +569,18 @@ class StudioCommentsScreen extends StatefulWidget {
   final String searchQuery;
 
   @override
-  State<StudioCommentsScreen> createState() => _StudioCommentsScreenState();
-}
-
-class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
-  late StudioCommentsController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.put(
-      StudioCommentsController(
-        channelId: widget.channelId,
-        channelImageUrl: widget.channelImageUrl,
-        channelName: widget.channelName,
-        initialSearchQuery: widget.searchQuery,
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = Get.isRegistered<StudioCommentsController>()
+        ? Get.find<StudioCommentsController>()
+        : Get.put(
+            StudioCommentsController(
+              channelId: channelId,
+              channelImageUrl: channelImageUrl,
+              channelName: channelName,
+              initialSearchQuery: searchQuery,
+            ),
+          );
+
     return Theme(
       data: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: AppColors.bgPage,
@@ -730,8 +721,8 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
               itemBuilder: (_, i) => CommentCard(
                 videoComment: filtered[i],
                 controller: controller,
-                channelImageUrl: widget.channelImageUrl,
-                channelName: widget.channelName,
+                channelImageUrl: channelImageUrl,
+                channelName: channelName,
               ),
             ),
           );
@@ -1240,7 +1231,7 @@ class CommentCard extends StatelessWidget {
                 ),
               ),
 
-            // Replies (using GetX to avoid setState during build)
+            // Replies (using GetX reactive builder)
             if (isExpanded)
               GetX<ReplyController>(
                 tag: comment.id,

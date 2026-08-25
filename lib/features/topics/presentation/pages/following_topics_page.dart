@@ -14,34 +14,16 @@ import 'package:truthworld/features/topics/presentation/controllers/following_to
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class FollowingTopicsPage extends StatefulWidget {
+class FollowingTopicsPage extends StatelessWidget {
   const FollowingTopicsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  @override
-  State<FollowingTopicsPage> createState() => _FollowingTopicsPageState();
-}
-
-class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
-  final FollowingTopicsController controller =
+  FollowingTopicsController get controller =>
       Get.isRegistered<FollowingTopicsController>()
           ? Get.find<FollowingTopicsController>()
           : Get.put(FollowingTopicsController());
-  final TextEditingController _searchController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(() {
-      controller.updateSearchQuery(_searchController.text);
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  TextEditingController get _searchController => controller.searchController;
 
   Future<void> _refreshFollowingTopics() async {
     await controller.fetchFollowingTopics();
@@ -145,7 +127,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
           IconButton(
             icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
             onPressed: () {
-              if (widget.isDashboard) {
+              if (isDashboard) {
                 Get.find<HomeController>().sideNavSelectedIndex.value =
                     HomeController.indexLibrary;
               } else {

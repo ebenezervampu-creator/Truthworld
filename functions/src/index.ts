@@ -1644,6 +1644,7 @@ export {
   // cleanupVerificationRecord,
   scheduledRetryProcessor,
   moderateImageManual,
+  setModerationModesManual,
 } from "./verification/verification";
 
 export {
@@ -1823,7 +1824,7 @@ export { seoServer } from "./seo/seoServer";
 export { rebuildDirtySitemapsScheduler } from "./seo/sitemap/sitemapScheduler";
 export { onVideoSeoWritten, onChannelSeoWritten } from "./seo/indexing/indexingTriggers";
 
-export { onAdCampaignWritten } from "./ads/ads";
+export { onAdCampaignWritten, triggerAdAIFeatures } from "./ads/ads";
 
 /**
  * 🔐 Temporary Admin Claim tool

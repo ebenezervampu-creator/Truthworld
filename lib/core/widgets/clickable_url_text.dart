@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 

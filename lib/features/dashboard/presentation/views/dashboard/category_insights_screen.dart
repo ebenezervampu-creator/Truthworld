@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/category_insights_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-/// Industry Standard Category Insights & Market Demand Screen.
-/// Built 100% with AppTheme, AppColors, and GoogleFonts.roboto typography.
-/// Complies with project Icon Color Guidelines (icons always use white / AppColors.textPrimary).
-/// Optimized layout using direct Flex/Column widgets to prevent Flutter Web mouse tracker and hit-test assertions.
-class CategoryInsightsScreen extends StatefulWidget {
+/// Category Insights & Market Demand Screen in Studio Dashboard.
+/// Built with exact fonts, theme, container borders, and dark visual architecture
+/// from the Channel Creation page (channel_screen_wizard.dart).
+/// Uses sleek dark blue styling for demand & opportunity highlights.
+/// Complies 100% with project Icon Color Guidelines (icons always use white / AppColors.textPrimary).
+class CategoryInsightsScreen extends StatelessWidget {
   final String channelId;
   final bool isDarkMode;
 
@@ -18,38 +18,35 @@ class CategoryInsightsScreen extends StatefulWidget {
     super.key,
   });
 
-  @override
-  State<CategoryInsightsScreen> createState() => _CategoryInsightsScreenState();
-}
-
-class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
-  late final CategoryInsightsController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.isRegistered<CategoryInsightsController>()
-        ? Get.find<CategoryInsightsController>()
-        : Get.put(CategoryInsightsController());
-  }
+  CategoryInsightsController get controller =>
+      Get.isRegistered<CategoryInsightsController>()
+          ? Get.find<CategoryInsightsController>()
+          : Get.put(CategoryInsightsController());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPage,
+      backgroundColor: const Color(0xFF0F0F0F),
       body: Obx(() {
         if (controller.isLoading) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const CircularProgressIndicator(color: AppColors.textPrimary),
-                const SizedBox(height: 16),
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(height: 16),
                 Text(
                   'Fetching real category insights from database...',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                 ),
               ],
@@ -64,39 +61,47 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
-                    color: AppColors.errorContainer,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF450A0A),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                    ),
                   ),
                   child: const Icon(
                     Icons.error_outline_rounded,
                     color: Colors.white,
-                    size: 40,
+                    size: 36,
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   controller.errorMessage,
-                  style: GoogleFonts.roboto(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton.icon(
+                TextButton.icon(
                   onPressed: controller.fetchCategoryInsights,
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                  label: Text(
+                  icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                  label: const Text(
                     'Retry',
-                    style: GoogleFonts.roboto(
-                      color: AppColors.bgPage,
-                      fontWeight: FontWeight.bold,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.textPrimary,
-                    foregroundColor: AppColors.bgPage,
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF27272A),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Color(0xFF3F3F46)),
+                    ),
                   ),
                 ),
               ],
@@ -106,8 +111,8 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
 
         return RefreshIndicator(
           onRefresh: controller.fetchCategoryInsights,
-          color: AppColors.textPrimary,
-          backgroundColor: AppColors.bgSurface,
+          color: Colors.white,
+          backgroundColor: const Color(0xFF161618),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24),
@@ -118,24 +123,24 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Category Insights & Market Demand',
-                            style: GoogleFonts.roboto(
-                              fontSize: 24,
+                            style: TextStyle(
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              color: Colors.white,
                               letterSpacing: -0.5,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             'Real-time data on user category likes, untouched channels, and growth opportunities.',
-                            style: GoogleFonts.roboto(
-                              fontSize: 14,
+                            style: TextStyle(
+                              fontSize: 13,
                               color: AppColors.textSecondary,
                             ),
                           ),
@@ -148,18 +153,22 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                       icon: const Icon(
                         Icons.refresh_rounded,
                         color: Colors.white,
+                        size: 20,
                       ),
                       onPressed: controller.fetchCategoryInsights,
                       style: IconButton.styleFrom(
-                        backgroundColor: AppColors.bgSurface,
-                        side: const BorderSide(color: AppColors.bgDivider),
+                        backgroundColor: const Color(0xFF161618),
+                        side: const BorderSide(color: Color(0xFF27272A)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
 
-                // Top Metrics Cards Layout (Flex/Row/Column based without nested Viewport)
+                // Top Metrics Cards Layout
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final card1 = _buildMetricCard(
@@ -167,28 +176,32 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                       value: '${controller.totalTrackedCategories.value}',
                       subtitle: 'Active in system',
                       icon: Icons.category_rounded,
-                      accentContainer: AppColors.infoContainer,
+                      accentBadgeBg: const Color(0xFF27272A),
+                      accentBadgeBorder: const Color(0xFF3F3F46),
                     );
                     final card2 = _buildMetricCard(
                       title: 'Untouched Niches',
                       value: '${controller.untouchedCategoryCount.value}',
                       subtitle: '0 channels operating',
                       icon: Icons.explore_off_rounded,
-                      accentContainer: AppColors.warningContainer,
+                      accentBadgeBg: const Color(0xFF1E293B),
+                      accentBadgeBorder: const Color(0xFF38BDF8).withValues(alpha: 0.4),
                     );
                     final card3 = _buildMetricCard(
                       title: 'Top User Liked',
                       value: controller.topLikedCategoryName.value,
                       subtitle: 'Highest user likes',
                       icon: Icons.thumb_up_alt_rounded,
-                      accentContainer: AppColors.successContainer,
+                      accentBadgeBg: const Color(0xFF064E3B),
+                      accentBadgeBorder: const Color(0xFF10B981).withValues(alpha: 0.4),
                     );
                     final card4 = _buildMetricCard(
                       title: 'Fastest Growing',
                       value: controller.fastestGrowingCategoryName.value,
                       subtitle: 'Peak growth momentum',
                       icon: Icons.trending_up_rounded,
-                      accentContainer: AppColors.selectedOverlay,
+                      accentBadgeBg: const Color(0xFF172554),
+                      accentBadgeBorder: const Color(0xFF60A5FA).withValues(alpha: 0.4),
                     );
 
                     final isWide = constraints.maxWidth > 800;
@@ -233,18 +246,17 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                 if (controller.untouchedCategoryCount.value > 0)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: AppColors.bgSurfaceHigh,
-                      borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF161618),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.warning.withValues(alpha: 0.6),
-                        width: 1.5,
+                        color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.warning.withValues(alpha: 0.1),
-                          blurRadius: 16,
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
                       ],
@@ -252,15 +264,18 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                     child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            color: AppColors.warningContainer,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                            ),
                           ),
                           child: const Icon(
                             Icons.auto_awesome_rounded,
                             color: Colors.white,
-                            size: 28,
+                            size: 24,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -268,107 +283,113 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'High Potential Opportunity Alert!',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 16,
+                                style: TextStyle(
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
+                                  color: Colors.white,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'There are ${controller.untouchedCategoryCount.value} categories with ZERO channels. Creating content in these untouched categories gives your channel a first-mover advantage with zero competition.',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 13,
+                                style: const TextStyle(
+                                  fontSize: 12,
                                   color: AppColors.textSecondary,
+                                  height: 1.35,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
+                        const SizedBox(width: 14),
+                        TextButton.icon(
                           onPressed: () {
                             controller.activeFilter.value =
                                 CategoryInsightsFilter.untouched;
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            foregroundColor: AppColors.bgPage,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                          icon: const Icon(
+                            Icons.explore_off_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          label: const Text(
+                            'View Untouched',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          child: Text(
-                            'View Untouched',
-                            style: GoogleFonts.roboto(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.bgPage,
+                          style: TextButton.styleFrom(
+                            backgroundColor: const Color(0xFF27272A),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: const BorderSide(color: Color(0xFF3F3F46)),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                const SizedBox(height: 24),
+                if (controller.untouchedCategoryCount.value > 0)
+                  const SizedBox(height: 24),
 
                 // Search & Filter Bar
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.bgSurface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.bgDivider),
+                    color: const Color(0xFF161618),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF27272A)),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Search Bar
-                      TextField(
-                        onChanged: (val) => controller.searchQuery.value = val,
-                        style: GoogleFonts.roboto(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
+                      // Search Field
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF121212),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF27272A)),
                         ),
-                        decoration: InputDecoration(
-                          hintText: 'Search categories...',
-                          hintStyle: GoogleFonts.roboto(
-                            color: AppColors.textTertiary,
-                            fontSize: 14,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search_rounded,
-                            color: Colors.white,
-                          ),
-                          filled: true,
-                          fillColor: AppColors.bgInput,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.bgDivider),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.textPrimary),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: TextField(
+                          onChanged: (val) => controller.searchQuery.value = val,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: const InputDecoration(
+                            hintText: 'Search categories...',
+                            hintStyle: TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 13,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            prefixIconConstraints: BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // Filter Chips
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
                         child: Row(
                           children: [
                             _buildFilterChip(
@@ -408,7 +429,7 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Category Items List (Direct Column without nested Viewport to avoid web mouse-tracker size issues)
+                // Category Items List
                 Obx(() {
                   final statsList = controller.filteredStats;
                   if (statsList.isEmpty) {
@@ -417,17 +438,34 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 40),
                         child: Column(
                           children: [
-                            const Icon(
-                              Icons.search_off_rounded,
-                              size: 48,
-                              color: Colors.white,
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF161618),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF27272A)),
+                              ),
+                              child: const Icon(
+                                Icons.search_off_rounded,
+                                size: 32,
+                                color: Colors.white,
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
+                            const SizedBox(height: 14),
+                            const Text(
                               'No categories match your current filter/search.',
-                              style: GoogleFonts.roboto(
-                                color: AppColors.textSecondary,
+                              style: TextStyle(
+                                color: Colors.white,
                                 fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Try adjusting your search query or selecting another filter.',
+                              style: TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 12,
                               ),
                             ),
                           ],
@@ -460,14 +498,15 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
     required String value,
     required String subtitle,
     required IconData icon,
-    required Color accentContainer,
+    required Color accentBadgeBg,
+    required Color accentBadgeBorder,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -479,9 +518,9 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: AppColors.textSecondary,
                   ),
                   maxLines: 1,
@@ -491,14 +530,15 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: accentContainer,
-                  borderRadius: BorderRadius.circular(10),
+                  color: accentBadgeBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: accentBadgeBorder),
                 ),
-                child: Icon(icon, color: Colors.white, size: 18),
+                child: Icon(icon, color: Colors.white, size: 16),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -506,16 +546,17 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                 value,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textTertiary,
                 ),
@@ -532,42 +573,42 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
     required CategoryInsightsFilter filter,
     required IconData icon,
   }) {
-    final isSelected = controller.activeFilter.value == filter;
-    return InkWell(
-      onTap: () => controller.activeFilter.value = filter,
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.bgElevated : AppColors.bgSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.textPrimary
-                : AppColors.bgDivider,
+    return Obx(() {
+      final isSelected = controller.activeFilter.value == filter;
+      return InkWell(
+        onTap: () => controller.activeFilter.value = filter,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF27272A) : const Color(0xFF121212),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF3F3F46) : const Color(0xFF27272A),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.roboto(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildCategoryDetailCard({
@@ -576,52 +617,61 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF161618),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: item.isUntouched
-              ? AppColors.warning.withValues(alpha: 0.6)
-              : AppColors.bgDivider,
+              ? const Color(0xFF38BDF8).withValues(alpha: 0.4)
+              : const Color(0xFF27272A),
           width: item.isUntouched ? 1.5 : 1.0,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: Category Title & Badges
+          // Header row: Category Title, Badges & Score Pill
           Row(
             children: [
               Expanded(
                 child: Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
+                  spacing: 10,
                   runSpacing: 6,
                   children: [
                     Text(
                       item.category,
-                      style: GoogleFonts.roboto(
-                        fontSize: 18,
+                      style: const TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                       ),
                     ),
                     if (item.isUntouched)
-                      _buildBadge(
+                      _buildStatusBadge(
                         label: 'Untouched (0 Channels)',
-                        bgColor: AppColors.warningContainer,
-                        textColor: AppColors.warning,
+                        icon: Icons.explore_off_rounded,
+                        badgeBg: const Color(0xFF1E293B),
+                        borderColor:
+                            const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                        textColor: const Color(0xFF38BDF8),
                       )
                     else if (item.opportunityIndex > 10.0)
-                      _buildBadge(
+                      _buildStatusBadge(
                         label: 'High Content Gap Demand',
-                        bgColor: AppColors.successContainer,
-                        textColor: AppColors.success,
+                        icon: Icons.verified_rounded,
+                        badgeBg: const Color(0xFF064E3B),
+                        borderColor:
+                            const Color(0xFF10B981).withValues(alpha: 0.4),
+                        textColor: const Color(0xFF34D399),
                       )
                     else if (item.growthRate > 25.0)
-                      _buildBadge(
+                      _buildStatusBadge(
                         label: 'Fast Growing',
-                        bgColor: AppColors.infoContainer,
-                        textColor: AppColors.info,
+                        icon: Icons.bolt_rounded,
+                        badgeBg: const Color(0xFF1E293B),
+                        borderColor:
+                            const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                        textColor: const Color(0xFF38BDF8),
                       ),
                   ],
                 ),
@@ -632,24 +682,25 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.bgInput,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.bgDivider),
+                  color: const Color(0xFF121212),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF27272A)),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.bolt_rounded,
-                      size: 14,
+                      size: 13,
                       color: Colors.white,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Score: ${item.opportunityIndex.toStringAsFixed(1)}',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
+                      style: const TextStyle(
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -659,49 +710,52 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Stats Metrics Row
+          // Stats Sub-Cards Row / Column
           LayoutBuilder(
             builder: (context, constraints) {
               final isSmall = constraints.maxWidth < 600;
+              final card1 = _buildSubStatCard(
+                label: 'Channels Operating',
+                value:
+                    '${item.channelCount} ${item.channelCount == 1 ? 'channel' : 'channels'}',
+                highlight: item.isUntouched,
+                icon: Icons.tv,
+              );
+              final card2 = _buildSubStatCard(
+                label: 'Total Videos Published',
+                value: '${item.videoCount} videos',
+                highlight: false,
+                icon: Icons.play_circle_outline,
+              );
+              final card3 = _buildSubStatCard(
+                label: 'Total User Likes',
+                value: '${item.totalLikes} likes',
+                highlight: false,
+                icon: Icons.thumb_up_alt_outlined,
+              );
+              final card4 = _buildSubStatCard(
+                label: 'Avg Likes / Video',
+                value: item.avgLikesPerVideo.toStringAsFixed(1),
+                highlight: false,
+                icon: Icons.auto_graph_rounded,
+              );
+
               if (isSmall) {
                 return Column(
                   children: [
                     Row(
                       children: [
-                        Expanded(
-                          child: _buildSubStat(
-                            label: 'Channels Operating',
-                            value:
-                                '${item.channelCount} ${item.channelCount == 1 ? 'channel' : 'channels'}',
-                            highlight: item.isUntouched,
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildSubStat(
-                            label: 'Total Videos Published',
-                            value: '${item.videoCount} videos',
-                            highlight: false,
-                          ),
-                        ),
+                        Expanded(child: card1),
+                        const SizedBox(width: 10),
+                        Expanded(child: card2),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(
-                          child: _buildSubStat(
-                            label: 'Total User Likes',
-                            value: '${item.totalLikes} likes',
-                            highlight: false,
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildSubStat(
-                            label: 'Avg Likes / Video',
-                            value: item.avgLikesPerVideo.toStringAsFixed(1),
-                            highlight: false,
-                          ),
-                        ),
+                        Expanded(child: card3),
+                        const SizedBox(width: 10),
+                        Expanded(child: card4),
                       ],
                     ),
                   ],
@@ -709,35 +763,13 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
               }
               return Row(
                 children: [
-                  Expanded(
-                    child: _buildSubStat(
-                      label: 'Channels Operating',
-                      value:
-                          '${item.channelCount} ${item.channelCount == 1 ? 'channel' : 'channels'}',
-                      highlight: item.isUntouched,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildSubStat(
-                      label: 'Total Videos Published',
-                      value: '${item.videoCount} videos',
-                      highlight: false,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildSubStat(
-                      label: 'Total User Likes',
-                      value: '${item.totalLikes} likes',
-                      highlight: false,
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildSubStat(
-                      label: 'Avg Likes / Video',
-                      value: item.avgLikesPerVideo.toStringAsFixed(1),
-                      highlight: false,
-                    ),
-                  ),
+                  Expanded(child: card1),
+                  const SizedBox(width: 10),
+                  Expanded(child: card2),
+                  const SizedBox(width: 10),
+                  Expanded(child: card3),
+                  const SizedBox(width: 10),
+                  Expanded(child: card4),
                 ],
               );
             },
@@ -746,19 +778,19 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
           // Top Liked Videos Section (if available)
           if (item.topLikedVideos.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(height: 1, color: AppColors.bgDivider),
+            const Divider(height: 1, color: Color(0xFF27272A)),
             const SizedBox(height: 12),
             Text(
               'Top User-Liked Videos in ${item.category}:',
-              style: GoogleFonts.roboto(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textSecondary,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textTertiary,
               ),
             ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 12,
+              spacing: 8,
               runSpacing: 8,
               children: item.topLikedVideos.map((v) {
                 return Container(
@@ -767,16 +799,16 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.bgInput,
+                    color: const Color(0xFF121212),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.bgDivider),
+                    border: Border.all(color: const Color(0xFF27272A)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
                         Icons.thumb_up_rounded,
-                        size: 12,
+                        size: 11,
                         color: Colors.white,
                       ),
                       const SizedBox(width: 6),
@@ -784,18 +816,18 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
                         '${v['title']}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Text(
                         '(${v['likes']} likes)',
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontSize: 11,
-                          color: AppColors.success,
+                          color: Color(0xFF34D399),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -810,53 +842,84 @@ class _CategoryInsightsScreenState extends State<CategoryInsightsScreen> {
     );
   }
 
-  Widget _buildBadge({
+  Widget _buildSubStatCard({
     required String label,
-    required Color bgColor,
-    required Color textColor,
+    required String value,
+    required bool highlight,
+    required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFF121212),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.roboto(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: textColor,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: Colors.white),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: highlight ? const Color(0xFF38BDF8) : Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSubStat({
+  Widget _buildStatusBadge({
     required String label,
-    required String value,
-    required bool highlight,
+    required IconData icon,
+    required Color badgeBg,
+    required Color borderColor,
+    required Color textColor,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.roboto(
-            fontSize: 11,
-            color: AppColors.textSecondary,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeBg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: GoogleFonts.roboto(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: highlight ? AppColors.warning : AppColors.textPrimary,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

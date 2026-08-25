@@ -10,6 +10,7 @@ import 'package:truthworld/core/utils/watch_time_formatter.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Controller for creator analytics dashboard.
@@ -91,8 +92,8 @@ class CreatorAnalyticsController extends BaseController {
   final urbanPercentage = RxDouble(0);
   final ruralPercentage = RxDouble(0);
 
-  // Live viewer polling timer
-  Timer? _liveViewerTimer;
+  // Live viewer stream subscription (RTDB)
+  StreamSubscription<int>? _liveViewerSubscription;
 
   @override
   void onInit() {
@@ -168,8 +169,8 @@ class CreatorAnalyticsController extends BaseController {
       _updateVideoInsights(analytics);
       _updateVideoSummaryMetrics(analytics);
 
-      // Start live viewer polling
-      _startLiveViewerPolling(videoId);
+      // Start live viewer stream (RTDB)
+      _startLiveViewerStream(videoId);
     } catch (e, stackTrace) {
       logger.error(
         'Error loading video analytics: $e',
@@ -250,35 +251,33 @@ class CreatorAnalyticsController extends BaseController {
   }
 
   // ---------------------------------------------------------------------------
-  // LIVE VIEWER POLLING
+  // LIVE VIEWER STREAM (RTDB Real-time presence)
   // ---------------------------------------------------------------------------
 
-  void _startLiveViewerPolling(String videoId) {
-    _liveViewerTimer?.cancel();
-    _liveViewerTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) async {
-        final count = await _videoAnalyticsService.getLiveViewerCount(videoId);
-        liveViewerCount.value = count;
-      },
-    );
-    if (_liveViewerTimer != null) trackTimer(_liveViewerTimer!);
+  void _startLiveViewerStream(String videoId) {
+    _liveViewerSubscription?.cancel();
+    _liveViewerSubscription = VideoPresenceService.to
+        .getLiveViewerCountStream(videoId)
+        .listen((count) {
+      liveViewerCount.value = count;
+    });
   }
 
   void _startChannelLiveViewerPolling(String channelId) {
-    _liveViewerTimer?.cancel();
-    _liveViewerTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) async {
-        if (selectedVideoId.isEmpty) {
-          final count = await _videoAnalyticsService.getChannelLiveViewerCount(
-            channelId,
-          );
-          liveViewerCount.value = count;
-        }
-      },
-    );
-    if (_liveViewerTimer != null) trackTimer(_liveViewerTimer!);
+    _liveViewerSubscription?.cancel();
+    _liveViewerSubscription = VideoPresenceService.to
+        .getLiveViewerCountStream(null)
+        .listen((count) {
+      if (selectedVideoId.isEmpty) {
+        liveViewerCount.value = count;
+      }
+    });
+  }
+
+  @override
+  void onClose() {
+    _liveViewerSubscription?.cancel();
+    super.onClose();
   }
 
   // ---------------------------------------------------------------------------

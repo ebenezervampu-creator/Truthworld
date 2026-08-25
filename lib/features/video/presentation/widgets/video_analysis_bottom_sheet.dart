@@ -9,29 +9,13 @@ import 'package:truthworld/features/video/presentation/widgets/claim_source_subm
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class VideoAnalysisBottomSheet extends StatefulWidget {
-  const VideoAnalysisBottomSheet({
+class VideoAnalysisBottomSheet extends StatelessWidget {
+  VideoAnalysisBottomSheet({
     required this.video,
     super.key,
     this.initialTabIndex = 0,
-  });
-  final Video video;
-  final int initialTabIndex;
-
-  @override
-  State<VideoAnalysisBottomSheet> createState() =>
-      _VideoAnalysisBottomSheetState();
-}
-
-class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
-  late final VideoController videoCtrl;
-  final RxSet<int> _expandedClaimIndices = <int>{}.obs;
-
-  @override
-  void initState() {
-    super.initState();
-
-    final tag = widget.video.id;
+  }) {
+    final tag = video.id;
     if (Get.isRegistered<VideoController>(tag: tag)) {
       videoCtrl = Get.find<VideoController>(tag: tag);
     } else if (Get.isRegistered<VideoController>()) {
@@ -40,11 +24,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
       videoCtrl = Get.put(VideoController());
     }
 
-    if (widget.video.factCheckUrl.isNotEmpty &&
-        videoCtrl.factCheckData.isEmpty) {
-      videoCtrl.loadFactCheckData(widget.video.factCheckUrl);
+    if (video.factCheckUrl.isNotEmpty && videoCtrl.factCheckData.isEmpty) {
+      videoCtrl.loadFactCheckData(video.factCheckUrl);
     }
   }
+
+  final Video video;
+  final int initialTabIndex;
+  late final VideoController videoCtrl;
+  final RxSet<int> _expandedClaimIndices = <int>{}.obs;
+
+  BuildContext get context => Get.context!;
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +115,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.video.title,
+                  video.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: context.twTypography.title.copyWith(
@@ -154,7 +144,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
   }
 
   Widget _buildFactCheckContent() {
-    if (widget.video.factCheckUrl.isEmpty) {
+    if (video.factCheckUrl.isEmpty) {
       return _buildNoFactCheckFallback();
     }
 
@@ -1124,7 +1114,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                     child: ElevatedButton.icon(
                       onPressed: () => ClaimSourceSubmissionDialog.show(
                         context: context,
-                        video: widget.video,
+                        video: video,
                         claims: allClaims,
                         initialClaim: claim,
                       ),

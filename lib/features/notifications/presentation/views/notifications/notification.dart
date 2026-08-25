@@ -1310,7 +1310,7 @@ class _DynamicAvatarController extends BaseController {
   }
 }
 
-class _DynamicAvatar extends StatefulWidget {
+class _DynamicAvatar extends StatelessWidget {
   const _DynamicAvatar({
     required this.item,
     required this.initialAvatarUrl,
@@ -1321,61 +1321,42 @@ class _DynamicAvatar extends StatefulWidget {
   final String displayName;
 
   @override
-  State<_DynamicAvatar> createState() => _DynamicAvatarState();
-}
+  Widget build(BuildContext context) {
+    return GetBuilder<_DynamicAvatarController>(
+      init: _DynamicAvatarController(
+        item: item,
+        initialAvatarUrl: initialAvatarUrl,
+      ),
+      tag: item.video?.id ?? item.alert?.id ?? displayName,
+      builder: (controller) {
+        return Obx(() {
+          final url = controller.avatarUrl.value;
+          if (url.isNotEmpty) {
+            return Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF272727),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => _buildPlaceholderAvatar(),
+                errorWidget: (context, url, error) => _buildPlaceholderAvatar(),
+              ),
+            );
+          }
 
-class _DynamicAvatarState extends State<_DynamicAvatar> {
-  late final _DynamicAvatarController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = _DynamicAvatarController(
-      item: widget.item,
-      initialAvatarUrl: widget.initialAvatarUrl,
+          return _buildPlaceholderAvatar();
+        });
+      },
     );
   }
 
-  @override
-  void didUpdateWidget(covariant _DynamicAvatar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    controller.updateInitialAvatarUrl(widget.initialAvatarUrl);
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final url = controller.avatarUrl.value;
-      if (url.isNotEmpty) {
-        return Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFF272727),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: CachedNetworkImage(
-            imageUrl: url,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => _buildPlaceholderAvatar(),
-            errorWidget: (context, url, error) => _buildPlaceholderAvatar(),
-          ),
-        );
-      }
-
-      return _buildPlaceholderAvatar();
-    });
-  }
-
   Widget _buildPlaceholderAvatar() {
-    final cleanName = widget.displayName.trim().replaceAll('@', '');
+    final cleanName = displayName.trim().replaceAll('@', '');
     final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : '';
     final bgColor =
         _VideoFeedNotificationScreenState._getAvatarColor(cleanName);

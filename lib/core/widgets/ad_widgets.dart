@@ -1,143 +1,245 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 class AdMediaWidget extends StatefulWidget {
-  const AdMediaWidget({required this.ad, super.key, this.fit = BoxFit.cover});
+  const AdMediaWidget({
+    required this.ad,
+    super.key,
+    this.fit = BoxFit.cover,
+    this.isHovered = false,
+  });
   final AdItem ad;
   final BoxFit fit;
+  final bool isHovered;
 
   @override
   State<AdMediaWidget> createState() => _AdMediaWidgetState();
 }
 
 class _AdMediaWidgetState extends State<AdMediaWidget> {
-  VideoPlayerController? _controller;
+  final Rxn<VideoPlayerController> _controller = Rxn<VideoPlayerController>();
+  Timer? _hoverTimer;
   final RxBool _isMuted = true.obs;
   final RxBool _isInitialized = false.obs;
-  final RxInt _rebuildTrigger = 0.obs;
+  final RxBool _isLoading = false.obs;
+
+  String? get _effectiveVideoUrl {
+    final v = widget.ad.videoUrl;
+    if (v != null && v.trim().isNotEmpty && !v.trim().startsWith('blob:')) {
+      return v.trim();
+    }
+    final mid = widget.ad.midrollVideoUrl;
+    if (mid != null && mid.trim().isNotEmpty && !mid.trim().startsWith('blob:')) {
+      return mid.trim();
+    }
+    if (widget.ad.resolutions != null && widget.ad.resolutions!.isNotEmpty) {
+      for (final res in widget.ad.resolutions!) {
+        final u = res['url'] as String?;
+        if (u != null && u.trim().isNotEmpty && !u.trim().startsWith('blob:')) {
+          return u.trim();
+        }
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
-    if (widget.ad.videoUrl != null && widget.ad.videoUrl!.isNotEmpty) {
-      _initializeVideo();
+    if (widget.isHovered) {
+      _startHoverTimer();
     }
-  }
-
-  void _initializeVideo() {
-    final url = widget.ad.videoUrl;
-    if (url == null || url.isEmpty || url.startsWith('blob:')) {
-      _isInitialized.value = false;
-      return;
-    }
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(url),
-      videoPlayerOptions: VideoPlayerOptions(
-        mixWithOthers: true,
-      ),
-    );
-    _controller!
-        .initialize()
-        .then((_) {
-          if (mounted) {
-            _controller!.setVolume(0);
-            _controller!.setLooping(true);
-            _controller!.play();
-            _isInitialized.value = true;
-          }
-        })
-        .catchError((e) {
-          debugPrint('[AdMediaWidget] Error initializing video: $e');
-        });
   }
 
   @override
   void didUpdateWidget(AdMediaWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.ad.videoUrl != widget.ad.videoUrl) {
-      _controller?.dispose();
-      _controller = null;
-      _isInitialized.value = false;
-      if (widget.ad.videoUrl != null && widget.ad.videoUrl!.isNotEmpty) {
-        _initializeVideo();
-      } else {
-        _rebuildTrigger.value++;
+    if (oldWidget.ad.videoUrl != widget.ad.videoUrl ||
+        oldWidget.ad.midrollVideoUrl != widget.ad.midrollVideoUrl ||
+        oldWidget.ad.id != widget.ad.id) {
+      _cancelAndDispose();
+      if (widget.isHovered) {
+        _startHoverTimer();
       }
+    } else if (oldWidget.isHovered != widget.isHovered) {
+      if (widget.isHovered) {
+        _startHoverTimer();
+      } else {
+        _cancelAndDispose();
+      }
+    }
+  }
+
+  void _startHoverTimer() {
+    final url = _effectiveVideoUrl;
+    if (url == null || url.isEmpty) {
+      return;
+    }
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted && widget.isHovered) {
+        _initializeVideo();
+      }
+    });
+  }
+
+  void _cancelAndDispose() {
+    _hoverTimer?.cancel();
+    _hoverTimer = null;
+    final ctrl = _controller.value;
+    _controller.value = null;
+    _isInitialized.value = false;
+    _isLoading.value = false;
+    if (ctrl != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (ctrl.value.isInitialized) {
+            ctrl.pause();
+          }
+          ctrl.dispose();
+        } catch (e) {
+          debugPrint('[AdMediaWidget] Error disposing video: $e');
+        }
+      });
+    }
+  }
+
+  Future<void> _initializeVideo() async {
+    final rawUrl = _effectiveVideoUrl;
+    if (rawUrl == null || rawUrl.isEmpty) {
+      _isInitialized.value = false;
+      _isLoading.value = false;
+      return;
+    }
+
+    if (_controller.value != null || _isLoading.value) return;
+    _isLoading.value = true;
+
+    var playUrl = rawUrl;
+    // Resolve Firebase Storage URLs if needed
+    if (playUrl.startsWith('gs://') ||
+        playUrl.startsWith('https://storage.googleapis.com/') ||
+        (playUrl.contains('firebasestorage.googleapis.com') &&
+            !playUrl.contains('token='))) {
+      try {
+        playUrl = await FirebaseStorage.instance
+            .refFromURL(playUrl)
+            .getDownloadURL();
+      } catch (e) {
+        debugPrint('[AdMediaWidget] Error resolving storage URL ($playUrl): $e');
+        final fallback = StorageUtils.getFastDownloadUrl(playUrl);
+        if (fallback.isNotEmpty && fallback != playUrl) {
+          playUrl = fallback;
+        }
+      }
+    }
+
+    if (!mounted || !widget.isHovered) {
+      _isLoading.value = false;
+      return;
+    }
+
+    try {
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(playUrl),
+        videoPlayerOptions: VideoPlayerOptions(
+          mixWithOthers: true,
+        ),
+      );
+      _controller.value = controller;
+
+      await controller.initialize();
+
+      if (mounted && widget.isHovered && _controller.value == controller) {
+        await controller.setVolume(_isMuted.value ? 0.0 : 1.0);
+        await controller.setLooping(true);
+        await controller.play();
+        _isInitialized.value = true;
+        _isLoading.value = false;
+      } else {
+        await controller.dispose();
+        if (_controller.value == controller) {
+          _controller.value = null;
+        }
+        _isLoading.value = false;
+        _isInitialized.value = false;
+      }
+    } catch (e) {
+      debugPrint('[AdMediaWidget] Error initializing video: $e');
+      _isLoading.value = false;
+      _isInitialized.value = false;
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _hoverTimer?.cancel();
+    _controller.value?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      _rebuildTrigger.value; // register dependency
-      if (widget.ad.videoUrl != null &&
-          widget.ad.videoUrl!.isNotEmpty &&
-          _controller != null) {
-        if (!_isInitialized.value) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: widget.ad.gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(AppColors.textTertiary),
-                ),
-              ),
-            ),
-          );
-        }
-        return Stack(
+      final isInitialized = _isInitialized.value;
+      final controller = _controller.value;
+      final hasVideo = _effectiveVideoUrl != null;
+
+      Widget mediaChild;
+
+      if (isInitialized && controller != null) {
+        mediaChild = Stack(
           fit: StackFit.expand,
           children: [
             FittedBox(
               fit: widget.fit,
               child: SizedBox(
-                width: _controller!.value.size.width > 0
-                    ? _controller!.value.size.width
+                width: controller.value.size.width > 0
+                    ? controller.value.size.width
                     : 160,
-                height: _controller!.value.size.height > 0
-                    ? _controller!.value.size.height
+                height: controller.value.size.height > 0
+                    ? controller.value.size.height
                     : 90,
                 child: MobileFriendlyVideoPlayer(
-                  controller: _controller!,
+                  controller: controller,
                   looping: true,
                 ),
               ),
             ),
             Positioned(
               bottom: 8,
-              right: 8,
+              left: 8,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () {
-                  _isMuted.value = !_isMuted.value;
-                  _controller?.setVolume(_isMuted.value ? 0.0 : 1.0);
+                  final nextMuted = !_isMuted.value;
+                  _isMuted.value = nextMuted;
+                  if (!nextMuted) {
+                    HoverPreviewCoordinator.pauseAllMainPlayers();
+                    _controller.value?.setVolume(1.0);
+                  } else {
+                    _controller.value?.setVolume(0.0);
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(6),
@@ -153,7 +255,7 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
                     _isMuted.value
                         ? Icons.volume_off_rounded
                         : Icons.volume_up_rounded,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                     size: 14,
                   ),
                 ),
@@ -161,10 +263,8 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
             ),
           ],
         );
-      }
-
-      if (widget.ad.imageUrl.isNotEmpty) {
-        return Image.network(
+      } else if (widget.ad.imageUrl.isNotEmpty) {
+        mediaChild = Image.network(
           widget.ad.imageUrl,
           fit: widget.fit,
           loadingBuilder: (context, child, progress) {
@@ -186,9 +286,36 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
           errorBuilder: (context, error, stackTrace) =>
               _buildFallbackGradient(),
         );
+      } else {
+        mediaChild = _buildFallbackGradient();
       }
 
-      return _buildFallbackGradient();
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          mediaChild,
+          if (hasVideo && _isLoading.value && !isInitialized)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppColors.bgPage.withValues(alpha: 0.7),
+                  shape: BoxShape.circle,
+                ),
+                child: const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
     });
   }
 
@@ -233,7 +360,7 @@ class HomepageAdCard extends StatelessWidget {
       init: AdCardController(),
       global: false,
       builder: (controller) {
-        return MouseRegion(
+        final cardContent = MouseRegion(
           onEnter: (_) => controller.setHovered(true),
           onExit: (_) => controller.setHovered(false),
           cursor: SystemMouseCursors.click,
@@ -288,7 +415,10 @@ class HomepageAdCard extends StatelessWidget {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            AdMediaWidget(ad: ad),
+                            AdMediaWidget(
+                              ad: ad,
+                              isHovered: controller.isHovered,
+                            ),
                             if (ad.imageUrl.isEmpty &&
                                 (ad.videoUrl == null || ad.videoUrl!.isEmpty))
                               () {
@@ -593,10 +723,10 @@ class HomepageAdCard extends StatelessWidget {
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: Icon(
+                            icon: const Icon(
                               Icons.more_vert_rounded,
                               size: 20,
-                              color: AppTheme.colors.textTertiary,
+                              color: Colors.white,
                             ),
                             onPressed: () =>
                                 AdService.to.showAdPromoDialog(context, ad),
@@ -614,6 +744,30 @@ class HomepageAdCard extends StatelessWidget {
               ),
             ),
           ),
+        );
+
+        final isMobile = !kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS);
+
+        if (!isMobile) {
+          return cardContent;
+        }
+
+        return VisibilityDetector(
+          key: Key('homepage_ad_${ad.id}'),
+          onVisibilityChanged: (info) {
+            if (info.visibleFraction >= 0.8) {
+              if (!controller.isHovered) {
+                controller.setHovered(true);
+              }
+            } else {
+              if (controller.isHovered) {
+                controller.setHovered(false);
+              }
+            }
+          },
+          child: cardContent,
         );
       },
     );
@@ -633,7 +787,7 @@ class ScrollAdCard extends StatelessWidget {
       init: AdCardController(),
       global: false,
       builder: (controller) {
-        return MouseRegion(
+        final cardContent = MouseRegion(
           onEnter: (_) => controller.setHovered(true),
           onExit: (_) => controller.setHovered(false),
           cursor: SystemMouseCursors.click,
@@ -683,7 +837,10 @@ class ScrollAdCard extends StatelessWidget {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              AdMediaWidget(ad: ad),
+                              AdMediaWidget(
+                                ad: ad,
+                                isHovered: controller.isHovered,
+                              ),
                               Positioned(
                                 top: AppTheme.spacing.xs,
                                 left: AppTheme.spacing.xs,
@@ -866,6 +1023,30 @@ class ScrollAdCard extends StatelessWidget {
               ),
             ),
           ),
+        );
+
+        final isMobile = !kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS);
+
+        if (!isMobile) {
+          return cardContent;
+        }
+
+        return VisibilityDetector(
+          key: Key('scroll_ad_${ad.id}'),
+          onVisibilityChanged: (info) {
+            if (info.visibleFraction >= 0.8) {
+              if (!controller.isHovered) {
+                controller.setHovered(true);
+              }
+            } else {
+              if (controller.isHovered) {
+                controller.setHovered(false);
+              }
+            }
+          },
+          child: cardContent,
         );
       },
     );

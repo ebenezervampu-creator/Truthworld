@@ -5,40 +5,12 @@ import 'package:truthworld/features/search/presentation/widgets/search_widgets.d
 import 'package:truthworld/theme/app_theme.dart';
 
 /// SearchPage: Main search UI (Optimized for 9 Problems & YouTube Exact Look)
-class SearchPage extends StatefulWidget {
+class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
 
-  @override
-  State<SearchPage> createState() => _SearchPageState();
-}
-
-class _SearchPageState extends State<SearchPage> {
-  late final TextEditingController _searchController = TextEditingController();
-  late final SearchController _searchCtrl = Get.find<SearchController>();
-  late final ScrollController _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    // Warmup cache on page load
-    _searchCtrl.fetchTrendingSuggestions();
-
-    // Setup infinite scroll pagination
-    _scrollController.addListener(() {
-      if (!_scrollController.hasClients || _scrollController.positions.length != 1) return;
-      final position = _scrollController.position;
-      if (position.pixels > position.maxScrollExtent * 0.8) {
-        _searchCtrl.loadNextPage();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
+  SearchController get _searchCtrl => Get.find<SearchController>();
+  TextEditingController get _searchController => _searchCtrl.textEditingController;
+  ScrollController get _scrollController => _searchCtrl.scrollController;
 
   @override
   Widget build(BuildContext context) {

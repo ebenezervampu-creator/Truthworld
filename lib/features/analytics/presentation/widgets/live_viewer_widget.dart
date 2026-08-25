@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Real-time concurrent viewer counter with pulse animation.
 ///
-/// Note: Realtime Database backend was removed. This now shows a static/dummy count.
-///
 /// Features:
 /// - Pulsing red "LIVE" dot animation
+/// - Real-time stream from Firebase Realtime Database
 /// - Smooth count transition via TweenAnimationBuilder
 /// - Dark gradient card matching the app's aesthetic
 class LiveViewerWidget extends StatefulWidget {
@@ -45,7 +45,7 @@ class _LiveViewerWidgetState extends State<LiveViewerWidget>
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<int>(
-      stream: Stream.value(0), // Dummy stream since RTDB was removed
+      stream: VideoPresenceService.to.getLiveViewerCountStream(widget.videoId),
       builder: (context, snapshot) {
         final count = snapshot.data ?? 0;
 

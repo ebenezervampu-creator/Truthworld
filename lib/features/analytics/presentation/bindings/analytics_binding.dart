@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 import 'package:truthworld/features/analytics/presentation/widgets/geographic_map_widget.dart';
 
@@ -6,6 +7,9 @@ import 'package:truthworld/features/analytics/presentation/widgets/geographic_ma
 class AnalyticsBinding extends Bindings {
   @override
   void dependencies() {
+    if (!Get.isRegistered<VideoPresenceService>()) {
+      Get.lazyPut(VideoPresenceService.new);
+    }
     if (!Get.isRegistered<CreatorAnalyticsController>()) {
       Get.lazyPut(CreatorAnalyticsController.new);
     }

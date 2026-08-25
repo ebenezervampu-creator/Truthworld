@@ -27,6 +27,7 @@ export 'tw_typography.dart';
 ThemeData buildAppTheme({DeviceState? device}) {
   return ThemeData(
     useMaterial3: true,
+    fontFamily: TWTypography.uiFamily,
 
     brightness: Brightness.dark,
     primaryColor: AppColors.brand,
@@ -97,39 +98,72 @@ ThemeData buildAppTheme({DeviceState? device}) {
     ),
 
     textTheme: const TextTheme(
-      displayLarge: TextStyle(color: AppColors.textPrimary),
-      displayMedium: TextStyle(color: AppColors.textPrimary),
-      displaySmall: TextStyle(color: AppColors.textPrimary),
+      displayLarge: TextStyle(
+        fontFamily: TWTypography.brandFamily,
+        color: AppColors.textPrimary,
+      ),
+      displayMedium: TextStyle(
+        fontFamily: TWTypography.brandFamily,
+        color: AppColors.textPrimary,
+      ),
+      displaySmall: TextStyle(
+        fontFamily: TWTypography.brandFamily,
+        color: AppColors.textPrimary,
+      ),
       headlineLarge: TextStyle(
+        fontFamily: TWTypography.brandFamily,
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
       ),
       headlineMedium: TextStyle(
+        fontFamily: TWTypography.brandFamily,
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
       ),
       headlineSmall: TextStyle(
+        fontFamily: TWTypography.brandFamily,
         color: AppColors.textPrimary,
         fontWeight: FontWeight.bold,
       ),
       titleLarge: TextStyle(
+        fontFamily: TWTypography.uiFamily,
         color: AppColors.textPrimary,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
       ),
       titleMedium: TextStyle(
+        fontFamily: TWTypography.uiFamily,
         color: AppColors.textPrimary,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
       ),
       titleSmall: TextStyle(
+        fontFamily: TWTypography.uiFamily,
         color: AppColors.textPrimary,
         fontWeight: FontWeight.w500,
       ),
-      bodyLarge: TextStyle(color: AppColors.textPrimary),
-      bodyMedium: TextStyle(color: AppColors.textPrimary),
-      bodySmall: TextStyle(color: AppColors.textSecondary),
-      labelLarge: TextStyle(color: AppColors.textPrimary),
-      labelMedium: TextStyle(color: AppColors.textSecondary),
-      labelSmall: TextStyle(color: AppColors.textTertiary),
+      bodyLarge: TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        color: AppColors.textPrimary,
+      ),
+      bodyMedium: TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        color: AppColors.textPrimary,
+      ),
+      bodySmall: TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        color: AppColors.textSecondary,
+      ),
+      labelLarge: TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        color: AppColors.textPrimary,
+      ),
+      labelMedium: TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        color: AppColors.textSecondary,
+      ),
+      labelSmall: TextStyle(
+        fontFamily: TWTypography.uiFamily,
+        color: AppColors.textTertiary,
+      ),
     ),
 
     iconTheme: const IconThemeData(color: AppColors.iconDefault),

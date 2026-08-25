@@ -11,6 +11,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_app_check
   firebase_auth
   firebase_core
+  firebase_database
   firebase_storage
   fullscreen_window
   permission_handler_windows

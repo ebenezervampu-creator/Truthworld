@@ -7,6 +7,7 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
+import 'package:truthworld/features/watchlater/presentation/controllers/watchlater_controller.dart';
 
 /// Main presentation layer binding
 /// Initializes all controllers for main features
@@ -24,6 +25,9 @@ class MainPresentationBinding extends Bindings {
 
     // Watch History
     Get.lazyPut<WatchHistoryController>(WatchHistoryController.new);
+
+    // Watch Later
+    Get.lazyPut<WatchLaterController>(WatchLaterController.new);
 
     // Playlist
     Get.lazyPut<PlaylistController>(PlaylistController.new);

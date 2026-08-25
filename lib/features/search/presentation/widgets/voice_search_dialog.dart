@@ -359,114 +359,103 @@ class VoiceSearchController extends GetxController
 }
 
 /// YouTube-Exact Voice Search Dialog Widget
-class VoiceSearchDialog extends StatefulWidget {
+class VoiceSearchDialog extends StatelessWidget {
   const VoiceSearchDialog({required this.onSearch, super.key});
   final Function(String) onSearch;
 
-  @override
-  State<VoiceSearchDialog> createState() => _VoiceSearchDialogState();
-}
-
-class _VoiceSearchDialogState extends State<VoiceSearchDialog> {
-  late final VoiceSearchController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.put(
-      VoiceSearchController(onSearch: widget.onSearch, context: context),
-    );
-  }
-
-  @override
-  void dispose() {
-    Get.delete<VoiceSearchController>();
-    super.dispose();
-  }
+  VoiceSearchController get controller => Get.find<VoiceSearchController>();
 
   @override
   Widget build(BuildContext context) {
-    // YouTube dark background color
-    const darkBackground = Color(0xFF0F0F0F);
+    return GetBuilder<VoiceSearchController>(
+      init: VoiceSearchController(onSearch: onSearch, context: context),
+      dispose: (_) {
+        if (Get.isRegistered<VoiceSearchController>()) {
+          Get.delete<VoiceSearchController>();
+        }
+      },
+      builder: (controller) {
+        // YouTube dark background color
+        const darkBackground = Color(0xFF0F0F0F);
 
-    return Scaffold(
-      backgroundColor: darkBackground,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Top App Bar with Close Button (Rule: icon must be white)
-            Positioned(
-              top: 8,
-              left: 12,
-              right: 12,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // YouTube Voice Search Title
-                  Obx(() {
-                    final currentState = controller.voiceState.value;
-                    var headerText = 'Search with your voice';
-                    if (currentState == VoiceSearchState.listening ||
-                        currentState == VoiceSearchState.recognized) {
-                      headerText = 'Listening...';
-                    } else if (currentState == VoiceSearchState.submitting) {
-                      headerText = 'Searching...';
-                    }
+        return Scaffold(
+          backgroundColor: darkBackground,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                // Top App Bar with Close Button (Rule: icon must be white)
+                Positioned(
+                  top: 8,
+                  left: 12,
+                  right: 12,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // YouTube Voice Search Title
+                      Obx(() {
+                        final currentState = controller.voiceState.value;
+                        var headerText = 'Search with your voice';
+                        if (currentState == VoiceSearchState.listening ||
+                            currentState == VoiceSearchState.recognized) {
+                          headerText = 'Listening...';
+                        } else if (currentState == VoiceSearchState.submitting) {
+                          headerText = 'Searching...';
+                        }
 
-                    return Text(
-                      headerText,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                        return Text(
+                          headerText,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      }),
+
+                      // Close IconButton (Top Right)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        onPressed: () {
+                          controller.stopListening();
+                          Get.back();
+                        },
+                        splashRadius: 22,
+                        tooltip: 'Close',
                       ),
-                    );
-                  }),
-
-                  // Close 'X' Button
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    splashRadius: 24,
-                    tooltip: 'Close',
-                    onPressed: () {
-                      controller.stopListening();
-                      Navigator.of(context).pop();
-                    },
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
 
-            // Main Body Content
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 70),
-
-                  // Center Spoken Query Display / Prompt View
-                  Expanded(
-                    child: Center(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        child: Obx(_buildCenterContent),
+                // Main Center & Bottom Area
+                Padding(
+                  padding: const EdgeInsets.only(top: 56),
+                  child: Column(
+                    children: [
+                      // Center Spoken Query Display / Prompt View
+                      Expanded(
+                        child: Center(
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: Obx(_buildCenterContent),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
 
-                  // Bottom Section: YouTube Red Animated Mic Button & Locale Indicator
-                  _buildBottomSection(),
-                  const SizedBox(height: 36),
-                ],
-              ),
+                      // Bottom Section: YouTube Red Animated Mic Button & Locale Indicator
+                      _buildBottomSection(),
+                      const SizedBox(height: 36),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

@@ -14,7 +14,7 @@ import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_uti
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ContentScreen extends StatefulWidget {
+class ContentScreen extends StatelessWidget {
   const ContentScreen({
     required this.channelId,
     required this.isDarkMode,
@@ -26,25 +26,13 @@ class ContentScreen extends StatefulWidget {
   final bool isDarkMode;
   final String searchQuery;
 
-  @override
-  State<ContentScreen> createState() => _ContentScreenState();
-}
-
-class _ContentScreenState extends State<ContentScreen> {
-  late final VideoManagementController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.isRegistered<VideoManagementController>()
+  VideoManagementController get controller {
+    final ctrl = Get.isRegistered<VideoManagementController>()
         ? Get.find<VideoManagementController>()
         : Get.put(VideoManagementController());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        controller.listenToChannelVideos(widget.channelId);
-        controller.listenToCommunityPosts(widget.channelId);
-      }
-    });
+    ctrl.listenToChannelVideos(channelId);
+    ctrl.listenToCommunityPosts(channelId);
+    return ctrl;
   }
 
   @override
@@ -156,8 +144,8 @@ class _ContentScreenState extends State<ContentScreen> {
           .toList();
 
       // Filter videos based on search query
-      if (widget.searchQuery.isNotEmpty) {
-        final query = widget.searchQuery.toLowerCase();
+      if (searchQuery.isNotEmpty) {
+        final query = searchQuery.toLowerCase();
         videos = videos
             .where(
               (video) =>
@@ -170,7 +158,7 @@ class _ContentScreenState extends State<ContentScreen> {
             .toList();
       }
 
-      if (videos.isEmpty && widget.searchQuery.isNotEmpty) {
+      if (videos.isEmpty && searchQuery.isNotEmpty) {
         return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -234,8 +222,8 @@ class _ContentScreenState extends State<ContentScreen> {
       var posts = controller.communityPosts.toList();
 
       // Filter posts based on search query
-      if (widget.searchQuery.isNotEmpty) {
-        final query = widget.searchQuery.toLowerCase();
+      if (searchQuery.isNotEmpty) {
+        final query = searchQuery.toLowerCase();
         posts = posts
             .where(
               (post) =>
@@ -245,7 +233,7 @@ class _ContentScreenState extends State<ContentScreen> {
             .toList();
       }
 
-      if (posts.isEmpty && widget.searchQuery.isNotEmpty) {
+      if (posts.isEmpty && searchQuery.isNotEmpty) {
         return _buildNoPostsYetWidget(isSearchFiltered: true);
       }
 
@@ -365,8 +353,8 @@ class _ContentScreenState extends State<ContentScreen> {
 
       var items = <dynamic>[...draftVideos, ...draftPosts];
 
-      if (widget.searchQuery.isNotEmpty) {
-        final query = widget.searchQuery.toLowerCase();
+      if (searchQuery.isNotEmpty) {
+        final query = searchQuery.toLowerCase();
         items = items.where((item) {
           if (item is Video) {
             return item.title.toLowerCase().contains(query) ||
@@ -454,8 +442,8 @@ class _ContentScreenState extends State<ContentScreen> {
 
       var items = <dynamic>[...scheduledVideos, ...scheduledPosts];
 
-      if (widget.searchQuery.isNotEmpty) {
-        final query = widget.searchQuery.toLowerCase();
+      if (searchQuery.isNotEmpty) {
+        final query = searchQuery.toLowerCase();
         items = items.where((item) {
           if (item is Video) {
             return item.title.toLowerCase().contains(query) ||
@@ -983,7 +971,7 @@ class _ContentScreenState extends State<ContentScreen> {
                     Get.to<dynamic>(
                       () => VideoContentDetailsScreen(
                         video: video,
-                        isDarkMode: widget.isDarkMode,
+                        isDarkMode: isDarkMode,
                       ),
                     );
                   } else if (value == 'visibility') {
@@ -1319,7 +1307,7 @@ class _ContentScreenState extends State<ContentScreen> {
                   ..to<dynamic>(
                     () => VideoContentDetailsScreen(
                       video: video,
-                      isDarkMode: widget.isDarkMode,
+                      isDarkMode: isDarkMode,
                     ),
                   );
               },

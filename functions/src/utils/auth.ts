@@ -46,7 +46,16 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
 
   try {
     const decoded = await admin.auth().verifyIdToken(token);
-    let isAdminUser = decoded.admin === true || decoded.role === "admin";
+    const email = (decoded.email || "").toLowerCase();
+    const ADMIN_EMAILS = [
+      "ebenezervampu4@gmail.com",
+      "admin@truthworld.com",
+    ];
+
+    let isAdminUser =
+      decoded.admin === true ||
+      decoded.role === "admin" ||
+      ADMIN_EMAILS.includes(email);
 
     if (!isAdminUser) {
       // Fallback check in Firestore users collection
@@ -54,12 +63,21 @@ export async function verifyAuth(req: Request): Promise<AuthenticatedUser | null
         const userDoc = await admin.firestore().collection("users").doc(decoded.uid).get();
         if (userDoc.exists) {
           const data = userDoc.data();
-          if (data?.role === "admin" || data?.isAdmin === true) {
+          if (data?.role === "admin" || data?.isAdmin === true || data?.role === "superadmin") {
             isAdminUser = true;
           }
         }
       } catch (docErr) {
         logger.warn("[Auth] Firestore admin role check failed:", docErr);
+      }
+    }
+
+    if (isAdminUser && !decoded.admin) {
+      try {
+        await admin.auth().setCustomUserClaims(decoded.uid, { admin: true, role: "admin" });
+        logger.info(`[Auth] Auto-set admin claims for user ${decoded.uid} (${email})`);
+      } catch (claimErr) {
+        logger.warn("[Auth] Could not auto-set admin claim:", claimErr);
       }
     }
 

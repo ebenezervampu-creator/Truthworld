@@ -553,15 +553,10 @@ class _CenterPlayButton extends StatelessWidget {
   }
 }
 
-class _VideoProgressBar extends StatefulWidget {
-  const _VideoProgressBar({required this.controller});
+class _VideoProgressBar extends StatelessWidget {
+  _VideoProgressBar({required this.controller});
   final MiniplayerController controller;
 
-  @override
-  State<_VideoProgressBar> createState() => _VideoProgressBarState();
-}
-
-class _VideoProgressBarState extends State<_VideoProgressBar> {
   final RxBool _isDragging = false.obs;
   final RxnDouble _dragRatio = RxnDouble();
 
@@ -569,7 +564,7 @@ class _VideoProgressBarState extends State<_VideoProgressBar> {
     if (width <= 0) return;
     final ratio = (localPosition.dx / width).clamp(0.0, 1.0);
     _dragRatio.value = ratio;
-    widget.controller.seekToRatio(ratio);
+    controller.seekToRatio(ratio);
   }
 
   @override
@@ -603,8 +598,8 @@ class _VideoProgressBarState extends State<_VideoProgressBar> {
             alignment: Alignment.bottomCenter,
             child: Obx(() {
               final pos =
-                  widget.controller.currentPosition.value.inMilliseconds;
-              final dur = widget.controller.totalDuration.value.inMilliseconds;
+                  controller.currentPosition.value.inMilliseconds;
+              final dur = controller.totalDuration.value.inMilliseconds;
               final actualValue = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
               final isDraggingVal = _isDragging.value;
               final dragRatioVal = _dragRatio.value;

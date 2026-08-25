@@ -99,6 +99,7 @@ class HomeRepositoryImpl extends BaseRepository implements HomeRepository {
 
       return snapshot.docs
           .map(Topic.fromDocumentSnapshot)
+          .where((t) => t.isValidTopic)
           .toList();
     });
   }

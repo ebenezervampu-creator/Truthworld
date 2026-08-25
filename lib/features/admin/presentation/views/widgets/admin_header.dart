@@ -33,13 +33,14 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
     ];
 
     return AppBar(
-      backgroundColor: AppColors.bgSurface,
+      backgroundColor: const Color(0xFF181818),
       elevation: 0,
       title: Obx(() {
         final idx = controller.selectedTabIndex.value.clamp(0, titles.length - 1);
         return Text(
           titles[idx],
           style: const TextStyle(
+            fontFamily: TWTypography.brandFamily,
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 18,
@@ -68,6 +69,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
       decoration: BoxDecoration(
         color: AppColors.bgSurfaceHover,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -81,6 +83,7 @@ class AdminHeader extends StatelessWidget implements PreferredSizeWidget {
           Text(
             displayName,
             style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
               color: AppColors.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w600,

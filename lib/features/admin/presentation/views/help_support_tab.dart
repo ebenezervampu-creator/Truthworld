@@ -17,16 +17,9 @@ class HelpSupportTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [
-                  Color(0xFF1A1A2E),
-                  AppColors.bgSurface,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFF181818),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.bgDivider),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,6 +46,7 @@ class HelpSupportTab extends StatelessWidget {
                           Text(
                             'Admin Help & Support Center',
                             style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               color: AppColors.textPrimary,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -62,7 +56,8 @@ class HelpSupportTab extends StatelessWidget {
                           Text(
                             'Everything you need to manage the Truthworld moderation portal effectively.',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              fontFamily: TWTypography.uiFamily,
+                              color: AppColors.textSecondary,
                               fontSize: 13,
                               height: 1.4,
                             ),
@@ -375,9 +370,9 @@ class HelpSupportTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,9 +382,10 @@ class HelpSupportTab extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontSize: 14,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 6),
@@ -397,7 +393,8 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               description,
               style: const TextStyle(
-                color: AppColors.textPrimary,
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 height: 1.4,
               ),
@@ -417,9 +414,9 @@ class HelpSupportTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,9 +428,10 @@ class HelpSupportTab extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
@@ -462,6 +460,7 @@ class HelpSupportTab extends StatelessWidget {
               child: Text(
                 number,
                 style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: Color(0xFF42A5F5),
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -477,16 +476,18 @@ class HelpSupportTab extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   desc,
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.4,
                   ),
@@ -520,6 +521,7 @@ class HelpSupportTab extends StatelessWidget {
               child: Text(
                 tier,
                 style: TextStyle(
+                  fontFamily: TWTypography.uiFamily,
                   color: color,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -533,9 +535,10 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               range,
               style: const TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 color: AppColors.textPrimary,
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -544,7 +547,8 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               description,
               style: const TextStyle(
-                color: AppColors.textPrimary,
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
                 fontSize: 12,
               ),
             ),
@@ -581,14 +585,16 @@ class HelpSupportTab extends StatelessWidget {
                     Text(
                       '$tier — ',
                       style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
                         color: color,
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       label,
                       style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
                         color: AppColors.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -600,7 +606,8 @@ class HelpSupportTab extends StatelessWidget {
                 Text(
                   desc,
                   style: const TextStyle(
-                    color: AppColors.textPrimary,
+                    fontFamily: TWTypography.uiFamily,
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -622,6 +629,7 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               label,
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textTertiary,
                 fontSize: 12,
               ),
@@ -631,6 +639,7 @@ class HelpSupportTab extends StatelessWidget {
             child: Text(
               value,
               style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,

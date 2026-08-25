@@ -11,20 +11,18 @@ import 'package:truthworld/theme/app_theme.dart';
 /// Video B = Perspective B (Opposite Perspective)
 ///
 /// Allows 1-tap audio focus toggle between Perspective A and B.
-class DualVideoPlayerWidget extends StatefulWidget {
+class DualVideoPlayerWidget extends StatelessWidget {
   final Video videoA;
   final Video videoB;
   final VoidCallback onClose;
 
-  const DualVideoPlayerWidget({
-    required this.videoA, required this.videoB, required this.onClose, super.key,
+  DualVideoPlayerWidget({
+    required this.videoA,
+    required this.videoB,
+    required this.onClose,
+    super.key,
   });
 
-  @override
-  State<DualVideoPlayerWidget> createState() => _DualVideoPlayerWidgetState();
-}
-
-class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
   final RxInt activeAudioIndex = 0.obs; // 0 = Video A, 1 = Video B
 
   @override
@@ -78,7 +76,7 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                         Icons.close_rounded,
                         color: Colors.white,
                       ),
-                      onPressed: widget.onClose,
+                      onPressed: onClose,
                       tooltip: 'Exit Split Screen',
                     ),
                   ],
@@ -92,7 +90,7 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                         children: [
                           Expanded(
                             child: _buildVideoCard(
-                              widget.videoA,
+                              videoA,
                               'Perspective A',
                               0,
                             ),
@@ -100,7 +98,7 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                           const Divider(height: 2, color: Color(0xFF9C27B0)),
                           Expanded(
                             child: _buildVideoCard(
-                              widget.videoB,
+                              videoB,
                               'Perspective B (Opposite)',
                               1,
                             ),
@@ -111,7 +109,7 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                         children: [
                           Expanded(
                             child: _buildVideoCard(
-                              widget.videoA,
+                              videoA,
                               'Perspective A',
                               0,
                             ),
@@ -122,7 +120,7 @@ class _DualVideoPlayerWidgetState extends State<DualVideoPlayerWidget> {
                           ),
                           Expanded(
                             child: _buildVideoCard(
-                              widget.videoB,
+                              videoB,
                               'Perspective B (Opposite)',
                               1,
                             ),

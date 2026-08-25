@@ -49,7 +49,7 @@ if (!admin.apps.length) {
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-type ImageCategory      = "thumbnail" | "avatar" | "banner" | "community" | "unknown";
+type ImageCategory      = "thumbnail" | "avatar" | "banner" | "community" | "topic" | "playlist" | "unknown";
 type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED" | "FLAGGED" | "ERROR";
 
 interface ImageMetadata {
@@ -182,6 +182,8 @@ const FILE_SIZE_LIMITS: Record<ImageCategory, number> = {
   avatar:    3  * 1024 * 1024,
   banner:    5  * 1024 * 1024,
   community: 10 * 1024 * 1024,
+  topic:     5  * 1024 * 1024,
+  playlist:  5  * 1024 * 1024,
   unknown:   0,
 };
 
@@ -193,6 +195,8 @@ const VALIDATION_RULES: Record<
   avatar:    { maxAdultScore: 1, maxRacyScore: 1, maxViolenceScore: 1, maxMedicalScore: 3, maxSpoofScore: 4 },
   banner:    { maxAdultScore: 1, maxRacyScore: 1, maxViolenceScore: 1, maxMedicalScore: 3, maxSpoofScore: 4 },
   community: { maxAdultScore: 0, maxRacyScore: 1, maxViolenceScore: 1, maxMedicalScore: 2, maxSpoofScore: 4 },
+  topic:     { maxAdultScore: 1, maxRacyScore: 1, maxViolenceScore: 1, maxMedicalScore: 2, maxSpoofScore: 3 },
+  playlist:  { maxAdultScore: 1, maxRacyScore: 1, maxViolenceScore: 1, maxMedicalScore: 2, maxSpoofScore: 3 },
 };
 
 const CONFIDENCE_LEVELS: Record<string, number> = {
@@ -365,8 +369,18 @@ function extractMetadata(
   let userId:    string | undefined;
   let contentId: string | undefined;
 
+  // ── Topics Custom Thumbnails ──────────────────────────────────────────────
+  if (/^thumbnails\/topics\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^topics\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+    category = "topic";
+    contentId = parts[parts.length - 1];
+
+  // ── Playlists Custom Thumbnails ───────────────────────────────────────────
+  } else if (/^thumbnails\/playlists\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^playlists\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+    category = "playlist";
+    contentId = parts[parts.length - 1];
+
   // ── FIX 1a: flat thumbnail — thumbnails/<file>.ext ────────────────────────
-  if (/^thumbnails\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+  } else if (/^thumbnails\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
     category = "thumbnail";
     // No contentId for flat paths (contentId stays undefined)
 
@@ -375,17 +389,17 @@ function extractMetadata(
     category = "thumbnail";
     contentId = parts[1];
 
-  } else if (/^channels\/avatars\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+  } else if (/^channels\/avatars\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^avatars\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^avatars\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
     category = "avatar";
-    userId = parts[2];
+    userId = parts.length > 2 ? parts[parts.length - 2] : undefined;
 
-  } else if (/^channels\/banners\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+  } else if (/^channels\/banners\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^banners\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^banners\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
     category = "banner";
-    userId = parts[2];
+    userId = parts.length > 2 ? parts[parts.length - 2] : undefined;
 
-  } else if (/^community_images\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+  } else if (/^community_images\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^community\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
     category = "community";
-  } else if (/^community_images\/[^/]+\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+  } else if (/^community_images\/[^/]+\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath) || /^community\/[^/]+\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
     category = "community";
     userId = parts[1];
     contentId = parts[2];
@@ -1276,17 +1290,27 @@ export const prefilterWorker = onMessagePublished(
       // Every avatar, banner, thumbnail, and image must be scanned by Vision AI.
 
       // ─── CHECK IF CATEGORY IS IN ADMIN ONLY MODE (Bypass Gemini / Vision AI) ───
-      const { isThumbnailsBypassed, isAvatarBypassed, isBannerBypassed } = require("../moderation/moderationModes");
+      const {
+        isThumbnailsBypassed,
+        isAvatarBypassed,
+        isBannerBypassed,
+        isCommunityBypassed,
+        isTopicsBypassed,
+        isPlaylistsBypassed,
+      } = require("../moderation/moderationModes");
       let isCategoryBypassed = false;
       if (metadata.category === "thumbnail") isCategoryBypassed = await isThumbnailsBypassed();
       else if (metadata.category === "avatar") isCategoryBypassed = await isAvatarBypassed();
       else if (metadata.category === "banner") isCategoryBypassed = await isBannerBypassed();
+      else if (metadata.category === "community") isCategoryBypassed = await isCommunityBypassed();
+      else if (metadata.category === "topic") isCategoryBypassed = await isTopicsBypassed();
+      else if (metadata.category === "playlist") isCategoryBypassed = await isPlaylistsBypassed();
 
       if (isCategoryBypassed) {
         logger.info(`[Prefilter] ${metadata.category} moderation toggle is ON (Admin Only). Routing directly to Admin review queue without AI scanning.`);
         const result: ValidationResult = {
           status: "FLAGGED",
-          reason: `Routed to Admin for manual review (${metadata.category} AI bypassed).`,
+          reason: `Direct Admin Approval Mode (${metadata.category} Vision AI bypassed).`,
           score: 0,
           timestamp: Date.now(),
           processedAt: Date.now(),
@@ -1779,6 +1803,74 @@ export const moderateImageManual = onRequest(
     } catch (err) {
       console.error("[Verification] Manual moderation failed:", err);
       res.status(500).json({ error: "Internal server error.", details: String(err) });
+    }
+  }
+);
+
+/**
+ * ⚙️ HTTPS Endpoint — Update Moderation Modes (Bypass Vision AI vs Automated Scanning).
+ * Accessible by authenticated administrators.
+ */
+export const setModerationModesManual = onRequest(
+  {
+    cors: true,
+    region: REGION,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAdmin(req, res);
+      if (!authUser) return;
+
+      const { modeKey, value, modes } = req.body;
+
+      const updateData: Record<string, any> = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedBy: authUser.email || authUser.uid,
+      };
+
+      if (modes && typeof modes === "object") {
+        Object.assign(updateData, modes);
+      } else if (modeKey && typeof modeKey === "string") {
+        updateData[modeKey] = value === true;
+        if (modeKey === "thumbnails" || modeKey === "videoThumbnails") {
+          updateData["thumbnails"] = value === true;
+          updateData["videos_thumbnails"] = value === true;
+          updateData["videoThumbnails"] = value === true;
+        } else if (modeKey === "banner" || modeKey === "channelBanner") {
+          updateData["banner"] = value === true;
+          updateData["channelBanner"] = value === true;
+          updateData["channel_banner"] = value === true;
+        } else if (modeKey === "avatar" || modeKey === "channelAvatar") {
+          updateData["avatar"] = value === true;
+          updateData["channelAvatar"] = value === true;
+          updateData["channel_avatar"] = value === true;
+        } else if (modeKey === "community" || modeKey === "communityPosts") {
+          updateData["community"] = value === true;
+          updateData["community_posts"] = value === true;
+          updateData["communityPosts"] = value === true;
+        } else if (modeKey === "topics" || modeKey === "topicThumbnails") {
+          updateData["topics"] = value === true;
+          updateData["topic_thumbnails"] = value === true;
+          updateData["topicThumbnails"] = value === true;
+        } else if (modeKey === "playlists" || modeKey === "playlistThumbnails") {
+          updateData["playlists"] = value === true;
+          updateData["playlist_thumbnails"] = value === true;
+          updateData["playlistThumbnails"] = value === true;
+        }
+      }
+
+      await Promise.all([
+        db().collection("admin_settings").doc("moderation_modes").set(updateData, { merge: true }),
+        db().collection("system_settings").doc("moderation_modes").set(updateData, { merge: true }),
+      ]);
+
+      res.status(200).json({ success: true, updated: updateData });
+    } catch (err: any) {
+      logger.error("[setModerationModesManual] Error:", err);
+      res.status(500).json({ error: err.message || "Failed to update moderation modes" });
     }
   }
 );

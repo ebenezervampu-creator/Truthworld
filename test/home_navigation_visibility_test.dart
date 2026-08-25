@@ -24,6 +24,18 @@ void main() {
       expect(items, contains('Your channel'));
       expect(items, contains('History'));
     });
+
+    test('should include Advertiser Portal after Admin Portal for all users', () {
+      final publicItems = HomeSidebarVisibility.getVisibleEntries(
+        isAuthenticated: false,
+      );
+      final adminIndex = publicItems.indexOf('Admin Portal');
+      final advertiserIndex = publicItems.indexOf('Advertiser Portal');
+
+      expect(adminIndex, isNot(equals(-1)));
+      expect(advertiserIndex, isNot(equals(-1)));
+      expect(advertiserIndex, equals(adminIndex + 1));
+    });
   });
 
   group('Home category tabs visibility', () {

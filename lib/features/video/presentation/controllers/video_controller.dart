@@ -16,6 +16,7 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/constants/firestore_collections.dart';
+import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/algorithm/diversity_config.dart';
 import 'package:truthworld/core/services/algorithm/flip_coin_service.dart';
 import 'package:truthworld/core/services/algorithm/scored_video.dart';
@@ -220,12 +221,19 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     var videoIndex = 0;
     var postIndex = 0;
     var topicIndex = 0;
+    var adIndex = 0;
+    final scrollAds = Get.isRegistered<AdService>()
+        ? AdService.to.getAdsForType('scroll')
+        : <AdItem>[];
 
     while (videoIndex < displayVideos.length ||
         postIndex < communityPosts.length ||
         topicIndex < videoTopicsList.length) {
-      for (var i = 0; i < 3 && videoIndex < displayVideos.length; i++) {
+      for (var i = 0; i < 4 && videoIndex < displayVideos.length; i++) {
         mixed.add(displayVideos[videoIndex++]);
+      }
+      if (scrollAds.isNotEmpty && videoIndex < displayVideos.length) {
+        mixed.add(scrollAds[adIndex++ % scrollAds.length]);
       }
       if (topicIndex < videoTopicsList.length) {
         mixed.add(videoTopicsList[topicIndex++]);
@@ -1621,12 +1629,25 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       showThumbnail.value = false;
     }
 
-    // Manage stopwatch based on playback state
+    // Manage stopwatch and analytics presence based on playback state
     if (value.isPlaying && !value.isBuffering) {
-      if (!_watchStopwatch.isRunning) _watchStopwatch.start();
+      if (!_watchStopwatch.isRunning) {
+        _watchStopwatch.start();
+        analyticsController.startTimer(
+          videoId: video.id,
+          position: value.position.inMilliseconds / 1000.0,
+        );
+      } else {
+        analyticsController.trackPlaybackPosition(
+          video.id,
+          value.position.inMilliseconds / 1000.0,
+          value.duration.inSeconds.toDouble(),
+        );
+      }
     } else {
       if (_watchStopwatch.isRunning) {
         _watchStopwatch.stop();
+        analyticsController.stopTimer();
         _flushRemainingWatchTime();
       }
     }
@@ -2869,9 +2890,16 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         }
       } catch (_) {}
 
+      final isPremium = Get.isRegistered<AuthService>() &&
+          AuthService.to.isPremiumUser.value;
+      final hasPreRollAd = !isPremium &&
+          Get.isRegistered<AdService>() &&
+          (AdService.to.getSponsorAdForVideo(video.id) != null ||
+              AdService.to.getSkippableVideoAds().isNotEmpty);
+
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
+        autoPlay: !hasPreRollAd,
         allowedScreenSleep: false,
         showControlsOnInitialize: false,
         placeholder: const ColoredBox(
@@ -3128,6 +3156,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       _chewieController?.dispose();
     } catch (_) {}
     _chewieController = null;
+    try {
+      analyticsController.stopTimer();
+    } catch (_) {}
     try {
       _videoPlayerController?.dispose();
     } catch (_) {}

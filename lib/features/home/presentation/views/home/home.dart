@@ -75,6 +75,8 @@ import 'package:truthworld/features/video/presentation/views/downloadpage/downlo
     deferred as downloads;
 import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
     deferred as history;
+import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart'
+    deferred as watchlater;
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:visibility_detector/visibility_detector.dart';
@@ -423,6 +425,7 @@ class HomeSidebarVisibility {
       'Community Guidelines',
       'Truthworld Studio',
       'Admin Portal',
+      'Advertiser Portal',
     ];
 
     if (!isAuthenticated) {
@@ -684,6 +687,11 @@ class Home extends GetView<HomeController> {
         return DeferredWidget(
           loader: history.loadLibrary,
           builder: () => history.WatchHistory(isDashboard: true),
+        );
+      case HomeController.indexWatchLater:
+        return DeferredWidget(
+          loader: watchlater.loadLibrary,
+          builder: () => watchlater.WatchLaterScreen(isDashboard: true),
         );
       case HomeController.indexYourVideos:
         return DeferredWidget(
@@ -1305,6 +1313,17 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   route: '/admin/dashboard',
                   onTap: () {
                     Get.toNamed('/admin/dashboard');
+                  },
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.campaign_rounded,
+                  Icons.campaign_outlined,
+                  'Advertiser Portal',
+                  996,
+                  route: '/advertiser',
+                  onTap: () {
+                    Get.toNamed('/advertiser');
                   },
                 ),
               ],
@@ -2493,6 +2512,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   }
 
   void _navigateToTopic(BuildContext context, Topic topic) {
+    if (!topic.isValidTopic || topic.slug.trim().isEmpty) return;
     if (Get.isRegistered<TopicController>()) {
       Get.find<TopicController>().topic.value = topic;
     } else {
@@ -2508,7 +2528,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < kTabletBreakpoint;
-    final bannerHeight = isMobile ? 320.0 : 520.0;
+    final bannerHeight = isMobile ? 320.0 : 460.0;
 
     return Obx(() {
       if (_homeController.isLoadingFeaturedTopics.value) {
@@ -2622,8 +2642,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                       },
                     ),
 
-                    // Navigation Buttons (Desktop only or large tablets)
-                    if (!isMobile) ...[
+                    // Navigation Buttons (Desktop and Tablets)
+                    if (!isMobile && itemsCount > 1) ...[
                       _buildNavButton(
                         isLeft: true,
                         onTap: () => _pageController.previousPage(
@@ -2641,41 +2661,43 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                     ],
 
                     // Page Indicators
-                    Positioned(
-                      bottom: 24,
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(itemsCount, (index) {
-                          return Obx(() {
-                            final isSelected = _currentIndex.value == index;
-                            return AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              width: isSelected ? 32 : 8,
-                              height: 8,
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.white38,
-                                borderRadius: BorderRadius.circular(4),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.5,
+                    if (itemsCount > 1)
+                      Positioned(
+                        bottom: 16,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(itemsCount, (index) {
+                            return Obx(() {
+                              final isSelected = _currentIndex.value == index;
+                              return AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                width: isSelected ? 28 : 7,
+                                height: 5,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 3),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.white
+                                          .withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(3),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.5),
+                                            blurRadius: 6,
                                           ),
-                                          blurRadius: 8,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                            );
-                          });
-                        }),
+                                        ]
+                                      : null,
+                                ),
+                              );
+                            });
+                          }),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -2690,29 +2712,37 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     return Positioned(
       top: 0,
       bottom: 0,
-      left: isLeft ? 16 : null,
-      right: isLeft ? null : 16,
+      left: isLeft ? 18 : null,
+      right: isLeft ? null : 18,
       child: Center(
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(24),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.1),
+                color: Colors.black.withValues(alpha: 0.45),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.2),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Icon(
                 isLeft
                     ? Icons.chevron_left_rounded
                     : Icons.chevron_right_rounded,
                 color: Colors.white,
-                size: 32,
+                size: 26,
               ),
             ),
           ),
@@ -2745,11 +2775,6 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
 
-    final btnPaddingH = isMobile ? 12.0 : 20.0;
-    final btnPaddingV = isMobile ? 8.0 : 12.0;
-    final btnFontSize = isMobile ? 13.0 : 15.0;
-    final btnIconSize = isMobile ? 16.0 : 18.0;
-
     final bannerImageUrl = (topic.coverImage?.isNotEmpty ?? false
             ? topic.coverImage
             : topic.thumbnailUrl?.isNotEmpty ?? false
@@ -2762,63 +2787,64 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
-          // Background Image with Ambient Parallax Fill
+          // Background Image with subtle Parallax
           Positioned.fill(
             child: Transform.translate(
-              offset: Offset(pageOffset * 100, 0), // Parallax move
+              offset: Offset(pageOffset * 60, 0),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColorFiltered(
-                    colorFilter: ColorFilter.mode(
-                      Colors.black.withValues(alpha: 0.65),
-                      BlendMode.darken,
-                    ),
-                    child: CachedNetworkImage(
-                      imageUrl: bannerImageUrl,
-                      memCacheWidth: 800,
-                      maxWidthDiskCache: 800,
-                      fit: BoxFit.cover,
-                      errorWidget: (context, url, error) =>
-                          const ColoredBox(color: AppColors.bgSurface),
-                      placeholder: (context, url) =>
-                          const ColoredBox(color: AppColors.bgSurface),
-                    ),
-                  ),
                   CachedNetworkImage(
                     imageUrl: bannerImageUrl,
-                    memCacheWidth: 800,
-                    maxWidthDiskCache: 800,
-                    fit: BoxFit.contain, // Complete uncropped thumbnail display!
+                    memCacheWidth: 1200,
+                    maxWidthDiskCache: 1200,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.centerRight,
                     errorWidget: (context, url, error) =>
-                        const SizedBox.shrink(),
+                        const ColoredBox(color: AppColors.bgSurface),
                     placeholder: (context, url) =>
-                        const SizedBox.shrink(),
+                        const ColoredBox(color: AppColors.bgSurface),
+                  ),
+                  // Left-to-right gradient overlay for text readability
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withValues(alpha: 0.95),
+                          Colors.black.withValues(alpha: 0.80),
+                          Colors.black.withValues(alpha: 0.35),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.45, 0.72, 1.0],
+                      ),
+                    ),
+                  ),
+                  // Subtle bottom gradient for indicators
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.6),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.4],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          // Gradient Overlay
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.8),
-                    Colors.black,
-                  ],
-                  stops: const [0.0, 0.6, 1.0],
-                ),
-              ),
-            ),
-          ),
           // Content
           Padding(
-            padding: EdgeInsets.all(isMobile ? 24 : 48),
+            padding: EdgeInsets.only(
+              left: isMobile ? 20 : 84,
+              right: isMobile ? 20 : 84,
+              top: isMobile ? 20 : 32,
+              bottom: isMobile ? 20 : 36,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
@@ -2826,49 +2852,43 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                 // TOPIC Badge
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 10,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.brand,
-                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.bookmark_outline_rounded,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'TOPIC',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Title
-                SizedBox(
-                  width: isMobile ? double.infinity : 700,
-                  child: Text(
-                    topic.title,
-                    style: GoogleFonts.roboto(
-                      fontSize: isMobile ? 24 : 48,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      height: 1.1,
-                      letterSpacing: -1,
+                  child: const Text(
+                    'TOPIC',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                // Title
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isMobile ? double.infinity : 680,
+                  ),
+                  child: Text(
+                    topic.title,
+                    style: GoogleFonts.roboto(
+                      fontSize: isMobile ? 22 : 36,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.15,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 // Meta Info
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -2876,50 +2896,57 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                   runSpacing: 4,
                   children: [
                     Text(
-                      '${topic.videoCount} videos • ${timeago.format(topic.createdAt)}',
+                      '${topic.videoCount} ${topic.videoCount == 1 ? 'video' : 'videos'} • ${timeago.format(topic.createdAt)}',
                       style: const TextStyle(
                         color: Colors.white70,
-                        fontSize: 14,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white10,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        topic.category,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
+                    if (topic.category.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          topic.category,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
-                if (!isMobile) ...[
-                  const SizedBox(height: 16),
+                if (!isMobile && topic.description.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
                   // Description
-                  SizedBox(
-                    width: 550,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 580),
                     child: Text(
                       topic.description,
                       style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 16,
-                        height: 1.5,
+                        color: Colors.white70,
+                        fontSize: 14,
+                        height: 1.4,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
-                const SizedBox(height: 32),
-                // Buttons
+                const SizedBox(height: 20),
+                // Action Buttons
                 Wrap(
                   spacing: 12,
                   runSpacing: 8,
@@ -2937,14 +2964,14 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                               ? Icons.check_circle_outline_rounded
                               : Icons.person_add_alt_1_outlined,
                           color: isFollowed ? Colors.white : Colors.black,
-                          size: btnIconSize,
+                          size: 16,
                         ),
                         label: Text(
                           isFollowed ? 'Following' : 'Follow',
                           style: TextStyle(
                             color: isFollowed ? Colors.white : Colors.black,
-                            fontWeight: FontWeight.w500,
-                            fontSize: btnFontSize,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -2954,15 +2981,16 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                           foregroundColor: isFollowed
                               ? Colors.white
                               : Colors.black,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: btnPaddingH,
-                            vertical: btnPaddingV,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(20),
                             side: isFollowed
                                 ? BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.3),
+                                    color: Colors.white
+                                        .withValues(alpha: 0.3),
                                   )
                                 : BorderSide.none,
                           ),
@@ -2988,28 +3016,28 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                           type: 'topic',
                         );
                       },
-                      icon: Icon(
-                        Icons.share_rounded,
+                      icon: const Icon(
+                        Icons.share_outlined,
                         color: Colors.white,
-                        size: btnIconSize,
+                        size: 16,
                       ),
-                      label: Text(
+                      label: const Text(
                         'Share',
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                          fontSize: btnFontSize,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.15),
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: btnPaddingH,
-                          vertical: btnPaddingV,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(20),
                           side: BorderSide(
                             color: Colors.white.withValues(alpha: 0.3),
                           ),
@@ -3024,31 +3052,36 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           ),
           // Followers Count (Top Right)
           Positioned(
-            top: 24,
-            right: 24,
+            top: isMobile ? 16 : 24,
+            right: isMobile ? 16 : 28,
             child: Obx(() {
               final count = followingController.getFollowerCount(topic);
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.black54,
+                  color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 0.8,
+                  ),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.people_outline_rounded,
                       color: Colors.white,
-                      size: 16,
+                      size: 15,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
-                      '${_formatCount(count)} Followers',
+                      '${_formatCount(count)} ${count == 1 ? 'Follower' : 'Followers'}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -3085,6 +3118,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
   final double horizontalPadding;
 
   void _navigateToTagPage(BuildContext context, Topic topic) {
+    if (!topic.isValidTopic || topic.slug.trim().isEmpty) return;
     if (Get.isRegistered<TopicController>()) {
       Get.find<TopicController>().topic.value = topic;
     } else {
@@ -3158,7 +3192,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
           if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
             fetchedTopics = snapshot.data!.docs
                 .map(Topic.fromDocumentSnapshot)
-                .where((t) => t.status == 'active')
+                .where((t) => t.isValidTopic)
                 .toList();
           }
 

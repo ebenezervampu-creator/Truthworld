@@ -4,28 +4,17 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class AppealsTab extends StatefulWidget {
+class AppealsTab extends StatelessWidget {
   final AdminController controller;
   const AppealsTab({required this.controller, super.key});
 
-  @override
-  State<AppealsTab> createState() => _AppealsTabState();
-}
-
-class _AppealsTabState extends State<AppealsTab> {
-  final TextEditingController _reasonController = TextEditingController();
-
-  @override
-  void dispose() {
-    _reasonController.dispose();
-    super.dispose();
-  }
+  TextEditingController get _reasonController => controller.appealReasonController;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final appeals = widget.controller.appeals;
-      final isLoading = widget.controller.isLoadingAppeals.value;
+      final appeals = controller.appeals;
+      final isLoading = controller.isLoadingAppeals.value;
 
       if (isLoading && appeals.isEmpty) {
         return const Center(
@@ -38,8 +27,8 @@ class _AppealsTabState extends State<AppealsTab> {
       }
 
       // Auto-select first appeal if none selected
-      if (widget.controller.selectedAppeal.value == null && appeals.isNotEmpty) {
-        widget.controller.selectedAppeal.value = appeals.first;
+      if (controller.selectedAppeal.value == null && appeals.isNotEmpty) {
+        controller.selectedAppeal.value = appeals.first;
       }
 
       return LayoutBuilder(
@@ -68,9 +57,9 @@ class _AppealsTabState extends State<AppealsTab> {
   Widget _buildEmptyState() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       padding: const EdgeInsets.all(48),
       child: const Center(
@@ -80,12 +69,13 @@ class _AppealsTabState extends State<AppealsTab> {
             Icon(
               Icons.gavel_rounded,
               size: 64,
-              color: AppColors.textPrimary,
+              color: Colors.white,
             ),
             SizedBox(height: 16),
             Text(
               'No Content Appeals',
               style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
                 color: AppColors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -95,7 +85,8 @@ class _AppealsTabState extends State<AppealsTab> {
             Text(
               'There are currently no submitted content appeals requiring review.',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
                 fontSize: 14,
               ),
               textAlign: TextAlign.center,
@@ -109,20 +100,20 @@ class _AppealsTabState extends State<AppealsTab> {
   Widget _buildAppealsList(List<Map<String, dynamic>> appeals) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: ListView.separated(
         itemCount: appeals.length,
         separatorBuilder: (context, index) =>
-            const Divider(color: AppColors.bgDivider, height: 1),
+            Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
         itemBuilder: (context, index) {
           final appeal = appeals[index];
           final appealId = appeal['appealId'] ?? appeal['id'] ?? 'N/A';
           final user = appeal['userEmail'] ?? appeal['userId'] ?? appeal['user'] ?? 'Unknown User';
           final status = (appeal['status'] as String? ?? 'pending').toLowerCase();
-          final isSelected = widget.controller.selectedAppeal.value?['id'] == appeal['id'];
+          final isSelected = controller.selectedAppeal.value?['id'] == appeal['id'];
 
           Color statusColor;
           if (status == 'overturned') {
@@ -136,12 +127,13 @@ class _AppealsTabState extends State<AppealsTab> {
           }
 
           return Material(
-            color: isSelected ? AppColors.bgElevated : Colors.transparent,
+            color: isSelected ? const Color(0xFF212121) : Colors.transparent,
             child: ListTile(
               contentPadding: const EdgeInsets.all(16),
               title: Text(
                 'Appeal #$appealId',
                 style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
@@ -153,18 +145,22 @@ class _AppealsTabState extends State<AppealsTab> {
                   const SizedBox(height: 4),
                   Text(
                     'User: $user',
-                    style: const TextStyle(color: AppColors.textPrimary),
+                    style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.timer_outlined, size: 14, color: AppColors.textPrimary),
+                      const Icon(Icons.timer_outlined, size: 14, color: Colors.white),
                       const SizedBox(width: 4),
                       Text(
                         _formatTimestamp(appeal['submittedAt'] ?? appeal['createdAt']),
                         style: const TextStyle(
-                          color: AppColors.textPrimary,
+                          fontFamily: TWTypography.uiFamily,
+                          color: AppColors.textTertiary,
                           fontSize: 12,
                         ),
                       ),
@@ -172,13 +168,14 @@ class _AppealsTabState extends State<AppealsTab> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.15),
+                          color: statusColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: statusColor, width: 0.5),
                         ),
                         child: Text(
                           status.toUpperCase(),
                           style: TextStyle(
+                            fontFamily: TWTypography.uiFamily,
                             color: statusColor,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -191,10 +188,10 @@ class _AppealsTabState extends State<AppealsTab> {
               ),
               trailing: const Icon(
                 Icons.chevron_right,
-                color: AppColors.textPrimary,
+                color: Colors.white,
               ),
               onTap: () {
-                widget.controller.selectedAppeal.value = appeal;
+                controller.selectedAppeal.value = appeal;
                 _reasonController.clear();
               },
             ),
@@ -205,19 +202,22 @@ class _AppealsTabState extends State<AppealsTab> {
   }
 
   Widget _buildAppealDetail() {
-    final appeal = widget.controller.selectedAppeal.value;
+    final appeal = controller.selectedAppeal.value;
     if (appeal == null) {
       return Container(
         decoration: BoxDecoration(
-          color: AppColors.bgSurface,
+          color: const Color(0xFF181818),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.bgDivider),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         padding: const EdgeInsets.all(32),
         child: const Center(
           child: Text(
             'Select an appeal to view details.',
-            style: TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       );
@@ -231,9 +231,9 @@ class _AppealsTabState extends State<AppealsTab> {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -249,6 +249,7 @@ class _AppealsTabState extends State<AppealsTab> {
                 Text(
                   'Appeal Details (#$appealId)',
                   style: const TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -260,13 +261,14 @@ class _AppealsTabState extends State<AppealsTab> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
+                    color: Colors.amber.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.amber),
                   ),
                   child: Text(
                     'Status: $status',
                     style: const TextStyle(
+                      fontFamily: TWTypography.uiFamily,
                       color: Colors.amber,
                       fontWeight: FontWeight.bold,
                     ),
@@ -315,21 +317,36 @@ class _AppealsTabState extends State<AppealsTab> {
             const SizedBox(height: 32),
             const Text(
               'Resolution Reason',
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textPrimary,
+              ),
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'Enter reason for decision...',
-                hintStyle: const TextStyle(color: AppColors.textPrimary),
+                hintStyle: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textTertiary,
+                ),
                 filled: true,
                 fillColor: AppColors.bgInput,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                 ),
               ),
             ),
@@ -343,7 +360,7 @@ class _AppealsTabState extends State<AppealsTab> {
                     backgroundColor: AppColors.error,
                   ),
                   onPressed: () {
-                    widget.controller.resolveAppeal(
+                    controller.resolveAppeal(
                       appealId,
                       'uphold',
                       _reasonController.text.trim(),
@@ -351,7 +368,10 @@ class _AppealsTabState extends State<AppealsTab> {
                   },
                   child: const Text(
                     'Uphold Rejection',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 ElevatedButton(
@@ -359,7 +379,7 @@ class _AppealsTabState extends State<AppealsTab> {
                     backgroundColor: Colors.green,
                   ),
                   onPressed: () {
-                    widget.controller.resolveAppeal(
+                    controller.resolveAppeal(
                       appealId,
                       'overturn',
                       _reasonController.text.trim(),
@@ -367,7 +387,10 @@ class _AppealsTabState extends State<AppealsTab> {
                   },
                   child: const Text(
                     'Overturn (Restore)',
-                    style: TextStyle(color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 OutlinedButton(
@@ -376,13 +399,18 @@ class _AppealsTabState extends State<AppealsTab> {
                     side: const BorderSide(color: Colors.orange),
                   ),
                   onPressed: () {
-                    widget.controller.resolveAppeal(
+                    controller.resolveAppeal(
                       appealId,
                       'escalate',
                       _reasonController.text.trim(),
                     );
                   },
-                  child: const Text('Escalate to Senior'),
+                  child: const Text(
+                    'Escalate to Senior',
+                    style: TextStyle(
+                      fontFamily: TWTypography.brandFamily,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -396,9 +424,9 @@ class _AppealsTabState extends State<AppealsTab> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bgElevated,
+        color: const Color(0xFF212121),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,12 +434,19 @@ class _AppealsTabState extends State<AppealsTab> {
           Text(
             title,
             style: const TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 12),
-          Text(content, style: const TextStyle(color: AppColors.textPrimary)),
+          Text(
+            content,
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );

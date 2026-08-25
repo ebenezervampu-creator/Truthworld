@@ -18,9 +18,9 @@ class AdvertiserHeader extends StatelessWidget {
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: const BoxDecoration(
-        color: Color(0xFF141414),
+        color: Color(0xFF0F0F0F),
         border: Border(
-          bottom: BorderSide(color: AppColors.bgDivider),
+          bottom: BorderSide(color: Color(0xFF27272A)),
         ),
       ),
       child: Row(
@@ -28,9 +28,12 @@ class AdvertiserHeader extends StatelessWidget {
         children: [
           Text(
             controller.tabTitles[controller.selectedIndex.value],
-            style: AppTextStyles.pageTitle.copyWith(
-              fontSize: 20,
-              color: AppColors.textPrimary,
+            style: const TextStyle(
+              fontFamily: TWTypography.brandFamily,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: -0.5,
             ),
           ),
           Row(
@@ -57,20 +60,21 @@ class AdvertiserHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF18181B),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: const Color(0xFF27272A)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
             radius: 14,
-            backgroundColor: AppColors.bgSurfaceHover,
+            backgroundColor: const Color(0xFF27272A),
             child: Text(
               displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A',
               style: const TextStyle(
-                color: AppColors.textPrimary,
+                fontFamily: TWTypography.uiFamily,
+                color: Colors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -84,7 +88,8 @@ class AdvertiserHeader extends StatelessWidget {
               Text(
                 displayName,
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
+                  fontFamily: TWTypography.uiFamily,
+                  color: Colors.white,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -93,6 +98,7 @@ class AdvertiserHeader extends StatelessWidget {
                 Text(
                   email,
                   style: const TextStyle(
+                    fontFamily: TWTypography.uiFamily,
                     color: AppColors.textSecondary,
                     fontSize: 10,
                   ),

@@ -74,14 +74,19 @@ class AdminVideoPlayerController extends BaseController {
       for (final targetUrl in resolvedCandidates) {
         try {
           debugPrint('[AdminVideoPlayerController] Attempting init for: $targetUrl');
-          final ctrl = VideoPlayerController.networkUrl(
-            Uri.parse(targetUrl),
-            httpHeaders: const {
-              'Connection': 'keep-alive',
-              'Accept': '*/*',
-            },
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-          );
+          final ctrl = kIsWeb
+              ? VideoPlayerController.networkUrl(
+                  Uri.parse(targetUrl),
+                  videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+                )
+              : VideoPlayerController.networkUrl(
+                  Uri.parse(targetUrl),
+                  httpHeaders: const {
+                    'Connection': 'keep-alive',
+                    'Accept': '*/*',
+                  },
+                  videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+                );
           await ctrl.initialize();
           initializedCtrl = ctrl;
           debugPrint('[AdminVideoPlayerController] Successfully initialized: $targetUrl');
@@ -114,7 +119,11 @@ class AdminVideoPlayerController extends BaseController {
               padding: const EdgeInsets.all(16),
               child: Text(
                 'Video error: $errorMessage',
-                style: const TextStyle(color: AppColors.error, fontSize: 12),
+                style: const TextStyle(
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.error,
+                  fontSize: 12,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -135,7 +144,23 @@ class AdminVideoPlayerController extends BaseController {
       candidates.add(url.trim());
     }
     if (videoData != null) {
-      for (final key in ['originalUrl', 'videoUrl', 'mediaUrl', 'url', 'hlsUrl', 'dashUrl']) {
+      for (final key in [
+        'originalUrl',
+        'videoUrl',
+        'mediaUrl',
+        'url',
+        'downloadUrl',
+        'processedUrl',
+        'rawUrl',
+        'hlsUrl',
+        'dashUrl',
+        'storagePath',
+        'storageUri',
+        'videoPath',
+        'filePath',
+        'gcsPath',
+        'gcsUri',
+      ]) {
         final val = videoData![key];
         if (val is String && val.trim().isNotEmpty && !candidates.contains(val.trim())) {
           candidates.add(val.trim());
@@ -146,6 +171,14 @@ class AdminVideoPlayerController extends BaseController {
           if (res is Map && res['url'] is String && (res['url'] as String).trim().isNotEmpty) {
             final u = (res['url'] as String).trim();
             if (!candidates.contains(u)) candidates.add(u);
+          }
+        }
+      }
+      if (videoData!['resolutions'] is Map) {
+        final resMap = videoData!['resolutions'] as Map;
+        for (final val in resMap.values) {
+          if (val is String && val.trim().isNotEmpty && !candidates.contains(val.trim())) {
+            candidates.add(val.trim());
           }
         }
       }

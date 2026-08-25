@@ -7,7 +7,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ChaptersPage extends StatefulWidget {
+class ChaptersPage extends StatelessWidget {
   const ChaptersPage({
     required this.channelId,
     required this.isDarkMode,
@@ -16,49 +16,40 @@ class ChaptersPage extends StatefulWidget {
   final String channelId;
   final bool isDarkMode;
 
-  @override
-  State<ChaptersPage> createState() => _ChaptersPageState();
-}
+  BuildContext get context => Get.context!;
 
-class _ChaptersPageState extends State<ChaptersPage> {
-  late final ChaptersController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.isRegistered<ChaptersController>()
+  ChaptersController get controller {
+    final ctrl = Get.isRegistered<ChaptersController>()
         ? Get.find<ChaptersController>()
         : Get.put(ChaptersController());
-    controller.setChannelContext(widget.channelId);
-  }
-
-  @override
-  void didUpdateWidget(ChaptersPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.channelId != widget.channelId) {
-      controller.setChannelContext(widget.channelId);
+    if (channelId.isNotEmpty && ctrl.channelId.value != channelId) {
+      ctrl.setChannelContext(channelId);
     }
+    return ctrl;
   }
 
-  bool get isMobile => MediaQuery.of(context).size.width < 600;
+  bool get isMobile =>
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) < 600;
   bool get isTablet =>
-      MediaQuery.of(context).size.width >= 600 &&
-      MediaQuery.of(context).size.width < 1024;
-  bool get isDesktop => MediaQuery.of(context).size.width >= 1024;
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) >= 600 &&
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) < 1024;
+  bool get isDesktop =>
+      (Get.context != null ? MediaQuery.of(Get.context!).size.width : 800) >= 1024;
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = widget.isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final surfaceColor = widget.isDarkMode
+
+    final bgColor = isDarkMode ? AppColors.bgPage : AppColors.bgPage;
+    final surfaceColor = isDarkMode
         ? AppColors.bgSurface
         : AppColors.textPrimary;
-    final textColor = widget.isDarkMode
+    final textColor = isDarkMode
         ? AppColors.textPrimary
         : Colors.black;
-    final textSecondaryColor = widget.isDarkMode
+    final textSecondaryColor = isDarkMode
         ? AppColors.textSecondary
         : Colors.black;
-    final borderColor = widget.isDarkMode
+    final borderColor = isDarkMode
         ? AppColors.bgDivider
         : AppColors.bgDivider;
 
@@ -215,7 +206,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
         // Right Column: Workspace
         Expanded(
           child: ColoredBox(
-            color: widget.isDarkMode
+            color: isDarkMode
                 ? AppColors.bgPage
                 : const Color(0xFFF1F5F9),
             child: controller.selectedVideo.value == null
@@ -354,7 +345,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Container(
             height: 40,
             decoration: BoxDecoration(
-              color: widget.isDarkMode
+              color: isDarkMode
                   ? const Color(0xFF242424)
                   : const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(20),
@@ -369,14 +360,14 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 hintText: 'Search videos...',
                 hintStyle: TextStyle(
                   fontSize: 14,
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 18,
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
@@ -512,12 +503,12 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     height: 60,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : AppColors.bgDivider,
                     ),
                     errorWidget: (context, url, error) => ColoredBox(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : AppColors.bgDivider,
                       child: const Icon(
@@ -912,7 +903,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
             color: AppColors.bgPage.withValues(alpha: 0.6),
             child: Center(
               child: Card(
-                color: widget.isDarkMode
+                color: isDarkMode
                     ? AppColors.bgSurface
                     : AppColors.textPrimary,
                 shape: RoundedRectangleBorder(
@@ -1263,13 +1254,13 @@ class _ChaptersPageState extends State<ChaptersPage> {
   // ═══════════════════════════════════════════════════════════════════════════
   void _showImportDialog(BuildContext context) {
     final textController = TextEditingController();
-    final surfaceColor = widget.isDarkMode
+    final surfaceColor = isDarkMode
         ? AppColors.bgSurface
         : AppColors.textPrimary;
-    final textColor = widget.isDarkMode
+    final textColor = isDarkMode
         ? AppColors.textPrimary
         : Colors.black;
-    final textSecondaryColor = widget.isDarkMode
+    final textSecondaryColor = isDarkMode
         ? AppColors.textSecondary
         : Colors.black;
 
@@ -1305,12 +1296,12 @@ class _ChaptersPageState extends State<ChaptersPage> {
               const SizedBox(height: 12),
               Container(
                 decoration: BoxDecoration(
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? const Color(0xFF141414)
                       : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: widget.isDarkMode
+                    color: isDarkMode
                         ? AppColors.bgDivider
                         : Colors.black12,
                   ),
@@ -1387,13 +1378,13 @@ class _ChaptersPageState extends State<ChaptersPage> {
 
     final timeController = TextEditingController(text: timeText);
 
-    final surfaceColor = widget.isDarkMode
+    final surfaceColor = isDarkMode
         ? AppColors.bgSurface
         : AppColors.textPrimary;
-    final textColor = widget.isDarkMode
+    final textColor = isDarkMode
         ? AppColors.textPrimary
         : Colors.black;
-    final textSecondaryColor = widget.isDarkMode
+    final textSecondaryColor = isDarkMode
         ? AppColors.textSecondary
         : Colors.black;
 

@@ -223,6 +223,9 @@ class TopicController extends BaseController {
     }
   }
 
+  late final ScrollController scrollController = trackScrollController(ScrollController());
+  late final TextEditingController searchController = trackTextController(TextEditingController());
+
   // ==========================================================================
   // INITIALIZATION
   // ==========================================================================
@@ -230,6 +233,13 @@ class TopicController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    scrollController.addListener(() {
+      if (!scrollController.hasClients || scrollController.positions.length != 1) return;
+      if (scrollController.position.pixels >=
+          scrollController.position.maxScrollExtent - 500) {
+        loadMoreVideos();
+      }
+    });
     loadUserSubscriptions();
     final args = Get.arguments;
     if (args != null && args is Map && args.containsKey('slug')) {

@@ -30,8 +30,8 @@ class RealExtractedClaim {
   ClaimStatus status;
 }
 
-class TruthVerificationDashboardPage extends StatefulWidget {
-  const TruthVerificationDashboardPage({
+class TruthVerificationDashboardPage extends StatelessWidget {
+  TruthVerificationDashboardPage({
     required this.channelId,
     required this.isDarkMode,
     super.key,
@@ -40,13 +40,8 @@ class TruthVerificationDashboardPage extends StatefulWidget {
   final String channelId;
   final bool isDarkMode;
 
-  @override
-  State<TruthVerificationDashboardPage> createState() =>
-      _TruthVerificationDashboardPageState();
-}
+  BuildContext get context => Get.context!;
 
-class _TruthVerificationDashboardPageState
-    extends State<TruthVerificationDashboardPage> {
   final RxBool _isPublished = true.obs;
   final RxString _selectedFilter = 'all'.obs;
 
@@ -77,7 +72,7 @@ class _TruthVerificationDashboardPageState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: widget.isDarkMode
+        backgroundColor: isDarkMode
             ? AppColors.bgSurface
             : AppColors.textPrimary,
         shape: RoundedRectangleBorder(
@@ -86,7 +81,7 @@ class _TruthVerificationDashboardPageState
         title: Text(
           'Attach Supporting Evidence / Citation',
           style: GoogleFonts.outfit(
-            color: widget.isDarkMode ? AppColors.textPrimary : Colors.black,
+            color: isDarkMode ? AppColors.textPrimary : Colors.black,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -100,7 +95,7 @@ class _TruthVerificationDashboardPageState
               style: GoogleFonts.roboto(
                 fontSize: 13,
                 fontStyle: FontStyle.italic,
-                color: widget.isDarkMode
+                color: isDarkMode
                     ? AppColors.textSecondary
                     : Colors.black,
               ),
@@ -114,13 +109,13 @@ class _TruthVerificationDashboardPageState
                   borderRadius: BorderRadius.circular(10),
                 ),
                 labelStyle: GoogleFonts.roboto(
-                  color: widget.isDarkMode
+                  color: isDarkMode
                       ? AppColors.textSecondary
                       : Colors.black,
                 ),
               ),
               style: GoogleFonts.roboto(
-                color: widget.isDarkMode
+                color: isDarkMode
                     ? AppColors.textPrimary
                     : Colors.black,
               ),
@@ -133,7 +128,7 @@ class _TruthVerificationDashboardPageState
             child: Text(
               'Cancel',
               style: GoogleFonts.roboto(
-                color: widget.isDarkMode
+                color: isDarkMode
                     ? AppColors.textSecondary
                     : Colors.black,
               ),
@@ -202,13 +197,13 @@ class _TruthVerificationDashboardPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: widget.isDarkMode
+      backgroundColor: isDarkMode
           ? AppColors.bgPage
           : const Color(0xFFF8FAFC),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('videos')
-            .where('channelId', isEqualTo: widget.channelId)
+            .where('channelId', isEqualTo: channelId)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -382,7 +377,7 @@ class _TruthVerificationDashboardPageState
                             style: GoogleFonts.outfit(
                               fontSize: 26,
                               fontWeight: FontWeight.bold,
-                              color: widget.isDarkMode
+                              color: isDarkMode
                                   ? AppColors.textPrimary
                                   : const Color(0xFF0F172A),
                             ),
@@ -392,7 +387,7 @@ class _TruthVerificationDashboardPageState
                             'Pre-publish review for Channel Videos & Fact-Check analysis',
                             style: GoogleFonts.roboto(
                               fontSize: 13,
-                              color: widget.isDarkMode
+                              color: isDarkMode
                                   ? AppColors.textSecondary
                                   : Colors.black,
                             ),
@@ -451,12 +446,12 @@ class _TruthVerificationDashboardPageState
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: widget.isDarkMode
+                    color: isDarkMode
                         ? AppColors.bgSurface
                         : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? AppColors.bgDivider
                           : Colors.black12,
                     ),
@@ -486,7 +481,7 @@ class _TruthVerificationDashboardPageState
                             style: GoogleFonts.outfit(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: widget.isDarkMode
+                              color: isDarkMode
                                   ? AppColors.textPrimary
                                   : Colors.black,
                             ),
@@ -519,7 +514,7 @@ class _TruthVerificationDashboardPageState
                                   : 'No claims extracted yet for this channel. Upload content to trigger automated AI fact-checking.',
                               style: GoogleFonts.roboto(
                                 fontSize: 13,
-                                color: widget.isDarkMode
+                                color: isDarkMode
                                     ? AppColors.textSecondary
                                     : Colors.black,
                               ),
@@ -544,7 +539,7 @@ class _TruthVerificationDashboardPageState
                       style: GoogleFonts.outfit(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: widget.isDarkMode
+                        color: isDarkMode
                             ? AppColors.textPrimary
                             : Colors.black,
                       ),
@@ -560,12 +555,12 @@ class _TruthVerificationDashboardPageState
                         const SizedBox(width: 6),
                         Obx(() => DropdownButton<String>(
                             value: _selectedFilter.value,
-                            dropdownColor: widget.isDarkMode
+                            dropdownColor: isDarkMode
                                 ? AppColors.bgSurface
                                 : Colors.white,
                             underline: const SizedBox(),
                             style: TextStyle(
-                              color: widget.isDarkMode
+                              color: isDarkMode
                                   ? AppColors.textPrimary
                                   : Colors.black,
                             ),
@@ -605,12 +600,12 @@ class _TruthVerificationDashboardPageState
                     width: double.infinity,
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: widget.isDarkMode
+                      color: isDarkMode
                           ? AppColors.bgSurface
                           : AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: widget.isDarkMode
+                        color: isDarkMode
                             ? AppColors.bgDivider
                             : Colors.black12,
                       ),
@@ -628,7 +623,7 @@ class _TruthVerificationDashboardPageState
                           style: GoogleFonts.outfit(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: widget.isDarkMode
+                            color: isDarkMode
                                 ? AppColors.textPrimary
                                 : Colors.black,
                           ),
@@ -639,7 +634,7 @@ class _TruthVerificationDashboardPageState
                           textAlign: TextAlign.center,
                           style: GoogleFonts.roboto(
                             fontSize: 13,
-                            color: widget.isDarkMode
+                            color: isDarkMode
                                 ? AppColors.textSecondary
                                 : Colors.black,
                           ),
@@ -659,14 +654,14 @@ class _TruthVerificationDashboardPageState
                       return Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: widget.isDarkMode
+                          color: isDarkMode
                               ? AppColors.bgSurface
                               : AppColors.textPrimary,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: claim.status == ClaimStatus.unverified
                                 ? AppColors.warning.withValues(alpha: 0.4)
-                                : (widget.isDarkMode
+                                : (isDarkMode
                                     ? AppColors.bgDivider
                                     : Colors.black12),
                           ),
@@ -737,7 +732,7 @@ class _TruthVerificationDashboardPageState
                               style: GoogleFonts.roboto(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
-                                color: widget.isDarkMode
+                                color: isDarkMode
                                     ? AppColors.textPrimary
                                     : Colors.black,
                               ),

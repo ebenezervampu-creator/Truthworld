@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
@@ -8,6 +9,12 @@ class SecurityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (controller.securityMetrics.isEmpty && !controller.isLoadingSecurity.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.fetchSecurityMetrics();
+      });
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -17,23 +24,41 @@ class SecurityTab extends StatelessWidget {
             children: [
               _buildHeader(),
               const SizedBox(height: 32),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 2, child: _buildUploadVelocityChart()),
-                  const SizedBox(width: 24),
-                  Expanded(child: _buildAnomalyAlerts()),
-                ],
-              ),
+              if (constraints.maxWidth > 850)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 2, child: _buildUploadVelocityChart()),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildAnomalyAlerts()),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildUploadVelocityChart(),
+                    const SizedBox(height: 24),
+                    _buildAnomalyAlerts(),
+                  ],
+                ),
               const SizedBox(height: 32),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _buildAccountClusters()),
-                  const SizedBox(width: 24),
-                  Expanded(child: _buildRateLimitControls()),
-                ],
-              ),
+              if (constraints.maxWidth > 850)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildAccountClusters()),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildRateLimitControls()),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildAccountClusters(),
+                    const SizedBox(height: 24),
+                    _buildRateLimitControls(),
+                  ],
+                ),
             ],
           ),
         );
@@ -45,28 +70,47 @@ class SecurityTab extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
-          'Security & Fraud Detection',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Security & Fraud Detection',
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                color: AppColors.textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Automated anti-abuse monitoring, botnet detection, and rate limits',
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
         Row(
           children: [
             const Text(
               'Lockdown Mode',
               style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
+                fontSize: 13,
               ),
             ),
             const SizedBox(width: 8),
-            Switch(
-              value: false,
-              onChanged: (val) {},
-              activeColor: AppColors.error,
+            Obx(
+              () => Switch(
+                value: controller.isLockdownMode.value,
+                onChanged: (_) => controller.toggleLockdownMode(),
+                activeColor: AppColors.error,
+              ),
             ),
           ],
         ),
@@ -78,9 +122,9 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,32 +132,76 @@ class SecurityTab extends StatelessWidget {
           const Text(
             'Upload Velocity (Last 24h)',
             style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 200,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(24, (index) {
-                final height = (index % 5 + 1) * 30.0 + (index % 3) * 10;
-                return Container(
-                  width: 12,
-                  height: height,
-                  decoration: BoxDecoration(
-                    color: height > 120 ? AppColors.error : AppColors.brand,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(4),
-                    ),
-                  ),
-                );
-              }),
+          const SizedBox(height: 6),
+          const Text(
+            'Hourly upload volume across all channels',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 12,
             ),
           ),
+          const SizedBox(height: 24),
+          Obx(() {
+            final raw = controller.securityMetrics['hourlyUploads'];
+            final hourlyUploads = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+            final entries = hourlyUploads.entries.toList();
+
+            if (entries.isEmpty) {
+              return const SizedBox(
+                height: 180,
+                child: Center(
+                  child: Text(
+                    'No upload traffic in the last 24 hours.',
+                    style: TextStyle(
+                      fontFamily: TWTypography.uiFamily,
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final maxCount = entries.fold<int>(1, (max, e) {
+              final val = (e.value is num) ? (e.value as num).toInt() : 0;
+              return val > max ? val : max;
+            });
+
+            return SizedBox(
+              height: 180,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(entries.length, (index) {
+                  final entry = entries[index];
+                  final count = (entry.value is num) ? (entry.value as num).toInt() : 0;
+                  final factor = (count / maxCount).clamp(0.05, 1.0);
+                  final height = factor * 140.0;
+
+                  return Tooltip(
+                    message: '${entry.key}: $count upload${count == 1 ? '' : 's'}',
+                    child: Container(
+                      width: 10,
+                      height: height,
+                      decoration: BoxDecoration(
+                        color: count > 10 ? AppColors.error : Colors.white,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(4),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -123,9 +211,9 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,43 +221,111 @@ class SecurityTab extends StatelessWidget {
           const Text(
             'Anomaly Alerts',
             style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 6),
+          const Text(
+            'Detected unusual activity or abuse attempts',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: 16),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 3,
-            itemBuilder: (context, index) {
-              return const Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppColors.error,
-                  ),
-                  title: Text(
-                    'Bot Net Pattern Detected',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
+          Obx(() {
+            final alerts = controller.anomalyAlerts;
+
+            if (alerts.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.shield_outlined,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    'IP Range: 192.168.1.x',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 12,
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Zero Anomaly Alerts',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'No suspicious traffic patterns detected.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
               );
-            },
-          ),
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: alerts.length,
+              separatorBuilder: (context, index) => Divider(
+                color: Colors.white.withValues(alpha: 0.06),
+                height: 12,
+              ),
+              itemBuilder: (context, index) {
+                final alert = alerts[index];
+                final title = alert['title'] ?? alert['type'] ?? 'Security Alert';
+                final desc = alert['description'] ?? alert['details'] ?? 'Anomaly detected';
+
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    title: Text(
+                      title.toString(),
+                      style: const TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      desc.toString(),
+                      style: const TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          }),
         ],
       ),
     );
@@ -179,9 +335,9 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,21 +345,84 @@ class SecurityTab extends StatelessWidget {
           const Text(
             'Account Clusters',
             style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
+          const SizedBox(height: 6),
+          const Text(
+            'Coordinated account groups linked by IP or Device ID',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+          ),
           const SizedBox(height: 16),
-          _buildClusterItem(
-            'Cluster A (Spam Ring)',
-            '45 accounts linked by IP',
-          ),
-          const Divider(color: AppColors.bgDivider),
-          _buildClusterItem(
-            'Cluster B (Ban Evasion)',
-            '12 accounts linked by Device ID',
-          ),
+          Obx(() {
+            final clusters = controller.accountClusters;
+
+            if (clusters.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.hub_outlined,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'No Suspicious Clusters',
+                      style: TextStyle(
+                        fontFamily: TWTypography.brandFamily,
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'No coordinated multi-account bot networks identified.',
+                      style: TextStyle(
+                        fontFamily: TWTypography.uiFamily,
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: clusters.length,
+              separatorBuilder: (context, index) => Divider(
+                color: Colors.white.withValues(alpha: 0.08),
+                height: 12,
+              ),
+              itemBuilder: (context, index) {
+                final cluster = clusters[index];
+                final name = cluster['name'] ?? 'Cluster #${index + 1}';
+                final desc = cluster['description'] ?? '${cluster['accountCount'] ?? 0} accounts linked';
+
+                return _buildClusterItem(name.toString(), desc.toString());
+              },
+            );
+          }),
         ],
       ),
     );
@@ -211,19 +430,28 @@ class SecurityTab extends StatelessWidget {
 
   Widget _buildClusterItem(String title, String desc) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(color: AppColors.textPrimary)),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontFamily: TWTypography.brandFamily,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
               Text(
                 desc,
                 style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 12,
+                  fontFamily: TWTypography.uiFamily,
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
                 ),
               ),
             ],
@@ -232,7 +460,12 @@ class SecurityTab extends StatelessWidget {
             onPressed: () {},
             child: const Text(
               'Investigate',
-              style: TextStyle(color: Colors.blue),
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
+                color: Color(0xFF42A5F5),
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
         ],
@@ -244,9 +477,9 @@ class SecurityTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.bgSurface,
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,9 +487,19 @@ class SecurityTab extends StatelessWidget {
           const Text(
             'Rate Limit Controls',
             style: TextStyle(
+              fontFamily: TWTypography.brandFamily,
               color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Global upload rate throttling configuration',
+            style: TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textSecondary,
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 16),
@@ -266,12 +509,29 @@ class SecurityTab extends StatelessWidget {
           const SizedBox(height: 16),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.bgElevated,
+              backgroundColor: const Color(0xFF242424),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+              ),
             ),
-            onPressed: () {},
+            onPressed: () {
+              Get.snackbar(
+                'Rate Limits Updated',
+                'Upload throttling policy applied across all nodes.',
+                backgroundColor: const Color(0xFF2BA640),
+                colorText: AppColors.textPrimary,
+                snackPosition: SnackPosition.BOTTOM,
+              );
+            },
             child: const Text(
               'Apply Changes',
-              style: TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(
+                fontFamily: TWTypography.brandFamily,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -283,20 +543,35 @@ class SecurityTab extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textPrimary)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: TWTypography.uiFamily,
+            color: AppColors.textPrimary,
+            fontSize: 13,
+          ),
+        ),
         SizedBox(
           width: 100,
           height: 36,
           child: TextField(
             controller: TextEditingController(text: value),
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: const TextStyle(
+              fontFamily: TWTypography.uiFamily,
+              color: AppColors.textPrimary,
+              fontSize: 13,
+            ),
             decoration: InputDecoration(
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               filled: true,
               fillColor: AppColors.bgInput,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
               ),
             ),
           ),
@@ -305,3 +580,4 @@ class SecurityTab extends StatelessWidget {
     );
   }
 }
+

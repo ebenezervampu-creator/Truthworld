@@ -15,29 +15,17 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Keyboard shortcuts (web)
 /// - Last used preference memory
 /// - Theme compliance
-class UploadSelectionScreen extends StatefulWidget {
+class UploadSelectionScreen extends StatelessWidget {
   const UploadSelectionScreen({super.key});
 
-  @override
-  State<UploadSelectionScreen> createState() => _UploadSelectionScreenState();
-}
+  static final GetStorage _storage = GetStorage();
 
-class _UploadSelectionScreenState extends State<UploadSelectionScreen>
-    with SingleTickerProviderStateMixin {
-  final _storage = GetStorage();
-  UploadType? _lastUsedType;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLastUsedType();
-  }
-
-  void _loadLastUsedType() {
+  UploadType? get _lastUsedType {
     final lastUsedString = _storage.read('last_upload_type') as String?;
     if (lastUsedString != null) {
-      _lastUsedType = uploadTypeFromStorageString(lastUsedString);
+      return uploadTypeFromStorageString(lastUsedString);
     }
+    return null;
   }
 
   void _navigateToUpload(UploadType type) {

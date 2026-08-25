@@ -27,6 +27,7 @@ import 'package:truthworld/features/settings/presentation/controllers/user_setti
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/routes/app_pages.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 /// Initialize and run the application with proper error handling
 void main() {
@@ -41,6 +42,9 @@ void main() {
         // This must be the very first line to avoid "Binding has not yet been initialized" on Web
         // and "Zone mismatch" error when using runZonedGuarded.
         WidgetsFlutterBinding.ensureInitialized();
+
+        // Fix visibility_detector timer assertion error (_timer!.isActive) on web & frame scheduling
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
         // Initialize logger first - before anything else
         logger.init(

@@ -15,25 +15,8 @@ class GuidelineSection {
   final GlobalKey key;
 }
 
-class CommunityGuidelinesPage extends StatefulWidget {
-  const CommunityGuidelinesPage({super.key, this.isDashboard = false});
-  final bool isDashboard;
-
-  @override
-  State<CommunityGuidelinesPage> createState() =>
-      _CommunityGuidelinesPageState();
-}
-
-class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
-  final ScrollController _scrollController = ScrollController();
-  final RxList<GuidelineSection> _sections = <GuidelineSection>[].obs;
-  final RxString _introContent = ''.obs;
-  final RxBool _hasScrolledToBottom = false.obs;
-  final RxBool _guidelinesAccepted = false.obs;
-
-  @override
-  void initState() {
-    super.initState();
+class CommunityGuidelinesPage extends StatelessWidget {
+  CommunityGuidelinesPage({super.key, this.isDashboard = false}) {
     _parseGuidelinesText();
     _scrollController.addListener(() {
       if (_scrollController.hasClients &&
@@ -50,11 +33,13 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
     });
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+  final bool isDashboard;
+
+  final ScrollController _scrollController = ScrollController();
+  final RxList<GuidelineSection> _sections = <GuidelineSection>[].obs;
+  final RxString _introContent = ''.obs;
+  final RxBool _hasScrolledToBottom = false.obs;
+  final RxBool _guidelinesAccepted = false.obs;
 
   /// Parses the giant text string into a structured list of sections.
   void _parseGuidelinesText() {
@@ -296,14 +281,14 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-            leading: (widget.isDashboard || isDesktop)
+            leading: (isDashboard || isDesktop)
                 ? IconButton(
                     icon: Icon(
                       Icons.arrow_back,
                       color: Theme.of(context).iconTheme.color,
                     ),
                     onPressed: () {
-                      if (widget.isDashboard) {
+                      if (isDashboard) {
                         Get.find<HomeController>().sideNavSelectedIndex.value =
                             HomeController.indexSettings;
                       } else {

@@ -497,8 +497,14 @@ class AdaptiveBitrateController extends BaseController {
     trackTimer(_stallDetectionTimer!);
   }
 
+  bool Function()? isAdPlaying;
+
   void _checkForStall() {
     if (_vpc == null) return;
+    if (isAdPlaying?.call() == true) {
+      _lastPositionUpdate = DateTime.now();
+      return;
+    }
     final value = _vpc!.value;
     if (!value.isPlaying) return;
 
@@ -555,7 +561,14 @@ class AdaptiveBitrateController extends BaseController {
     final value = _vpc!.value;
 
     // Update FSM state
-    if (value.hasError) {
+    final err = value.errorDescription ?? '';
+    final isTransient = err.contains('removed from the document') ||
+        err.contains('play() request was interrupted') ||
+        err.contains('The play() request was interrupted') ||
+        err.contains('AbortError') ||
+        err.contains('NotAllowedError');
+
+    if (value.hasError && !isTransient) {
       playbackState.value = PlaybackState.error;
     } else if (value.isBuffering) {
       if (playbackState.value != PlaybackState.stalled) {

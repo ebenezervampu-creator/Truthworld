@@ -6,7 +6,7 @@ import 'package:truthworld/theme/app_theme.dart';
 
 /// Professional Reply Widget (Industry Standard)
 /// Displays nested replies with indentation and interaction options
-class ReplyWidget extends StatefulWidget {
+class ReplyWidget extends StatelessWidget {
   // For nested indentation
 
   const ReplyWidget({
@@ -30,24 +30,19 @@ class ReplyWidget extends StatefulWidget {
   final int replyLevel;
 
   @override
-  State<ReplyWidget> createState() => _ReplyWidgetState();
-}
-
-class _ReplyWidgetState extends State<ReplyWidget> {
-  @override
   Widget build(BuildContext context) {
     // Indentation based on reply level
-    final indent = 16.0 * (widget.replyLevel + 1).clamp(0, 3);
+    final indent = 16.0 * (replyLevel + 1).clamp(0, 3);
 
     return Padding(
       padding: EdgeInsets.only(left: indent),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: widget.isCreatorReply
+          color: isCreatorReply
               ? AppColors.brand.withValues(alpha: 0.08)
               : AppTheme.secondaryBackground.withValues(alpha: 0.3),
-          border: widget.isCreatorReply
+          border: isCreatorReply
               ? const Border(
                   left: BorderSide(
                     color: AppColors.brand,
@@ -65,7 +60,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
             const SizedBox(height: 8),
             // Reply text
             ClickableUrlText(
-              text: widget.reply.text,
+              text: reply.text,
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
@@ -91,8 +86,8 @@ class _ReplyWidgetState extends State<ReplyWidget> {
         // Avatar
         UserAvatar(
           radius: 14,
-          photoUrl: widget.reply.avatarUrl,
-          displayName: widget.reply.displayName,
+          photoUrl: reply.avatarUrl,
+          displayName: reply.displayName,
           backgroundColor: AppTheme.secondaryBackground,
           fontSize: 14,
         ),
@@ -105,7 +100,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
               Row(
                 children: [
                   Text(
-                    widget.reply.displayName,
+                    reply.displayName,
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -113,7 +108,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
                     ),
                   ),
                   // Creator badge
-                  if (widget.isCreatorReply)
+                  if (isCreatorReply)
                     Padding(
                       padding: const EdgeInsets.only(left: 6),
                       child: Container(
@@ -136,8 +131,8 @@ class _ReplyWidgetState extends State<ReplyWidget> {
                       ),
                     ),
                   // Channel badge
-                  if (widget.reply.channelId.isNotEmpty &&
-                      !widget.isCreatorReply)
+                  if (reply.channelId.isNotEmpty &&
+                      !isCreatorReply)
                     Padding(
                       padding: const EdgeInsets.only(left: 4),
                       child: Container(
@@ -163,7 +158,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
               ),
               const SizedBox(height: 2),
               Text(
-                _formatTimeAgo(widget.reply.createdAt.toDate()),
+                _formatTimeAgo(reply.createdAt.toDate()),
                 style: const TextStyle(
                   fontSize: 10,
                   color: AppColors.textSecondary,
@@ -185,24 +180,24 @@ class _ReplyWidgetState extends State<ReplyWidget> {
       children: [
         // Like
         _buildReplyInteractionButton(
-          icon: widget.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
-          label: widget.reply.likeCount > 0
-              ? widget.reply.likeCount.toString()
+          icon: isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+          label: reply.likeCount > 0
+              ? reply.likeCount.toString()
               : 'Like',
-          isActive: widget.isLiked,
-          onTap: widget.onLike,
+          isActive: isLiked,
+          onTap: onLike,
         ),
         const SizedBox(width: 10),
         // Dislike
         _buildReplyInteractionButton(
-          icon: widget.isDisliked
+          icon: isDisliked
               ? Icons.thumb_down
               : Icons.thumb_down_outlined,
-          label: widget.reply.dislikeCount > 0
-              ? widget.reply.dislikeCount.toString()
+          label: reply.dislikeCount > 0
+              ? reply.dislikeCount.toString()
               : 'Dislike',
-          isActive: widget.isDisliked,
-          onTap: widget.onDislike,
+          isActive: isDisliked,
+          onTap: onDislike,
         ),
         const SizedBox(width: 10),
         // Reply
@@ -210,7 +205,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
           icon: Icons.reply_rounded,
           label: 'Reply',
           isActive: false,
-          onTap: widget.onReply,
+          onTap: onReply,
         ),
       ],
     );

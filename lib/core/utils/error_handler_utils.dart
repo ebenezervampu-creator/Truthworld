@@ -94,7 +94,9 @@ bool _isTransientError(Object error, String errorStr) {
       errorStr.contains('engine/window.dart') ||
       errorStr.contains('LegacyJavaScriptObject') ||
       errorStr.contains('DiagnosticsNode') ||
-      errorStr.contains('debugTransformDebugCreator')) {
+      errorStr.contains('debugTransformDebugCreator') ||
+      errorStr.contains('visibility_detector') ||
+      errorStr.contains('_timer!.isActive')) {
     return true;
   }
 

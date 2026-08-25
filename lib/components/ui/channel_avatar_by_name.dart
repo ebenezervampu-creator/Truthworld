@@ -9,8 +9,8 @@ import 'package:truthworld/theme/app_theme.dart';
 /// A reusable widget that fetches a channel's avatar image from Firestore
 /// using its name. When tapped, it navigates to the channel's details page.
 /// Includes an optimized static cache to prevent redundant Firestore lookups.
-class ChannelAvatarByName extends StatefulWidget {
-  const ChannelAvatarByName({
+class ChannelAvatarByName extends StatelessWidget {
+  ChannelAvatarByName({
     required this.channelName,
     super.key,
     this.radius = 20,
@@ -18,7 +18,10 @@ class ChannelAvatarByName extends StatefulWidget {
     this.nameStyle,
     this.spacing = 8,
     this.onTap,
-  });
+  }) {
+    _resolveChannel();
+  }
+
   final String channelName;
   final double radius;
   final bool showName;
@@ -26,32 +29,12 @@ class ChannelAvatarByName extends StatefulWidget {
   final double spacing;
   final VoidCallback? onTap;
 
-  @override
-  State<ChannelAvatarByName> createState() => _ChannelAvatarByNameState();
-}
-
-class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
   static final Map<String, Channel?> _cache = {};
   static final Map<String, Future<Channel?>> _pendingQueries = {};
-
   final _channel = Rxn<Channel>();
 
-  @override
-  void initState() {
-    super.initState();
-    _resolveChannel();
-  }
-
-  @override
-  void didUpdateWidget(covariant ChannelAvatarByName oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.channelName != oldWidget.channelName) {
-      _resolveChannel();
-    }
-  }
-
   Future<void> _resolveChannel() async {
-    final key = widget.channelName.trim().toLowerCase();
+    final key = channelName.trim().toLowerCase();
     if (key.isEmpty) {
       _channel.value = null;
       return;
@@ -62,7 +45,7 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
       return;
     }
 
-    final channel = await _fetchChannelByName(widget.channelName);
+    final channel = await _fetchChannelByName(channelName);
     _channel.value = channel;
   }
 
@@ -101,8 +84,8 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
   }
 
   void _handleTap() {
-    if (widget.onTap != null) {
-      widget.onTap!();
+    if (onTap != null) {
+      onTap!();
       return;
     }
 
@@ -113,7 +96,7 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
       );
     } else {
       // Fallback: try loading channel by handle or query via loader screen
-      final cleanName = widget.channelName.trim();
+      final cleanName = channelName.trim();
       final routeName = cleanName.toLowerCase().replaceAll(RegExp(r'\s+'), '');
       Get.toNamed('/@$routeName');
     }
@@ -123,25 +106,25 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
   Widget build(BuildContext context) {
     return Obx(() {
       final avatar = UserAvatar(
-        radius: widget.radius,
+        radius: radius,
         photoUrl: _channel.value?.avatarUrl,
-        displayName: widget.channelName,
+        displayName: channelName,
         backgroundColor: AppColors.bgSurfaceHover,
         textColor: AppColors.textPrimary,
       );
 
       final Widget content;
-      if (widget.showName) {
+      if (showName) {
         content = Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             avatar,
-            SizedBox(width: widget.spacing),
+            SizedBox(width: spacing),
             Flexible(
               child: Text(
-                widget.channelName,
+                channelName,
                 style:
-                    widget.nameStyle ??
+                    nameStyle ??
                     const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

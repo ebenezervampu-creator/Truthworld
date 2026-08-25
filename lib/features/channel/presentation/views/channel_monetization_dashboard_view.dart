@@ -12,18 +12,15 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ChannelMonetizationDashboardView extends StatefulWidget {
-  const ChannelMonetizationDashboardView({required this.channel, super.key});
+class ChannelMonetizationDashboardView extends StatelessWidget {
+  ChannelMonetizationDashboardView({required this.channel, super.key}) {
+    _channelRx = channel.obs;
+    if (channel.infraConfig != null) {
+      _selectedPlanId.value = channel.infraConfig!.planTier;
+    }
+  }
 
   final Channel channel;
-
-  @override
-  State<ChannelMonetizationDashboardView> createState() =>
-      _ChannelMonetizationDashboardViewState();
-}
-
-class _ChannelMonetizationDashboardViewState
-    extends State<ChannelMonetizationDashboardView> {
   late final Rx<Channel> _channelRx;
   Channel get _channel => _channelRx.value;
 
@@ -59,15 +56,6 @@ class _ChannelMonetizationDashboardViewState
   // Custom channel infra simulation
   final int _storageUsedBytes = 25 * 1024 * 1024 * 1024; // 25 GB
   final int _bandwidthUsedBytes = 180 * 1024 * 1024 * 1024; // 180 GB
-
-  @override
-  void initState() {
-    super.initState();
-    _channelRx = widget.channel.obs;
-    if (_channel.infraConfig != null) {
-      _selectedPlanId.value = _channel.infraConfig!.planTier;
-    }
-  }
 
   int _calculateDaysLeftToSwitch() {
     final now = DateTime.now();

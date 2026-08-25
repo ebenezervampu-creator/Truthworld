@@ -15,30 +15,15 @@ class PolicySection {
   final GlobalKey key;
 }
 
-class PrivacyPolicyScreen extends StatefulWidget {
-  const PrivacyPolicyScreen({super.key, this.isDashboard = false});
+class PrivacyPolicyScreen extends StatelessWidget {
+  PrivacyPolicyScreen({super.key, this.isDashboard = false}) {
+    _parsePolicyText();
+  }
   final bool isDashboard;
 
-  @override
-  State<PrivacyPolicyScreen> createState() => _PrivacyPolicyScreenState();
-}
-
-class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
   final ScrollController _scrollController = ScrollController();
   final RxList<PolicySection> _sections = <PolicySection>[].obs;
   final RxString _introContent = ''.obs;
-
-  @override
-  void initState() {
-    super.initState();
-    _parsePolicyText();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   /// Parses the giant text string into a structured list of sections.
   /// This allows us to build the nav menu and content separately.
@@ -187,14 +172,14 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-            leading: (widget.isDashboard || isDesktop)
+            leading: (isDashboard || isDesktop)
                 ? IconButton(
                     icon: Icon(
                       Icons.arrow_back,
                       color: Theme.of(context).iconTheme.color,
                     ),
                     onPressed: () {
-                      if (widget.isDashboard) {
+                      if (isDashboard) {
                         Get.find<HomeController>().sideNavSelectedIndex.value =
                             HomeController.indexSettings;
                       } else {

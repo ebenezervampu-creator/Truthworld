@@ -15,23 +15,8 @@ class PolicySection {
   final GlobalKey key;
 }
 
-class TermsAndConditionsPage extends StatefulWidget {
-  const TermsAndConditionsPage({super.key, this.isDashboard = false});
-  final bool isDashboard;
-
-  @override
-  State<TermsAndConditionsPage> createState() => _TermsAndConditionsPageState();
-}
-
-class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
-  final ScrollController _scrollController = ScrollController();
-  final RxList<PolicySection> _sections = <PolicySection>[].obs;
-  final RxString _introContent = ''.obs;
-  final RxBool _hasScrolledToBottom = false.obs;
-
-  @override
-  void initState() {
-    super.initState();
+class TermsAndConditionsPage extends StatelessWidget {
+  TermsAndConditionsPage({super.key, this.isDashboard = false}) {
     _parsePolicyText();
     _scrollController.addListener(() {
       if (_scrollController.hasClients &&
@@ -48,11 +33,12 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
     });
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+  final bool isDashboard;
+
+  final ScrollController _scrollController = ScrollController();
+  final RxList<PolicySection> _sections = <PolicySection>[].obs;
+  final RxString _introContent = ''.obs;
+  final RxBool _hasScrolledToBottom = false.obs;
 
   /// Parses the giant text string into a structured list of sections.
   void _parsePolicyText() {
@@ -197,14 +183,14 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
             shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
-            leading: (widget.isDashboard || isDesktop)
+            leading: (isDashboard || isDesktop)
                 ? IconButton(
                     icon: Icon(
                       Icons.arrow_back,
                       color: Theme.of(context).iconTheme.color,
                     ),
                     onPressed: () {
-                      if (widget.isDashboard) {
+                      if (isDashboard) {
                         Get.find<HomeController>().sideNavSelectedIndex.value =
                             HomeController.indexSettings;
                       } else {

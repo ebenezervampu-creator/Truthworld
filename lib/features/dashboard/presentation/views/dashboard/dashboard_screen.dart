@@ -1676,6 +1676,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 return PlaylistsManagementScreen(
                   channelId: channelId,
                   isDarkMode: isDarkMode,
+                  searchQuery: controller.searchQuery.value,
                 );
               case 18:
                 return MembershipsScreen(

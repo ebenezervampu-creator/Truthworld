@@ -60,6 +60,7 @@ function App() {
     avatar: false,       // Channel avatar
     banner: false,       // Channel banner
     topics: false,       // Topics
+    ads: false,          // Advertiser campaigns
   });
   const [modeUpdatingKey, setModeUpdatingKey] = useState(null);
 
@@ -152,6 +153,7 @@ function App() {
           avatar: data.avatar === true || data.channelAvatar === true,
           banner: data.banner === true || data.channelBanner === true,
           topics: data.topics === true,
+          ads: data.ads === true || data.campaigns === true || data.adCampaigns === true || data.advertiser_campaigns === true,
         });
       }
     }, (err) => {
@@ -729,6 +731,10 @@ function App() {
 
   const filteredImages = images.filter(img => {
     const s = (img.status || '').toLowerCase();
+    const cat = (img.category || img.targetType || img.type || img.itemType || '').toLowerCase();
+    const path = (img.gcsPath || img.filePath || img.originalUrl || img.imageUrl || '').toLowerCase();
+    const id = (img.id || img.docId || '').toLowerCase();
+    if (cat.includes('topic') || path.includes('topic') || id.includes('topic')) return false;
     if (imageFilter === "pending") return s === "pending_review" || s === "flagged" || s === "pending";
     if (imageFilter === "approved") return s === "approved";
     if (imageFilter === "rejected") return s === "rejected";
@@ -773,20 +779,6 @@ function App() {
             </li>
             <li>
               <button 
-                className={`nav-item ${currentTab === "channels" ? "active" : ""}`}
-                onClick={() => { setCurrentTab("channels"); setSelectedItem(null); setSelectedType(null); }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span>Channels ({systemStats.pendingChannels})</span>
-              </button>
-            </li>
-            <li>
-              <button 
                 className={`nav-item ${currentTab === "topics" ? "active" : ""}`}
                 onClick={() => { setCurrentTab("topics"); setSelectedItem(null); setSelectedType(null); }}
               >
@@ -797,6 +789,20 @@ function App() {
                   <line x1="16" y1="3" x2="14" y2="21"/>
                 </svg>
                 <span>Topics ({systemStats.pendingTopics})</span>
+              </button>
+            </li>
+            <li>
+              <button 
+                className={`nav-item ${currentTab === "channels" ? "active" : ""}`}
+                onClick={() => { setCurrentTab("channels"); setSelectedItem(null); setSelectedType(null); }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <span>Channels ({systemStats.pendingChannels})</span>
               </button>
             </li>
             <li>
@@ -930,6 +936,11 @@ function App() {
                     label="Topics" 
                     sublabel="Topic title, description & thumb"
                     modeKey="topics"
+                  />
+                  <ModeToggleSwitch 
+                    label="Advertiser Campaigns" 
+                    sublabel="Ad creative, text & CTA links"
+                    modeKey="ads"
                   />
                 </div>
               </div>

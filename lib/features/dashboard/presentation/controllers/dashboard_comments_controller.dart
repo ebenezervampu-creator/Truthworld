@@ -42,17 +42,23 @@ class DashboardCommentsController extends BaseController {
   final List<StreamSubscription<dynamic>> _commentSubscriptions = [];
 
   /// Comments state
+  final RxInt selectedTab = 0.obs; // 0 = Published, 1 = Held for review
   final selectedVideoId = Rxn<String>(); // null means all videos
   final allComments = RxList<Comment>();
   final answeredComments = RxList<Comment>();
   final unansweredComments = RxList<Comment>();
-  final commentsFilter = RxString('all'); // 'all', 'answered', 'unanswered'
+  final commentsFilter = RxString('all'); // 'all', 'unanswered', 'answered', 'hearted'
   final searchQuery = RxString('');
   final RxBool isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
 
   void setSearchQuery(String query) {
     searchQuery.value = query;
+    _filterComments();
+  }
+
+  void setSelectedTab(int tabIndex) {
+    selectedTab.value = tabIndex;
     _filterComments();
   }
 
@@ -116,44 +122,56 @@ class DashboardCommentsController extends BaseController {
     try {
       isLoadingVideos.value = true;
 
+      // 1. Check active channel from AuthService
+      try {
+        if (Get.isRegistered<AuthService>() && AuthService.to.userChannel != null) {
+          final ch = AuthService.to.userChannel!;
+          userChannelId.value = ch.id;
+          userChannelName.value = ch.name.isNotEmpty ? ch.name : ch.handle;
+          userChannelAvatar.value = ch.avatarUrl;
+        }
+      } catch (_) {}
+
       final currentUser = _auth.currentUser;
-      if (currentUser == null) {
+      if (currentUser == null && userChannelId.value.isEmpty) {
         videosError.value = 'Not authenticated';
         logger.warning('User not authenticated', tag: _tag);
         return;
       }
 
-      // Check if channel was passed in Get.arguments
-      final channelArg = Get.arguments?['channel'];
-      if (channelArg != null) {
-        if (channelArg is Map) {
-          userChannelId.value = (channelArg['id'] as String?) ?? '';
-          userChannelName.value =
-              (channelArg['channelName'] as String?) ??
-              (channelArg['name'] as String?) ??
-              '';
-          userChannelAvatar.value =
-              (channelArg['channelProfilePicUrl'] as String?) ??
-              (channelArg['profilePicUrl'] as String?) ??
-              '';
-        } else if (channelArg is DocumentSnapshot) {
-          userChannelId.value = channelArg.id;
-          final data = channelArg.data() as Map<String, dynamic>?;
-          if (data != null) {
+      // 2. Check if channel was passed in Get.arguments
+      if (userChannelId.value.isEmpty) {
+        final channelArg = Get.arguments?['channel'];
+        if (channelArg != null) {
+          if (channelArg is Map) {
+            userChannelId.value = (channelArg['id'] as String?) ?? '';
             userChannelName.value =
-                (data['channelName'] as String?) ??
-                (data['name'] as String?) ??
+                (channelArg['channelName'] as String?) ??
+                (channelArg['name'] as String?) ??
                 '';
             userChannelAvatar.value =
-                (data['channelProfilePicUrl'] as String?) ??
-                (data['profilePicUrl'] as String?) ??
+                (channelArg['channelProfilePicUrl'] as String?) ??
+                (channelArg['profilePicUrl'] as String?) ??
                 '';
+          } else if (channelArg is DocumentSnapshot) {
+            userChannelId.value = channelArg.id;
+            final data = channelArg.data() as Map<String, dynamic>?;
+            if (data != null) {
+              userChannelName.value =
+                  (data['channelName'] as String?) ??
+                  (data['name'] as String?) ??
+                  '';
+              userChannelAvatar.value =
+                  (data['channelProfilePicUrl'] as String?) ??
+                  (data['profilePicUrl'] as String?) ??
+                  '';
+            }
           }
         }
       }
 
-      // Fallback to user document if channel ID is still empty
-      if (userChannelId.value.isEmpty) {
+      // 3. Fallback to user document if channel ID is still empty
+      if (userChannelId.value.isEmpty && currentUser != null) {
         final userDoc = await _firestore
             .collection(FirestoreCollections.users)
             .doc(currentUser.uid)
@@ -470,7 +488,7 @@ class DashboardCommentsController extends BaseController {
   // ═══════════════════════════════════════════════════════════════════════════
 
   void setCommentFilter(String filter) {
-    if (['all', 'answered', 'unanswered'].contains(filter)) {
+    if (['all', 'answered', 'unanswered', 'hearted'].contains(filter)) {
       commentsFilter.value = filter;
       _filterComments();
       logger.info('Filter changed to: $filter', tag: _tag);
@@ -484,6 +502,15 @@ class DashboardCommentsController extends BaseController {
           : allComments
                 .where((c) => c.videoId == selectedVideoId.value)
                 .toList();
+
+      // Filter by tab (Published vs Held for review)
+      if (selectedTab.value == 1) {
+        // Held for review: comments reported or flagged
+        baseList = baseList.where((c) => c.reportCount > 0).toList();
+      } else {
+        // Published: regular comments (not reported)
+        baseList = baseList.where((c) => c.reportCount == 0).toList();
+      }
 
       if (searchQuery.value.isNotEmpty) {
         final query = searchQuery.value.toLowerCase();
@@ -505,7 +532,7 @@ class DashboardCommentsController extends BaseController {
           .toList();
 
       logger.info(
-        'Comments filtered: answered=${answeredComments.length}, '
+        'Comments filtered: tab=${selectedTab.value}, answered=${answeredComments.length}, '
         'unanswered=${unansweredComments.length}',
         tag: _tag,
       );
@@ -520,15 +547,35 @@ class DashboardCommentsController extends BaseController {
   }
 
   List<Comment> getFilteredComments() {
-    final baseList = selectedVideoId.value == null
-        ? allComments
+    var baseList = selectedVideoId.value == null
+        ? allComments.toList()
         : allComments.where((c) => c.videoId == selectedVideoId.value).toList();
+
+    // Filter by tab (Published vs Held for review)
+    if (selectedTab.value == 1) {
+      baseList = baseList.where((c) => c.reportCount > 0).toList();
+    } else {
+      baseList = baseList.where((c) => c.reportCount == 0).toList();
+    }
+
+    if (searchQuery.value.isNotEmpty) {
+      final query = searchQuery.value.toLowerCase();
+      baseList = baseList
+          .where(
+            (c) =>
+                c.text.toLowerCase().contains(query) ||
+                c.displayName.toLowerCase().contains(query),
+          )
+          .toList();
+    }
 
     switch (commentsFilter.value) {
       case 'answered':
-        return answeredComments;
+        return baseList.where((c) => c.hasCreatorReply).toList();
       case 'unanswered':
-        return unansweredComments;
+        return baseList.where((c) => !c.hasCreatorReply).toList();
+      case 'hearted':
+        return baseList.where((c) => c.isHeartedByCreator).toList();
       default:
         return baseList;
     }
@@ -638,7 +685,7 @@ class DashboardCommentsController extends BaseController {
   }
 
   /// Reply to a comment as channel
-  Future<void> replyToCommentAsChannel({
+  Future<bool> replyToCommentAsChannel({
     required String videoId,
     required String commentId,
     required String replyText,
@@ -647,36 +694,72 @@ class DashboardCommentsController extends BaseController {
       final userId = _auth.currentUser?.uid ?? '';
       if (userId.isEmpty) {
         logger.warning('User not authenticated for reply', tag: _tag);
-        return;
+        return false;
       }
 
-      if (replyText.trim().isEmpty) {
+      final trimmedText = replyText.trim();
+      if (trimmedText.isEmpty) {
         logger.warning('Reply text is empty', tag: _tag);
-        return;
+        return false;
+      }
+
+      var targetVideoId = videoId;
+      if (targetVideoId.isEmpty) {
+        final found = allComments.firstWhereOrNull((c) => c.id == commentId);
+        if (found != null && found.videoId.isNotEmpty) {
+          targetVideoId = found.videoId;
+        } else if (videosWithComments.isNotEmpty) {
+          targetVideoId = videosWithComments.first.videoId;
+        }
+      }
+
+      if (targetVideoId.isEmpty) {
+        logger.warning('Cannot reply without a valid videoId', tag: _tag);
+        return false;
       }
 
       final activeChannel = AuthService.to.userChannel;
-      final replyChannelName = (activeChannel?.handle.isNotEmpty ?? false)
-          ? activeChannel!.handle
-          : userChannelName.value;
+      final replyChannelName = (activeChannel?.name.isNotEmpty ?? false)
+          ? activeChannel!.name
+          : (userChannelName.value.isNotEmpty
+              ? userChannelName.value
+              : (_auth.currentUser?.displayName ?? 'Creator'));
+
+      final replyChannelAvatar = (activeChannel?.avatarUrl.isNotEmpty ?? false)
+          ? activeChannel!.avatarUrl
+          : userChannelAvatar.value;
+
+      final replyChannelId = (activeChannel?.id.isNotEmpty ?? false)
+          ? activeChannel!.id
+          : userChannelId.value;
 
       // Add reply
       await _commentService.addReply(
-        videoId: videoId,
+        videoId: targetVideoId,
         commentId: commentId,
         userId: userId,
         userName: replyChannelName,
-        userProfilePicUrl: userChannelAvatar.value,
-        channelId: userChannelId.value,
+        userProfilePicUrl: replyChannelAvatar,
+        channelId: replyChannelId,
         channelName: replyChannelName,
-        channelProfilePicUrl: userChannelAvatar.value,
-        text: replyText,
+        channelProfilePicUrl: replyChannelAvatar,
+        text: trimmedText,
       );
 
       // Mark comment as answered
-      await _commentService.markCommentAsAnswered(videoId, commentId);
+      await _commentService.markCommentAsAnswered(targetVideoId, commentId);
+
+      // Optimistically update comment in local list
+      final idx = allComments.indexWhere((c) => c.id == commentId);
+      if (idx != -1) {
+        allComments[idx] = allComments[idx].copyWith(
+          hasCreatorReply: true,
+        );
+        _filterComments();
+      }
 
       logger.info('Replied to comment $commentId as channel', tag: _tag);
+      return true;
     } catch (e, stackTrace) {
       logger.error(
         'Failed to reply to comment',
@@ -684,6 +767,7 @@ class DashboardCommentsController extends BaseController {
         stackTrace: stackTrace,
         tag: _tag,
       );
+      return false;
     }
   }
 

@@ -6,22 +6,9 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_community_posts_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class SavedCommunityPostsScreen extends StatefulWidget {
+class SavedCommunityPostsScreen
+    extends GetView<SavedCommunityPostsController> {
   const SavedCommunityPostsScreen({super.key});
-
-  @override
-  State<SavedCommunityPostsScreen> createState() =>
-      _SavedCommunityPostsScreenState();
-}
-
-class _SavedCommunityPostsScreenState extends State<SavedCommunityPostsScreen> {
-  late final SavedCommunityPostsController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = Get.find<SavedCommunityPostsController>();
-  }
 
   @override
   Widget build(BuildContext context) {

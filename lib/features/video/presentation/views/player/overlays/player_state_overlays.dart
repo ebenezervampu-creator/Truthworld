@@ -201,7 +201,7 @@ class StateOverlay extends StatelessWidget {
       ctrl.isAudioOnly.value; // Guarantee Rx access for Obx
       final state = ctrl.abr.playbackState.value;
       final buffering = ctrl.isBuffering.value;
-      final hasError = ctrl.vv.hasError;
+      final hasError = ctrl.hasError.value;
 
       // Suppress spinner for transparent auto-quality switches
       var isAutoSwitch = false;
@@ -256,31 +256,43 @@ class StateOverlay extends StatelessWidget {
     ),
   );
 
-  Widget _buildError() => ColoredBox(
-    color: AppColors.bgPage,
-    child: Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.textPrimary, size: 52),
-          const SizedBox(height: 16),
-          Text('Playback Error', style: TS.title.copyWith(fontSize: 18)),
-          const SizedBox(height: 8),
-          Text(
-            ctrl.vv.errorDescription ?? 'An unknown error occurred',
-            style: TS.bodySm,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          PremiumButton(
-            label: 'Retry',
-            icon: Icons.refresh_rounded,
-            onTap: ctrl.retryManual,
-          ),
-        ],
+  Widget _buildError() {
+    final err = ctrl.errorDescription.value.isNotEmpty
+        ? ctrl.errorDescription.value
+        : (ctrl.vv.errorDescription ?? 'An unknown error occurred');
+    if (err.contains('removed from the document') ||
+        err.contains('play() request was interrupted') ||
+        err.contains('The play() request was interrupted') ||
+        err.contains('AbortError') ||
+        err.contains('NotAllowedError')) {
+      return const SizedBox.shrink();
+    }
+    return ColoredBox(
+      color: AppColors.bgPage,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.textPrimary, size: 52),
+            const SizedBox(height: 16),
+            Text('Playback Error', style: TS.title.copyWith(fontSize: 18)),
+            const SizedBox(height: 8),
+            Text(
+              err,
+              style: TS.bodySm,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            PremiumButton(
+              label: 'Retry',
+              icon: Icons.refresh_rounded,
+              onTap: ctrl.retryManual,
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -11,17 +11,17 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 
-class StateAudienceItem {
-  StateAudienceItem({
-    required this.stateCode,
-    required this.stateName,
+class CountryAudienceItem {
+  CountryAudienceItem({
+    required this.countryCode,
+    required this.countryName,
     required this.viewers,
     required this.subscribers,
     required this.viewerPercentage,
     required this.subscriberPercentage,
   });
-  final String stateCode;
-  final String stateName;
+  final String countryCode;
+  final String countryName;
   final int viewers;
   final int subscribers;
   final double viewerPercentage;
@@ -52,7 +52,7 @@ class AudienceController extends BaseController {
 
   // Primary metrics snapshots
   final snapshot = Rx<ChannelAnalyticsSnapshot?>(null);
-  final RxList<StateAudienceItem> allStateItems = <StateAudienceItem>[].obs;
+  final RxList<CountryAudienceItem> allCountryItems = <CountryAudienceItem>[].obs;
 
   // Global scope numbers
   final RxInt totalViews = 0.obs;
@@ -119,47 +119,108 @@ class AudienceController extends BaseController {
   int get netSubscribers =>
       totalSubscribersGained.value - totalSubscribersLost.value;
 
-
-  // Comprehensive Indian states & union territories map — all 36 entries
-  // ensures we NEVER show an empty geography list
-  static const Map<String, String> _indianStatesMap = {
-    'AN': 'Andaman and Nicobar',
-    'AP': 'Andhra Pradesh',
-    'AR': 'Arunachal Pradesh',
-    'AS': 'Assam',
-    'BR': 'Bihar',
-    'CG': 'Chhattisgarh',
-    'CH': 'Chandigarh',
-    'DD': 'Daman and Diu',
-    'DL': 'Delhi',
-    'DN': 'Dadra and Nagar Haveli',
-    'GA': 'Goa',
-    'GJ': 'Gujarat',
-    'HR': 'Haryana',
-    'HP': 'Himachal Pradesh',
-    'JK': 'Jammu and Kashmir',
-    'JH': 'Jharkhand',
-    'KA': 'Karnataka',
-    'KL': 'Kerala',
-    'LA': 'Ladakh',
-    'LD': 'Lakshadweep',
-    'MH': 'Maharashtra',
-    'ML': 'Meghalaya',
-    'MN': 'Manipur',
-    'MP': 'Madhya Pradesh',
-    'MZ': 'Mizoram',
-    'NL': 'Nagaland',
-    'OD': 'Odisha',
-    'PB': 'Punjab',
-    'PY': 'Puducherry',
-    'RJ': 'Rajasthan',
-    'SK': 'Sikkim',
-    'TG': 'Telangana',
-    'TN': 'Tamil Nadu',
-    'TR': 'Tripura',
-    'UP': 'Uttar Pradesh',
-    'UT': 'Uttarakhand',
-    'WB': 'West Bengal',
+  // Comprehensive international country code -> name map (ISO 3166-1 alpha-2)
+  static const Map<String, String> _countryNamesMap = {
+    'AF': 'Afghanistan',
+    'AL': 'Albania',
+    'DZ': 'Algeria',
+    'AR': 'Argentina',
+    'AM': 'Armenia',
+    'AU': 'Australia',
+    'AT': 'Austria',
+    'AZ': 'Azerbaijan',
+    'BH': 'Bahrain',
+    'BD': 'Bangladesh',
+    'BY': 'Belarus',
+    'BE': 'Belgium',
+    'BT': 'Bhutan',
+    'BO': 'Bolivia',
+    'BA': 'Bosnia and Herzegovina',
+    'BR': 'Brazil',
+    'BG': 'Bulgaria',
+    'KH': 'Cambodia',
+    'CM': 'Cameroon',
+    'CA': 'Canada',
+    'CL': 'Chile',
+    'CN': 'China',
+    'CO': 'Colombia',
+    'CR': 'Costa Rica',
+    'HR': 'Croatia',
+    'CU': 'Cuba',
+    'CY': 'Cyprus',
+    'CZ': 'Czech Republic',
+    'DK': 'Denmark',
+    'EC': 'Ecuador',
+    'EG': 'Egypt',
+    'ET': 'Ethiopia',
+    'FI': 'Finland',
+    'FR': 'France',
+    'GE': 'Georgia',
+    'DE': 'Germany',
+    'GH': 'Ghana',
+    'GR': 'Greece',
+    'HK': 'Hong Kong',
+    'HU': 'Hungary',
+    'IS': 'Iceland',
+    'IN': 'India',
+    'ID': 'Indonesia',
+    'IR': 'Iran',
+    'IQ': 'Iraq',
+    'IE': 'Ireland',
+    'IL': 'Israel',
+    'IT': 'Italy',
+    'JP': 'Japan',
+    'JO': 'Jordan',
+    'KZ': 'Kazakhstan',
+    'KE': 'Kenya',
+    'KW': 'Kuwait',
+    'KG': 'Kyrgyzstan',
+    'LB': 'Lebanon',
+    'MY': 'Malaysia',
+    'MV': 'Maldives',
+    'MX': 'Mexico',
+    'MA': 'Morocco',
+    'NP': 'Nepal',
+    'NL': 'Netherlands',
+    'NZ': 'New Zealand',
+    'NG': 'Nigeria',
+    'NO': 'Norway',
+    'OM': 'Oman',
+    'PK': 'Pakistan',
+    'PA': 'Panama',
+    'PE': 'Peru',
+    'PH': 'Philippines',
+    'PL': 'Poland',
+    'PT': 'Portugal',
+    'QA': 'Qatar',
+    'RO': 'Romania',
+    'RU': 'Russia',
+    'SA': 'Saudi Arabia',
+    'RS': 'Serbia',
+    'SG': 'Singapore',
+    'ZA': 'South Africa',
+    'KR': 'South Korea',
+    'ES': 'Spain',
+    'LK': 'Sri Lanka',
+    'SE': 'Sweden',
+    'CH': 'Switzerland',
+    'TW': 'Taiwan',
+    'TH': 'Thailand',
+    'TR': 'Turkey',
+    'UG': 'Uganda',
+    'UA': 'Ukraine',
+    'AE': 'United Arab Emirates',
+    'GB': 'United Kingdom',
+    'UK': 'United Kingdom',
+    'US': 'United States',
+    'USA': 'United States',
+    'UY': 'Uruguay',
+    'UZ': 'Uzbekistan',
+    'VE': 'Venezuela',
+    'VN': 'Vietnam',
+    'YE': 'Yemen',
+    'ZM': 'Zambia',
+    'ZW': 'Zimbabwe',
   };
 
   @override
@@ -182,7 +243,7 @@ class AudienceController extends BaseController {
       clearError();
       fetchAudienceData();
       _startRealtimeListeners();
-    } else if (id.isNotEmpty && (state == ViewState.error || allStateItems.isEmpty)) {
+    } else if (id.isNotEmpty && (state == ViewState.error || allCountryItems.isEmpty)) {
       _channelId.value = id;
       clearError();
       fetchAudienceData();
@@ -312,8 +373,8 @@ class AudienceController extends BaseController {
         .listen(
           (querySnapshot) {
             // Only use video stats as fallback if channel stats haven't produced data
-            if (allStateItems.isEmpty ||
-                allStateItems.every((item) => item.viewers == 0)) {
+            if (allCountryItems.isEmpty ||
+                allCountryItems.every((item) => item.viewers == 0)) {
               if (querySnapshot.docs.isNotEmpty) {
                 _processRealtimeVideoStats(querySnapshot, cutoffKey);
               }
@@ -334,6 +395,7 @@ class AudienceController extends BaseController {
     QuerySnapshot querySnapshot,
     String cutoffKey,
   ) {
+    final countryTraffic = <String, int>{};
     final stateTraffic = <String, int>{};
     var totalViewsAccum = 0;
     var totalSubsAccum = 0;
@@ -354,6 +416,15 @@ class AudienceController extends BaseController {
       ruralAccum += (data['ruralViewers'] as num?)?.toInt() ?? 0;
       returningAccum += (data['returningViewers'] as num?)?.toInt() ?? 0;
 
+      final dayCountryTraffic = data['countryTraffic'];
+      if (dayCountryTraffic is Map) {
+        for (final entry in dayCountryTraffic.entries) {
+          final key = entry.key.toString();
+          final val = (entry.value as num?)?.toInt() ?? 0;
+          countryTraffic[key] = (countryTraffic[key] ?? 0) + val;
+        }
+      }
+
       final dayStateTraffic = data['stateTraffic'];
       if (dayStateTraffic is Map) {
         for (final entry in dayStateTraffic.entries) {
@@ -362,6 +433,11 @@ class AudienceController extends BaseController {
           stateTraffic[key] = (stateTraffic[key] ?? 0) + val;
         }
       }
+    }
+
+    if (countryTraffic.isEmpty && stateTraffic.isNotEmpty) {
+      final sum = stateTraffic.values.fold<int>(0, (a, b) => a + b);
+      if (sum > 0) countryTraffic['IN'] = sum;
     }
 
     // Update global metrics reactively
@@ -376,7 +452,7 @@ class AudienceController extends BaseController {
     urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 0.0;
     ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 0.0;
 
-    _buildCompleteStateItems(stateTraffic, totalViewsAccum, totalSubsAccum);
+    _buildCompleteCountryItems(countryTraffic, totalViewsAccum, totalSubsAccum);
   }
 
   /// Process real-time video_stats_daily as a fallback data source
@@ -384,6 +460,7 @@ class AudienceController extends BaseController {
     QuerySnapshot querySnapshot,
     String cutoffKey,
   ) {
+    final countryTraffic = <String, int>{};
     final stateTraffic = <String, int>{};
     var totalViewsAccum = 0;
     var totalSubsAccum = 0;
@@ -403,6 +480,15 @@ class AudienceController extends BaseController {
       ruralAccum += (data['ruralViewers'] as num?)?.toInt() ?? 0;
       returningAccum += (data['returningViewers'] as num?)?.toInt() ?? 0;
 
+      final dayCountryTraffic = data['countryTraffic'];
+      if (dayCountryTraffic is Map) {
+        for (final entry in dayCountryTraffic.entries) {
+          final key = entry.key.toString();
+          final val = (entry.value as num?)?.toInt() ?? 0;
+          countryTraffic[key] = (countryTraffic[key] ?? 0) + val;
+        }
+      }
+
       final dayStateTraffic = data['stateTraffic'];
       if (dayStateTraffic is Map) {
         for (final entry in dayStateTraffic.entries) {
@@ -411,6 +497,11 @@ class AudienceController extends BaseController {
           stateTraffic[key] = (stateTraffic[key] ?? 0) + val;
         }
       }
+    }
+
+    if (countryTraffic.isEmpty && stateTraffic.isNotEmpty) {
+      final sum = stateTraffic.values.fold<int>(0, (a, b) => a + b);
+      if (sum > 0) countryTraffic['IN'] = sum;
     }
 
     totalViews.value = totalViewsAccum;
@@ -424,7 +515,7 @@ class AudienceController extends BaseController {
     urbanPercentage.value = totalGeo > 0 ? (urbanAccum / totalGeo) * 100 : 0.0;
     ruralPercentage.value = totalGeo > 0 ? (ruralAccum / totalGeo) * 100 : 0.0;
 
-    _buildCompleteStateItems(stateTraffic, totalViewsAccum, totalSubsAccum);
+    _buildCompleteCountryItems(countryTraffic, totalViewsAccum, totalSubsAccum);
   }
 
   // ---------------------------------------------------------------------------
@@ -463,8 +554,14 @@ class AudienceController extends BaseController {
       urbanPercentage.value = data.urbanPercentage;
       ruralPercentage.value = data.ruralPercentage;
 
-      _buildCompleteStateItems(
-        data.stateTraffic,
+      final countryTraffic = Map<String, int>.from(data.countryTraffic);
+      if (countryTraffic.isEmpty && data.stateTraffic.isNotEmpty) {
+        final sum = data.stateTraffic.values.fold<int>(0, (a, b) => a + b);
+        if (sum > 0) countryTraffic['IN'] = sum;
+      }
+
+      _buildCompleteCountryItems(
+        countryTraffic,
         data.totalVideoWatches,
         data.subscribersGained,
       );
@@ -711,75 +808,91 @@ class AudienceController extends BaseController {
   }
 
   // ---------------------------------------------------------------------------
-  // STATE DISTRIBUTION BUILDER — ALWAYS populates all 37 states/UTs
+  // COUNTRY DISTRIBUTION BUILDER — ONLY includes countries with viewers > 0
   // ---------------------------------------------------------------------------
 
-  /// Builds a complete list of all Indian states and UTs, merging in any
-  /// real Firestore traffic data. States with zero views are included at the
-  /// bottom with 0 values, so the UI NEVER shows "no matching states found".
-  void _buildCompleteStateItems(
-    Map<String, int> liveStateTraffic,
+  /// Builds audience country list containing ONLY countries that have > 0 viewers (viewerPercentage > 0.0).
+  /// Truthworld is global, so countries with zero views are omitted rather than showing an exhaustive empty list.
+  void _buildCompleteCountryItems(
+    Map<String, int> liveCountryTraffic,
     int totalViewsCount,
     int totalSubsCount,
   ) {
-    final items = <StateAudienceItem>[];
+    final items = <CountryAudienceItem>[];
 
-    // Merge live data keys with master list — handle unknown codes gracefully
-    final allCodes = <String>{
-      ..._indianStatesMap.keys,
-      ...liveStateTraffic.keys,
-    };
+    // Filter ONLY countries with > 0 viewers
+    final activeEntries = liveCountryTraffic.entries
+        .where((e) => e.value > 0)
+        .toList();
 
     // Overall conversion coefficient for subscriber estimation
     final conversionRate = totalViewsCount > 0
         ? (totalSubsCount / totalViewsCount)
         : 0.0;
 
-    // First pass: compute totals for percentage calculations
-    final totalViewersSum = liveStateTraffic.values.fold<int>(
+    final totalViewersSum = activeEntries.fold<int>(
       0,
-      (prev, val) => prev + val,
+      (prev, val) => prev + val.value,
     );
 
     var totalSubsSum = 0;
     final computedSubs = <String, int>{};
-    for (final code in allCodes) {
-      final viewCount = liveStateTraffic[code] ?? 0;
-      final estimatedSubs = (viewCount * conversionRate).round();
-      computedSubs[code] = estimatedSubs;
+    for (final entry in activeEntries) {
+      final estimatedSubs = (entry.value * conversionRate).round();
+      computedSubs[entry.key] = estimatedSubs;
       totalSubsSum += estimatedSubs;
     }
 
-    // Second pass: build items for every state/UT
-    for (final code in allCodes) {
-      final name = _indianStatesMap[code] ?? code;
-      final viewCount = liveStateTraffic[code] ?? 0;
-      final subCount = computedSubs[code] ?? 0;
+    for (final entry in activeEntries) {
+      final rawKey = entry.key.trim();
+      final code = rawKey.length == 2
+          ? rawKey.toUpperCase()
+          : (_lookupCountryCode(rawKey) ?? rawKey);
+      final name = _countryNamesMap[code] ??
+          _countryNamesMap[rawKey.toUpperCase()] ??
+          rawKey;
+      final viewCount = entry.value;
+      final subCount = computedSubs[entry.key] ?? 0;
 
       final viewPct = totalViewersSum > 0
           ? (viewCount / totalViewersSum) * 100
           : 0.0;
-      final subPct = totalSubsSum > 0 ? (subCount / totalSubsSum) * 100 : 0.0;
+      final subPct = totalSubsSum > 0
+          ? (subCount / totalSubsSum) * 100
+          : 0.0;
 
-      items.add(
-        StateAudienceItem(
-          stateCode: code,
-          stateName: name,
-          viewers: viewCount,
-          subscribers: subCount,
-          viewerPercentage: viewPct,
-          subscriberPercentage: subPct,
-        ),
-      );
+      if (viewCount > 0) {
+        items.add(
+          CountryAudienceItem(
+            countryCode: code,
+            countryName: name,
+            viewers: viewCount,
+            subscribers: subCount,
+            viewerPercentage: viewPct,
+            subscriberPercentage: subPct,
+          ),
+        );
+      }
     }
 
-    // Sort: states with views descending first, then zero-view states alphabetically
+    // Sort descending by viewers
     items.sort((a, b) {
       if (a.viewers != b.viewers) return b.viewers.compareTo(a.viewers);
-      return a.stateName.compareTo(b.stateName);
+      return a.countryName.compareTo(b.countryName);
     });
 
-    allStateItems.value = items;
+    allCountryItems.value = items;
+  }
+
+  static String? _lookupCountryCode(String nameOrCode) {
+    final lower = nameOrCode.toLowerCase();
+    for (final entry in _countryNamesMap.entries) {
+      if (entry.key.toLowerCase() == lower ||
+          entry.value.toLowerCase() == lower) {
+        return entry.key;
+      }
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -787,13 +900,13 @@ class AudienceController extends BaseController {
   // ---------------------------------------------------------------------------
 
   /// Reactive filtering triggered by the view layer search inputs.
-  List<StateAudienceItem> get filteredStateItems {
+  List<CountryAudienceItem> get filteredCountryItems {
     final query = searchQuery.value.trim().toLowerCase();
-    if (query.isEmpty) return allStateItems;
+    if (query.isEmpty) return allCountryItems;
 
-    return allStateItems.where((item) {
-      return item.stateName.toLowerCase().contains(query) ||
-          item.stateCode.toLowerCase().contains(query);
+    return allCountryItems.where((item) {
+      return item.countryName.toLowerCase().contains(query) ||
+          item.countryCode.toLowerCase().contains(query);
     }).toList();
   }
 

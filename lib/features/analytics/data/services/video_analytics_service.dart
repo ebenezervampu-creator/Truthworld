@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
+import 'package:truthworld/features/analytics/data/services/video_presence_service.dart';
 
 /// Date range presets for analytics filtering
 enum AnalyticsDateRange {
@@ -945,26 +946,15 @@ class VideoAnalyticsService extends GetxService {
   }
 
   // ===========================================================================
-  // LIVE VIEWER COUNT
+  // LIVE VIEWER COUNT (RTDB Presence)
   // ===========================================================================
 
-  /// Get count of users currently watching a video.
-  /// Reads from `live_sessions/{videoId}/viewers` where lastPing > now - 60s
+  /// Get count of users currently watching a video via RTDB liveStats.
   Future<int> getLiveViewerCount(String videoId) async {
     try {
-      final cutoff = DateTime.now().subtract(const Duration(seconds: 90));
-
-      final snapshot = await _firestore
-          .collection('live_sessions')
-          .doc(videoId)
-          .collection('viewers')
-          .where('lastPing', isGreaterThan: Timestamp.fromDate(cutoff))
-          .count()
-          .get();
-
-      return snapshot.count ?? 0;
+      return await VideoPresenceService.to.getLiveViewerCount(videoId);
     } catch (e) {
-      // Collection might not exist yet
+      // Fallback or handle offline
       return 0;
     }
   }

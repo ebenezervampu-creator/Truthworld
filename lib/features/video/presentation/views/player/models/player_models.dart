@@ -163,6 +163,7 @@ class MockAd {
     required this.clickUrl,
     required this.skippable,
     required this.duration,
+    this.isSponsorBumper = false,
   });
   final String videoUrl;
   final String title;
@@ -170,6 +171,7 @@ class MockAd {
   final String clickUrl;
   final bool skippable;
   final Duration duration;
+  final bool isSponsorBumper;
 }
 
 class LanguageRequest {

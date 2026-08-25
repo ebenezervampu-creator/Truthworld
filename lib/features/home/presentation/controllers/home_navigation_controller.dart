@@ -5,7 +5,6 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/studio_launcher.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_discovery_controller.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 
 class HomeNavigationController extends BaseController with GetTickerProviderStateMixin {
   final AuthService _authService = Get.find<AuthService>();
@@ -239,12 +238,7 @@ class HomeNavigationController extends BaseController with GetTickerProviderStat
       showSignInSnackbar();
       return;
     }
-    final playlistCtrl = Get.isRegistered<PlaylistController>() ? Get.find<PlaylistController>() : Get.put(PlaylistController());
-    var watchLater = playlistCtrl.getWatchLaterPlaylist();
-    watchLater ??= await playlistCtrl.createPlayList('Watch Later');
-    if (watchLater != null) {
-      navigateToPlaylistDetail(watchLater);
-    }
+    sideNavSelectedIndex.value = indexWatchLater;
   }
 
   void showSignInSnackbar() {

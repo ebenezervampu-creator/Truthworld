@@ -46,6 +46,7 @@ class FollowingTopicsController extends BaseController {
   final RxString searchQuery = ''.obs;
   final RxString selectedCategory = 'All'.obs;
   final RxBool isSearchExpanded = false.obs;
+  late final TextEditingController searchController = trackTextController(TextEditingController());
 
   // Topic notification settings map: topicId -> 'all' | 'personalized' | 'none'
   final RxMap<String, String> topicNotificationSettings =
@@ -54,6 +55,9 @@ class FollowingTopicsController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    searchController.addListener(() {
+      updateSearchQuery(searchController.text);
+    });
     fetchFollowingTopics();
   }
 
@@ -361,10 +365,6 @@ class FollowingTopicsController extends BaseController {
     if (topic.slug.isNotEmpty && followerCounts.containsKey(topic.slug)) {
       return followerCounts[topic.slug]!;
     }
-    followerCounts[topic.id] = topic.followerCount;
-    if (topic.slug.isNotEmpty) {
-      followerCounts[topic.slug] = topic.followerCount;
-    }
     return topic.followerCount;
   }
 
@@ -378,7 +378,6 @@ class FollowingTopicsController extends BaseController {
     if (followerCounts.containsKey(topicId)) {
       return followerCounts[topicId]!;
     }
-    followerCounts[topicId] = fallback;
     return fallback;
   }
 

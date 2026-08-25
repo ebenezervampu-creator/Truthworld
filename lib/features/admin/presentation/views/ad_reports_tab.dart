@@ -18,17 +18,18 @@ class AdReportsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Page Header
-            Row(
+            const Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.report_problem_rounded,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                   size: 28,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Text(
                   'Advertiser Reports',
-                  style: AppTextStyles.pageTitle.copyWith(
+                  style: TextStyle(
+                    fontFamily: TWTypography.brandFamily,
                     color: AppColors.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -37,9 +38,10 @@ class AdReportsTab extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            Text(
+            const Text(
               'Review user reports submitted against active advertiser campaigns and take enforcement actions.',
-              style: AppTextStyles.labelLarge.copyWith(
+              style: TextStyle(
+                fontFamily: TWTypography.uiFamily,
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),
@@ -55,34 +57,36 @@ class AdReportsTab extends StatelessWidget {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(color: AppColors.warning),
+                      child: CircularProgressIndicator(color: Colors.white),
                     );
                   }
 
                   final docs = snapshot.data?.docs ?? [];
                   if (docs.isEmpty) {
-                    return Center(
+                    return const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.check_circle_outline_rounded,
                             size: 56,
-                            color: AppColors.success,
+                            color: Colors.white,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           Text(
                             'No Advertiser Reports',
-                            style: AppTextStyles.sectionHeader.copyWith(
+                            style: TextStyle(
+                              fontFamily: TWTypography.brandFamily,
                               color: AppColors.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           Text(
                             'All advertiser campaigns are currently clean with zero user reports.',
-                            style: AppTextStyles.labelLarge.copyWith(
+                            style: TextStyle(
+                              fontFamily: TWTypography.uiFamily,
                               color: AppColors.textTertiary,
                               fontSize: 13,
                             ),
@@ -120,11 +124,11 @@ class AdReportsTab extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF161616),
+                          color: const Color(0xFF181818),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: isResolved
-                                ? AppColors.bgDivider
+                                ? Colors.white.withValues(alpha: 0.08)
                                 : AppColors.warning.withValues(alpha: 0.3),
                           ),
                         ),
@@ -140,13 +144,14 @@ class AdReportsTab extends StatelessWidget {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isResolved
-                                        ? AppColors.bgDivider
+                                        ? Colors.white.withValues(alpha: 0.08)
                                         : AppColors.warning.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     isResolved ? 'RESOLVED' : 'PENDING REVIEW',
                                     style: TextStyle(
+                                      fontFamily: TWTypography.uiFamily,
                                       color: isResolved
                                           ? AppColors.textTertiary
                                           : AppColors.warning,
@@ -163,6 +168,7 @@ class AdReportsTab extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
+                                      fontFamily: TWTypography.brandFamily,
                                       color: AppColors.textPrimary,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
@@ -172,6 +178,7 @@ class AdReportsTab extends StatelessWidget {
                                 Text(
                                   'Advertiser: $advertiser',
                                   style: const TextStyle(
+                                    fontFamily: TWTypography.uiFamily,
                                     color: AppColors.warning,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -179,8 +186,8 @@ class AdReportsTab extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            const Divider(
-                              color: AppColors.bgDivider,
+                            Divider(
+                              color: Colors.white.withValues(alpha: 0.08),
                               height: 20,
                             ),
 
@@ -190,7 +197,7 @@ class AdReportsTab extends StatelessWidget {
                               children: [
                                 const Icon(
                                   Icons.report_gmailerrorred_rounded,
-                                  color: AppColors.textPrimary,
+                                  color: Colors.white,
                                   size: 18,
                                 ),
                                 const SizedBox(width: 8),
@@ -202,6 +209,7 @@ class AdReportsTab extends StatelessWidget {
                                       Text(
                                         'Reason: $reason',
                                         style: const TextStyle(
+                                          fontFamily: TWTypography.uiFamily,
                                           color: AppColors.textPrimary,
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -212,6 +220,7 @@ class AdReportsTab extends StatelessWidget {
                                         Text(
                                           'Details: "$details"',
                                           style: const TextStyle(
+                                            fontFamily: TWTypography.uiFamily,
                                             color: AppColors.textSecondary,
                                             fontSize: 12,
                                             fontStyle: FontStyle.italic,
@@ -222,6 +231,7 @@ class AdReportsTab extends StatelessWidget {
                                       Text(
                                         'Reported by: $userName${userEmail.isNotEmpty ? " ($userEmail)" : ""}',
                                         style: const TextStyle(
+                                          fontFamily: TWTypography.uiFamily,
                                           color: AppColors.textTertiary,
                                           fontSize: 11,
                                         ),

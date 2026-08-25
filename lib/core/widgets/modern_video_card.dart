@@ -6,7 +6,7 @@ import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_uti
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class ModernVideoListCard extends StatefulWidget {
+class ModernVideoListCard extends StatelessWidget {
   const ModernVideoListCard({
     required this.video,
     required this.index,
@@ -24,29 +24,14 @@ class ModernVideoListCard extends StatefulWidget {
   final Color accentColor;
 
   @override
-  State<ModernVideoListCard> createState() => _ModernVideoListCardState();
-}
-
-class _ModernVideoListCardState extends State<ModernVideoListCard> {
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return InteractionStyles.interactiveCard(
       onTap: () {
         MiniplayerNavigationHelper.navigateToVideoScreen(
-          video: widget.video,
+          video: video,
           routeArguments: {
-            'video': widget.video,
-            'heroTag': '${widget.heroPrefix}_${widget.video.id}',
+            'video': video,
+            'heroTag': '${heroPrefix}_${video.id}',
           },
         );
       },
@@ -69,88 +54,79 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
   }
 
   Widget _buildThumbnail(BuildContext context) {
-    final thumbnailWidth = Responsive.isMobile(context.screenWidth)
-        ? 120.0
-        : Responsive.isTablet(context.screenWidth)
-        ? 140.0
-        : 160.0;
-    final thumbnailHeight = Responsive.isMobile(context.screenWidth)
-        ? 90.0
-        : Responsive.isTablet(context.screenWidth)
-        ? 105.0
-        : 120.0;
+    final isMobile = Responsive.isMobile(context.screenWidth);
+    final isTablet = Responsive.isTablet(context.screenWidth);
+    final thumbnailWidth = isMobile
+        ? (Responsive.isMobileSmall(context.screenWidth) ? 100.0 : 120.0)
+        : (isTablet ? 160.0 : 200.0);
 
     return Hero(
-      tag: '${widget.heroPrefix}_${widget.video.id}',
-      child: Container(
+      tag: '${heroPrefix}_${video.id}',
+      child: SizedBox(
         width: thumbnailWidth,
-        height: thumbnailHeight,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: ComponentStyles.shadowSmall,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              SizedBox(
-                width: thumbnailWidth,
-                height: thumbnailHeight,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
                 child: CachedNetworkImage(
-                  imageUrl: widget.video.thumbnailUrl.replaceAll(' ', '%20'),
+                  imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
                   fit: BoxFit.cover,
-                  memCacheWidth:
-                      (thumbnailWidth * MediaQuery.of(context).devicePixelRatio)
-                          .toInt(),
+                  memCacheWidth: (thumbnailWidth *
+                          MediaQuery.of(context).devicePixelRatio)
+                      .toInt(),
                   placeholder: (context, url) => Shimmer.fromColors(
-                    baseColor: widget.colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.3),
-                    highlightColor: widget.colorScheme.surfaceContainerHighest
-                        .withValues(alpha: 0.1),
+                    baseColor: colorScheme.surfaceContainerHighest,
+                    highlightColor:
+                        colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                     child: Container(
-                      color: widget.colorScheme.surfaceContainerHighest,
+                      color: colorScheme.surfaceContainerHighest,
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                         colors: [
-                          widget.accentColor.withValues(alpha: 0.3),
-                          widget.accentColor.withValues(alpha: 0.1),
+                          accentColor.withValues(alpha: 0.3),
+                          accentColor.withValues(alpha: 0.1),
                         ],
                       ),
                     ),
-                    child: Center(
+                    child: const Center(
                       child: Icon(
-                        Icons.play_circle_outline_rounded,
-                        size: (thumbnailWidth * 0.3).clamp(24, 48),
-                        color: AppColors.textPrimary,
+                        Icons.video_library_rounded,
+                        color: Colors.white,
+                        size: 32,
                       ),
                     ),
                   ),
                 ),
               ),
               Positioned(
-                bottom: context.isMobileSmall ? 4 : 6,
-                right: context.isMobileSmall ? 4 : 6,
+                bottom: context.layoutSpacing / 2,
+                right: context.layoutSpacing / 2,
                 child: Container(
                   padding: EdgeInsets.symmetric(
                     horizontal: context.layoutSpacing / 2,
-                    vertical: context.layoutSpacing / 8,
+                    vertical: context.layoutSpacing / 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.bgPage.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.black.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    widget.video.duration,
-                    style: AppTextStyles.labelSmall.copyWith(
+                    video.duration,
+                    style: TextStyle(
                       color: AppColors.textPrimary,
-                      fontSize:
-                          (AppTextStyles.labelSmall.fontSize ?? 11) *
+                      fontSize: (Responsive.isMobileSmall(context.screenWidth)
+                              ? 8
+                              : 10) *
                           context.fontScale,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -167,83 +143,59 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          widget.video.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+          video.title,
           style: Responsive.isMobile(context.screenWidth)
-              ? AppTextStyles.videoTitleSmall.copyWith(
-                  fontSize:
-                      (AppTextStyles.videoTitleSmall.fontSize ?? 16) *
+              ? AppTextStyles.videoTitle.copyWith(
+                  fontSize: (AppTextStyles.videoTitle.fontSize ?? 14) *
                       context.fontScale,
                 )
               : AppTextStyles.videoTitleLarge.copyWith(
-                  fontSize:
-                      (AppTextStyles.videoTitleLarge.fontSize ?? 20) *
+                  fontSize: (AppTextStyles.videoTitleLarge.fontSize ?? 16) *
                       context.fontScale,
                 ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
         SizedBox(height: context.layoutSpacing / 2),
         Row(
           children: [
             CircleAvatar(
               radius: Responsive.isMobileSmall(context.screenWidth)
-                  ? 10
+                  ? 8
                   : Responsive.isMobile(context.screenWidth)
-                  ? 12
-                  : 14,
-              backgroundColor: widget.accentColor.withValues(alpha: 0.2),
+                  ? 10
+                  : 12,
+              backgroundColor: accentColor.withValues(alpha: 0.2),
               child: ClipOval(
-                child: widget.video.channelImage.isNotEmpty
+                child: video.channelImage.isNotEmpty
                     ? CachedNetworkImage(
-                        imageUrl: widget.video.channelImage.replaceAll(
-                          ' ',
-                          '%20',
-                        ),
-                        width:
-                            (Responsive.isMobileSmall(context.screenWidth)
-                                ? 10
-                                : Responsive.isMobile(context.screenWidth)
-                                ? 12
-                                : 14) *
-                            2,
-                        height:
-                            (Responsive.isMobileSmall(context.screenWidth)
-                                ? 10
-                                : Responsive.isMobile(context.screenWidth)
-                                ? 12
-                                : 14) *
-                            2,
+                        imageUrl: video.channelImage.replaceAll(' ', '%20'),
                         fit: BoxFit.cover,
-                        memCacheWidth:
-                            ((Responsive.isMobileSmall(context.screenWidth)
-                                        ? 10
-                                        : Responsive.isMobile(
-                                            context.screenWidth,
-                                          )
-                                        ? 12
-                                        : 14) *
-                                    2 *
-                                    MediaQuery.of(context).devicePixelRatio)
-                                .toInt(),
+                        width: double.infinity,
+                        height: double.infinity,
+                        memCacheWidth: (24 *
+                                MediaQuery.of(context).devicePixelRatio)
+                            .toInt(),
+                        placeholder: (context, url) =>
+                            _buildChannelPlaceholder(context),
                         errorWidget: (context, url, error) =>
-                            _buildChannelPlaceholder(),
+                            _buildChannelPlaceholder(context),
                       )
-                    : _buildChannelPlaceholder(),
+                    : _buildChannelPlaceholder(context),
               ),
             ),
             SizedBox(width: context.layoutSpacing / 2),
             Expanded(
               child: Text(
-                widget.video.channelName,
+                video.channelName,
                 style: Responsive.isMobile(context.screenWidth)
-                    ? AppTextStyles.channelNameSmall.copyWith(
-                        fontSize:
-                            (AppTextStyles.channelNameSmall.fontSize ?? 12) *
+                    ? AppTextStyles.channelName.copyWith(
+                        fontSize: (AppTextStyles.channelName.fontSize ?? 12) *
                             context.fontScale,
                       )
-                    : AppTextStyles.channelName.copyWith(
+                    : AppTextStyles.channelNameLarge.copyWith(
                         fontSize:
-                            (AppTextStyles.channelName.fontSize ?? 14) *
+                            (AppTextStyles.channelNameLarge.fontSize ?? 14) *
                             context.fontScale,
                       ),
                 maxLines: 1,
@@ -258,7 +210,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             Flexible(
               child: _buildStatChip(
                 Icons.visibility_rounded,
-                FormatUtils.formatCount(widget.video.views),
+                FormatUtils.formatCount(video.views),
                 context,
               ),
             ),
@@ -266,7 +218,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             Flexible(
               child: _buildStatChip(
                 Icons.favorite_rounded,
-                FormatUtils.formatCount(widget.video.likeCount),
+                FormatUtils.formatCount(video.likeCount),
                 context,
               ),
             ),
@@ -283,9 +235,9 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
         vertical: context.layoutSpacing / 8,
       ),
       decoration: BoxDecoration(
-        color: widget.accentColor.withValues(alpha: 0.1),
+        color: accentColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: widget.accentColor.withValues(alpha: 0.2)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -319,11 +271,11 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
     );
   }
 
-  Widget _buildChannelPlaceholder() {
+  Widget _buildChannelPlaceholder(BuildContext context) {
     return Center(
       child: Text(
-        widget.video.channelName.isNotEmpty
-            ? widget.video.channelName[0].toUpperCase()
+        video.channelName.isNotEmpty
+            ? video.channelName[0].toUpperCase()
             : '?',
         style: TextStyle(
           color: AppColors.textPrimary,
@@ -337,7 +289,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
   }
 }
 
-class ModernVideoGridCard extends StatefulWidget {
+class ModernVideoGridCard extends StatelessWidget {
   const ModernVideoGridCard({
     required this.video,
     required this.index,
@@ -355,27 +307,12 @@ class ModernVideoGridCard extends StatefulWidget {
   final Color accentColor;
 
   @override
-  State<ModernVideoGridCard> createState() => _ModernVideoGridCardState();
-}
-
-class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return InteractionStyles.interactiveCard(
       onTap: () {
         MiniplayerNavigationHelper.navigateToVideoScreen(
-          video: widget.video,
-          routeArguments: {'video': widget.video},
+          video: video,
+          routeArguments: {'video': video},
         );
       },
       child: Container(
@@ -393,21 +330,21 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
 
   Widget _buildThumbnail(BuildContext context) {
     return Hero(
-      tag: '${widget.heroPrefix}_${widget.video.id}',
+      tag: '${heroPrefix}_${video.id}',
       child: Stack(
         fit: StackFit.expand,
         children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             child: CachedNetworkImage(
-              imageUrl: widget.video.thumbnailUrl.replaceAll(' ', '%20'),
+              imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
               fit: BoxFit.cover,
               memCacheWidth:
-                  (widget.constraints.maxWidth *
+                  (constraints.maxWidth *
                           MediaQuery.of(context).devicePixelRatio)
                       .toInt(),
               placeholder: (context, url) => Container(
-                color: widget.colorScheme.surfaceContainerHighest.withValues(
+                color: colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.3,
                 ),
               ),
@@ -415,8 +352,8 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      widget.accentColor.withValues(alpha: 0.3),
-                      widget.accentColor.withValues(alpha: 0.1),
+                      accentColor.withValues(alpha: 0.3),
+                      accentColor.withValues(alpha: 0.1),
                     ],
                   ),
                 ),
@@ -424,7 +361,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
                   child: Icon(
                     Icons.play_circle_outline_rounded,
                     size: 32,
-                    color: AppColors.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -444,7 +381,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
         children: [
           Flexible(
             child: Text(
-              widget.video.title,
+              video.title,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.videoTitleMedium.copyWith(
@@ -461,14 +398,14 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
               Flexible(
                 child: _buildStatChip(
                   Icons.visibility_rounded,
-                  FormatUtils.formatCount(widget.video.views),
+                  FormatUtils.formatCount(video.views),
                   context,
                 ),
               ),
               Flexible(
                 child: _buildStatChip(
                   Icons.favorite_rounded,
-                  FormatUtils.formatCount(widget.video.likeCount),
+                  FormatUtils.formatCount(video.likeCount),
                   context,
                 ),
               ),
@@ -495,7 +432,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
                 : Responsive.isMobile(context.screenWidth)
                 ? 10
                 : 14,
-            color: widget.accentColor,
+            color: Colors.white,
           ),
           SizedBox(width: context.layoutSpacing / 4),
           Text(
@@ -504,7 +441,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
               fontSize:
                   (AppTextStyles.videoMetadataSmall.fontSize ?? 9) *
                   context.fontScale,
-              color: widget.accentColor,
+              color: accentColor,
             ),
           ),
         ],
